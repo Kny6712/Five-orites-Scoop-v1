@@ -10,6 +10,16 @@ import { environment } from '../../../environments/environment';
 const MAX_SIDE_PX = 1024;
 
 const FOLDER = 'five-orites-scoop/products';
+const AVATAR_FOLDER = 'five-orites-scoop/avatars';
+
+/**
+ * Longest side of a stored avatar.
+ *
+ * Half the product ceiling on purpose: `buildCloudinaryUrl` never upscales and
+ * caps delivery at the requested width, and the avatar is drawn in a circle
+ * around 96px. A 1024px source is ~4x the bytes for no visible gain.
+ */
+const AVATAR_MAX_PX = 512;
 
 function readAsImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -68,6 +78,40 @@ function describeUploadError(message: string): string {
   return `Image upload failed: ${message}`;
 }
 
+/**
+ * Centre-crops to a square and re-encodes.
+ *
+ * `downscale()` preserves aspect ratio, which is right for a product shot and
+ * wrong for an avatar: a 3:2 portrait becomes a letterboxed strip inside a
+ * circular frame. Cropping from the centre is the only defensible default
+ * without a face detector — the subject is not reliably in the middle, but it is
+ * at least never cropped away entirely, which edge-anchoring risks doing.
+ *
+ * Never upscales: a source smaller than the target is emitted as-is.
+ */
+function cropSquare(img: HTMLImageElement, maxPx: number): Promise<Blob> {
+  const side = Math.min(img.width, img.height);
+  const scale = Math.min(1, maxPx / side);
+  const w = Math.max(1, Math.round(side * scale));
+  const sx = Math.round((img.width - side) / 2);
+  const sy = Math.round((img.height - side) / 2);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = w;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Image processing is not supported on this device.');
+  ctx.drawImage(img, sx, sy, side, side, 0, 0, w, w);
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error('Could not process that image.'))),
+      'image/jpeg',
+      0.85
+    );
+  });
+}
+
 @Injectable({ providedIn: 'root' })
 export class ImageUploadService {
   get isConfigured(): boolean {
@@ -83,20 +127,69 @@ export class ImageUploadService {
    */
   async uploadProductImage(file: File): Promise<string> {
     const c = environment.cloudinary;
+    this.assertConfigured();
+    this.assertIsImage(file);
+
+    const blob = await downscale(await readAsImage(file));
+    return this.post(blob, FOLDER, 'product.jpg');
+  }
+
+  /**
+   * Uploads a PROFILE AVATAR and returns its HTTPS URL.
+   *
+   * Deliberately a sibling method rather than a parameterised refactor of
+   * uploadProductImage. Both existing call sites are admin product flows, and
+   * keeping that method's behaviour byte-identical means this addition cannot
+   * break stock photography. The shared parts (assertConfigured, assertIsImage,
+   * post) are factored out; the two entry points differ only in folder, filename
+   * and geometry.
+   *
+   * Two things are different from a product image:
+   *
+   *  - It is CROPPED SQUARE. `downscale()` preserves aspect ratio and has no crop
+   *    step, so a 3:2 photo uploaded as an avatar renders as a letterboxed strip
+   *    inside the circular frame. `cropSquare()` draws the centred sub-rect, and
+   *    centring is the only defensible default for an arbitrary portrait — face
+   *    position is unknowable without a face detector.
+   *
+   *  - It is capped at 512px, not 1024. `buildCloudinaryUrl` caps render width at
+   *    whatever the caller asks for and never upscales, so a 1024px avatar is
+   *    roughly four times the bytes for no visible gain in a 96px circle.
+   *
+   * NOTE: `folder` is a per-request parameter, so this depends on the unsigned
+   * preset NOT having "Restrict folder" enabled in the Cloudinary console. If
+   * avatars start failing while product images succeed, that setting is why.
+   */
+  async uploadAvatar(file: File): Promise<string> {
+    this.assertConfigured();
+    this.assertIsImage(file);
+
+    const square = await cropSquare(await readAsImage(file), AVATAR_MAX_PX);
+    return this.post(square, AVATAR_FOLDER, 'avatar.jpg');
+  }
+
+  private assertConfigured(): void {
+    const c = environment.cloudinary;
     if (!this.isConfigured) {
       throw new Error(
         'Cloudinary is not configured. Ask your admin to add the cloud name + upload preset.'
       );
     }
+  }
+
+  private assertIsImage(file: File): void {
     if (!file.type.startsWith('image/')) {
       throw new Error('Please choose an image file.');
     }
+  }
 
-    const blob = await downscale(await readAsImage(file));
+  /** Shared POST. `blob` is already re-encoded, so this never sees a raw File. */
+  private async post(blob: Blob, folder: string, filename: string): Promise<string> {
+    const c = environment.cloudinary;
     const form = new FormData();
-    form.append('file', blob, 'product.jpg');
+    form.append('file', blob, filename);
     form.append('upload_preset', c.uploadPreset);
-    form.append('folder', FOLDER);
+    form.append('folder', folder);
 
     let res: Response;
     try {

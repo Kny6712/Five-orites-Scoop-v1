@@ -8,12 +8,11 @@ import {
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import {
-  IonCard, IonCardContent, IonButton, IonIcon,
+  IonCard, IonCardContent, IonButton,
   IonSkeletonText, IonChip, IonLabel, IonSegment, IonSegmentButton,
   ToastController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { cartOutline, addOutline, heartOutline, heart } from 'ionicons/icons';
+import { AppIconComponent } from '../app-icon/app-icon.component';
 import { Product, SizeVariant } from '../../../core/models/product.model';
 import { CartService } from '../../../core/services/cart.service';
 import { WishlistService } from '../../../core/services/wishlist.service';
@@ -27,10 +26,10 @@ import { LOW_STOCK_THRESHOLD } from '../../../core/config/stock.config';
   standalone: true,
   imports: [
     CommonModule, RouterLink,
-    IonCard, IonCardContent, IonButton, IonIcon,
+    IonCard, IonCardContent, IonButton,
     IonSkeletonText, IonChip, IonLabel, IonSegment, IonSegmentButton,
-    PesoPipe, CloudinaryPipe,
-  ],
+    PesoPipe, CloudinaryPipe, AppIconComponent,
+    ],
   templateUrl: './product-card.component.html',
   styleUrls: ['./product-card.component.scss'],
 })
@@ -54,10 +53,6 @@ export class ProductCardComponent implements OnInit {
   currentPrice = computed(() => this.product.pricing[this.selectedSize()]);
   currentStock = computed(() => this.product.stock?.[this.selectedSize()] ?? 0);
   isOutOfStock = computed(() => this.currentStock() === 0);
-
-  constructor() {
-    addIcons({ cartOutline, addOutline, heartOutline, heart });
-  }
 
   ngOnInit(): void {
     this.isWished.set(this.wishlistService.isWished(this.product.id));

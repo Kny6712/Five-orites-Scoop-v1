@@ -17,3 +17,62 @@
   --height: min(720px, 92vh);
   --border-radius: 18px;
 }
+
+/* ── Map pins ─────────────────────────────────────────────────────────────
+   These MUST live here, not in a component stylesheet.
+
+   The tracking map builds its markers with Leaflet's divIcon, whose `html` is
+   injected into the map pane as raw DOM — outside Angular's view encapsulation.
+   A rule in ScoopMapComponent's `styles` would be scoped with an _ngcontent
+   attribute that the injected markup does not carry, so it would never match and
+   the pins would render as invisible 18px boxes. */
+.scoop-pin {
+  background: none;
+  border: none;
+}
+
+.scoop-pin-dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid var(--color-white);
+  box-shadow: 0 2px 6px rgba(61, 43, 69, 0.35);
+}
+
+.scoop-pin-dot.tone-primary { background: var(--color-brand-primary); }
+.scoop-pin-dot.tone-mint { background: var(--color-brand-light); }
+.scoop-pin-dot.tone-sunny { background: var(--color-brand-accent); }
+.scoop-pin-dot.tone-danger { background: var(--ion-color-danger); }
+
+/* Leaflet ships a light default popup chrome; matching it to the cream surface
+   keeps the map from flashing a white box against the page. */
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  box-shadow: var(--shadow-float);
+  font-family: var(--font-body);
+  color: var(--color-ink);
+}
+
+.leaflet-popup-tip {
+  background: var(--color-white);
+}
+
+/* Leaflet's default control buttons are grey-on-white squares, which look like a
+   different design system dropped onto the page. */
+.leaflet-bar a {
+  color: var(--color-ink);
+  background: var(--color-white);
+  border-bottom-color: var(--ion-color-light-shade);
+}
+
+.leaflet-bar a:hover {
+  background: var(--color-brand-light);
+}
+
+.leaflet-control-attribution {
+  background: rgb(255 255 255 / 0.85);
+  color: var(--ion-color-medium);
+  font-size: 10px;
+}

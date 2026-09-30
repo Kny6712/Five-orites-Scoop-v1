@@ -4,6 +4,7 @@
 
 import { Timestamp } from '@angular/fire/firestore';
 import { SizeVariant } from './product.model';
+import type { AppIcon } from '../icons/app-icons';
 
 export type OrderStatus =
   | 'pending'
@@ -47,39 +48,44 @@ export interface Order {
 
 export interface OrderStatusMeta {
   label: string;
-  icon: string;
+  /**
+   * Typed as `AppIcon` rather than `string`, so a rename or a typo in the icon
+   * registry is a compile error instead of a silently blank glyph in the status
+   * badge.
+   */
+  icon: AppIcon;
   description: string;
 }
 
 export const ORDER_STATUS_META: Record<OrderStatus, OrderStatusMeta> = {
   pending: {
     label: 'Order Placed',
-    icon: 'time-outline',
+    icon: 'clock',
     description: 'We received your order and are reviewing it.',
   },
   confirmed: {
     label: 'Confirmed',
-    icon: 'checkmark-circle-outline',
+    icon: 'circle-check',
     description: 'Your order has been confirmed!',
   },
   preparing: {
     label: 'Preparing Your Scoops',
-    icon: 'ice-cream-outline',
+    icon: 'ice-cream',
     description: 'Our scoop artists are crafting your order.',
   },
   out_for_delivery: {
     label: 'Out for Delivery',
-    icon: 'bicycle-outline',
+    icon: 'bike',
     description: 'Your ice cream is on its way!',
   },
   delivered: {
     label: 'Delivered',
-    icon: 'checkmark-done-circle-outline',
+    icon: 'circle-check-big',
     description: 'Enjoy your scoops! 🍦',
   },
   cancelled: {
     label: 'Cancelled',
-    icon: 'close-circle-outline',
+    icon: 'circle-x',
     description: 'This order has been cancelled.',
   },
 };

@@ -7,7 +7,6 @@ export {
   calculateDiscount,
   MAX_PERCENT_DISCOUNT,
   type VoucherType,
-  type VoucherLike,
 } from '../logic/voucher';
 
 import type { VoucherType } from '../logic/voucher';

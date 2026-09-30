@@ -41,16 +41,3 @@ export const DEFAULT_SET_PRICING: SizePricing = {
 export function getPricingForSet(setNumber: number): SizePricing {
   return { ...(PRICING_MATRIX[setNumber] ?? DEFAULT_SET_PRICING) };
 }
-
-export function getSetName(setNumber: number): string {
-  return SET_NAMES[setNumber] ?? `Set ${setNumber}`;
-}
-
-/**
- * Single source of truth for "this SKU is running low".
- *
- * The number 10 used to be written literally in several templates while
- * `environment.lowStockThreshold` was ignored by them, so changing the
- * environment value silently did nothing. Import this everywhere instead.
- */
-export { LOW_STOCK_THRESHOLD } from './stock.config';

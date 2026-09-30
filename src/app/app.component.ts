@@ -13,7 +13,6 @@ import {
   IonList,
   IonListHeader,
   IonItem,
-  IonIcon,
   IonLabel,
   IonMenuToggle,
   IonAvatar,
@@ -21,27 +20,21 @@ import {
   IonRouterOutlet,
   MenuController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  homeOutline,
-  iceCreamOutline,
-  cartOutline,
-  receiptOutline,
-  layersOutline,
-  clipboardOutline,
-  barChartOutline,
-  informationCircleOutline,
-  peopleOutline,
-  logOutOutline,
-} from 'ionicons/icons';
+import { AppIconComponent } from './shared/components/app-icon/app-icon.component';
 import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
+import { OrderNotificationService } from './core/services/order-notification.service';
+import type { AppIcon } from './core/icons/app-icons';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface NavItem {
   title: string;
   url: string;
-  icon: string;
+  /**
+   * Typed as `AppIcon` rather than `string`, so renaming or removing an icon is a
+   * compile error instead of a silently blank nav row.
+   */
+  icon: AppIcon;
   role: 'all' | 'customer' | 'admin';
   badge?: boolean;
 }
@@ -60,13 +53,13 @@ interface NavItem {
     IonList,
     IonListHeader,
     IonItem,
-    IonIcon,
     IonLabel,
     IonMenuToggle,
     IonAvatar,
     IonButton,
     IonRouterOutlet,
-  ],
+    AppIconComponent,
+    ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
@@ -75,24 +68,30 @@ export class AppComponent implements OnInit {
   private cartService = inject(CartService);
   private router = inject(Router);
   private menuCtrl = inject(MenuController);
+  private orderNotifications = inject(OrderNotificationService);
 
   currentUser = signal<import('./core/models/user.model').AppUser | null>(null);
   cartItemCount = signal(0);
 
   readonly customerNavItems: NavItem[] = [
-    { title: 'Dashboard', url: '/dashboard', icon: 'home-outline', role: 'all' },
-    { title: 'Our Flavors', url: '/products', icon: 'ice-cream-outline', role: 'all' },
-    { title: 'My Cart', url: '/cart', icon: 'cart-outline', role: 'customer', badge: true },
-    { title: 'My Orders', url: '/orders', icon: 'receipt-outline', role: 'customer' },
-    { title: 'About', url: '/about', icon: 'information-circle-outline', role: 'all' },
-    { title: 'Developers', url: '/developers', icon: 'people-outline', role: 'all' },
-  ];
+    { title: 'Dashboard', url: '/dashboard', icon: 'home', role: 'all' },
+    { title: 'Our Flavors', url: '/products', icon: 'ice-cream', role: 'all' },
+    { title: 'My Cart', url: '/cart', icon: 'cart', role: 'customer', badge: true },
+    { title: 'My Orders', url: '/orders', icon: 'receipt', role: 'customer' },
+    // 'all', not 'customer': an admin is a signed-in user with a profile, and the
+    // profile page is role-agnostic by design. Gating it to customers would hide
+    // it from exactly the people most likely to want to fix their own name.
+    { title: 'My Profile', url: '/profile', icon: 'user', role: 'all' },
+    { title: 'About', url: '/about', icon: 'info', role: 'all' },
+    { title: 'Developers', url: '/developers', icon: 'users', role: 'all' }];
 
   readonly adminNavItems: NavItem[] = [
-    { title: 'Inventory', url: '/admin/inventory', icon: 'layers-outline', role: 'admin' },
-    { title: 'Fulfillment', url: '/admin/orders', icon: 'clipboard-outline', role: 'admin' },
-    { title: 'Analytics', url: '/admin/analytics', icon: 'bar-chart-outline', role: 'admin' },
-  ];
+    { title: 'Inventory', url: '/admin/inventory', icon: 'layers', role: 'admin' },
+    { title: 'Fulfillment', url: '/admin/orders', icon: 'clipboard', role: 'admin' },
+    { title: 'Tracking', url: '/admin/tracking', icon: 'map', role: 'admin' },
+    { title: 'Analytics', url: '/admin/analytics', icon: 'chart', role: 'admin' },
+    { title: 'Vouchers', url: '/admin/vouchers', icon: 'ticket', role: 'admin' },
+    { title: 'Users', url: '/admin/users', icon: 'users', role: 'admin' }];
 
   isAdmin = computed(() => this.currentUser()?.role === 'admin');
 
@@ -119,22 +118,15 @@ export class AppComponent implements OnInit {
   });
 
   constructor() {
-    addIcons({
-      homeOutline,
-      iceCreamOutline,
-      cartOutline,
-      receiptOutline,
-      layersOutline,
-      clipboardOutline,
-      barChartOutline,
-      informationCircleOutline,
-      peopleOutline,
-      logOutOutline,
-    });
-
     this.authService.currentUser$
       .pipe(takeUntilDestroyed())
-      .subscribe((user) => this.currentUser.set(user));
+      .subscribe((user) => {
+        this.currentUser.set(user);
+        // Point the status watcher at whoever is signed in, so a status change
+        // notifies the order's owner on THEIR device instead of the device that
+        // performed the change.
+        this.orderNotifications.watch(user?.uid ?? null);
+      });
 
     this.cartService.cart$
       .pipe(takeUntilDestroyed())

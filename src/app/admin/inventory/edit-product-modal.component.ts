@@ -8,12 +8,12 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonFooter, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonList, IonItem,
-  IonInput, IonTextarea,
+  IonInput, IonTextarea, IonSelect, IonSelectOption,
   ModalController, ToastController,
 } from '@ionic/angular/standalone';
 import { InventoryService } from '../../core/services/inventory.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import { Product } from '../../core/models/product.model';
+import { Product, ProductCategory, PRODUCT_CATEGORIES, productCategory } from '../../core/models/product.model';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 
 @Component({
@@ -23,7 +23,7 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
     CommonModule, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonButton, IonList, IonItem,
-    IonInput, IonTextarea,
+    IonInput, IonTextarea, IonSelect, IonSelectOption,
     IonFooter,
     CloudinaryPipe,
   ],
@@ -49,6 +49,25 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
                 [(ngModel)]="variantName"
               ></ion-input>
             </ion-item>
+            <!--
+              Catalog type. Shown pre-filled from the stored value, defaulting to
+              'flavor' for a product seeded before the field existed — so opening
+              this modal on one of the original 64 and saving does not silently
+              relabel it.
+            -->
+            <ion-item>
+              <ion-select
+                label="Type"
+                labelPlacement="stacked"
+                interface="popover"
+                [(ngModel)]="category"
+                aria-label="Product type"
+              >
+                @for (opt of categoryOptions; track opt.value) {
+                  <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+                }
+              </ion-select>
+            </ion-item>
             <ion-item>
               <ion-textarea
                 label="Description"
@@ -68,6 +87,7 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
             class="image-frame"
             (click)="pickImage(fileInput)"
             (keydown.enter)="pickImage(fileInput)"
+            (keydown.space)="pickImage(fileInput); $event.preventDefault()"
             tabindex="0"
             role="button"
             [attr.aria-label]="previewImage ? 'Change product photo' : 'Add a product photo'"
@@ -264,6 +284,12 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
 
   variantName = '';
   description = '';
+  /** Catalog type, pre-filled from the stored value in ngOnInit. */
+  category: string = 'flavor';
+  readonly categoryOptions: { label: string; value: string }[] = PRODUCT_CATEGORIES.map((c) => ({
+    label: c.label,
+    value: c.value,
+  }));
   isSaving = false;
 
   /** A photo chosen in this session, uploaded to Cloudinary on save. */
@@ -277,6 +303,10 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
     if (this.product) {
       this.variantName = this.product.variantName;
       this.description = this.product.description ?? '';
+      // productCategory() maps a missing field to 'flavor', so a product seeded
+      // before categories existed opens with the right value selected rather
+      // than an empty control that would overwrite it on save.
+      this.category = productCategory(this.product);
     }
   }
 
@@ -374,6 +404,12 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
         variantName: name,
         description: this.description.trim(),
       };
+      // Only send category when it actually differs from what is stored, so
+      // renaming a flavor of a category-less product does not backfill the field
+      // as a side effect of an unrelated edit.
+      if (this.category !== productCategory(this.product)) {
+        patch.category = this.category as ProductCategory;
+      }
       // Only send imageUrl when it actually changes, so an unrelated rename
       // never rewrites the photo field.
       if (imageUrl !== undefined) patch.imageUrl = imageUrl;

@@ -49,7 +49,7 @@
       <!-- Cancelled Banner -->
       @if (isCancelled()) {
         <div class="cancelled-banner">
-          <ion-icon name="close-circle-outline"></ion-icon>
+          <app-icon name="circle-x" />
           This order has been cancelled.
           @if (order()!.cancelReason) {
             <p class="info-notes">Reason: {{ order()!.cancelReason }}</p>
@@ -70,7 +70,7 @@
             <div class="timeline-step" [class]="'step-' + getStepState(step)">
               <div class="step-icon-wrap">
                 <div class="step-dot">
-                  <ion-icon [name]="statusMeta[step].icon" class="step-icon"></ion-icon>
+                  <app-icon [name]="statusMeta[step].icon" class="step-icon" />
                 </div>
                 @if (!$last) {
                   <div class="step-line"></div>
@@ -90,6 +90,38 @@
         </div>
       }
 
+      <!--
+        The map. Progressive enhancement, not a gate: the status timeline above and
+        the address below carry the same information, so a failed tile load costs
+        the customer nothing. The status path is also the only thing that advances
+        the courier marker -- see mapMarkers() for why there is no live GPS.
+      -->
+      <ion-card class="info-card map-card">
+        <ion-card-content>
+          <p class="info-label">Live route</p>
+          <app-scoop-map
+            [markers]="mapMarkers()"
+            [route]="mapRoute()"
+            height="240px"
+            ariaLabel="Route from the shop to your delivery address"
+          />
+
+          @if (isGeocoding()) {
+            <p class="map-note">Looking up your address…</p>
+          } @else if (geoUnavailable()) {
+            <p class="map-note">
+              We couldn't place your address on the map, but your delivery details
+              below are up to date.
+            </p>
+          } @else if (courierProgress() !== null) {
+            <p class="map-note">
+              Your order is on its way — roughly
+              {{ courierDistanceLabel() }} from the shop.
+            </p>
+          }
+        </ion-card-content>
+      </ion-card>
+
       <!-- Delivery Address -->
       <ion-card class="info-card">
         <ion-card-content>
@@ -98,6 +130,15 @@
           @if (order()!.notes) {
             <p class="info-notes">Note: {{ order()!.notes }}</p>
           }
+          <a
+            class="address-link"
+            [href]="shopMapsUrl + '&q=' + order()!.deliveryAddress"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <app-icon name="map-pin" />
+            Open in Maps
+          </a>
         </ion-card-content>
       </ion-card>
 

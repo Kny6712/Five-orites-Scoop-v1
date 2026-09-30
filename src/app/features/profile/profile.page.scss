@@ -1,0 +1,233 @@
+// src/app/features/profile/profile.page.scss
+// Five-orites Scoop — Profile page styles
+//
+// Sizes icons via the --icon-size custom property rather than font-size, because
+// app-icon is inline SVG and is not affected by font-size.
+
+:host { display: block; }
+
+.profile-wrap {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-7);
+}
+
+// ── Avatar ───────────────────────────────────────────────
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-5) 0 var(--space-6);
+}
+
+.avatar-frame {
+  position: relative;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--color-brand-light);
+  /* A 4px ring in the primary hue rather than a hairline border: it separates
+     the photo from a cream page without the heaviness of a real frame. */
+  box-shadow: 0 0 0 4px var(--color-white), 0 0 0 8px var(--color-brand-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-initials {
+  font-family: var(--font-display);
+  font-size: 38px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.avatar-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(255 255 255 / 0.75);
+}
+
+.avatar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+/* A label wrapping a real file input: keyboard-reachable and announced as a
+   control, unlike a div with a click handler. The input itself is visually
+   hidden but NOT display:none, which would drop it out of the tab order. */
+.file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px 18px;
+  min-height: 44px;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-primary);
+  color: var(--color-ink);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.file-label:hover { transform: translateY(-1px); }
+.file-label.disabled { opacity: 0.6; cursor: default; }
+.file-label app-icon { --icon-size: 18px; }
+
+.file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 10px 4px;
+  min-height: 44px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ion-color-danger);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+// ── Panels ───────────────────────────────────────────────
+.panel {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 var(--space-4);
+  color: var(--color-ink);
+}
+
+.field {
+  display: block;
+  margin-bottom: var(--space-4);
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  margin-bottom: 6px;
+}
+
+.field-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+.standalone-hint { margin-top: var(--space-2); }
+
+.save-btn {
+  --background: var(--color-brand-primary);
+  --color: var(--color-ink);
+  margin-top: var(--space-2);
+  min-height: 48px;
+  font-weight: 700;
+}
+
+// ── Notices ──────────────────────────────────────────────
+.locked-note,
+.blocked-note {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.locked-note {
+  background: #e6f1fb;
+  border: 1px solid #a8cbe8;
+  color: #17456f;
+}
+
+.blocked-note {
+  margin-top: var(--space-3);
+  background: #fff3dc;
+  border: 1px solid #f2d49a;
+  color: #7a4b00;
+}
+
+.locked-note app-icon,
+.blocked-note app-icon {
+  --icon-size: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.locked-title {
+  margin: 0 0 2px;
+  font-weight: 800;
+}
+
+.locked-text {
+  margin: 0;
+  word-break: break-word;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.toggle-text { min-width: 0; }
+
+.toggle-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.toggle-sub {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.saved-note {
+  margin: 0;
+  padding: var(--space-3);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-success);
+}

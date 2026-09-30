@@ -7,14 +7,19 @@ import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonList, IonItem,
-  IonSelect, IonSelectOption, IonInput, IonTextarea, IonIcon,
-  ModalController, ToastController,
+  IonSelect, IonSelectOption, IonInput, IonTextarea, ModalController, ToastController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { imageOutline } from 'ionicons/icons';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { InventoryService } from '../../core/services/inventory.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
 import { SET_NAMES, getPricingForSet } from '../../core/config/pricing.config';
+import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/models/product.model';
+
+/** Minimal shape for a select option; avoids a dependency on a UI types file. */
+interface SelectOption {
+  label: string;
+  value: string;
+}
 
 @Component({
   selector: 'app-add-product-modal',
@@ -23,8 +28,8 @@ import { SET_NAMES, getPricingForSet } from '../../core/config/pricing.config';
     CommonModule, FormsModule,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonButton, IonList, IonItem,
-    IonSelect, IonSelectOption, IonInput, IonTextarea, IonIcon,
-  ],
+    IonSelect, IonSelectOption, IonInput, IonTextarea,
+    AppIconComponent],
   template: `
     <ion-header>
       <ion-toolbar color="primary">
@@ -101,6 +106,25 @@ import { SET_NAMES, getPricingForSet } from '../../core/config/pricing.config';
           }
         }
 
+        <!--
+          Catalog type. Defaults to Flavor, which is what every one of the 64
+          seeded products is, so an admin adding another flavor does not have to
+          think about it. Scones and cones exist because the plan names them.
+        -->
+        <ion-item>
+          <ion-select
+            label="Type"
+            labelPlacement="stacked"
+            interface="popover"
+            [(ngModel)]="category"
+            aria-label="Product type"
+          >
+            @for (opt of categoryOptions; track opt.value) {
+              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+            }
+          </ion-select>
+        </ion-item>
+
         <ion-item>
           <ion-textarea
             label="Description"
@@ -116,6 +140,7 @@ import { SET_NAMES, getPricingForSet } from '../../core/config/pricing.config';
           class="img-box"
           (click)="fileInput.click()"
           (keydown.enter)="fileInput.click()"
+          (keydown.space)="fileInput.click(); $event.preventDefault()"
           tabindex="0"
           role="button"
           aria-label="Choose image from device"
@@ -125,7 +150,7 @@ import { SET_NAMES, getPricingForSet } from '../../core/config/pricing.config';
             <span class="img-box-change">Tap to change</span>
           } @else {
             <div class="img-box-empty">
-              <ion-icon name="image-outline" class="img-box-icon"></ion-icon>
+              <app-icon name="image" class="img-box-icon" />
               <span>Tap to choose image from device</span>
             </div>
           }
@@ -212,14 +237,22 @@ export class AddProductModalComponent {
   newSetName = '';
   variantName = '';
   description = '';
+  /**
+   * Catalog type. Defaults to 'flavor' so the common case needs no decision.
+   * Typed as a string rather than ProductCategory because it round-trips
+   * through ngModel, and ProductCategory is imported for the options list and
+   * for the cast at save time.
+   */
+  category: string = 'flavor';
+  readonly categoryOptions: SelectOption[] = PRODUCT_CATEGORIES.map((c) => ({
+    label: c.label,
+    value: c.value,
+  }));
   pendingFile: File | null = null;
   previewObjectUrl = '';
   isSaving = false;
   isUploading = false;
 
-  constructor() {
-    addIcons({ imageOutline });
-  }
 
   get isNewSet(): boolean {
     return this.selectedSet === 'new';
@@ -345,6 +378,7 @@ export class AddProductModalComponent {
         variantName: variant,
         description: this.description.trim() || 'New Five-orites flavor.',
         imageUrl: finalImageUrl,
+        category: this.category as ProductCategory,
         pricing: getPricingForSet(setNumber),
         stock: { cup: 0, pint: 0, halfGallon: 0, gallon: 0 },
       });

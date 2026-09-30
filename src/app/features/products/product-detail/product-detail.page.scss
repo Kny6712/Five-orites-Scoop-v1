@@ -134,6 +134,20 @@
   padding: 4px 8px;
 }
 
+/* One Lucide heart serves both states: .wished fills it with currentColor and
+   switches the colour, replacing the ionicons heart / heart-outline pair that
+   used to be swapped in via a template ternary. */
+.wishlist-icon {
+  --icon-size: 18px;
+  transition: color 0.15s ease;
+}
+.wishlist-icon.wished {
+  color: var(--ion-color-danger);
+}
+.wishlist-icon.wished svg {
+  fill: currentColor;
+}
+
 .qty-btn {
   background: none;
   border: none;
@@ -145,7 +159,7 @@
   cursor: pointer;
   border-radius: 8px;
   color: var(--color-brand-primary);
-  font-size: 20px;
+  --icon-size: 20px;
   transition: background 0.1s;
 
   &:disabled { color: var(--ion-color-light-shade); cursor: not-allowed; }

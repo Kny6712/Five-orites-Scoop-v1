@@ -54,6 +54,39 @@
   font-weight: 500;
 }
 
+// ── Size / Max price ──────────────────────────────────
+.price-filters {
+  padding: 0 8px 4px;
+}
+
+// ── Sort ──────────────────────────────────────────────
+.sort-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 4px;
+}
+
+.sort-segment {
+  flex: 1;
+  min-width: 0;
+  // Segment buttons size themselves to their label; without this the four
+  // options overflow on a phone-width screen instead of shrinking.
+  --min-height: 32px;
+
+  ion-segment-button {
+    min-width: 0;
+    font-size: 12px;
+    --indicator-height: 2px;
+  }
+}
+
+.clear-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 8px 2px;
+}
+
 // ── Product Grid ─────────────────────────────────────────
 .products-grid {
   padding: 12px 8px 24px;
@@ -82,7 +115,7 @@ ion-col {
 }
 
 .empty-icon {
-  font-size: 64px;
+  --icon-size: 64px;
   color: var(--ion-color-light-shade);
 }
 

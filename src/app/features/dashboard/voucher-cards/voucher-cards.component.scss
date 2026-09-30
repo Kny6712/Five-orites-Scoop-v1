@@ -1,0 +1,134 @@
+// src/app/features/dashboard/voucher-cards/voucher-cards.component.scss
+// Sizes icons via --icon-size: app-icon is inline SVG, not a font glyph.
+
+:host { display: block; }
+
+.voucher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+/* A dashed edge, which is what makes a card read as a coupon rather than as a
+   generic surface. One deliberate flourish — the design direction asks for the
+   playful motif to be spent in a few places, not smeared over everything. */
+.voucher-card {
+  position: relative;
+  background: var(--color-white);
+  border: 2px dashed var(--color-brand-primary);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-card);
+}
+
+.skeleton-card { display: flex; flex-direction: column; }
+
+.voucher-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.voucher-code {
+  font-family: var(--font-mono);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--color-strawberry-ink);
+  /* Long codes must not push the card wider than its track. */
+  overflow-wrap: anywhere;
+}
+
+.voucher-mark {
+  --icon-size: 20px;
+  color: var(--color-brand-primary);
+  flex: 0 0 auto;
+}
+
+.voucher-desc {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.voucher-min {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.voucher-sample {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.voucher-sample strong {
+  color: var(--color-success);
+  font-weight: 800;
+}
+
+.voucher-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.copy-btn {
+  --background: var(--color-brand-primary);
+  --color: var(--color-ink);
+  --border-radius: var(--radius-pill);
+  font-weight: 700;
+  flex: 1;
+  min-width: 96px;
+}
+
+.use-btn {
+  --border-radius: var(--radius-pill);
+  font-weight: 700;
+  flex: 1;
+  min-width: 96px;
+}
+
+.manual-hint {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-sunny-ink);
+  font-weight: 600;
+}
+
+.voucher-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-5) var(--space-4);
+  text-align: center;
+  color: var(--ion-color-medium);
+  font-size: 14px;
+}
+
+.voucher-empty app-icon {
+  --icon-size: 36px;
+  color: var(--color-brand-primary);
+}
+
+.voucher-empty p { margin: 0; }
+
+.voucher-error {
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: #fde8ee;
+  border: 1px solid #f5b8c8;
+  color: #8f1f38;
+  font-size: 13px;
+  font-weight: 600;
+}

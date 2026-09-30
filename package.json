@@ -7,15 +7,30 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test:logic": "tsx --test tests/*.test.ts",
+    "test:logic": "tsx --test tests/logic.test.ts",
+    "test:rules": "firebase emulators:exec --only firestore --project five-orites-scoop-rules-test \"tsx --test tests/firestore.rules.test.ts\"",
+    "test": "npm run test:logic && npm run test:rules",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck:scripts": "tsc --noEmit -p scripts/tsconfig.json",
     "build:android": "ng build && npx cap sync android && npx cap open android",
     "build:ios": "ng build && npx cap sync ios && npx cap open ios",
     "seed": "npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",
     "seed:preserve-stock": "cross-env PRESERVE_STOCK=true npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",
-    "upload:images": "tsx scripts/upload-product-images.ts"
+    "upload:images": "tsx scripts/upload-product-images.ts",
+    "images:generate": "tsx scripts/generate-placeholder-images.ts",
+    "images:seed": "cross-env IMAGE_FROM_ASSETS=true npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",
+    "deploy": "npm run deploy:firestore && npm run deploy:hosting",
+    "deploy:hosting": "npm run build && firebase deploy --only hosting",
+    "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
+    "emulators": "firebase emulators:start",
+    "verify": "npm run typecheck && npm run typecheck:scripts && npm run test:logic && npm run test:rules && npm run build",
+    "icons:generate": "node scripts/generate-lucide-icons.mjs"
   },
   "private": true,
+  "//engines": "Angular 17 is built and tested against Node 18.13.x / 20.9.x (see .nvmrc = 20). Its `engines` field is a floor, not a ceiling, so npm silently accepts Node 22/24 and you get failures with no diagnostic pointing at the version. This upper bound fails fast instead. `node -v` before blaming the build.",
+  "engines": {
+    "node": ">=18.13.0 <21 || >=22.0.0 <23"
+  },
   "dependencies": {
     "@angular/common": "^17.0.0",
     "@angular/compiler": "^17.0.0",
@@ -31,10 +46,13 @@
     "@capacitor/keyboard": "^5.0.0",
     "@capacitor/preferences": "^5.0.0",
     "@capacitor/push-notifications": "^5.0.0",
+    "@capacitor/splash-screen": "^5.0.0",
     "@capacitor/status-bar": "^5.0.0",
     "@ionic/angular": "^7.0.0",
+    "@types/leaflet": "^1.9.22",
     "firebase": "^10.0.0",
     "ionicons": "^7.0.0",
+    "leaflet": "^1.9.4",
     "rxjs": "^7.8.0",
     "tslib": "^2.3.0",
     "zone.js": "~0.14.0"
@@ -44,12 +62,20 @@
     "@angular/cli": "17.3.17",
     "@angular/compiler-cli": "^17.0.0",
     "@capacitor/cli": "^5.0.0",
+    "@firebase/rules-unit-testing": "^3.0.0",
     "@ionic/cli": "^7.0.0",
     "@types/node": "^20.0.0",
     "cross-env": "^7.0.3",
     "firebase-admin": "^12.0.0",
+    "firebase-tools": "^15.32.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.23.15",
     "typescript": "~5.2.0"
+  },
+  "//overrides": "@angular/fire@17 declares an OPTIONAL peer on firebase-tools@^13, but this project needs firebase-tools 15 for `firebase emulators:exec` (the v1 Firestore emulator it ships). Without this override every `npm install` dies with ERESOLVE. The peer is genuinely optional — it is only used by `ng add @angular/fire` when scaffolding emulators, which this project configures by hand in firebase.json.",
+  "overrides": {
+    "@angular/fire": {
+      "firebase-tools": "^15.32.0"
+    }
   }
 }

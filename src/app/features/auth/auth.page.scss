@@ -113,7 +113,7 @@
 
 .input-icon {
   color: var(--ion-color-medium);
-  font-size: 18px;
+  --icon-size: 18px;
   flex-shrink: 0;
   margin-right: 8px;
 }
@@ -171,6 +171,15 @@
   --border-color: var(--ion-color-light-shade);
   --border-radius: 12px;
   font-weight: 600;
+}
+
+/* The four-colour Google mark, inlined in the template. It is not an app-icon:
+   Lucide is a monochrome outline set with no logo glyphs, and Google's brand
+   guidelines require the official mark, so it is sized here directly. */
+.google-mark {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
 }
 
 // ── Mode Toggle ──────────────────────────────────────────
@@ -250,4 +259,32 @@
 // ── Admin Submit Button ───────────────────────────────────────
 .submit-btn-admin {
   --background: #E65100 !important;
+}
+
+// Forgot-password link. A real <button>, so keyboard and screen-reader support
+// come for free rather than having to be re-implemented with role/tabindex.
+.forgot-btn {
+  display: block;
+  width: 100%;
+  margin: 14px 0 0;
+  padding: 8px;
+  background: none;
+  border: 0;
+  color: var(--ion-color-primary);
+  font: inherit;
+  font-size: 14px;
+  text-align: center;
+  cursor: pointer;
+}
+.forgot-btn:disabled { opacity: 0.6; cursor: default; }
+
+// Reset confirmation. role="status" announces it without stealing focus.
+.reset-message {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--ion-color-success-tint, #e8f5e9);
+  color: var(--ion-color-success-shade, #1b5e20);
+  font-size: 13px;
+  line-height: 1.4;
 }

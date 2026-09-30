@@ -4,17 +4,61 @@
 
 const admin = require('firebase-admin');
 const path = require('path');
+const fsExtra = require('fs');
+const url = require('url');
 
 const SERVICE_ACCOUNT_PATH = path.resolve(__dirname, 'serviceAccountKey.json');
 const DEFAULT_STOCK = { cup: 50, pint: 30, halfGallon: 20, gallon: 10 };
-const PRESERVE_STOCK = process.env.PRESERVE_STOCK === 'true'; 
-const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+const PRESERVE_STOCK = process.env.PRESERVE_STOCK === 'true';
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+/**
+ * Asset images live outside the Angular build, so they are copied into
+ * src/assets/images by `npm run images:generate`. When that flag is set, the
+ * seeder points each product at its local file instead of leaving the URL
+ * empty — which is how all 64 products shipped without a photo.
+ */
+const USE_ASSET_IMAGES = process.env.IMAGE_FROM_ASSETS === 'true';
+const ASSET_IMAGE_SRC = path.resolve(__dirname, '..', 'assets', 'images');
+const ASSET_IMAGE_DEST = 'assets/images';
 
-const db = admin.firestore();
+/** Local asset path for a flavor, or '' when there is no matching artwork. */
+function localImageFor(variantName: string): string {
+  if (!USE_ASSET_IMAGES) return '';
+  const slug = variantName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${ASSET_IMAGE_DEST}/${slug}.svg`;
+}
+
+/** Copies generated artwork into the Angular assets folder so it gets bundled. */
+function syncAssetImages(): void {
+  if (!USE_ASSET_IMAGES || !fsExtra.existsSync(ASSET_IMAGE_SRC)) return;
+  const dest = path.resolve(__dirname, '..', 'src', 'assets', 'images');
+  fsExtra.mkdirSync(dest, { recursive: true });
+  for (const file of fsExtra.readdirSync(ASSET_IMAGE_SRC)) {
+    if (!file.endsWith('.svg')) continue;
+    fsExtra.copyFileSync(path.join(ASSET_IMAGE_SRC, file), path.join(dest, file));
+  }
+}
+
+// Credentials are loaded lazily, inside seedProducts(). Reading them at module
+// scope meant that merely IMPORTING this file — which
+// scripts/generate-placeholder-images.ts does for PRODUCT_CATALOG — threw
+// "Cannot find module serviceAccountKey.json" before any art could be made.
+// Typed as any on purpose. `admin` here is a `require()`, so it is a value and
+// not a namespace, and the dotted type annotation could never resolve. scripts/
+// is excluded from the app typecheck (tsconfig.app.json lists only src/main.ts),
+// so nothing was catching it.
+let firestore: any;
+function getDb() {
+  if (!firestore) {
+    const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    firestore = admin.firestore();
+  }
+  return firestore;
+}
 
 const PRICING_MATRIX: Record<number, any> = {
   1: { cup: 65,  pint: 200, halfGallon: 500, gallon: 950 },
@@ -27,7 +71,79 @@ const PRICING_MATRIX: Record<number, any> = {
   8: { cup: 65,  pint: 200, halfGallon: 500, gallon: 950 },
 };
 
-const PRODUCT_CATALOG = [
+/**
+ * Catalog type per variant name.
+ *
+ * The plan asks for "flavors, tubs, cones, sundaes". Tubs are covered by the
+ * pint and half-gallon sizes, so they needed no separate type. What was missing
+ * was cones and sundaes, and without a `category` field on the model a search for
+ * either returned nothing.
+ *
+ * An explicit named list rather than a pattern match, so promoting a flavor is a
+ * deliberate one-line decision and the whole catalog can be reviewed by reading
+ * this. Every entry MUST name a variant that exists in PRODUCT_CATALOG below —
+ * assertProductCategories() fails the seed otherwise, because a typo here would
+ * otherwise silently do nothing and the category filter would show an empty
+ * result with no error anywhere.
+ *
+ * Everything not named is a plain 'flavor', which is also what
+ * `productCategory()` assumes for a document with no category field.
+ */
+const CATEGORY_BY_VARIANT: Record<string, 'flavor' | 'sundae' | 'cone'> = {
+  // ── Cones: sold as a cone, not a tub ──────────────────────────────
+  // The sorbets are the honest existing candidates — dairy-free, sold as a
+  // single scoop, the way a cone is. Nothing in the catalog was invented to
+  // fill this category; the shop can add real cone products in the admin UI
+  // and tag them there.
+  'Classic Mango Sorbet': 'cone',
+  'Mango Tango Twist': 'cone',
+  // ── Sundaes: layered/topped builds, served in a dish or glass ────
+  // These are the layered, ribbon-and-chunk products that read as a sundae
+  // rather than a plain scoop.
+  'Mango Graham': 'sundae',
+  'Ube Halo-Halo Style': 'sundae',
+  'Ube Leche Flan': 'sundae',
+  'Strawberry Cheesecake': 'sundae',
+  'Mango Cheesecake': 'sundae',
+  'Mint Cheesecake': 'sundae',
+};
+
+/** Catalog type for a seeded product; 'flavor' unless the list above says otherwise. */
+export function categoryFor(variantName: string): 'flavor' | 'sundae' | 'cone' {
+  return CATEGORY_BY_VARIANT[variantName] ?? 'flavor';
+}
+
+/**
+ * Fails loudly if CATEGORY_BY_VARIANT names a product that is not in the
+ * catalog, or if a name is listed twice.
+ *
+ * Without this, a typo would be indistinguishable from "that product does not
+ * exist yet" and the category filter would silently return nothing.
+ */
+function assertProductCategories(): void {
+  const names = new Set(PRODUCT_CATALOG.map((p) => p.variantName));
+  const problems: string[] = [];
+
+  for (const variant of Object.keys(CATEGORY_BY_VARIANT)) {
+    if (!names.has(variant)) {
+      problems.push(`CATEGORY_BY_VARIANT names "${variant}", which is not in PRODUCT_CATALOG`);
+    }
+  }
+
+  const seen = new Map<string, number>();
+  for (const p of PRODUCT_CATALOG) {
+    seen.set(p.variantName, (seen.get(p.variantName) ?? 0) + 1);
+  }
+  for (const [name, count] of seen) {
+    if (count > 1) problems.push(`PRODUCT_CATALOG lists "${name}" ${count} times`);
+  }
+
+  if (problems.length > 0) {
+    throw new Error(`Category check failed:\n  - ${problems.join('\n  - ')}`);
+  }
+}
+
+export const PRODUCT_CATALOG = [
   // Set 1 · Chocolates
   { setNumber: 1, setName: 'Chocolates', variantName: 'Chocolate Fudge Brownie', description: 'Rich chocolate ice cream swirled with gooey fudge ribbons and loaded with chewy brownie chunks. A chocolate lover\'s dream.' },
   { setNumber: 1, setName: 'Chocolates', variantName: 'Double Dark Chocolate', description: 'Intensely deep dark chocolate base with dark chocolate chips. For those who crave the purest, most serious chocolate experience.' },
@@ -104,9 +220,27 @@ const PRODUCT_CATALOG = [
 
 async function seedProducts(): Promise<void> {
   console.log('\n🍦  Five-orites Scoop — Firestore Product Seeder');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n');
   console.log(`📦  Total SKUs to seed: ${PRODUCT_CATALOG.length}\n`);
 
+  // Fails before anything is written, so a typo in CATEGORY_BY_VARIANT cannot
+  // half-seed the catalog and leave the category filter silently empty.
+  assertProductCategories();
+
+  const byCategory = PRODUCT_CATALOG.reduce<Record<string, number>>((acc, p) => {
+    const c = categoryFor(p.variantName);
+    acc[c] = (acc[c] ?? 0) + 1;
+    return acc;
+  }, {});
+  console.log(
+    `🏷️  By type: ${Object.entries(byCategory)
+      .map(([k, v]) => `${k} ${v}`)
+      .join(' · ')}\n`
+  );
+
+  syncAssetImages();
+
+  const db = getDb();
   const batch = db.batch();
   const productsCol = db.collection('products');
 
@@ -134,7 +268,8 @@ async function seedProducts(): Promise<void> {
       setName: product.setName,
       variantName: product.variantName,
       description: product.description,
-      imageUrl: '',
+      imageUrl: localImageFor(product.variantName),
+      category: categoryFor(product.variantName),
       pricing,
       stock: stockToWrite,
       isActive: true,
@@ -150,8 +285,12 @@ async function seedProducts(): Promise<void> {
   console.log(`\n✅  Seed complete! ${PRODUCT_CATALOG.length} products written.\n`);
   process.exit(0);
 }
-
-seedProducts().catch((err: any) => {
-  console.error('❌  Seed error:', err.message || err);
-  process.exit(1);
-});
+// Only seed when run directly. This module is also imported by
+// scripts/generate-placeholder-images.ts for PRODUCT_CATALOG; an unguarded call
+// would write 64 products to Firestore as a side effect of generating artwork.
+if (require.main === module) {
+  seedProducts().catch((err: any) => {
+    console.error('Seed error:', err.message || err);
+    process.exit(1);
+  });
+}

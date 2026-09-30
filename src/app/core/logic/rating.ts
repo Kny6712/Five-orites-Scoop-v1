@@ -3,7 +3,8 @@
 //
 // Framework-free so the unit tests exercise the real calculation.
 
-export interface RatingLike {
+// Shape summarizeRatings needs — not part of the public surface.
+interface RatingLike {
   rating: number;
 }
 

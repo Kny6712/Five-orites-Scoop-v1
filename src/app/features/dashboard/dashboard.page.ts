@@ -10,21 +10,19 @@ import {
   IonButtons, IonMenuButton,
   IonGrid, IonRow, IonCol,
   IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-  IonButton, IonIcon, IonText, IonSkeletonText,
-  IonChip, IonLabel, IonRefresher, IonRefresherContent,
+  IonButton, IonText, IonSkeletonText,
+  IonChip, IonLabel, IonRefresher, IonRefresherContent, IonToggle,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  cashOutline, timeOutline, alertCircleOutline, receiptOutline,
-  iceCreamOutline, layersOutline, clipboardOutline,
-  refreshOutline, notificationsOutline,
-} from 'ionicons/icons';
-import { Subscription, combineLatest, catchError, of } from 'rxjs';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { VoucherCardsComponent } from './voucher-cards/voucher-cards.component';
+import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+import { Subscription, combineLatest, catchError, of, Observable } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { InventoryService } from '../../core/services/inventory.service';
 import { OrderService } from '../../core/services/order.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { LOW_STOCK_THRESHOLD } from '../../core/config/stock.config';
+import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { Product } from '../../core/models/product.model';
 import { Order } from '../../core/models/order.model';
 import { AppUser } from '../../core/models/user.model';
@@ -43,11 +41,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
     IonButtons, IonMenuButton,
     IonGrid, IonRow, IonCol,
     IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-    IonButton, IonIcon, IonText, IonSkeletonText,
+    IonButton, IonText, IonSkeletonText,
     IonChip, IonLabel,
-    IonRefresher, IonRefresherContent,
+    IonRefresher, IonRefresherContent, IonToggle,
     ProductCardComponent, OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
-  ],
+    AppIconComponent, VoucherCardsComponent, AlertBannerComponent],
   templateUrl: './dashboard.page.html',
   styleUrls: ['./dashboard.page.scss'],
 })
@@ -62,10 +60,20 @@ export class DashboardPage implements OnInit, OnDestroy {
   currentUser = signal<AppUser | null>(null);
   isAdmin = computed(() => this.currentUser()?.role === 'admin');
   isLoading = signal(true);
+  /**
+   * Set when any dashboard feed fails. Non-empty means "we could not read
+   * this", not "there is nothing here" — every feed below used to catch its
+   * error into `of([])`, so a permissions error, a missing index or an offline
+   * device rendered as a perfectly clean dashboard with four zeroed KPIs and no
+   * featured flavors.
+   */
+  loadError = signal('');
 
   // Customer data
   featuredProducts = signal<Product[]>([]);
   recentOrders = signal<Order[]>([]);
+  /** Id set behind the current featuredProducts shuffle — see loadCustomerDashboard(). */
+  private featuredProductIdsKey = '';
 
   // Admin KPIs
   todayRevenue = signal(0);
@@ -77,11 +85,6 @@ export class DashboardPage implements OnInit, OnDestroy {
   readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
 
   constructor() {
-    addIcons({
-      cashOutline, timeOutline, alertCircleOutline, receiptOutline,
-      iceCreamOutline, layersOutline, clipboardOutline,
-      refreshOutline, notificationsOutline,
-    });
 
     this.authService.currentUser$
       .pipe(takeUntilDestroyed())
@@ -107,6 +110,7 @@ export class DashboardPage implements OnInit, OnDestroy {
 
   loadDashboard(): void {
     this.isLoading.set(true);
+    this.loadError.set('');
     this.subs.forEach((s) => s.unsubscribe());
     this.subs = [];
 
@@ -117,14 +121,46 @@ export class DashboardPage implements OnInit, OnDestroy {
     }
   }
 
+  /**
+   * Record a failed feed and return the empty array the subscription sees.
+   *
+   * Returning `of([])` keeps the stream alive so the OTHER feeds still render
+   * whatever they legitimately loaded; the error signal is what stops the page
+   * from passing that empty array off as real data. isLoading is cleared here
+   * too — otherwise a feed that fails leaves the skeleton spinning forever.
+   *
+   * The message now comes from describeFirestoreError, which distinguishes a
+   * missing database index from a permissions problem from a genuinely offline
+   * device. This handler used to claim "check your connection" for all three,
+   * which is how a never-deployed composite index presented to every customer
+   * as a wifi problem.
+   */
+  private feedFailed(what: string, err: unknown): Observable<never[]> {
+    console.error(`Dashboard: could not load ${what}`, err);
+    this.loadError.set(describeFirestoreError(what, err));
+    this.isLoading.set(false);
+    return of([]);
+  }
+
   private loadCustomerDashboard(): void {
-    // Featured products — random 4 from catalog
+    // Featured products — random 4 from catalog.
+    //
+    // The shuffle runs ONCE per distinct set of products. Reshuffling on every
+    // snapshot meant that any stock change anywhere in the catalog (a sale, an
+    // admin restock) re-rolled the dice and the four cards jumped to different
+    // flavors under the user's thumb — the stream is live, so this was frequent.
+    // The rotation still happens when the catalog genuinely changes, which is
+    // the case the randomness was there for.
     const s1 = this.inventoryService
       .getProducts()
-      .pipe(catchError(() => of([])))
+      .pipe(catchError((err) => this.feedFailed('featured flavors', err)))
       .subscribe((products) => {
-        const shuffled = [...products].sort(() => Math.random() - 0.5);
-        this.featuredProducts.set(shuffled.slice(0, 4));
+        const key = products.map((p) => p.id).join('|');
+        if (key !== this.featuredProductIdsKey) {
+          this.featuredProductIdsKey = key;
+          const shuffled = [...products].sort(() => Math.random() - 0.5);
+          this.featuredProducts.set(shuffled.slice(0, 4));
+        }
         this.isLoading.set(false);
       });
     this.subs.push(s1);
@@ -134,7 +170,7 @@ export class DashboardPage implements OnInit, OnDestroy {
     if (uid) {
       const s2 = this.orderService
         .getCustomerOrders(uid)
-        .pipe(catchError(() => of([])))
+        .pipe(catchError((err) => this.feedFailed('your recent orders', err)))
         .subscribe((orders) => this.recentOrders.set(orders.slice(0, 3)));
       this.subs.push(s2);
     }
@@ -144,7 +180,7 @@ export class DashboardPage implements OnInit, OnDestroy {
     // All orders for KPIs (capped server-side at 100, see OrderService).
     const s1 = this.orderService
       .getAllOrders()
-      .pipe(catchError(() => of([])))
+      .pipe(catchError((err) => this.feedFailed('your KPIs and recent orders', err)))
       .subscribe((orders) => {
         this.totalOrderCount.set(orders.length);
         this.pendingOrderCount.set(
@@ -172,7 +208,7 @@ export class DashboardPage implements OnInit, OnDestroy {
     // Low stock
     const s2 = this.inventoryService
       .subscribeToLowStock()
-      .pipe(catchError(() => of([])))
+      .pipe(catchError((err) => this.feedFailed('low stock alerts', err)))
       .subscribe((products) => {
         this.lowStockProducts.set(products.slice(0, 5));
         this.lowStockCount.set(products.length);
@@ -180,12 +216,43 @@ export class DashboardPage implements OnInit, OnDestroy {
     this.subs.push(s2);
   }
 
-  async requestNotifications(): Promise<void> {
-    const granted = await this.notifService.requestPermission();
-    if (granted) {
-      await this.notifService.showToast('Notifications enabled! 🔔', 'success');
-    } else {
-      await this.notifService.showToast('Notification permission denied.', 'warning');
+  /**
+   * Three states, not two. A plain boolean cannot express "you asked and the
+   * browser said no" — and once a browser permission is denied it cannot be
+   * re-granted from a page at all, so the user has to change it in site settings.
+   * A toggle that looks broken and offers no way out is worse than one that says
+   * why.
+   */
+  readonly notificationState = computed(() =>
+    this.notifService.permissionState(this.currentUser()?.notificationsEnabled)
+  );
+
+  /**
+   * Turning notifications on necessarily prompts, since a browser permission can
+   * only be requested from a user gesture. Turning them off is a pure preference
+   * write.
+   *
+   * On a denial we write `false` back. Discarding the user's intent silently
+   * would be worse, but leaving the switch visually ON while nothing is ever
+   * delivered is precisely the dishonesty this control exists to avoid — so the
+   * switch returns to off and the banner explains the real cause.
+   */
+  async onNotificationsToggle(event: CustomEvent): Promise<void> {
+    const enabled = event.detail.checked as boolean;
+    try {
+      if (enabled && !await this.notifService.requestPermission()) {
+        await this.authService.updateProfile({ notificationsEnabled: false });
+        await this.authService.refreshProfile();
+        this.loadError.set(
+          'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.'
+        );
+        return;
+      }
+      await this.authService.updateProfile({ notificationsEnabled: enabled });
+      await this.authService.refreshProfile();
+    } catch (err) {
+      console.error('Could not save the notification preference', err);
+      this.loadError.set('Could not save that preference. Please try again.');
     }
   }
 

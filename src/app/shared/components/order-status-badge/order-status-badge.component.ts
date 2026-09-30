@@ -3,25 +3,17 @@
 // Author: Five-orites Scoop team (see README)
 
 import { Component, Input } from '@angular/core';
-import { IonChip, IonIcon, IonLabel } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  timeOutline,
-  checkmarkCircleOutline,
-  iceCreamOutline,
-  bicycleOutline,
-  checkmarkDoneCircleOutline,
-  closeCircleOutline,
-} from 'ionicons/icons';
+import { IonChip, IonLabel } from '@ionic/angular/standalone';
+import { AppIconComponent } from '../app-icon/app-icon.component';
 import { OrderStatus, ORDER_STATUS_META } from '../../../core/models/order.model';
 
 @Component({
   selector: 'app-order-status-badge',
   standalone: true,
-  imports: [IonChip, IonIcon, IonLabel],
+  imports: [IonChip, IonLabel, AppIconComponent],
   template: `
     <ion-chip [color]="chipColor" class="status-chip">
-      <ion-icon [name]="statusMeta.icon" class="status-icon"></ion-icon>
+      <app-icon [name]="statusMeta.icon" class="status-icon" />
       <ion-label>{{ statusMeta.label }}</ion-label>
     </ion-chip>
   `,
@@ -48,16 +40,5 @@ export class OrderStatusBadgeComponent {
       cancelled: 'danger',
     };
     return colorMap[this.status];
-  }
-
-  constructor() {
-    addIcons({
-      timeOutline,
-      checkmarkCircleOutline,
-      iceCreamOutline,
-      bicycleOutline,
-      checkmarkDoneCircleOutline,
-      closeCircleOutline,
-    });
   }
 }

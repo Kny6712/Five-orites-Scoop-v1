@@ -46,13 +46,27 @@
     </div>
   }
 
+  <!-- Truncated queue: an order off-screen is an order never prepared -->
+  @if (!isLoading() && !loadError() && truncated()) {
+    <app-alert-banner
+      tone="warning"
+      title="Queue truncated"
+      [message]="'Showing the ' + allOrders().length + ' most recent orders. Older orders exist and are not listed here — check Analytics for totals, or clear finished orders from Firestore to free up the queue.'"
+    />
+  }
+
+  <!-- Error (a failed load must not look like an empty queue) -->
+  @if (!isLoading() && loadError()) {
+    <app-alert-banner tone="danger" [message]="loadError()" actionLabel="Try again" (action)="loadOrders()" />
+  }
+
   <!-- Empty -->
-  @if (!isLoading() && filteredOrders().length === 0) {
-    <div class="empty-state">
-      <ion-icon name="receipt-outline" class="empty-icon"></ion-icon>
-      <p class="empty-title">No orders</p>
-      <p class="empty-sub">No orders matching this filter.</p>
-    </div>
+  @if (!isLoading() && !loadError() && filteredOrders().length === 0) {
+    <app-empty-state
+      icon="receipt"
+      title="No orders"
+      message="No orders matching this filter."
+    />
   }
 
   <!-- Orders -->
@@ -61,7 +75,23 @@
       @for (order of filteredOrders(); track trackOrder($index, order)) {
         <ion-card class="order-card">
           <!-- Order Header (always visible) -->
-          <div class="order-card-header" (click)="toggleExpand(order.id)">
+          <!--
+            This header is the ONLY way to reach "Mark as ..." and "Cancel
+            Order". It was a bare <div (click)>, so keyboard and screen-reader
+            users could not expand a card at all and those actions were
+            completely unreachable. role/tabindex/keydown + aria-expanded make
+            the disclosure state announceable.
+          -->
+          <div
+            class="order-card-header"
+            role="button"
+            tabindex="0"
+            [attr.aria-expanded]="expandedId() === order.id"
+            [attr.aria-label]="'Order #' + order.id.slice(-6).toUpperCase() + ', ' + order.status.replace('_', ' ') + '. ' + (expandedId() === order.id ? 'Collapse' : 'Expand') + ' order details'"
+            (click)="toggleExpand(order.id)"
+            (keydown.enter)="toggleExpand(order.id)"
+            (keydown.space)="toggleExpand(order.id); $event.preventDefault()"
+          >
             <div class="order-card-left">
               <span class="order-id-label">#{{ order.id.slice(-6).toUpperCase() }}</span>
               <span class="order-email">{{ order.customerEmail }}</span>
@@ -121,11 +151,11 @@
                     (click)="advanceStatus(order)"
                     [disabled]="updatingId() === order.id"
                   >
-                    <ion-icon name="arrow-forward-outline" slot="start"></ion-icon>
+                    <app-icon name="arrow-right" slot="start" />
                     {{ updatingId() === order.id ? 'Updating...' : 'Mark as ' + getNextStatusLabel(order.status) }}
                   </ion-button>
                 }
-                @if (order.status !== 'delivered' && order.status !== 'cancelled') {
+                @if (canCancel(order)) {
                   <ion-button
                     expand="block"
                     fill="outline"
@@ -134,7 +164,7 @@
                     (click)="cancelOrder(order)"
                     [disabled]="updatingId() === order.id"
                   >
-                    <ion-icon name="close-outline" slot="start"></ion-icon>
+                    <app-icon name="x" slot="start" />
                     Cancel Order
                   </ion-button>
                 }

@@ -53,6 +53,12 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'profile',
+    loadComponent: () =>
+      import('./features/profile/profile.page').then((m) => m.ProfilePage),
+    canActivate: [authGuard],
+  },
+  {
     path: 'about',
     loadComponent: () =>
       import('./features/about/about.page').then((m) => m.AboutPage),
@@ -92,6 +98,27 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./admin/analytics/analytics.page').then(
             (m) => m.AnalyticsPage
+          ),
+      },
+      {
+        path: 'vouchers',
+        loadComponent: () =>
+          import('./admin/vouchers/admin-vouchers.page').then(
+            (m) => m.AdminVouchersPage
+          ),
+      },
+      {
+        path: 'users',
+        loadComponent: () =>
+          import('./admin/users/admin-users.page').then(
+            (m) => m.AdminUsersPage
+          ),
+      },
+      {
+        path: 'tracking',
+        loadComponent: () =>
+          import('./admin/tracking/admin-tracking.page').then(
+            (m) => m.AdminTrackingPage
           ),
       },
     ],
