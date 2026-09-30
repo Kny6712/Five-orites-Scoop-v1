@@ -4,30 +4,38 @@
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonText,
+  IonButton, IonText,
   IonTextarea, IonSpinner,
   AlertController, ToastController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { catchError, of } from 'rxjs';
-import {
-  trashOutline, addOutline, removeOutline, cartOutline,
-  arrowForwardOutline, checkmarkCircleOutline,
-} from 'ionicons/icons';
 import { CartService } from '../../core/services/cart.service';
 import { OrderService } from '../../core/services/order.service';
 import { AddressService } from '../../core/services/address.service';
 import { VoucherService } from '../../core/services/voucher.service';
 import { InventoryService } from '../../core/services/inventory.service';
 import { Cart, CartItem, getDeliveryFee, FREE_DELIVERY_THRESHOLD } from '../../core/models/cart.model';
-import { SizeVariant } from '../../core/models/product.model';
+import { Product, SizeVariant } from '../../core/models/product.model';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+import { PENDING_VOUCHER_KEY } from '../dashboard/voucher-cards/voucher-cards.component';
+import { QtyStepperComponent } from '../../shared/components/qty-stepper/qty-stepper.component';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+
+/**
+ * Ceiling used when live stock is unknown.
+ *
+ * Only reached when the stock read failed, and the page already says so. A low
+ * value here would be a second, contradictory statement about the same thing.
+ */
+const FALLBACK_QTY_CEILING = 99;
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 type CheckoutStep = 1 | 2 | 3;
@@ -39,16 +47,17 @@ type CheckoutStep = 1 | 2 | 3;
     CommonModule, FormsModule, RouterLink,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton,
-    IonButton, IonIcon, IonText,
+    IonButton, IonText,
     IonTextarea, IonSpinner,
     PesoPipe, CloudinaryPipe,
-  ],
+    AppIconComponent, QtyStepperComponent, EmptyStateComponent, AlertBannerComponent],
   templateUrl: './cart.page.html',
   styleUrls: ['./cart.page.scss'],
 })
 export class CartPage implements OnInit {
   private cartService = inject(CartService);
   private orderService = inject(OrderService);
+  private route = inject(ActivatedRoute);
   private addressService = inject(AddressService);
   private voucherService = inject(VoucherService);
   private inventoryService = inject(InventoryService);
@@ -72,6 +81,13 @@ export class CartPage implements OnInit {
   /** Live stock per `${productId}|${size}` so the stepper cannot oversell. */
   private stockMap = new Map<string, number>();
 
+  /**
+   * True when the live stock read failed. The quantity steppers then stop
+   * pretending to know what is available instead of silently allowing an
+   * uncapped quantity through.
+   */
+  readonly stockUnavailable = signal(false);
+
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
   readonly freeDeliveryThreshold = FREE_DELIVERY_THRESHOLD;
 
@@ -83,10 +99,6 @@ export class CartPage implements OnInit {
   grandTotal = computed(() => this.cart().totalAmount - this.voucherDiscount() + this.deliveryFee());
 
   constructor() {
-    addIcons({
-      trashOutline, addOutline, removeOutline, cartOutline,
-      arrowForwardOutline, checkmarkCircleOutline,
-    });
 
     this.cartService.cart$
       .pipe(takeUntilDestroyed())
@@ -109,9 +121,22 @@ export class CartPage implements OnInit {
 
     // Track live stock so quantity changes are capped at what's actually
     // available, instead of failing at checkout.
+    //
+    // This must not collapse to an empty list on failure. An empty stockMap
+    // makes availableFor() return undefined, and clampToStock passes the
+    // quantity through uncapped when availability is unknown — so a failed read
+    // would silently DISABLE the stock cap. The user is told instead, and the
+    // server-side check in validateAndDecrementStock remains the backstop.
     this.inventoryService
       .getProducts()
-      .pipe(takeUntilDestroyed(), catchError(() => of([])))
+      .pipe(
+        takeUntilDestroyed(),
+        catchError((err) => {
+          console.error('Failed to load stock levels.', err);
+          this.stockUnavailable.set(true);
+          return of([] as Product[]);
+        })
+      )
       .subscribe((products) => {
         const map = new Map<string, number>();
         for (const p of products) {
@@ -123,7 +148,51 @@ export class CartPage implements OnInit {
       });
   }
 
-  ngOnInit(): void {}
+  ngOnInit(): void {
+    this.consumeHandedOverVoucher();
+  }
+
+  goToProducts(): void {
+    void this.router.navigate(['/products']);
+  }
+
+  /**
+   * Applies a voucher handed over from the dashboard's grab-a-code cards.
+   *
+   * The code arrives as a query parameter AND is mirrored into sessionStorage by
+   * the dashboard. The parameter is the primary path; sessionStorage is the
+   * fallback for a reload or a back-navigation, where the query string survives
+   * anyway but a direct paste of the URL does not.
+   *
+   * Whichever source is used, the code goes through `applyVoucher()` — the same
+   * path a typed code takes, re-validated against the live cart total. Nothing
+   * about a code arriving via navigation grants it any privilege, and the discount
+   * is still resolved server-side by OrderService at checkout.
+   */
+  private consumeHandedOverVoucher(): void {
+    const fromQuery = this.route.snapshot.queryParamMap.get('voucher');
+    let code = fromQuery;
+
+    if (!code) {
+      try {
+        code = sessionStorage.getItem(PENDING_VOUCHER_KEY);
+      } catch {
+        // Storage disabled; the query parameter is the only route anyway.
+      }
+    }
+    if (!code) return;
+
+    // Consume it, so a later reload does not silently re-apply a code the user
+    // may since have removed.
+    try {
+      sessionStorage.removeItem(PENDING_VOUCHER_KEY);
+    } catch {
+      // ignore
+    }
+
+    this.voucherCode = code.trim().toUpperCase();
+    void this.applyVoucher();
+  }
 
   /** Stock available for this line, or undefined when unknown. */
   availableFor(item: CartItem): number | undefined {
@@ -139,17 +208,41 @@ export class CartPage implements OnInit {
     this.cartService.removeItem(item.productId, item.size);
   }
 
-  incrementQty(item: CartItem): void {
+  /**
+   * Ceiling for the shared stepper on this line.
+   *
+   * When the live stock read FAILED, `availableFor` returns undefined and the
+   * ceiling falls back to a generous constant rather than to 1 — the cart already
+   * surfaces `stockUnavailable` and explains that quantities cannot be capped, so
+   * freezing the stepper at 1 would be a second, contradictory message.
+   */
+  maxFor(item: CartItem): number {
+    return this.availableFor(item) ?? FALLBACK_QTY_CEILING;
+  }
+
+  /**
+   * Applies a stepper change.
+   *
+   * Still routed through CartService.updateQuantity rather than writing the value
+   * directly, because that is where the stock cap and the cart-total recompute
+   * live. The stepper clamps too, but the service remains the authority.
+   */
+  setQty(item: CartItem, quantity: number): void {
+    if (quantity === item.quantity) return;
     this.cartService.updateQuantity(
       item.productId,
       item.size,
-      item.quantity + 1,
+      quantity,
       this.availableFor(item)
     );
   }
 
+  incrementQty(item: CartItem): void {
+    this.setQty(item, item.quantity + 1);
+  }
+
   decrementQty(item: CartItem): void {
-    this.cartService.updateQuantity(item.productId, item.size, item.quantity - 1);
+    this.setQty(item, item.quantity - 1);
   }
 
   async clearCart(): Promise<void> {
@@ -158,8 +251,7 @@ export class CartPage implements OnInit {
       message: 'Remove all items from your cart?',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
-        { text: 'Clear', role: 'destructive', handler: () => this.cartService.clearCart() },
-      ],
+        { text: 'Clear', role: 'destructive', handler: () => this.cartService.clearCart() }],
     });
     await alert.present();
   }

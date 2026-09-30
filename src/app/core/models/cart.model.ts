@@ -22,7 +22,7 @@ export interface Cart {
 
 // Delivery figures live in core/logic/delivery.ts so the unit tests can import
 // them without pulling in Angular. Re-exported here for existing call sites.
-export { DELIVERY_FEE, FREE_DELIVERY_THRESHOLD, getDeliveryFee } from '../logic/delivery';
+export { FREE_DELIVERY_THRESHOLD, getDeliveryFee } from '../logic/delivery';
 
 export const EMPTY_CART: Cart = {
   items: [],

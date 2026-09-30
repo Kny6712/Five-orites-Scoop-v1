@@ -8,20 +8,18 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton,
   IonSearchbar, IonLabel, IonInput,
-  IonButton, IonIcon,
-  IonSkeletonText, IonRefresher, IonRefresherContent,
+  IonButton, IonSkeletonText, IonRefresher, IonRefresherContent,
   IonCard, IonCardContent, IonCardHeader, IonCardTitle,
   IonChip, AlertController, ToastController, ModalController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  saveOutline, createOutline, alertCircleOutline,
-} from 'ionicons/icons';
-import { Subscription, catchError, of } from 'rxjs';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { Subscription } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
 import { Product, SizeVariant, StockLevel } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import { LOW_STOCK_THRESHOLD } from '../../core/config/stock.config';
+import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { AddProductModalComponent } from './add-product-modal.component';
 import { EditProductModalComponent } from './edit-product-modal.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
@@ -36,11 +34,11 @@ interface EditableStock { cup: number; pint: number; halfGallon: number; gallon:
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton,
     IonSearchbar, IonLabel, IonInput,
-    IonButton, IonIcon,
+    IonButton,
     IonSkeletonText, IonRefresher, IonRefresherContent,
     IonCard, IonCardContent, IonCardHeader, IonCardTitle,
     IonChip, CartButtonComponent,
-  ],
+    AppIconComponent, EmptyStateComponent],
   templateUrl: './inventory.page.html',
   styleUrls: ['./inventory.page.scss'],
 })
@@ -54,6 +52,12 @@ export class InventoryPage implements OnInit, OnDestroy {
   products = signal<Product[]>([]);
   filteredProducts = signal<Product[]>([]);
   isLoading = signal(true);
+  /**
+   * Set when the catalog read fails. An empty list here used to mean two very
+   * different things — "the shop has no products" and "we were not allowed /
+   * could not reach Firestore" — and the page showed the same screen for both.
+   */
+  loadError = signal('');
   editingId = signal<string | null>(null);
   savingId = signal<string | null>(null);
   editStock: Record<string, EditableStock> = {};
@@ -63,28 +67,33 @@ export class InventoryPage implements OnInit, OnDestroy {
   readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
   skeletonItems = Array(6).fill(0);
 
-  constructor() {
-    addIcons({ saveOutline, createOutline, alertCircleOutline });
-  }
 
   ngOnInit(): void { this.loadProducts(); }
   ngOnDestroy(): void { this.sub?.unsubscribe(); }
 
   loadProducts(): void {
     this.isLoading.set(true);
+    this.loadError.set('');
     this.sub?.unsubscribe();
     // getAllProducts, not getProducts: the admin must see deactivated products,
     // otherwise there is no card to edit their stock or flip them back on.
-    this.sub = this.inventoryService.getAllProducts()
-      .pipe(catchError((err) => {
-        console.error('Load products error:', err);
-        return of([]);
-      }))
-      .subscribe((products) => {
+    this.sub = this.inventoryService.getAllProducts().subscribe({
+      next: (products) => {
         this.products.set(products);
         this.filteredProducts.set(products);
         this.isLoading.set(false);
-      });
+      },
+      error: (err: unknown) => {
+        // console.error alone was not enough: the page still rendered "0
+        // products" with an empty list, which an admin reads as a wiped
+        // catalog rather than a failed read.
+        console.error('Load products error:', err);
+        this.products.set([]);
+        this.filteredProducts.set([]);
+        this.loadError.set(describeFirestoreError('the catalog', err));
+        this.isLoading.set(false);
+      },
+    });
   }
 
   onSearch(event: CustomEvent): void {
@@ -143,7 +152,7 @@ export class InventoryPage implements OnInit, OnDestroy {
     this.savingId.set(product.id);
     try {
       // One atomic write for all four sizes. This used to fire four separate
-      // updateStock() transactions in a loop, so a failure halfway through
+      // per-size transactions in a loop, so a failure halfway through
       // left the product with a half-applied edit.
       const stock: StockLevel = {
         cup: Math.max(Math.floor(Number(newStock.cup)) || 0, 0),
@@ -195,8 +204,7 @@ export class InventoryPage implements OnInit, OnDestroy {
               await toast.present();
             }
           },
-        },
-      ],
+        }],
     });
     await alert.present();
   }
@@ -228,8 +236,7 @@ export class InventoryPage implements OnInit, OnDestroy {
               await this.toast(err instanceof Error ? err.message : 'Bulk restock failed.', 'danger');
             }
           },
-        },
-      ],
+        }],
     });
     await alert.present();
   }

@@ -19,30 +19,63 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // ── Products ──────────────────────────────────────────────
-    // Read: any signed-in user. Write: admin only, with basic validation.
-    match /products/{productId} {
-      allow read: if isSignedIn();
-      allow create, update: if isAdmin()
-        && request.resource.data.setNumber is int
-        && request.resource.data.setNumber >= 1
-        && request.resource.data.pricing.cup is int
-        && request.resource.data.pricing.pint is int
-        && request.resource.data.pricing.halfGallon is int
-        && request.resource.data.pricing.gallon is int
-        && request.resource.data.stock.cup is int
+    // Every size must remain a non-negative whole number. Split out so the
+    // admin path and the narrow customer stock path enforce the same floor.
+    function stockIsSane() {
+      return request.resource.data.stock.cup is int
         && request.resource.data.stock.pint is int
         && request.resource.data.stock.halfGallon is int
         && request.resource.data.stock.gallon is int
         && request.resource.data.stock.cup >= 0
         && request.resource.data.stock.pint >= 0
         && request.resource.data.stock.halfGallon >= 0
-        && request.resource.data.stock.gallon >= 0
-        && request.resource.data.isActive is bool;
+        && request.resource.data.stock.gallon >= 0;
+    }
+
+    // `category` is OPTIONAL and only checked when present. Every product
+    // document seeded before the field existed has no `category` at all, and
+    // making it mandatory here would reject each of those on their next admin
+    // edit — a validation rule that fails closed on existing data is worse than
+    // no rule. An absent category reads as 'flavor' client-side.
+    function categoryIsValid() {
+      return !('category' in request.resource.data)
+        || request.resource.data.category in ['flavor', 'sundae', 'cone'];
+    }
+
+    function isWellFormedProduct() {
+      return request.resource.data.setNumber is int
+        && request.resource.data.setNumber >= 1
+        && request.resource.data.pricing.cup is int
+        && request.resource.data.pricing.pint is int
+        && request.resource.data.pricing.halfGallon is int
+        && request.resource.data.pricing.gallon is int
+        && request.resource.data.isActive is bool
+        && categoryIsValid()
+        && stockIsSane();
+    }
+
+    // ── Products ─────────────────────────────────────────────────────
+    // Read: any signed-in user. Create: admin only. Update: admin with full
+    // validation, OR a customer touching nothing but stock (checkout decrement
+    // and cancel restock both go through the client).
+    //
+    // KNOWN LIMITATION: the customer branch is scoped to the `stock` key but
+    // cannot express "this must correspond to an order the caller owns", so a
+    // determined user with the raw SDK could set any stock level. Rules cannot
+    // tie a cross-collection write to an order created moments later. The
+    // airtight fix is a Cloud Function performing the decrement server-side.
+    match /products/{productId} {
+      allow read: if isSignedIn();
+      allow create: if isAdmin() && isWellFormedProduct();
+      allow update: if (isAdmin() && isWellFormedProduct())
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['stock', 'updatedAt'])
+            && stockIsSane());
       allow delete: if false;
     }
 
-    // ── Orders ────────────────────────────────────────────────
+    // ── Orders ───────────────────────────────────────────────────────
     match /orders/{orderId} {
       // Owner or admin can read (covers get + where(customerId == uid) lists).
       allow read: if isAdmin()
@@ -60,12 +93,30 @@ service cloud.firestore {
         && request.resource.data.discountAmount is number
         && request.resource.data.discountAmount >= 0
         && request.resource.data.discountAmount <= request.resource.data.totalAmount;
-      // Only admin advances status / edits. Customers cannot update.
-      allow update: if isAdmin();
+      // Admin advances status / edits freely. A customer may only cancel their
+      // own order, only while it is still pending, and may only touch the four
+      // fields the cancel path writes — so no price, quantity or total is
+      // reachable from a customer session.
+      //
+      // `statusHistory` must gain exactly one entry: the cancel path appends a
+      // single arrayUnion element, so a caller cannot rewrite the fulfilment
+      // timeline that the tracker renders.
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.customerId == request.auth.uid
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'cancelReason', 'updatedAt', 'statusHistory'])
+            && (request.resource.data.cancelReason is string
+                ? request.resource.data.cancelReason.size() <= 300
+                : request.resource.data.cancelReason == null)
+            && request.resource.data.statusHistory.size()
+                 == resource.data.statusHistory.size() + 1);
       allow delete: if false;
     }
 
-    // ── Users ─────────────────────────────────────────────────
+    // ── Users ────────────────────────────────────────────────────────
     match /users/{uid} {
       // Owner or admin can read.
       allow read: if isOwner(uid) || isAdmin();
@@ -82,18 +133,39 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Reviews ───────────────────────────────────────────────
-    // Any signed-in user can read; signed-in users can post their own review.
+    // ── Reviews ──────────────────────────────────────────────────────
+    // Any signed-in user can read. An author may create, edit and delete their
+    // OWN review; admins may moderate any review.
+    //
+    // The document id is deterministic — `${productId}_${uid}` — so a second
+    // submission for the same product updates the existing review instead of
+    // adding another, and the author can withdraw it. Previously the id was
+    // random (addDoc), which allowed unlimited repeats that NEITHER the author
+    // nor any admin UI could remove.
+    //
+    // Note `request.resource.data.productId`, not a bare `productId`: inside
+    // `match /reviews/{reviewId}` the only capture is `reviewId`, so a bare
+    // `productId` is an undefined identifier and the whole ruleset fails to
+    // deploy. That was the error in the original gap analysis.
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5;
-      allow update, delete: if isAdmin();
+      allow create, update: if (isSignedIn()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.productId is string
+            && reviewId == request.resource.data.productId + '_' + request.auth.uid
+            && request.resource.data.rating is int
+            && request.resource.data.rating >= 1
+            && request.resource.data.rating <= 5)
+        || isAdmin();
+      // The author may withdraw their own review. The id check is what stops
+      // this becoming a delete-anything rule.
+      allow delete: if isAdmin()
+        || (isSignedIn()
+            && resource.data.userId == request.auth.uid
+            && reviewId == resource.data.productId + '_' + request.auth.uid);
     }
 
-    // ── Vouchers ──────────────────────────────────────────────
+    // ── Vouchers ─────────────────────────────────────────────────────
     // Readable by customers for validation; writable by admin only.
     match /vouchers/{voucherId} {
       allow read: if isSignedIn();

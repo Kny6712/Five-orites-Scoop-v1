@@ -18,6 +18,10 @@ www/
 # ── Angular CLI ──────────────────────────────────────────────────────────────────
 .angular/cache
 
+# Firebase emulator logs (npm run test:rules / npm run emulators)
+*-debug.log
+.firebase/
+
 # ── Capacitor ────────────────────────────────────────────────────────────────────
 android/
 ios/

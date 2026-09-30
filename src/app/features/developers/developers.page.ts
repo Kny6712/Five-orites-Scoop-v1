@@ -9,10 +9,8 @@ import {
   IonButtons, IonMenuButton,
   IonGrid, IonRow, IonCol,
   IonCard, IonCardContent, IonAvatar,
-  IonChip, IonLabel, IonIcon,
-} from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { codeSlashOutline, peopleOutline } from 'ionicons/icons';
+  IonChip, IonLabel, } from '@ionic/angular/standalone';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 
 interface Developer {
@@ -31,8 +29,8 @@ interface Developer {
     IonButtons, IonMenuButton,
     IonGrid, IonRow, IonCol,
     IonCard, IonCardContent, IonAvatar,
-    IonChip, IonLabel, IonIcon, CartButtonComponent,
-  ],
+    IonChip, IonLabel, CartButtonComponent,
+    AppIconComponent],
   templateUrl: './developers.page.html',
   styleUrls: ['./developers.page.scss'],
 })
@@ -67,8 +65,7 @@ export class DevelopersPage {
       initials: 'AV',
       roles: ['Full Stack Dev', 'UI/UX Designer', 'QA', 'Documentation'],
       accent: '#2E7D32',
-    },
-  ];
+    }];
 
   getRoleColor(role: string): string {
     if (role.includes('Lead')) return 'primary';
@@ -80,7 +77,4 @@ export class DevelopersPage {
 
   readonly currentYear = new Date().getFullYear();
 
-  constructor() {
-    addIcons({ codeSlashOutline, peopleOutline });
-  }
 }

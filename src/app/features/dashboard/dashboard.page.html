@@ -19,6 +19,24 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
+  <!--
+    A failed read is NOT an empty dashboard. Every feed used to swallow its error
+    into `of([])`, so a permissions error, a missing composite index or an
+    offline device rendered as a perfectly clean dashboard.
+
+    The message itself comes from describeFirestoreError, which distinguishes a
+    missing database index from a permissions problem from a genuinely offline
+    device — so a deploy problem no longer presents to the user as a wifi fault.
+  -->
+  @if (loadError()) {
+    <app-alert-banner
+      tone="danger"
+      [message]="loadError()"
+      actionLabel="Try again"
+      (action)="loadDashboard()"
+    />
+  }
+
   <!-- ═══════════════════════════════════════
        CUSTOMER DASHBOARD
   ═══════════════════════════════════════ -->
@@ -35,11 +53,41 @@
       </div>
     </div>
 
-    <!-- Push Notification Prompt -->
-    <div class="promo-banner" (click)="requestNotifications()">
-      <ion-icon name="notifications-outline"></ion-icon>
-      <span>Enable notifications to track your orders live!</span>
+    <!--
+      Notification control. This used to be a div with role="button" and a click
+      handler that re-prompted for permission on every tap — so it could not show
+      a real state, and tapping it twice did nothing different.
+
+      It is now a genuine toggle bound to `notificationsEnabled` on the user
+      document, which means the preference follows the user to another device
+      rather than living in one browser's localStorage. Turning it ON still has to
+      ask the browser, because a permission can only be requested from a user
+      gesture; turning it OFF is a plain preference write with no prompt.
+    -->
+    <div class="promo-banner">
+      <app-icon name="bell" class="promo-icon" />
+      <div class="promo-text">
+        <span class="promo-title">Track your orders live</span>
+        <span class="promo-sub">
+          @switch (notificationState()) {
+            @case ('blocked') { Your browser is blocking notifications for this site. }
+            @case ('granted') { You'll get an alert when your order's status changes. }
+            @default { Turn on alerts for status changes. }
+          }
+        </span>
+      </div>
+      <ion-toggle
+        [checked]="notificationState() !== 'off'"
+        (ionChange)="onNotificationsToggle($event)"
+        aria-label="Order update notifications"
+      ></ion-toggle>
     </div>
+
+    <!-- Grab a code, then use it in the cart. -->
+    <div class="section-header">
+      <h3 class="section-title">Grab a Voucher</h3>
+    </div>
+    <app-voucher-cards />
 
     <!-- Featured Flavors -->
     <div class="section-header">
@@ -65,7 +113,7 @@
           }
         </ion-row>
       </ion-grid>
-    } @else {
+    } @else if (!loadError()) {
       <ion-grid>
         <ion-row>
           @for (product of featuredProducts(); track trackProduct($index, product)) {
@@ -109,7 +157,9 @@
       <p class="admin-sub">{{ formatDate(null) || 'Today' }}</p>
     </div>
 
-    <!-- KPI Cards -->
+    <!-- KPI Cards. Suppressed entirely when a feed failed: four zeroed tiles
+         are indistinguishable from a shop that genuinely took no orders, which
+         is the exact failure the error banner above exists to prevent. -->
     @if (isLoading()) {
       <ion-grid>
         <ion-row>
@@ -120,33 +170,33 @@
           }
         </ion-row>
       </ion-grid>
-    } @else {
+    } @else if (!loadError()) {
       <ion-grid>
         <ion-row>
           <ion-col size="6">
             <div class="kpi-card kpi-revenue">
-              <ion-icon name="cash-outline" class="kpi-icon"></ion-icon>
+              <app-icon name="banknote" class="kpi-icon" />
               <p class="kpi-label">Today's Revenue</p>
               <p class="kpi-value">{{ todayRevenue() | peso }}</p>
             </div>
           </ion-col>
           <ion-col size="6">
             <div class="kpi-card kpi-pending">
-              <ion-icon name="time-outline" class="kpi-icon"></ion-icon>
+              <app-icon name="clock" class="kpi-icon" />
               <p class="kpi-label">Pending Orders</p>
               <p class="kpi-value">{{ pendingOrderCount() }}</p>
             </div>
           </ion-col>
           <ion-col size="6">
             <div class="kpi-card kpi-lowstock">
-              <ion-icon name="alert-circle-outline" class="kpi-icon"></ion-icon>
+              <app-icon name="circle-alert" class="kpi-icon" />
               <p class="kpi-label">Low Stock Alerts</p>
               <p class="kpi-value">{{ lowStockCount() }}</p>
             </div>
           </ion-col>
           <ion-col size="6">
             <div class="kpi-card kpi-total">
-              <ion-icon name="receipt-outline" class="kpi-icon"></ion-icon>
+              <app-icon name="receipt" class="kpi-icon" />
               <p class="kpi-label">Total Orders</p>
               <p class="kpi-value">{{ totalOrderCount() }}</p>
             </div>
@@ -158,11 +208,11 @@
     <!-- Quick Links -->
     <div class="quick-links">
       <ion-button expand="block" [routerLink]="'/admin/inventory'" class="quick-link-btn">
-        <ion-icon name="layers-outline" slot="start"></ion-icon>
+        <app-icon name="layers" slot="start" />
         Manage Inventory
       </ion-button>
       <ion-button expand="block" fill="outline" [routerLink]="'/admin/orders'" class="quick-link-btn">
-        <ion-icon name="clipboard-outline" slot="start"></ion-icon>
+        <app-icon name="clipboard" slot="start" />
         Order Fulfillment
       </ion-button>
     </div>

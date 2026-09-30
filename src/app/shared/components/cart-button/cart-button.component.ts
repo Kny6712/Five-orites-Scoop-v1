@@ -5,9 +5,8 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
-import { IonButton, IonIcon } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { cartOutline } from 'ionicons/icons';
+import { IonButton } from '@ionic/angular/standalone';
+import { AppIconComponent } from '../app-icon/app-icon.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CartService } from '../../../core/services/cart.service';
 
@@ -48,10 +47,10 @@ import { CartService } from '../../../core/services/cart.service';
 @Component({
   selector: 'app-cart-button',
   standalone: true,
-  imports: [CommonModule, RouterLink, IonButton, IonIcon],
+  imports: [CommonModule, RouterLink, IonButton, AppIconComponent],
   template: `
     <ion-button [routerLink]="'/cart'" [attr.aria-label]="cartLabel()" class="cart-btn">
-      <ion-icon name="cart-outline" slot="icon-only" class="cart-icon"></ion-icon>
+      <app-icon name="cart" slot="icon-only" class="cart-icon" />
       @if (itemCount() > 0) {
         <span class="cart-count">{{ itemCount() }}</span>
       }
@@ -65,13 +64,15 @@ import { CartService } from '../../../core/services/cart.service';
     /* ion-button's inner .button-native is the positioned ancestor, so the
        count anchors to the clickable box rather than to the glyph. */
     .cart-btn { position: relative; }
+    .cart-icon { --icon-size: 29px; }
 
-    /* No font-size override on the icon on purpose: Ionic already sizes it via
-       ::slotted(ion-icon[slot=icon-only]) { font-size: 1.8em }, and that rule
-       outranks anything set from here, so a local value would be dead code.
-       At 1.8em (~29px) inside a button that ion-buttons pads by 8px per side,
-       the glyph's edge already sits ~8px clear of the button edge — which is
-       what lets the count sit mostly outside the cart rather than on top of it. */
+    /* 29px is what the old icon rendered at. Ionic used to size an
+       ion-icon[slot=icon-only] at 1.8em via ::slotted, which cannot reach an
+       app-icon -- the new icon is sized by --icon-size, not font-size -- so the
+       size is now stated explicitly rather than inherited.
+       Inside a button that ion-buttons pads by 8px per side, the glyph's edge
+       sits ~8px clear of the button edge, which is what lets the count sit
+       mostly outside the cart rather than on top of it. */
 
     /* A plain span, deliberately not <ion-badge>. ion-badge is a shadow-DOM
        component whose :host sets display:inline-block, font-size:0.8125rem and
@@ -145,8 +146,6 @@ export class CartButtonComponent {
   });
 
   constructor() {
-    addIcons({ cartOutline });
-
     this.cartService.cart$
       .pipe(takeUntilDestroyed())
       .subscribe((cart) => this.itemCount.set(cart.itemCount));

@@ -19,17 +19,28 @@
   @if (checkoutStep() === 1) {
 
     @if (cart().items.length === 0) {
-      <div class="empty-cart">
-        <ion-icon name="cart-outline" class="empty-cart-icon"></ion-icon>
-        <ion-text>
-          <h2 class="empty-title">Your cart is empty</h2>
-          <p class="empty-sub">Add some delicious scoops to get started!</p>
-        </ion-text>
-        <ion-button [routerLink]="'/products'" expand="block" class="browse-btn">
-          Browse Flavors
-        </ion-button>
-      </div>
+      <!-- Was a fourth bespoke empty-state variant, on top of the three the
+           audit found already. An empty screen gets one shape now. -->
+      <app-empty-state
+        icon="cart"
+        title="Your cart is empty"
+        message="Add some delicious scoops to get started!"
+        actionLabel="Browse Flavors"
+        (action)="goToProducts()"
+      />
     } @else {
+      <!--
+        Shown when the live stock read failed. The quantity steppers stay
+        usable, but without a known stock level the cap cannot be applied, so
+        the user is told rather than left to discover it at checkout.
+      -->
+      @if (stockUnavailable()) {
+        <app-alert-banner
+          tone="warning"
+          title="Live stock unavailable"
+          message="Quantities are not capped here for now. Stock is still checked when you place the order."
+        />
+      }
       <div class="cart-items">
         @for (item of cart().items; track trackItem($index, item)) {
           <div class="cart-item">
@@ -42,19 +53,24 @@
               <p class="item-unit-price">{{ item.unitPrice | peso }} each</p>
             </div>
             <div class="item-controls">
-              <div class="qty-stepper">
-                <button class="qty-btn" (click)="decrementQty(item)">
-                  <ion-icon name="remove-outline"></ion-icon>
-                </button>
-                <span class="qty-num">{{ item.quantity }}</span>
-                <button class="qty-btn" (click)="incrementQty(item)"
-                  [disabled]="atStockLimit(item)">
-                  <ion-icon name="add-outline"></ion-icon>
-                </button>
-              </div>
+              <!--
+                Shared stepper. This replaces a 28x28 hand-rolled pair of buttons
+                — the worst touch target in the app, at 64% of the 44px
+                guidance, on the control people tap most.
+              -->
+              <app-qty-stepper
+                [value]="item.quantity"
+                [max]="maxFor(item)"
+                (changed)="setQty(item, $event)"
+              />
               <p class="item-subtotal">{{ (item.unitPrice * item.quantity) | peso }}</p>
-              <button class="remove-btn" (click)="removeItem(item)">
-                <ion-icon name="trash-outline"></ion-icon>
+              <button
+                type="button"
+                class="remove-btn"
+                (click)="removeItem(item)"
+                [attr.aria-label]="'Remove ' + item.variantName + ' from cart'"
+              >
+                <app-icon name="trash" />
               </button>
             </div>
           </div>
@@ -91,8 +107,9 @@
         <h3 class="form-title">Voucher</h3>
         @if (!appliedVoucher()) {
           <div class="input-wrap">
-            <label class="field-label">Promo code (try SCOOP10)</label>
+            <label class="field-label" for="voucher-input">Promo code (try SCOOP10)</label>
             <ion-textarea
+              id="voucher-input"
               [(ngModel)]="voucherCode"
               placeholder="Enter code..."
               rows="1"
@@ -124,12 +141,13 @@
         }
 
         @if (errorMessage()) {
-          <div class="error-banner" role="alert">{{ errorMessage() }}</div>
+          <app-alert-banner tone="danger" [message]="errorMessage()" />
         }
 
         <div class="input-wrap">
-          <label class="field-label">Delivery Address *</label>
+          <label class="field-label" for="delivery-address">Delivery Address *</label>
           <ion-textarea
+            id="delivery-address"
             [(ngModel)]="deliveryAddress"
             placeholder="Enter your full delivery address..."
             rows="3"
@@ -138,8 +156,9 @@
         </div>
 
         <div class="input-wrap">
-          <label class="field-label">Order Notes (optional)</label>
+          <label class="field-label" for="order-notes">Order Notes (optional)</label>
           <ion-textarea
+            id="order-notes"
             [(ngModel)]="notes"
             placeholder="Special instructions, landmarks, etc."
             rows="2"
@@ -149,11 +168,11 @@
 
         <ion-button expand="block" class="checkout-btn" (click)="proceedToReview()">
           Review Order
-          <ion-icon name="arrow-forward-outline" slot="end"></ion-icon>
+          <app-icon name="arrow-right" slot="end" />
         </ion-button>
 
         <ion-button expand="block" fill="clear" color="danger" (click)="clearCart()" class="clear-btn">
-          <ion-icon name="trash-outline" slot="start"></ion-icon>
+          <app-icon name="trash" slot="start" />
           Clear Cart
         </ion-button>
       </div>
@@ -201,7 +220,7 @@
       </div>
 
       @if (errorMessage()) {
-        <div class="error-banner" role="alert">{{ errorMessage() }}</div>
+        <app-alert-banner tone="danger" [message]="errorMessage()" />
       }
 
       <ion-button expand="block" class="place-order-btn" (click)="placeOrder()" [disabled]="isPlacingOrder()">
@@ -217,7 +236,7 @@
 
   @if (checkoutStep() === 3) {
     <div class="confirmed-state">
-      <ion-icon name="checkmark-circle-outline" class="confirmed-icon"></ion-icon>
+      <app-icon name="circle-check" class="confirmed-icon" />
       <h2 class="confirmed-title">Order Placed!</h2>
       <p class="confirmed-sub">Your scoops are on the way. Redirecting to your order tracker...</p>
       <ion-spinner name="dots"></ion-spinner>

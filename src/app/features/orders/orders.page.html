@@ -38,20 +38,24 @@
 
   <!-- Error -->
   @if (!isLoading() && errorMessage()) {
-    <div class="empty-state">
-      <ion-icon name="sad-outline" class="empty-icon"></ion-icon>
-      <p class="empty-title">Something went wrong</p>
-      <p class="empty-sub">{{ errorMessage() }}</p>
-    </div>
+    <app-empty-state
+      icon="frown"
+      title="Something went wrong"
+      [message]="errorMessage()"
+      actionLabel="Try again"
+      (action)="loadOrders()"
+    />
   }
 
   <!-- Empty -->
   @if (!isLoading() && !errorMessage() && orders().length === 0) {
-    <div class="empty-state">
-      <ion-icon name="receipt-outline" class="empty-icon"></ion-icon>
-      <p class="empty-title">No orders yet</p>
-      <p class="empty-sub">When you place an order, it'll show up here.</p>
-    </div>
+    <app-empty-state
+      icon="receipt"
+      title="No orders yet"
+      message="When you place an order, it'll show up here."
+      actionLabel="Browse Flavors"
+      (action)="goToProducts()"
+    />
   }
 
   <!-- Orders List -->

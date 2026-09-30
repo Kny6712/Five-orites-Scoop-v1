@@ -23,7 +23,16 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '..');
-const DEFAULT_IMAGE_DIR = 'D:\\icecream\\icecream\\Images';
+/**
+ * Default source folder for product photos.
+ *
+ * This used to be the absolute path `D:\icecream\icecream\Images`, which could
+ * only ever resolve on the machine it was written on. Every other checkout
+ * silently fell back to rendering the placeholder, which is how all 64 seeded
+ * products ended up imageless. It now defaults to a folder inside the repo and
+ * can be overridden with `--dir=...` or the IMAGE_DIR environment variable.
+ */
+const DEFAULT_IMAGE_DIR = path.resolve(ROOT, 'assets', 'images');
 const CLOUDINARY_FOLDER = 'five-orites-scoop/products';
 
 const argv = process.argv.slice(2);
@@ -35,7 +44,7 @@ const DO_UPLOAD = flag('upload');
 const DO_WRITE = flag('write');
 const FORCE = flag('force');
 const FROM_MANIFEST = flag('from-manifest');
-const IMAGE_DIR = argValue('dir') ?? DEFAULT_IMAGE_DIR;
+const IMAGE_DIR = argValue('dir') ?? process.env.IMAGE_DIR ?? DEFAULT_IMAGE_DIR;
 
 /**
  * Folder number -> app set number.

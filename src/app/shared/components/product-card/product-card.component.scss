@@ -65,8 +65,12 @@
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 34px;
-  height: 34px;
+  /* Was 34px. Still above the WCAG 2.2 AA floor of 24px, but well short of the
+     44px enhanced target, and this is a small floating control that people tap
+     one-handed on a phone. 40px is proportionate for a card overlay while being
+     a meaningfully easier target. */
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   background: rgba(255, 255, 255, 0.92);
@@ -74,7 +78,21 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 18px;
+  color: var(--ion-color-medium);
+}
+
+/* Lucide ships a single outline heart. The "saved" state is that same glyph with
+   `fill: currentColor`, which inherits the danger colour — so the two ionicons
+   states collapse into one icon plus one class. */
+.wishlist-icon {
+  --icon-size: 20px;
+  transition: color 0.15s ease;
+}
+.wishlist-icon.wished {
+  color: var(--ion-color-danger);
+}
+.wishlist-icon.wished svg {
+  fill: currentColor;
 }
 
 // ── Card Body ──────────────────────────────────────────

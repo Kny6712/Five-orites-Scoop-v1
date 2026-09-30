@@ -15,8 +15,14 @@
       (error)="onImageError($event)"
     />
     <div class="set-badge">Set {{ product.setNumber }} · {{ product.setName }}</div>
-    <button class="wishlist-btn" (click)="toggleWishlist($event)" [attr.aria-label]="isWished() ? 'Remove from wishlist' : 'Save to wishlist'">
-      <ion-icon [name]="isWished() ? 'heart' : 'heart-outline'" [color]="isWished() ? 'danger' : 'medium'"></ion-icon>
+    <button type="button" class="wishlist-btn" (click)="toggleWishlist($event)" [attr.aria-label]="isWished() ? 'Remove from wishlist' : 'Save to wishlist'">
+      <!-- One Lucide glyph for both states; the filled look comes from
+           .wished setting `fill: currentColor`, so there is no second icon. -->
+      <app-icon
+        name="heart"
+        class="wishlist-icon"
+        [class.wished]="isWished()"
+      />
     </button>
   </div>
 
@@ -55,7 +61,7 @@
       [disabled]="isOutOfStock() || isAdding()"
       (click)="addToCart()"
     >
-      <ion-icon name="cart-outline" slot="start"></ion-icon>
+      <app-icon name="cart" slot="start" />
       {{ isAdding() ? 'Adding...' : isOutOfStock() ? 'Out of Stock' : 'Add to Cart' }}
     </ion-button>
 

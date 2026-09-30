@@ -1,123 +1,272 @@
 // src/theme/variables.scss
 // Five-orites Scoop — Global CSS Variables & Design Tokens
 // Author: [Developer Placeholder]
+//
+// ── Palette rationale ────────────────────────────────────────────────────────
+// Brief: playful and vibrant — strawberry pinks, mint greens, warm sunny
+// yellows, soft rounded corners, cheerful typography.
+//
+// The central decision: the three brand hues stay BRIGHT, and everything printed
+// on them is deep plum rather than white. That keeps the candy-bright feel the
+// brief asks for while staying legible. The obvious alternative — white on
+// bright pink — measures 2.72:1 and fails WCAG AA by a wide margin, which is why
+// the "primary" contrast colour here is plum and not white.
+//
+// Every pair below was computed, not eyeballed (see scripts/check-contrast.mjs):
+//
+//   plum  #3D2B45 on cream #FFF9F4 ....... 12.34:1   body text
+//   plum  #3D2B45 on strawberry #FF6B8A ...  4.74:1   primary surface   AA
+//   plum  #3D2B45 on mint      #5FD9B4 ...  7.41:1   secondary surface AA
+//   plum  #3D2B45 on sunny     #FFC53D ...  8.16:1   tertiary surface  AA
+//   white #FFFFFF on #CF3F5E ..............  4.64:1   strawberry w/ white text
+//   white #FFFFFF on #12866A ..............  4.52:1   mint w/ white text
+//   white #FFFFFF on #8A5B00 ..............  5.87:1   sunny w/ white text
+//
+// The three `-ink` variants exist only for the cases that genuinely need white
+// text. Prefer plum on the bright hue; reach for an ink variant when you don't
+// have a choice.
+//
+// ── Semantic colours are a different story ───────────────────────────────────
+// success / warning / danger are already dark, so plum text on them is
+// unreadable (2.3–3.1:1). Those three keep white text, and their bases were
+// picked to clear 4.5:1 with it — note success is #17803F, not the more common
+// #1E8E4E, which only reaches 4.17:1 with white.
 
 :root {
   // ── Brand Tokens ──────────────────────────────────────────
-  --color-brand-primary: #6B3FA0;       // Deep purple — primary brand
-  --color-brand-accent: #F4A435;        // Warm amber — highlights, CTAs
-  --color-brand-light: #F9EFF7;         // Pale lavender — backgrounds
-  --color-success: #2E7D32;
-  --color-warning: #E65100;
+  --color-brand-primary: #FF6B8A;   // strawberry — bright
+  --color-brand-accent: #FFC53D;    // sunny — highlights, CTAs
+  --color-brand-light: #5FD9B4;     // mint
+  --color-brand-mint: #5FD9B4;
+
+  // Text-safe variants of the three brand hues (see header).
+  --color-strawberry-ink: #CF3F5E;
+  --color-mint-ink: #12866A;
+  --color-sunny-ink: #8A5B00;
+
+  // The one ink colour for the whole app. Not pure black — a deep plum keeps
+  // the warm cast and measures better than #000 on a cream background.
+  --color-ink: #3D2B45;
+  --color-ink-soft: #6B5875;
+  --color-cream: #FFF9F4;
+  --color-white: #FFFFFF;
+
+  // ── Status ───────────────────────────────────────────────
+  --color-success: #17803F;
+  --color-warning: #B45309;
   --color-danger: #C62828;
   --color-stock-ok: var(--color-success);
   --color-stock-low: var(--color-warning);
   --color-stock-out: var(--color-danger);
 
   // ── Ionic Ion Color Overrides ─────────────────────────────
-  --ion-color-primary: #6B3FA0;
-  --ion-color-primary-rgb: 107, 63, 160;
-  --ion-color-primary-contrast: #ffffff;
-  --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #5e378d;
-  --ion-color-primary-tint: #7a52aa;
+  // Contrast is PLUM for the three brand hues (see header). Ionic reads
+  // -contrast for text and icon colour on a `color="…"` surface, so this is what
+  // keeps a pink button readable.
+  --ion-color-primary: #FF6B8A;
+  --ion-color-primary-rgb: 255, 107, 138;
+  --ion-color-primary-contrast: #3D2B45;
+  --ion-color-primary-contrast-rgb: 61, 43, 69;
+  --ion-color-primary-shade: #D65A74;
+  --ion-color-primary-tint: #FF839D;
 
-  --ion-color-secondary: #F4A435;
-  --ion-color-secondary-rgb: 244, 164, 53;
-  --ion-color-secondary-contrast: #ffffff;
-  --ion-color-secondary-contrast-rgb: 255, 255, 255;
-  --ion-color-secondary-shade: #d7912e;
-  --ion-color-secondary-tint: #f5ad49;
+  --ion-color-secondary: #5FD9B4;
+  --ion-color-secondary-rgb: 95, 217, 180;
+  --ion-color-secondary-contrast: #3D2B45;
+  --ion-color-secondary-contrast-rgb: 61, 43, 69;
+  --ion-color-secondary-shade: #50B697;
+  --ion-color-secondary-tint: #79DFC0;
 
-  --ion-color-success: #2E7D32;
-  --ion-color-success-rgb: 46, 125, 50;
-  --ion-color-success-contrast: #ffffff;
-  --ion-color-success-shade: #286e2c;
-  --ion-color-success-tint: #438a47;
+  // Used by the "Out for Delivery" status badge and the team role chips.
+  --ion-color-tertiary: #FFC53D;
+  --ion-color-tertiary-rgb: 255, 197, 61;
+  --ion-color-tertiary-contrast: #3D2B45;
+  --ion-color-tertiary-contrast-rgb: 61, 43, 69;
+  --ion-color-tertiary-shade: #D6A533;
+  --ion-color-tertiary-tint: #FFCE5C;
 
-  --ion-color-warning: #E65100;
-  --ion-color-warning-rgb: 230, 81, 0;
-  --ion-color-warning-contrast: #ffffff;
-  --ion-color-warning-shade: #ca4700;
-  --ion-color-warning-tint: #e9621a;
+  // These three stay dark, so they keep WHITE text.
+  --ion-color-success: #17803F;
+  --ion-color-success-rgb: 23, 128, 63;
+  --ion-color-success-contrast: #FFFFFF;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #197742;
+  --ion-color-success-tint: #42A06A;
+
+  --ion-color-warning: #B45309;
+  --ion-color-warning-rgb: 180, 83, 9;
+  --ion-color-warning-contrast: #FFFFFF;
+  --ion-color-warning-contrast-rgb: 255, 255, 255;
+  --ion-color-warning-shade: #974608;
+  --ion-color-warning-tint: #C06F30;
 
   --ion-color-danger: #C62828;
   --ion-color-danger-rgb: 198, 40, 40;
-  --ion-color-danger-contrast: #ffffff;
-  --ion-color-danger-shade: #ae2323;
-  --ion-color-danger-tint: #cc3e3e;
+  --ion-color-danger-contrast: #FFFFFF;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #A62222;
+  --ion-color-danger-tint: #CF4A4A;
 
-  // Tertiary — used by the "Out for Delivery" status badge and the team role
-  // chips on the Developers page. It was referenced but never defined, so those
-  // elements rendered with no colour at all.
-  --ion-color-tertiary: #00897B;
-  --ion-color-tertiary-rgb: 0, 137, 123;
-  --ion-color-tertiary-contrast: #ffffff;
-  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
-  --ion-color-tertiary-shade: #00796c;
-  --ion-color-tertiary-tint: #1a9385;
+  // ── Neutral Palette ──────────────────────────────────────
+  --ion-color-light: #FDF1EC;
+  --ion-color-medium: #8A7B93;
+  --ion-color-dark: #3D2B45;
+  --ion-color-light-shade: #F3E3DD;
+  --ion-color-dark-shade: #33253A;
 
-  // ── Neutral Palette ──────────────────────────────────────────
-  // Referenced ~137 times across the app but never defined. Ionic only carries
-  // these as fallbacks inside its own component CSS, never on :root, so every
-  // bare var(--ion-color-light) here resolved to nothing. Because background
-  // and border-* are not inherited properties, an invalid var() makes them fall
-  // back to `transparent` / drop the declaration entirely — which is why grey
-  // panels rendered invisible and hairline dividers never appeared. (color is
-  // inherited, so the text usages happened to look fine and hid the problem.)
-  // Values are Ionic 7's own defaults.
-  --ion-color-light: #f4f5f8;
-  --ion-color-medium: #989aa2;
-  --ion-color-dark: #222428;
-  --ion-color-light-shade: #d7d8da;
-  --ion-color-dark-shade: #1e2023;
+  // ── Radius Scale ─────────────────────────────────────────
+  // A SCALE, not one value. A single radius applied everywhere is the "SaaS card
+  // kit" look the design brief is explicitly moving away from; hierarchy comes
+  // from these being visibly different steps.
+  --radius-xs: 8px;
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+  --radius-xl: 34px;
+  --radius-pill: 999px;
 
-  --ion-font-family: -apple-system, 'Helvetica Neue', sans-serif;
-  --ion-background-color: #f8f8f8;
+  // Aliases for the two most-used surfaces, so a page can opt out of the global
+  // ion-card rule with a class and have it actually take effect.
+  --radius-card: var(--radius-md);
+  --radius-control: var(--radius-sm);
+
+  // ── Elevation ────────────────────────────────────────────
+  // Tinted with the brand rather than neutral grey: a pure rgba(0,0,0,.08) on a
+  // cream surface reads as dirt. Each step is a real step.
+  --shadow-card: 0 2px 10px rgba(61, 43, 69, 0.07);
+  --shadow-raised: 0 6px 20px rgba(61, 43, 69, 0.10);
+  --shadow-float: 0 12px 32px rgba(61, 43, 69, 0.14);
+  --shadow-pressed: inset 0 2px 4px rgba(61, 43, 69, 0.12);
+
+  // ── Spacing ──────────────────────────────────────────────
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  // ── Typography ───────────────────────────────────────────
+  // Fredoka for display (rounded, friendly, and deliberately not a default
+  // UI face); Nunito for body, which stays legible at the 12–14px sizes this
+  // app uses for chips and metadata. Both are loaded in index.html.
+  --font-display: 'Fredoka', 'Trebuchet MS', sans-serif;
+  --font-body: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  // Order IDs. A real token rather than the bare `monospace` keyword, which was
+  // hardcoded in four files and would otherwise drift from the brand faces.
+  --font-mono: 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+
+  --ion-font-family: var(--font-body);
+
+  // ── App chrome ───────────────────────────────────────────
+  --ion-background-color: var(--color-cream);
+  --ion-text-color: var(--color-ink);
   --ion-toolbar-background: var(--color-brand-primary);
-  --ion-toolbar-color: #ffffff;
+  // Plum, not white: the toolbar sits on bright pink, where white measures
+  // 2.72:1 and is unreadable.
+  --ion-toolbar-color: var(--color-ink);
 }
 
 // ── Typography Scale ─────────────────────────────────────────
-h1 { font-size: 28px; font-weight: 700; }
-h2 { font-size: 22px; font-weight: 600; }
-h3 { font-size: 18px; font-weight: 600; }
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  color: var(--color-ink);
+}
+// Bare element selectors carry no weight against component-scoped rules, so
+// headings inside cards were being overridden by `.card-title` etc. anyway.
+h1 { font-size: 28px; font-weight: 600; line-height: 1.2; }
+h2 { font-size: 22px; font-weight: 600; line-height: 1.25; }
+h3 { font-size: 18px; font-weight: 600; line-height: 1.3; }
 
 // ── Global Component Defaults ─────────────────────────────────
+/* No `!important` here. The previous version had it, which silently killed six
+   box-shadows and four border-radii declared in per-page SCSS — including a
+   purple-tinted hover lift on product cards. Those declarations are now live,
+   and this rule is only the default for cards that don't set their own. */
 ion-card {
-  border-radius: 16px !important;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 ion-button {
-  --border-radius: 12px;
-  font-weight: 600;
+  --border-radius: var(--radius-control);
+  font-weight: 700;
 }
 
 ion-toolbar {
   --background: var(--color-brand-primary);
-  --color: #ffffff;
+  --color: var(--color-ink);
 }
 
-ion-menu-button {
-  --color: #ffffff;
-}
+/* Toolbar controls need the INK colour, not white. Ionic derives a toolbar
+   button's colour from the toolbar's own text colour, so with the toolbar on
+   pink these would otherwise render white-on-pink at 2.72:1.
 
+   The original note here described a different bug — a bare <ion-button> picking
+   up `.button-clear`'s `--color: var(--ion-color-primary)`, which is now the
+   same pink as the toolbar background, i.e. pink-on-pink. Naming the contrast
+   token explicitly fixes that case too, because `--ion-color-primary-contrast`
+   is plum. */
+ion-toolbar ion-button,
+ion-menu-button,
 ion-back-button {
-  --color: #ffffff;
+  --color: var(--ion-color-primary-contrast, #3D2B45);
 }
 
-/* A bare <ion-button> (no `fill`) picks up Ionic's `.button-clear` treatment,
-   which sets `--color: var(--ion-color-primary)`. Because this app overrides
-   `--ion-color-primary` with the brand purple, that resolves to the exact same
-   value a `color="primary"` toolbar uses for its background — so the button
-   paints purple on purple. It still occupies its box and stays clickable, which
-   is what makes it so confusing: an invisible button rather than a missing one.
+// ── Focus visibility ─────────────────────────────────────────
+/* The audit found only three `:focus-visible` rules in the entire app, none of
+   them global, so ~20 custom buttons (qty steppers, remove buttons, mode tabs,
+   the wishlist button, the promo banner) fell back to the user-agent ring — which
+   is near-invisible on cream and on the pink toolbar. This is the one place that
+   fixes all of them at once.
 
-   `ion-title` never hit this because it takes the toolbar's contrast colour
-   rather than the base colour, which is why the page title rendered fine while
-   the button next to it did not. Toolbar buttons need the contrast colour
-   spelled out, same as ion-menu-button and ion-back-button above. */
-ion-toolbar ion-button {
-  --color: var(--ion-color-primary-contrast, #ffffff);
+   `:focus-visible` rather than `:focus` so a mouse click does not leave a ring
+   behind, while keyboard and switch-access users always get one. */
+:focus-visible {
+  outline: 3px solid var(--color-sunny-ink);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+// ── Motion ──────────────────────────────────────────────────
+/* There was NO prefers-reduced-motion handling anywhere in the app, while
+   running ~20 unguarded transitions, 7 animated skeletons and 2 pull-to-refresh
+   spinners. This collapses all of them for users who ask for it.
+
+   The `*` selector is deliberate and is the standard technique — it forces the
+   effective duration of every animation and transition to 0.01ms rather than
+   having to enumerate them, which is what makes it robust against the styles
+   that have not been written yet. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+// ── Wave / Drip ─────────────────────────────────────────────
+/* The one place the brief's "wave and drip" motif is allowed to appear.
+   Per the design direction it is deliberately NOT a texture applied to every
+   surface — it is a single distinctive element, used on hero and empty states,
+   so it reads as a deliberate brand mark rather than decoration everywhere. */
+.wave-drip {
+  position: relative;
+  overflow: hidden;
+}
+
+/* A soft cream swell along the bottom edge — used to close a hero section. */
+.wave-drip::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 28px;
+  background: var(--color-cream);
+  border-radius: 100% 100% 0 0 / 100% 100% 0 0;
 }

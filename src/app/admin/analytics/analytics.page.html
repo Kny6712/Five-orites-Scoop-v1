@@ -25,7 +25,18 @@
     </div>
   }
 
-  @if (!isLoading()) {
+  @if (!isLoading() && loadError()) {
+    <div class="analytics-body">
+      <app-alert-banner
+        tone="danger"
+        [message]="loadError()"
+        actionLabel="Try again"
+        (action)="loadData()"
+      />
+    </div>
+  }
+
+  @if (!isLoading() && !loadError()) {
     <div class="analytics-body">
 
       <ion-segment [value]="dateRange()" (ionChange)="setDateRange($any($event).detail.value)">
@@ -36,24 +47,37 @@
       </ion-segment>
       <ion-button expand="block" fill="outline" (click)="exportCsv()">Export CSV</ion-button>
 
+      @if (truncated()) {
+        <!--
+          The read hit its cap, so every figure below is a LOWER BOUND, not a
+          total. Saying so is the difference between "we did 40k this month" and
+          "we did at least 40k this month", and only the second is true.
+        -->
+        <app-alert-banner
+          tone="warning"
+          title="Figures are a lower bound"
+          [message]="'Showing the most recent ' + orders().length + ' orders. Older orders were not included, so these totals may understate real activity.'"
+        />
+      }
+
       <div class="kpi-grid">
         <div class="kpi-tile kpi-revenue">
-          <ion-icon name="cash-outline" class="kpi-icon"></ion-icon>
+          <app-icon name="banknote" class="kpi-icon" />
           <p class="kpi-label">Revenue (Delivered)</p>
           <p class="kpi-val">{{ totalRevenue() | peso }}</p>
         </div>
         <div class="kpi-tile kpi-orders">
-          <ion-icon name="receipt-outline" class="kpi-icon"></ion-icon>
-          <p class="kpi-label">Total Orders</p>
+          <app-icon name="receipt" class="kpi-icon" />
+          <p class="kpi-label">Total Orders ({{ rangeLabel() }})</p>
           <p class="kpi-val">{{ totalOrders() }}</p>
         </div>
         <div class="kpi-tile kpi-delivered">
-          <ion-icon name="trending-up-outline" class="kpi-icon"></ion-icon>
-          <p class="kpi-label">Delivered</p>
+          <app-icon name="trending-up" class="kpi-icon" />
+          <p class="kpi-label">Delivered ({{ rangeLabel() }})</p>
           <p class="kpi-val">{{ deliveredOrders() }}</p>
         </div>
         <div class="kpi-tile kpi-avg">
-          <ion-icon name="ice-cream-outline" class="kpi-icon"></ion-icon>
+          <app-icon name="ice-cream" class="kpi-icon" />
           <p class="kpi-label">Avg. Delivered Order</p>
           <p class="kpi-val">{{ avgOrderValue() | peso }}</p>
         </div>
@@ -64,54 +88,72 @@
            answer is here instead of being a mystery. -->
       @if (myOrderCount() > 0) {
         <p class="analytics-note">
-          Excludes your {{ myOrderCount() }} own order{{ myOrderCount() === 1 ? '' : 's' }} —
-          an owner purchase isn't revenue. They still appear in Fulfillment.
+          Excludes your {{ myOrderCount() }} own order{{ myOrderCount() === 1 ? '' : 's' }}
+          in {{ rangeLabel() }} — an owner purchase isn't revenue. They still appear in Fulfillment.
         </p>
       }
 
-      <h3 class="section-title">Top Flavors by Units Sold (Delivered)</h3>
-      @if (topFlavors().length === 0) {
-        <p class="no-data">No sales data yet.</p>
-      }
-      @for (flavor of topFlavors(); track flavor.name; let i = $index) {
-        <div class="flavor-row">
-          <span class="flavor-rank">#{{ i + 1 }}</span>
-          <div class="flavor-info">
-            <span class="flavor-name">{{ flavor.name }}</span>
-            <div class="flavor-bar-wrap">
-              <div
-                class="flavor-bar"
-                [style.width.%]="topFlavors()[0].count > 0 ? (flavor.count / topFlavors()[0].count) * 100 : 0"
-              ></div>
-            </div>
-          </div>
-          <div class="flavor-stats">
-            <span class="flavor-units">{{ flavor.count }} units</span>
-            <span class="flavor-revenue">{{ flavor.revenue | peso }}</span>
-          </div>
-        </div>
+      <!--
+        Pie: how the delivered orders split across statuses. A donut rather than
+        a full pie because the hole carries the total, which is the number people
+        actually want.
+      -->
+      @if (deliveredOnly().length > 0) {
+        <ion-card class="chart-card">
+          <ion-card-content>
+            <h3 class="section-title">Order status mix</h3>
+            <p class="chart-sub">Every order in {{ rangeLabel() }}, not just delivered ones.</p>
+            <app-donut-chart
+              [slices]="statusSlices()"
+              centreLabel="Orders"
+              ariaLabel="Distribution of orders by status"
+            />
+          </ion-card-content>
+        </ion-card>
       }
 
-      <h3 class="section-title">Sales by Flavor Set (Delivered)</h3>
-      @for (s of salesBySet(); track s.name) {
-        <div class="flavor-row">
-          <div class="flavor-info"><span class="flavor-name">{{ s.name }}</span></div>
-          <div class="flavor-stats">
-            <span class="flavor-units">{{ s.count }} units</span>
-            <span class="flavor-revenue">{{ s.revenue | peso }}</span>
-          </div>
-        </div>
+      <!-- Bar: units sold per flavor. Horizontal because flavor names are long. -->
+      @if (topFlavors().length > 0) {
+        <ion-card class="chart-card">
+          <ion-card-content>
+            <h3 class="section-title">Top flavors by units sold</h3>
+            <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
+            <app-bar-chart
+              [data]="flavorBars()"
+              [format]="formatUnits"
+              emptyMessage="No delivered flavors in this range yet."
+            />
+          </ion-card-content>
+        </ion-card>
       }
 
-      <h3 class="section-title">Sales by Size (Delivered)</h3>
-      @for (s of salesBySize(); track s.name) {
-        <div class="flavor-row">
-          <div class="flavor-info"><span class="flavor-name">{{ s.name }}</span></div>
-          <div class="flavor-stats">
-            <span class="flavor-units">{{ s.count }} units</span>
-            <span class="flavor-revenue">{{ s.revenue | peso }}</span>
-          </div>
-        </div>
+      <!-- Bar: revenue by flavor set. -->
+      @if (salesBySet().length > 0) {
+        <ion-card class="chart-card">
+          <ion-card-content>
+            <h3 class="section-title">Revenue by flavor set</h3>
+            <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
+            <app-bar-chart
+              [data]="setBars()"
+              [format]="formatPeso"
+              emptyMessage="No delivered sales in this range yet."
+            />
+          </ion-card-content>
+        </ion-card>
+      }
+
+      <!-- Bar: units by size. -->
+      @if (salesBySize().length > 0) {
+        <ion-card class="chart-card">
+          <ion-card-content>
+            <h3 class="section-title">Units by size</h3>
+            <app-bar-chart
+              [data]="sizeBars()"
+              [format]="formatUnits"
+              emptyMessage="No delivered sales in this range yet."
+            />
+          </ion-card-content>
+        </ion-card>
       }
 
     </div>

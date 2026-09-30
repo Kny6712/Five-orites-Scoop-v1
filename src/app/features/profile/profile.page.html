@@ -1,0 +1,209 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>My Profile</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="profile-wrap">
+
+    @if (errorMessage()) {
+      <app-alert-banner
+        tone="danger"
+        [message]="errorMessage()"
+      />
+    }
+
+    <!-- ── Avatar ──────────────────────────────────────────────────────── -->
+    <section class="avatar-section">
+      <div class="avatar-frame">
+        @if (user()?.photoURL) {
+          <img
+            [src]="user()!.photoURL | cloudinary: 256"
+            alt="Your profile photo"
+            class="avatar-img"
+          />
+        } @else {
+          <div class="avatar-initials" aria-hidden="true">{{ initials() }}</div>
+        }
+        @if (isUploadingPhoto()) {
+          <div class="avatar-busy" aria-live="polite">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
+        }
+      </div>
+
+      <div class="avatar-actions">
+        <!--
+          A styled label wrapping a real <input type="file">, not a div with a
+          click handler: that keeps it keyboard-reachable and screen-reader
+          announceable, and gives us the native file picker for free.
+        -->
+        <label class="file-label" [class.disabled]="isUploadingPhoto()">
+          <app-icon name="camera" />
+          {{ isUploadingPhoto() ? 'Uploading…' : 'Change photo' }}
+          <input
+            type="file"
+            accept="image/*"
+            class="file-input"
+            (change)="onPhotoSelected($event)"
+            [disabled]="isUploadingPhoto()"
+          />
+        </label>
+
+        @if (user()?.photoURL) {
+          <button type="button" class="link-btn" (click)="removePhoto()">
+            Remove
+          </button>
+        }
+      </div>
+    </section>
+
+    <!-- ── Details ─────────────────────────────────────────────────────── -->
+    <section class="panel">
+      <h2 class="panel-title">Your details</h2>
+
+      <label class="field">
+        <span class="field-label">Display name</span>
+        <ion-input
+          [(ngModel)]="displayName"
+          name="displayName"
+          type="text"
+          placeholder="Your name"
+          maxlength="60"
+          autocomplete="name"
+        ></ion-input>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Phone number</span>
+        <ion-input
+          [(ngModel)]="phone"
+          name="phone"
+          type="tel"
+          placeholder="0917 123 4567"
+          inputmode="tel"
+          autocomplete="tel"
+        ></ion-input>
+        <span class="field-hint">Used for delivery updates only.</span>
+      </label>
+
+      <ion-button
+        expand="block"
+        class="save-btn"
+        [disabled]="!isDirty() || saveState() === 'saving'"
+        (click)="saveProfile()"
+      >
+        @if (saveState() === 'saving') {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+        }
+        Save changes
+      </ion-button>
+    </section>
+
+    <!-- ── Email ───────────────────────────────────────────────────────── -->
+    <section class="panel">
+      <h2 class="panel-title">Email address</h2>
+
+      @if (emailLocked()) {
+        <!--
+          A Google account's address belongs to Google. Changing it here would
+          change the login identity and lock the user out, so it is shown, not
+          hidden — hiding it looks like a missing feature.
+        -->
+        <div class="locked-note">
+          <app-icon name="lock" />
+          <div>
+            <p class="locked-title">Managed by your Google account</p>
+            <p class="locked-text">{{ user()?.email }}</p>
+          </div>
+        </div>
+      } @else {
+        <label class="field">
+          <span class="field-label">Email address</span>
+          <ion-input
+            [(ngModel)]="newEmail"
+            name="newEmail"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+          ></ion-input>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Current password</span>
+          <ion-input
+            [(ngModel)]="emailPassword"
+            name="emailPassword"
+            type="password"
+            autocomplete="current-password"
+          ></ion-input>
+          <!--
+            Stated up front rather than discovered on submit: Firebase rejects an
+            email change without a recent sign-in, and the resulting
+            auth/requires-recent-login error names none of that.
+          -->
+          <span class="field-hint">Needed to confirm the change.</span>
+        </label>
+
+        <ion-button
+          expand="block"
+          fill="outline"
+          [disabled]="isChangingEmail"
+          (click)="changeEmail()"
+        >
+          @if (isChangingEmail) {
+            <ion-spinner name="crescent" slot="start"></ion-spinner>
+          }
+          Change email
+        </ion-button>
+        <p class="field-hint standalone-hint">
+          We'll email a confirmation link to the new address before anything changes.
+        </p>
+      }
+    </section>
+
+    <!-- ── Notifications ───────────────────────────────────────────────── -->
+    <section class="panel">
+      <h2 class="panel-title">Order notifications</h2>
+
+      <div class="toggle-row">
+        <div class="toggle-text">
+          <p class="toggle-title">Order updates</p>
+          <p class="toggle-sub">Get a notification when your order's status changes.</p>
+        </div>
+        <ion-toggle
+          [checked]="notificationState() !== 'off'"
+          (ionChange)="onNotificationsToggle($event)"
+          [attr.aria-label]="'Order update notifications'"
+        ></ion-toggle>
+      </div>
+
+      @if (notificationState() === 'blocked') {
+        <!--
+          A denied browser permission cannot be re-requested from a page; the
+          user has to change it in site settings. Saying that is the difference
+          between a setting and a switch that looks broken.
+        -->
+        <div class="blocked-note">
+          <app-icon name="wifi-off" />
+          <div>
+            <p class="locked-title">Notifications are blocked</p>
+            <p class="locked-text">
+              Your browser is blocking notifications for this site. Allow them in
+              your browser's site settings, then switch this back on.
+            </p>
+          </div>
+        </div>
+      }
+    </section>
+
+    @if (saveState() === 'saved') {
+      <p class="saved-note" role="status">Your profile has been updated.</p>
+    }
+
+  </div>
+</ion-content>

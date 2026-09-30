@@ -8,23 +8,31 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton,
   IonSegment, IonSegmentButton, IonLabel,
-  IonCard, IonCardContent, IonIcon, IonButton, IonText,
+  IonCard, IonCardContent, IonButton, IonText,
   IonSkeletonText, IonRefresher, IonRefresherContent,
   IonChip, IonBadge, AlertController, ToastController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  checkmarkOutline, arrowForwardOutline, closeOutline,
-  receiptOutline, timeOutline,
-} from 'ionicons/icons';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { Subscription, catchError, of } from 'rxjs';
 import { OrderService } from '../../core/services/order.service';
-import { NotificationService } from '../../core/services/notification.service';
 import { Order, OrderStatus, ORDER_STATUS_META } from '../../core/models/order.model';
+import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+
+/**
+ * How many orders the fulfillment queue reads.
+ *
+ * This is a WORKING QUEUE, not a report: an order the staff cannot see is an
+ * order they never prepare. The old 100-order default was small enough that a
+ * busy shop would quietly lose its backlog. `truncated` in the template warns
+ * if this is ever reached.
+ */
+const ORDERS_QUEUE_MAX = 300;
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: 'confirmed',
@@ -41,17 +49,16 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton,
     IonSegment, IonSegmentButton, IonLabel,
-    IonCard, IonCardContent, IonIcon, IonButton, IonText,
+    IonCard, IonCardContent, IonButton, IonText,
     IonSkeletonText, IonRefresher, IonRefresherContent,
     IonChip, IonBadge,
     OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
-  ],
+    AppIconComponent, EmptyStateComponent, AlertBannerComponent],
   templateUrl: './admin-orders.page.html',
   styleUrls: ['./admin-orders.page.scss'],
 })
 export class AdminOrdersPage implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
-  private notificationService = inject(NotificationService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
   private sub?: Subscription;
@@ -59,6 +66,10 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   allOrders = signal<Order[]>([]);
   selectedFilter = signal<OrderStatus | 'all'>('all');
   isLoading = signal(true);
+  /** Non-empty when the order list failed to load, as opposed to being empty. */
+  loadError = signal('');
+  /** True when the queue read hit ORDERS_QUEUE_MAX, so older orders are hidden. */
+  truncated = signal(false);
   updatingId = signal<string | null>(null);
   expandedId = signal<string | null>(null);
 
@@ -73,7 +84,10 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     { label: 'Preparing', value: 'preparing' },
     { label: 'Delivery', value: 'out_for_delivery' },
     { label: 'Done', value: 'delivered' },
-  ];
+    // Cancelled was missing from this list, so a cancelled order could only be
+    // found under "All" — which is exactly the list that goes incomplete once
+    // the shop passes the 100-order read cap.
+    { label: 'Cancelled', value: 'cancelled' }];
 
   filteredOrders = computed(() => {
     const filter = this.selectedFilter();
@@ -83,22 +97,44 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
 
   skeletonItems = Array(5).fill(0);
 
-  constructor() {
-    addIcons({ checkmarkOutline, arrowForwardOutline, closeOutline, receiptOutline, timeOutline });
-  }
 
   ngOnInit(): void { this.loadOrders(); }
   ngOnDestroy(): void { this.sub?.unsubscribe(); }
 
   loadOrders(): void {
     this.isLoading.set(true);
+    this.loadError.set('');
     this.sub?.unsubscribe();
-    this.sub = this.orderService.getAllOrders()
-      .pipe(catchError(() => of([])))
+    // A dedicated cap, not the 100-order default: fulfillment is a working
+    // queue, not a report, and an order the staff cannot see is one they never
+    // prepare. The analytics page is the read that reports its own cap.
+    this.sub = this.orderService.getAllOrders(undefined, ORDERS_QUEUE_MAX)
+      .pipe(catchError((err) => {
+        // Previously collapsed to an empty list, so a permissions denial or a
+        // missing composite index rendered as "No orders" — indistinguishable
+        // from a genuinely empty fulfilment queue.
+        console.error('Failed to load orders.', err);
+        this.loadError.set(describeFirestoreError('orders', err));
+        return of([] as Order[]);
+      }))
       .subscribe((orders) => {
         this.allOrders.set(orders);
+        // Hitting the cap means older orders exist off-screen. Staff must be told,
+        // or they will assume the queue is complete.
+        this.truncated.set(orders.length >= ORDERS_QUEUE_MAX);
         this.isLoading.set(false);
       });
+  }
+
+  /**
+   * Stock only comes back for an order that never left the shop, so cancelling
+   * a dispatched order is allowed but must not read as a restock. The service
+   * enforces this; the button is hidden to avoid offering an action whose
+   * inventory side effect differs from what the label implies.
+   */
+  canCancel(order: Order): boolean {
+    return order.status !== 'delivered' && order.status !== 'cancelled'
+      && order.status !== 'out_for_delivery';
   }
 
   onFilterChange(event: CustomEvent): void {
@@ -130,7 +166,9 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
             this.updatingId.set(order.id);
             try {
               await this.orderService.updateOrderStatus(order.id, next);
-              await this.notificationService.notifyOrderStatusChange(order.id, next);
+              // No customer notification here: this is the ADMIN's device. The
+              // owner's device is notified by OrderNotificationService, which
+              // watches their own orders.
               const toast = await this.toastCtrl.create({
                 message: `Order updated to "${ORDER_STATUS_META[next].label}"`,
                 color: 'success', duration: 2000, position: 'top',
@@ -146,8 +184,7 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
               this.updatingId.set(null);
             }
           },
-        },
-      ],
+        }],
     });
     await alert.present();
   }
@@ -166,7 +203,7 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
             this.updatingId.set(order.id);
             try {
               await this.orderService.cancelOrder(order.id, data?.reason);
-              await this.notificationService.notifyOrderStatusChange(order.id, 'cancelled');
+              // Owner notified by OrderNotificationService, not from here.
               const toast = await this.toastCtrl.create({
                 message: 'Order cancelled and stock restored.',
                 color: 'warning', duration: 2500, position: 'top',
@@ -182,8 +219,7 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
               this.updatingId.set(null);
             }
           },
-        },
-      ],
+        }],
     });
     await alert.present();
   }

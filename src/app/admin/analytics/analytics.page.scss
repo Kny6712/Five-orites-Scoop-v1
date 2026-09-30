@@ -18,11 +18,25 @@
 .kpi-delivered { background: linear-gradient(135deg, #00838f, #00acc1); }
 .kpi-avg { background: linear-gradient(135deg, #E65100, #fb8c00); }
 
-.kpi-icon { font-size: 22px; color: rgba(255,255,255,0.7); }
+.kpi-icon { --icon-size: 22px; color: rgba(255,255,255,0.7); }
 .kpi-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); margin: 0; }
 .kpi-val { font-size: 22px; font-weight: 800; color: #fff; margin: 0; }
 
 .section-title { font-size: 18px; font-weight: 700; margin: 4px 0 8px; color: var(--ion-color-dark); }
+
+// Chart panels. The section title used to float directly on the page background;
+// a card per chart gives each one a boundary so three of them do not blur into a
+// single column of bars.
+.chart-card {
+  margin: var(--space-3) 0;
+}
+
+.chart-sub {
+  margin: 0 0 var(--space-3);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
 .no-data { font-size: 14px; color: var(--ion-color-medium); }
 
 // Discloses that the admin's own orders are filtered out of the KPIs, so the

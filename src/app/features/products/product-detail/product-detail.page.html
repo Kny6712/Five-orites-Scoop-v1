@@ -43,9 +43,20 @@
 
     <div class="detail-body">
       <h1 class="detail-name">{{ product()!.variantName }}</h1>
+
+      @if (isUnavailable()) {
+        <div class="error-state" role="alert">
+          <p>This flavor is no longer available and cannot be ordered.</p>
+        </div>
+      }
       <app-star-rating [rating]="avgRating()" [showCount]="true" [reviewCount]="reviewCount()"></app-star-rating>
       <ion-button fill="outline" size="small" (click)="toggleWishlist()">
-        <ion-icon [name]="isWished() ? 'heart' : 'heart-outline'" slot="start"></ion-icon>
+        <app-icon
+          name="heart"
+          slot="start"
+          class="wishlist-icon"
+          [class.wished]="isWished()"
+        />
         {{ isWished() ? 'Wishlisted' : 'Wishlist' }}
       </ion-button>
       <p class="detail-description">{{ product()!.description }}</p>
@@ -75,48 +86,77 @@
 
       <div class="qty-row">
         <span class="qty-label">Quantity</span>
-        <div class="qty-controls">
-          <button class="qty-btn" (click)="decrementQty()" [disabled]="quantity() <= 1">
-            <ion-icon name="remove-outline"></ion-icon>
-          </button>
-          <span class="qty-value">{{ quantity() }}</span>
-          <button class="qty-btn" (click)="incrementQty()" [disabled]="quantity() >= currentStock()">
-            <ion-icon name="add-outline"></ion-icon>
-          </button>
-        </div>
+        <!-- Shared stepper, replacing a 32x32 hand-rolled pair. The ceiling is
+             the live stock, so the button disables itself at the limit. -->
+        <app-qty-stepper
+          [value]="quantity()"
+          [max]="stepperMax()"
+          (changed)="quantity.set($event)"
+        />
         <span class="line-total">{{ lineTotal() | peso }}</span>
       </div>
 
       <ion-button
         expand="block"
         class="add-to-cart-cta"
-        [disabled]="isOutOfStock() || isAdding()"
+        [disabled]="!canPurchase() || isAdding()"
         (click)="addToCart()"
       >
-        <ion-icon name="cart-outline" slot="start"></ion-icon>
-        {{ isAdding() ? 'Adding...' : isOutOfStock() ? 'Out of Stock' : 'Add to Cart' }}
+        <app-icon name="cart" slot="start" />
+        {{ isAdding() ? 'Adding...' : isUnavailable() ? 'No Longer Available' : isOutOfStock() ? 'Out of Stock' : 'Add to Cart' }}
       </ion-button>
 
       <div class="reviews-section">
         <h2 class="section-title">Customer Reviews</h2>
-        @if (reviews().length === 0) {
+        @if (reviewsError()) {
+          <div class="reviews-empty">
+            <app-star-rating [rating]="0" [showCount]="false"></app-star-rating>
+            <p class="error-state" role="alert">{{ reviewsError() }}</p>
+          </div>
+        } @else if (reviews().length === 0) {
           <div class="reviews-empty">
             <app-star-rating [rating]="0" [showCount]="true" [reviewCount]="0"></app-star-rating>
             <p class="no-reviews">No reviews yet — be the first!</p>
           </div>
         } @else {
+          @if (reviewsTruncated()) {
+            <p class="reviews-truncated">Showing the most recent {{ reviews().length }} reviews.</p>
+          }
           @for (r of reviews(); track r.id) {
             <div class="review-item">
               <app-star-rating [rating]="r.rating"></app-star-rating>
               <p class="review-author">{{ r.displayName }}</p>
               <p class="review-comment">{{ r.comment }}</p>
+              @if (r.userId === currentUserId()) {
+                <ion-button
+                  size="small"
+                  fill="clear"
+                  color="medium"
+                  class="withdraw-review-btn"
+                  type="button"
+                  (click)="withdrawReview(r)"
+                  [disabled]="isSubmittingReview()"
+                >
+                  <app-icon name="trash" slot="start" />
+                  Withdraw
+                </ion-button>
+              }
             </div>
           }
         }
         <div class="review-form">
-          <h3 class="section-title">Write a review</h3>
+          <h3 class="section-title">{{ hasMyReview() ? 'Update your review' : 'Write a review' }}</h3>
+          @if (hasMyReview()) {
+            <p class="review-form-note">You already reviewed this flavor. Submitting again updates your existing review.</p>
+          }
           <app-star-rating [rating]="newRating()" [interactive]="true" (ratingChange)="newRating.set($event)"></app-star-rating>
-          <ion-textarea [(ngModel)]="newComment" placeholder="What did you love?" rows="2"></ion-textarea>
+          <ion-textarea
+            id="review-comment"
+            [(ngModel)]="newComment"
+            placeholder="What did you love?"
+            aria-label="Review comment"
+            rows="2"
+          ></ion-textarea>
           <ion-button expand="block" (click)="submitReview()" [disabled]="isSubmittingReview()">
             {{ isSubmittingReview() ? 'Submitting...' : 'Submit Review' }}
           </ion-button>

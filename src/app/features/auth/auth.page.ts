@@ -6,14 +6,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  IonContent, IonInput, IonButton, IonIcon,
-  IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
+  IonContent, IonInput, IonButton, IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import {
-  logoGoogle, mailOutline, lockClosedOutline,
-  personOutline, eyeOutline, eyeOffOutline,
-} from 'ionicons/icons';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { AuthService } from '../../core/services/auth.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs/operators';
@@ -25,9 +21,9 @@ type AuthMode = 'login' | 'register';
   standalone: true,
   imports: [
     CommonModule, FormsModule,
-    IonContent, IonInput, IonButton, IonIcon,
+    IonContent, IonInput, IonButton,
     IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
-  ],
+    AppIconComponent, AlertBannerComponent],
   templateUrl: './auth.page.html',
   styleUrls: ['./auth.page.scss'],
 })
@@ -42,12 +38,11 @@ export class AuthPage implements OnInit {
   showPassword = signal(false);
   isLoading = signal(false);
   errorMessage = signal('');
+  /** Non-empty after a reset request. Wording never reveals account existence. */
+  resetMessage = signal('');
+  isSendingReset = signal(false);
 
   constructor() {
-    addIcons({
-      logoGoogle, mailOutline, lockClosedOutline,
-      personOutline, eyeOutline, eyeOffOutline,
-    });
 
     this.authService.currentUser$
       .pipe(takeUntilDestroyed(), filter((user) => user !== null))
@@ -59,6 +54,7 @@ export class AuthPage implements OnInit {
   setMode(mode: AuthMode): void {
     this.mode.set(mode);
     this.errorMessage.set('');
+    this.resetMessage.set('');
   }
 
   togglePasswordVisibility(): void {
@@ -91,6 +87,33 @@ export class AuthPage implements OnInit {
     }
   }
 
+  /**
+   * Sends a reset email.
+   *
+   * The confirmation is intentionally the SAME whether or not an account exists
+   * for that address. Reporting "no account" here would be an account-enumeration
+   * hole, identical in shape to the one the login error messages had.
+   */
+  async sendResetEmail(): Promise<void> {
+    this.errorMessage.set('');
+    this.resetMessage.set('');
+    if (!this.email.trim()) {
+      this.errorMessage.set('Enter your email address first.');
+      return;
+    }
+    this.isSendingReset.set(true);
+    try {
+      await this.authService.sendPasswordResetEmail(this.email);
+      this.resetMessage.set(
+        'If an account exists for that address, a reset link is on its way. Check your spam folder if it does not arrive.'
+      );
+    } catch {
+      this.errorMessage.set('Could not send the reset email. Please try again later.');
+    } finally {
+      this.isSendingReset.set(false);
+    }
+  }
+
   async signInWithGoogle(): Promise<void> {
     this.isLoading.set(true);
     try {
@@ -106,14 +129,20 @@ export class AuthPage implements OnInit {
   private parseFirebaseError(err: unknown): string {
     if (err instanceof Error) {
       const code = (err as { code?: string }).code ?? '';
+      // Deliberately ONE message for every credential failure. Telling a
+      // visitor "no account found with this email" but "incorrect password"
+      // for the same input turns the login form into an account-enumeration
+      // oracle. These two codes are what the SDK throws when Email Enumeration
+      // Protection is OFF; with it on it throws invalid-credential instead.
+      // One message is correct in both configurations.
       const messages: Record<string, string> = {
-        'auth/user-not-found': 'No account found with this email.',
-        'auth/wrong-password': 'Incorrect password.',
+        'auth/user-not-found': 'Incorrect email or password.',
+        'auth/wrong-password': 'Incorrect email or password.',
+        'auth/invalid-credential': 'Incorrect email or password.',
         'auth/email-already-in-use': 'An account with this email already exists.',
         'auth/weak-password': 'Password must be at least 6 characters.',
         'auth/invalid-email': 'Please enter a valid email address.',
         'auth/too-many-requests': 'Too many attempts. Please try again later.',
-        'auth/invalid-credential': 'Incorrect email or password.',
       };
       return messages[code] ?? err.message ?? 'An unexpected error occurred.';
     }

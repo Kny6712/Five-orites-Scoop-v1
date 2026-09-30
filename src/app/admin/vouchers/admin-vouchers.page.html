@@ -1,0 +1,151 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Vouchers</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="startCreate()">
+        <app-icon name="plus" slot="start" />
+        New
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  @if (errorMessage()) {
+    <app-alert-banner tone="danger" [message]="errorMessage()" />
+  }
+
+  <!-- ── Editor ───────────────────────────────────────────────────────── -->
+  @if (editing()) {
+    <section class="editor">
+      <h2 class="editor-title">{{ originalId() ? 'Edit voucher' : 'New voucher' }}</h2>
+
+      <label class="field">
+        <span class="field-label">Code</span>
+        <ion-input
+          [(ngModel)]="code"
+          placeholder="SCOOP10"
+          autocapitalize="characters"
+          maxlength="24"
+        ></ion-input>
+        <span class="field-hint">
+          Uppercase letters, numbers, dashes and underscores. This is what the customer types.
+        </span>
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Type</span>
+          <ion-select [(ngModel)]="type" interface="popover">
+            <ion-select-option value="percent">Percentage off</ion-select-option>
+            <ion-select-option value="fixed">Fixed peso amount</ion-select-option>
+          </ion-select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Value</span>
+          <ion-input
+            [(ngModel)]="value"
+            type="number"
+            inputmode="numeric"
+            [placeholder]="type === 'percent' ? '10' : '50'"
+          ></ion-input>
+          @if (type === 'percent') {
+            <span class="field-hint">Maximum {{ maxPercent }}%.</span>
+          }
+        </label>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Minimum order (₱)</span>
+        <ion-input [(ngModel)]="minOrder" type="number" inputmode="numeric" placeholder="0"></ion-input>
+        <span class="field-hint">Leave at 0 for no minimum.</span>
+      </label>
+
+      <div class="toggle-row">
+        <span class="field-label">Active</span>
+        <ion-toggle [(ngModel)]="isActive" aria-label="Voucher active"></ion-toggle>
+      </div>
+
+      <div class="editor-actions">
+        <ion-button fill="clear" (click)="cancelEdit()">Cancel</ion-button>
+        <ion-button
+          expand="block"
+          class="save-btn"
+          [disabled]="busyCode() !== null"
+          (click)="save()"
+        >
+          Save voucher
+        </ion-button>
+      </div>
+    </section>
+  }
+
+  <!-- ── List ─────────────────────────────────────────────────────────── -->
+  @if (isLoading()) {
+    <div class="list">
+      @for (s of [1, 2, 3]; track s) {
+        <div class="voucher-row">
+          <ion-skeleton-text animated style="height: 20px; width: 45%;"></ion-skeleton-text>
+        </div>
+      }
+    </div>
+  } @else if (vouchers().length === 0) {
+    <!--
+      A fresh install genuinely has no vouchers: there is no seeder, and the
+      hardcoded fallback was removed as a security fix. So this state is expected,
+      not exceptional, and the empty copy says what to do about it.
+    -->
+    <div class="empty">
+      <app-icon name="ticket" />
+      <h2>No vouchers yet</h2>
+      <p>
+        Promo codes you create here appear on the customer dashboard straight away.
+      </p>
+      <ion-button class="save-btn" (click)="startCreate()">
+        <app-icon name="plus" slot="start" />
+        Create the first one
+      </ion-button>
+    </div>
+  } @else {
+    <div class="list">
+      @for (voucher of vouchers(); track voucher.id) {
+        <div class="voucher-row" [class.inactive]="!voucher.isActive">
+          <div class="voucher-info">
+            <span class="voucher-code">{{ voucher.code }}</span>
+            <span class="voucher-desc">
+              {{ describe(voucher) }}
+              @if (voucher.minOrder) {
+                · min ₱{{ voucher.minOrder }}
+              }
+            </span>
+          </div>
+
+          <div class="voucher-actions">
+            <ion-toggle
+              [checked]="voucher.isActive"
+              (ionChange)="toggleActive(voucher)"
+              [disabled]="busyCode() === voucher.code"
+              [attr.aria-label]="(voucher.isActive ? 'Deactivate ' : 'Activate ') + voucher.code"
+            ></ion-toggle>
+            <ion-button fill="clear" size="small" (click)="startEdit(voucher)">
+              Edit
+            </ion-button>
+            <ion-button
+              fill="clear"
+              size="small"
+              color="danger"
+              (click)="remove(voucher)"
+              [attr.aria-label]="'Delete ' + voucher.code"
+            >
+              <app-icon name="trash" />
+            </ion-button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</ion-content>

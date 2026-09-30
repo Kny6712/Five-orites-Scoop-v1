@@ -40,7 +40,7 @@
                      positioning it against the item instead would mean hard-coding
                      the icon's offset from --padding-start and the row height. -->
                 <span slot="start" class="nav-icon-wrap">
-                  <ion-icon [name]="item.icon" class="nav-icon"></ion-icon>
+                  <app-icon [name]="item.icon" class="nav-icon" />
                   @if (item.badge && cartItemCount() > 0) {
                     <span class="cart-badge" aria-hidden="true">{{ cartItemCount() }}</span>
                   }
@@ -65,7 +65,7 @@
                   class="nav-item"
                   [attr.aria-label]="item.title"
                 >
-                  <ion-icon [name]="item.icon" slot="start" class="nav-icon admin-nav-icon"></ion-icon>
+                  <app-icon [name]="item.icon" slot="start" class="nav-icon admin-nav-icon" />
                   <ion-label>{{ item.title }}</ion-label>
                 </ion-item>
               </ion-menu-toggle>
@@ -98,7 +98,7 @@
               (click)="logout()"
               aria-label="Sign out of your account"
             >
-              <ion-icon name="log-out-outline" slot="icon-only"></ion-icon>
+              <app-icon name="log-out" slot="icon-only" />
             </ion-button>
           </div>
         } @else {

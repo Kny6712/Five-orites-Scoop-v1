@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300" role="img" aria-label="Vietnamese Coffee">
+  <rect width="400" height="300" fill="hsl(6, 70%, 92%)"/>
+  <circle cx="186" cy="118" r="67" fill="hsl(6, 62%, 74%)"/>
+  <circle cx="156" cy="96" r="20" fill="hsl(82, 55%, 62%)" opacity="0.85"/>
+  <circle cx="214" cy="100" r="17" fill="hsl(82, 55%, 62%)" opacity="0.7"/>
+  <path d="M150 140 h100 l-50 96 z" fill="hsl(35,55%,62%)"/>
+  <path d="M150 140 h100 l-10 18 h-80 z" fill="hsl(35,45%,50%)" opacity="0.35"/>
+  <text x="200" y="272" text-anchor="middle" font-family="Verdana,Geneva,sans-serif" font-size="20" font-weight="bold" fill="hsl(279,35%,32%)">Vietnamese Coffee</text>
+  <text x="200" y="290" text-anchor="middle" font-family="Verdana,Geneva,sans-serif" font-size="12" fill="hsl(0,0%,45%)">Set 7 · Coffee</text>
+</svg>

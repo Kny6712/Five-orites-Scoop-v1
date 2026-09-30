@@ -19,6 +19,23 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
+  <!--
+    A failed catalog read must not look like an empty one. The error branch
+    replaces the count, the search bar, and the bulk actions, because all three
+    act on data that never arrived — Add Product in particular builds its
+    set-number options from the loaded catalog, so over a failed read it would
+    silently fall back to a hardcoded default.
+  -->
+  @if (loadError()) {
+    <app-empty-state
+      icon="circle-alert"
+      title="Could not load the catalog"
+      [message]="loadError()"
+      actionLabel="Try again"
+      (action)="loadProducts()"
+      [compact]="true"
+    />
+  } @else {
   <div class="inv-header">
     <ion-searchbar
       placeholder="Search products..."
@@ -33,6 +50,7 @@
       <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
     </div>
   </div>
+  }
 
   <!-- Loading -->
   @if (isLoading()) {
@@ -46,7 +64,7 @@
   }
 
   <!-- Product List -->
-  @if (!isLoading()) {
+  @if (!isLoading() && !loadError()) {
     <div class="inv-list">
       @for (product of filteredProducts(); track product.id) {
         <ion-card class="inv-card" [class.inactive-card]="!product.isActive">
@@ -88,9 +106,13 @@
                 <div class="stock-edit-sizes">
                   @for (size of sizes; track size) {
                     <div class="stock-edit-cell">
-                      <label class="stock-edit-label">{{ sizeLabels[size] }}</label>
+                      <label class="stock-edit-label" [attr.for]="'stock-' + product.id + '-' + size">
+                        {{ sizeLabels[size] }}
+                      </label>
                       <ion-input
+                        [id]="'stock-' + product.id + '-' + size"
                         type="number"
+                        [attr.aria-label]="sizeLabels[size] + ' stock quantity for ' + product.variantName"
                         [(ngModel)]="editStock[product.id][size]"
                         [min]="0"
                         (ionBlur)="validateStock(product.id, size)"
@@ -112,7 +134,7 @@
                   (click)="saveStock(product)"
                   [disabled]="savingId() === product.id"
                 >
-                  <ion-icon name="save-outline" slot="start"></ion-icon>
+                  <app-icon name="save" slot="start" />
                   {{ savingId() === product.id ? 'Saving...' : 'Save Changes' }}
                 </ion-button>
                 <ion-button expand="block" fill="outline" color="medium" (click)="cancelEdit()">
@@ -132,9 +154,12 @@
                       {{ product.stock[size] }}
                     </span>
                     @if (product.stock[size] < lowStockThreshold) {
-                      <ion-icon name="alert-circle-outline" class="stock-alert-icon"
-                        [color]="product.stock[size] === 0 ? 'danger' : 'warning'">
-                      </ion-icon>
+                      <app-icon
+                        name="circle-alert"
+                        class="stock-alert-icon"
+                        [class.stock-alert-danger]="product.stock[size] === 0"
+                        [class.stock-alert-warning]="product.stock[size] > 0"
+                      />
                     }
                   </div>
                 }
@@ -146,7 +171,7 @@
                   class="edit-btn action-btn"
                   (click)="startEdit(product)"
                 >
-                  <ion-icon name="create-outline" slot="start"></ion-icon>
+                  <app-icon name="pencil" slot="start" />
                   Edit Stock
                 </ion-button>
                 <ion-button

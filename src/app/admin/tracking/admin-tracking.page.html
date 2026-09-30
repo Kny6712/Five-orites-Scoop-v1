@@ -1,0 +1,119 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Delivery Map</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  @if (errorMessage()) {
+    <app-alert-banner tone="danger" [message]="errorMessage()" />
+  }
+
+  <div class="map-wrap">
+    <app-scoop-map
+      [markers]="mapMarkers()"
+      [height]="'340px'"
+      ariaLabel="Map of active delivery destinations"
+      (markerTapped)="onMarkerTapped($event)"
+    />
+
+    <p class="map-caption">
+      <app-icon name="map-pin" />
+      The shop plus {{ mappedOrders().length }} active
+      {{ mappedOrders().length === 1 ? 'order' : 'orders' }} with a resolved address.
+      Tapping a pin selects it below.
+    </p>
+  </div>
+
+  @if (selectedOrder(); as order) {
+    <section class="panel selected">
+      <div class="panel-head">
+        <h2 class="panel-title">#{{ order.id.slice(-6).toUpperCase() }}</h2>
+        <app-order-status-badge [status]="order.status" />
+      </div>
+      <p class="selected-address">{{ order.deliveryAddress }}</p>
+      <p class="selected-meta">{{ order.customerEmail }} · {{ distanceFor(order) }} away</p>
+      @if (canAdvance(order)) {
+        <ion-button
+          expand="block"
+          class="advance-btn"
+          [disabled]="busyId() === order.id"
+          (click)="advance(order)"
+        >
+          {{ nextLabel(order) }}
+        </ion-button>
+      }
+    </section>
+  }
+
+  @if (isLoading()) {
+    <div class="list">
+      @for (s of [1, 2, 3]; track s) {
+        <div class="order-row">
+          <ion-skeleton-text animated style="height: 18px; width: 40%;"></ion-skeleton-text>
+        </div>
+      }
+    </div>
+  } @else if (activeOrders().length === 0) {
+    <div class="empty">
+      <app-icon name="truck" />
+      <h2>Nothing out right now</h2>
+      <p>Active orders will appear here with their delivery addresses pinned.</p>
+    </div>
+  } @else {
+    <div class="list">
+      @for (order of activeOrders(); track order.id) {
+        <article
+          class="order-row"
+          [class.selected]="selectedId() === order.id"
+          (click)="selectedId.set(order.id)"
+        >
+          <div class="order-info">
+            <div class="order-top">
+              <span class="order-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
+              <app-order-status-badge [status]="order.status" />
+            </div>
+            <span class="order-address">{{ order.deliveryAddress }}</span>
+            <span class="order-meta">
+              {{ order.customerEmail }} · {{ order.items.length }} items ·
+              {{ distanceFor(order) }} away
+            </span>
+          </div>
+
+          @if (canAdvance(order)) {
+            <ion-button
+              fill="outline"
+              size="small"
+              class="advance-small"
+              [disabled]="busyId() === order.id"
+              (click)="advance(order); $event.stopPropagation()"
+            >
+              {{ nextLabel(order) }}
+            </ion-button>
+          }
+        </article>
+      }
+    </div>
+  }
+
+  @if (unmappedOrders().length > 0) {
+    <!--
+      Said out loud, because an order missing from the map is an order staff might
+      not think to prepare. These have no cached coordinate yet — the customer
+      tracker resolves one when they open their own order.
+    -->
+    <p class="unmapped-note">
+      {{ unmappedOrders().length }}
+      {{ unmappedOrders().length === 1 ? 'order has' : 'orders have' }} no address on
+      the map yet — {{ unmappedOrders().length === 1 ? 'it is' : 'they are' }} listed
+      above by address only.
+    </p>
+  }
+</ion-content>

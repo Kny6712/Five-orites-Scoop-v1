@@ -35,10 +35,6 @@ export class AddressService {
     });
   }
 
-  get addresses(): string[] {
-    return [...this.addressesSubject.getValue()];
-  }
-
   saveAddress(address: string): void {
     const user = this.authService.currentUserSnapshot;
     const cleaned = address.trim();
@@ -50,14 +46,5 @@ export class AddressService {
       writeAll(all);
       this.addressesSubject.next(all[user.uid]);
     }
-  }
-
-  removeAddress(address: string): void {
-    const user = this.authService.currentUserSnapshot;
-    if (!user) return;
-    const all = readAll();
-    all[user.uid] = (all[user.uid] ?? []).filter((a) => a !== address);
-    writeAll(all);
-    this.addressesSubject.next(all[user.uid]);
   }
 }

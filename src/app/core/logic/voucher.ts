@@ -5,7 +5,8 @@
 
 export type VoucherType = 'percent' | 'fixed';
 
-export interface VoucherLike {
+// Shape calculateDiscount needs — not part of the public surface.
+interface VoucherLike {
   type: VoucherType;
   value: number;
   minOrder?: number;

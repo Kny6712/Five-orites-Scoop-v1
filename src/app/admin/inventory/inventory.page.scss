@@ -8,6 +8,17 @@
 
 .inv-list { padding: 4px 12px 32px; display: flex; flex-direction: column; gap: 10px; }
 
+// A failed catalog read. Deliberately not styled like the empty list, so a
+// permissions failure is never mistaken for a wiped catalog.
+.inv-error {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--ion-color-medium);
+}
+.inv-error-icon { --icon-size: 48px; color: var(--ion-color-danger); }
+.inv-error-title { font-size: 16px; font-weight: 600; color: var(--ion-color-dark); margin: 12px 0 4px; }
+.inv-error-sub { font-size: 14px; margin: 0 0 16px; }
+
 .inv-card {
   border-radius: 16px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.07);
@@ -83,7 +94,11 @@
 .stock-in-stock { color: var(--color-success); }
 .stock-low-stock { color: var(--color-warning); }
 .stock-out-of-stock { color: var(--color-danger); }
-.stock-alert-icon { font-size: 14px; position: absolute; top: 4px; right: 4px; }
+.stock-alert-icon { --icon-size: 14px; position: absolute; top: 4px; right: 4px; }
+/* The alert glyph used to take an ion-icon [color] binding, which has no
+   equivalent on an SVG element. Two classes carry the same meaning instead. */
+.stock-alert-icon.stock-alert-danger { color: var(--ion-color-danger); }
+.stock-alert-icon.stock-alert-warning { color: var(--ion-color-warning); }
 
 // ── Stock Edit Grid ────────────────────────────────────────
 // .stock-edit-grid is only a positioning frame; the 2x2 of size inputs lives in

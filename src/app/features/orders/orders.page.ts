@@ -8,13 +8,13 @@ import { Router, RouterLink } from '@angular/router';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton,
-  IonList, IonItem, IonLabel, IonIcon, IonText,
+  IonList, IonItem, IonLabel, IonText,
   IonSkeletonText, IonRefresher, IonRefresherContent,
   IonNote, IonBadge, IonButton,
   AlertController, ToastController,
 } from '@ionic/angular/standalone';
-import { addIcons } from 'ionicons';
-import { receiptOutline, chevronForwardOutline, sadOutline } from 'ionicons/icons';
+import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { Subscription, catchError, of } from 'rxjs';
 import { OrderService } from '../../core/services/order.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -30,11 +30,11 @@ import { PesoPipe } from '../../shared/pipes/peso.pipe';
     CommonModule, RouterLink,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton,
-    IonList, IonItem, IonLabel, IonIcon, IonText,
+    IonList, IonItem, IonLabel, IonText,
     IonSkeletonText, IonRefresher, IonRefresherContent,
     IonNote, IonBadge, IonButton,
     OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
-  ],
+    AppIconComponent, EmptyStateComponent],
   templateUrl: './orders.page.html',
   styleUrls: ['./orders.page.scss'],
 })
@@ -52,9 +52,6 @@ export class OrdersPage implements OnInit, OnDestroy {
   cancellingId = signal<string | null>(null);
   skeletonItems = Array(5).fill(0);
 
-  constructor() {
-    addIcons({ receiptOutline, chevronForwardOutline, sadOutline });
-  }
 
   ngOnInit(): void {
     this.loadOrders();
@@ -92,6 +89,10 @@ export class OrdersPage implements OnInit, OnDestroy {
     setTimeout(() => (event.target as HTMLIonRefresherElement).complete(), 1000);
   }
 
+  goToProducts(): void {
+    void this.router.navigate(['/products']);
+  }
+
   canCancel(order: Order): boolean {
     return order.status === 'pending';
   }
@@ -127,8 +128,7 @@ export class OrdersPage implements OnInit, OnDestroy {
               this.cancellingId.set(null);
             }
           },
-        },
-      ],
+        }],
     });
     await alert.present();
   }

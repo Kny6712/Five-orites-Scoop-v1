@@ -1,0 +1,76 @@
+<!--
+  Promo cards. @if on the count rather than on the array, so an empty collection
+  renders an honest empty state instead of a section header with nothing under
+  it — which is the state a fresh install is in until an admin adds a code.
+-->
+
+@if (isLoading()) {
+  <div class="voucher-grid">
+    @for (s of [1, 2]; track s) {
+      <div class="voucher-card skeleton-card">
+        <ion-skeleton-text animated style="height: 18px; width: 60%;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="height: 14px; margin-top: 10px;"></ion-skeleton-text>
+      </div>
+    }
+  </div>
+} @else if (errorMessage()) {
+  <p class="voucher-error" role="alert">{{ errorMessage() }}</p>
+} @else if (vouchers().length === 0) {
+  <!-- An empty state is an invitation to act, not a dead end. -->
+  <div class="voucher-empty">
+    <app-icon name="ticket" />
+    <p>No promos running right now. Check back soon!</p>
+  </div>
+} @else {
+  <div class="voucher-grid">
+    @for (voucher of vouchers(); track voucher.id) {
+      <article class="voucher-card">
+        <div class="voucher-head">
+          <span class="voucher-code">{{ voucher.code }}</span>
+          <app-icon name="ticket" class="voucher-mark" />
+        </div>
+
+        <p class="voucher-desc">{{ describe(voucher) }}</p>
+
+        @if (hasMinimum(voucher)) {
+          <p class="voucher-min">Min. order ₱{{ voucher.minOrder }}</p>
+        }
+
+        <p class="voucher-sample">
+          On a ₱{{ SAMPLE_SUBTOTAL }} order you save
+          <strong>{{ sampleSaving(voucher) | peso }}</strong>
+        </p>
+
+        <div class="voucher-actions">
+          <ion-button
+            size="small"
+            class="copy-btn"
+            (click)="copyCode(voucher)"
+            [attr.aria-label]="'Copy code ' + voucher.code"
+          >
+            <app-icon name="copy" slot="start" />
+            @if (copiedCode() === voucher.code) {
+              Copied!
+            } @else {
+              Copy
+            }
+          </ion-button>
+
+          <ion-button size="small" fill="outline" class="use-btn" (click)="useCode(voucher)">
+            Use in cart
+          </ion-button>
+        </div>
+
+        @if (manualCopyCode() === voucher.code) {
+          <!--
+            No usable clipboard API (insecure origin, older WebView, or permission
+            denied). Selecting the code beats a button that appears to do nothing.
+          -->
+          <p class="manual-hint" role="status">
+            Couldn't copy automatically — the code is selected, copy it manually.
+          </p>
+        }
+      </article>
+    }
+  </div>
+}

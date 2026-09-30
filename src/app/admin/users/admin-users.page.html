@@ -1,0 +1,194 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Users</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  @if (errorMessage()) {
+    <app-alert-banner tone="danger" [message]="errorMessage()" />
+  }
+
+  @if (truncated()) {
+    <!-- Said out loud rather than quietly trimmed: a directory that silently
+         stops at 300 rows looks complete when it is not. -->
+    <app-alert-banner
+      tone="warning"
+      title="List truncated"
+      [message]="'Showing the first ' + users().length + ' users. Narrow the search to find anyone else.'"
+    />
+  }
+
+  <!-- ── Filters ──────────────────────────────────────────────────────── -->
+  <div class="filters">
+    <div class="search-wrap">
+      <app-icon name="filter" class="search-icon" />
+      <ion-input
+        [ngModel]="search()"
+        (ngModelChange)="search.set($event)"
+        placeholder="Search name, email or phone"
+        type="search"
+        aria-label="Search users"
+      ></ion-input>
+    </div>
+
+    <div class="role-chips" role="group" aria-label="Filter by role">
+      <button
+        type="button"
+        class="role-chip"
+        [class.active]="roleFilter() === 'all'"
+        (click)="roleFilter.set('all')"
+      >
+        All ({{ users().length }})
+      </button>
+      <button
+        type="button"
+        class="role-chip"
+        [class.active]="roleFilter() === 'admin'"
+        (click)="roleFilter.set('admin')"
+      >
+        Admins ({{ adminCount() }})
+      </button>
+      <button
+        type="button"
+        class="role-chip"
+        [class.active]="roleFilter() === 'customer'"
+        (click)="roleFilter.set('customer')"
+      >
+        Customers
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Editor ────────────────────────────────────────────────────────── -->
+  @if (editing()) {
+    <section class="editor">
+      <h2 class="editor-title">Edit user</h2>
+
+      <label class="field">
+        <span class="field-label">Display name</span>
+        <ion-input [(ngModel)]="editName" maxlength="60"></ion-input>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Phone number</span>
+        <ion-input [(ngModel)]="editPhone" type="tel" inputmode="tel" placeholder="0917 123 4567"></ion-input>
+      </label>
+
+      <div class="field">
+        <span class="field-label">Role</span>
+        <ion-select [(ngModel)]="editRole" interface="popover">
+          <ion-select-option value="customer">Customer</ion-select-option>
+          <ion-select-option value="admin">Admin</ion-select-option>
+        </ion-select>
+        @if (isSelf()(editUid()!)) {
+          <!--
+            Not merely disabled: the reason is shown. A silently inert control
+            reads as a bug, and the reason (self-lockout) is not obvious.
+          -->
+          <p class="field-hint warn">
+            This is your own account — you cannot remove your own admin access.
+          </p>
+        }
+      </div>
+
+      <p class="field-hint">
+        Email is not editable here. It is the address the person signs in with.
+      </p>
+
+      <div class="editor-actions">
+        <ion-button fill="clear" (click)="cancelEdit()">Cancel</ion-button>
+        <ion-button
+          expand="block"
+          class="save-btn"
+          [disabled]="busyUid() !== null"
+          (click)="save()"
+        >
+          Save changes
+        </ion-button>
+      </div>
+    </section>
+  }
+
+  <!-- ── List ─────────────────────────────────────────────────────────── -->
+  @if (isLoading()) {
+    <div class="list">
+      @for (s of [1, 2, 3, 4]; track s) {
+        <div class="user-row">
+          <ion-skeleton-text animated style="height: 44px; width: 44px; border-radius: 50%;"></ion-skeleton-text>
+          <div class="user-info">
+            <ion-skeleton-text animated style="height: 15px; width: 50%;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="height: 12px; width: 70%; margin-top: 6px;"></ion-skeleton-text>
+          </div>
+        </div>
+      }
+    </div>
+  } @else if (filteredUsers().length === 0) {
+    <div class="empty">
+      <app-icon name="users" />
+      <h2>{{ users().length === 0 ? 'No users yet' : 'No matches' }}</h2>
+      <p>
+        {{ users().length === 0
+          ? 'Accounts appear here as soon as they sign up.'
+          : 'Try a different name, email or role filter.' }}
+      </p>
+    </div>
+  } @else {
+    <div class="list">
+      @for (user of filteredUsers(); track user.uid) {
+        <article class="user-row">
+          <ion-avatar class="user-avatar">
+            @if (user.photoURL) {
+              <img [src]="user.photoURL | cloudinary: 96" [alt]="'Photo of ' + (user.displayName || user.email)" />
+            } @else {
+              <div class="avatar-initials" aria-hidden="true">{{ initials(user) }}</div>
+            }
+          </ion-avatar>
+
+          <div class="user-info">
+            <div class="user-top">
+              <span class="user-name">{{ user.displayName || 'Unnamed' }}</span>
+              @if (user.role === 'admin') {
+                <span class="role-badge">Admin</span>
+              }
+              @if (isSelf()(user.uid)) {
+                <span class="self-badge">You</span>
+              }
+            </div>
+            <span class="user-email">{{ user.email }}</span>
+            <span class="user-meta">
+              @if (user.phone) {
+                {{ user.phone }} ·
+              }
+              Joined {{ formatDate(user.createdAt) }}
+            </span>
+          </div>
+
+          <div class="user-actions">
+            <ion-button
+              fill="clear"
+              size="small"
+              (click)="startEdit(user)"
+              [attr.aria-label]="'Edit ' + (user.displayName || user.email)"
+            >
+              <app-icon name="pencil" />
+            </ion-button>
+            <ion-button
+              fill="clear"
+              size="small"
+              [color]="user.role === 'admin' ? 'warning' : 'primary'"
+              [disabled]="busyUid() === user.uid"
+              (click)="changeRole(user, user.role === 'admin' ? 'customer' : 'admin')"
+              [attr.aria-label]="(user.role === 'admin' ? 'Remove admin access from ' : 'Make admin: ') + (user.displayName || user.email)"
+            >
+              <app-icon [name]="user.role === 'admin' ? 'shield-check' : 'sparkles'" />
+            </ion-button>
+          </div>
+        </article>
+      }
+    </div>
+  }
+</ion-content>
