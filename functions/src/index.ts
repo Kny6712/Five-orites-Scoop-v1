@@ -48,7 +48,11 @@
 
 import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
-import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
+import {
+  onDocumentCreated,
+  onDocumentUpdated,
+  onDocumentDeleted,
+} from 'firebase-functions/v2/firestore';
 
 import { calculateDiscount, getDeliveryFee } from './config';
 
@@ -860,3 +864,89 @@ export const restockCancelledOrder = onDocumentUpdated('orders/{orderId}', async
     throw err;
   }
 });
+
+// -- Handler 3: redact a deleted customer's orders ----------------------------
+
+/**
+ * Removes the personal fields from every order belonging to a user who just
+ * deleted their account.
+ *
+ * WHY THIS EXISTS AND WHY IT IS SERVER-SIDE
+ * `AuthService.deleteAccount()` removes the Auth record and the `users/{uid}`
+ * document, and `firestore.rules` lets a user delete their OWN user document and
+ * nothing else. That is the correct boundary � but it means the client cannot
+ * redact their own orders either, because a customer may only update an order to
+ * cancel it while it is pending.
+ *
+ * So without this handler, deleting an account would leave every order intact
+ * with the person's email address and street address still on it, while
+ * PRIVACY.md promises both are removed on request. That is the worse outcome
+ * for the person exercising the right, so the redaction has to happen and it has
+ * to happen here.
+ *
+ * WHAT IS REDACTED AND WHAT IS KEPT
+ * Removed: customerEmail, deliveryAddress, notes. Those identify the person.
+ *
+ * Kept: the order itself in full � items, prices, status, timestamps, and
+ * `customerId`. Those are the shop's accounting records and they do not identify
+ * anyone on their own. `customerId` is the Firebase Auth UID, which is an opaque
+ * identifier with no personal content once the Auth record behind it is gone.
+ *
+ * THE MARKER, not a delete
+ * The order is NOT removed. An ice cream shop's revenue history is a business
+ * record and deleting it to satisfy a privacy request would be a worse failure
+ * than the one being fixed. What changes is that it stops being attributable, and
+ * `customerId` is set to a non-uid sentinel so a later query for "orders of uid
+ * X" finds nothing even if the uid were somehow reconstructed.
+ *
+ * BATCHING
+ * A customer can have many orders, and the 500-document limit on a batch is real.
+ * Commits in chunks of 400 rather than assuming one batch is enough, because a
+ * customer who ordered weekly for two years has around 100 orders and a wholesale
+ * account could have far more.
+ */
+export const anonymiseDeletedCustomerOrders = onDocumentDeleted('users/{uid}', async (event) => {
+  const uid = event.params.uid;
+  // The user document is already gone by the time this runs, so there is no
+  // before-image to read a role from. The trigger firing IS the signal.
+  const ordersSnap = await db.collection('orders').where('customerId', '==', uid).get();
+
+  if (ordersSnap.empty) return;
+
+  const BATCH_LIMIT = 400;
+  let batch = db.batch();
+  let queued = 0;
+
+  for (const orderDoc of ordersSnap.docs) {
+    batch.update(orderDoc.ref, {
+      customerEmail: null,
+      deliveryAddress: '[removed with the customer account]',
+      notes: null,
+      // The sentinel, not null: `where('customerId','==',uid)` must not match
+      // a redacted order, and null WOULD match a `== null` query that some
+      // future report might write by accident.
+      customerId: DELETED_CUSTOMER_SENTINEL,
+      redactedAt: Timestamp.now(),
+    });
+    queued++;
+
+    if (queued === BATCH_LIMIT) {
+      await batch.commit();
+      batch = db.batch();
+      queued = 0;
+    }
+  }
+
+  if (queued > 0) await batch.commit();
+
+  console.log(`Anonymised ${ordersSnap.size} order(s) for deleted customer ${uid}.`);
+});
+
+/**
+ * Stands in for `customerId` on an order whose owner deleted their account.
+ *
+ * Chosen to be obviously-not-a-uid: Firebase Auth uids are 28 characters, and
+ * this is neither that length nor that shape, so it cannot be mistaken for a real
+ * one in a log or a support screenshot.
+ */
+const DELETED_CUSTOMER_SENTINEL = 'deleted-customer';

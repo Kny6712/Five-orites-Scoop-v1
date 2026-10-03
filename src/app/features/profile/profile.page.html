@@ -215,6 +215,62 @@
       @if (saveState() === 'saved') {
         <p class="saved-note" role="status">Your profile has been updated.</p>
       }
+
+      <!-- ── Delete account ─────────────────────────────────────────────── -->
+      <!--
+        Required by both app stores for any app that lets someone create an
+        account, and it did not exist until this was added -- PRIVACY.md had to
+        describe a manual email route because nothing could delete anything.
+
+        Shown only to non-staff. `deleteAccount` refuses for a staff role anyway,
+        because an owner deleting themselves would strand every admin page with
+        no way back, so hiding it is better than offering it and failing.
+
+        The copy is explicit about what happens to orders, because that is the
+        part people hesitate over. The orders themselves stay -- they are the
+        shop's accounting records -- but the name, email, address and notes on
+        them are redacted. Saying "everything is deleted" when the address is
+        still on last month's order would be a lie in the one place someone is
+        trusting you.
+      -->
+      @if (!isStaff()) {
+        <div class="group danger-group">
+          <h2 class="panel-title">Delete account</h2>
+
+          <p class="danger-copy">Permanently deletes your account and signs you out. This cannot be undone.</p>
+          <p class="danger-copy">
+            Your past orders are kept as the shop's sales records, but your name, email address and delivery address are
+            removed from them.
+          </p>
+
+          @if (deleteError()) {
+            <p class="danger-error" role="alert">{{ deleteError() }}</p>
+          }
+
+          @if (needsPasswordForDelete()) {
+            <ion-item lines="none">
+              <ion-input
+                label="Confirm your password"
+                labelPlacement="stacked"
+                type="password"
+                autocomplete="current-password"
+                [(ngModel)]="deletePassword"
+                (ionChange)="deletePassword = $any($event.detail.value) ?? ''"
+              ></ion-input>
+            </ion-item>
+          }
+
+          <ion-button
+            expand="block"
+            color="danger"
+            class="delete-account-btn"
+            [disabled]="isDeleting() || (needsPasswordForDelete() && !deletePassword)"
+            (click)="confirmDeleteAccount()"
+          >
+            {{ isDeleting() ? 'Deleting…' : 'Delete my account' }}
+          </ion-button>
+        </div>
+      }
     </section>
   </div>
 </ion-content>

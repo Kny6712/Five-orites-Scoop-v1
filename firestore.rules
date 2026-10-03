@@ -438,7 +438,32 @@ service cloud.firestore {
           // legitimately omits fields it is not changing.
           && request.resource.data.diff(resource.data).affectedKeys()
                .hasOnly(['displayName', 'photoURL', 'phone', 'notificationsEnabled']));
-      allow delete: if false;
+
+      // A user may delete their OWN document. This was `if false` for everyone.
+      //
+      // Both app stores require a working in-app deletion path for any app that
+      // lets people create an account — Google's Data Safety form and Apple's
+      // 5.1.1(v) both treat "delete your account in-app" as a requirement, and a
+      // support email is not a substitute. It was also simply absent: PRIVACY.md
+      // had to say "this is not yet self-service" because nothing could delete
+      // anything.
+      //
+      // Scoped to the OWN document, so a user cannot delete another account or
+      // their way up the tier ladder by removing a superior's record. The id is
+      // the path, so `uid == request.auth.uid` is the whole check.
+      //
+      // What this does NOT do: it does not delete the Firebase Auth record, and
+      // it does not touch the user's orders. AuthService.deleteAccount() handles
+      // the Auth side from the client, and `anonymiseDeletedCustomerOrders` in
+      // functions/src/index.ts redacts the personal fields on the orders via the
+      // Admin SDK — a client cannot write to an order it does not own, so that
+      // half has to be server-side.
+      //
+      // Staff are NOT excluded. An owner who deletes their own account would
+      // otherwise strand every admin page permanently, with the only recovery
+      // being another owner promoting a replacement first — so `deleteAccount` in
+      // AuthService refuses while the user holds a staff role and says so.
+      allow delete: if request.auth != null && uid == request.auth.uid;
     }
 
     // ── Reviews ──────────────────────────────────────────────────────

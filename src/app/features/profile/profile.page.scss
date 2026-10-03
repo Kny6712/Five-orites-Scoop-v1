@@ -319,3 +319,49 @@
   font-weight: 700;
   color: var(--color-success);
 }
+
+/* -- Delete account ----------------------------------------------------
+     Kept visually distinct from every other group on this page. The other
+     groups are all "change something"; this one is the one action that cannot
+     be undone, and it should not look like a peer of "Save changes".
+
+     Danger red on the border and the heading only. A solid red filled panel
+     would compete with the alert banner at the top for the eye, and a solid
+     red button invites a tap before it has been read.
+
+     The delete button is outline rather than solid for the same reason: the
+     fill is reserved for the one thing on this page a user should have to
+     aim at deliberately. */
+.danger-group {
+  border: 1px solid var(--ion-color-danger);
+  border-radius: var(--radius-card, 16px);
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.danger-group .panel-title {
+  color: var(--ion-color-danger);
+}
+
+.danger-copy {
+  margin: 0 0 var(--space-2);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+}
+
+.danger-error {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs, 8px);
+  background: var(--ion-color-danger-light, rgba(var(--ion-color-danger-rgb), 0.1));
+  color: var(--ion-color-danger-shade, var(--ion-color-danger));
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.delete-account-btn {
+  margin-top: var(--space-3);
+  --border-radius: var(--radius-pill);
+  font-weight: 700;
+}

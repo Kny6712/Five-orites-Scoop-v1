@@ -840,6 +840,36 @@ describe('reviews', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('users: self-service profile', () => {
+  // Account deletion. Both app stores require an in-app deletion path for an app
+  // that lets someone create an account, and this rule used to be `if false`
+  // for everyone -- PRIVACY.md had to promise a manual email route because
+  // nothing in the app could remove anything.
+  test('a user may delete their OWN account document', async () => {
+    await assertSucceeds(deleteDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`)));
+  });
+
+  test("a user may NOT delete somebody else's account", async () => {
+    await assertFails(deleteDoc(doc(asUser(CUSTOMER), `users/${OTHER_CUSTOMER}`)));
+  });
+
+  test("a customer may NOT delete an ADMIN's account", async () => {
+    // The self-delete path must not become a way to remove a superior.
+    await assertFails(deleteDoc(doc(asUser(CUSTOMER), 'users/owner-uid')));
+  });
+
+  test('a signed-out caller may delete nothing', async () => {
+    await assertFails(
+      deleteDoc(doc(env.unauthenticatedContext().firestore(), `users/${CUSTOMER}`)),
+    );
+  });
+
+  test("even an OWNER cannot delete another person's account", async () => {
+    // canManageUsers() grants role changes, not deletion. Deleting another
+    // account is deliberately out of reach of every tier from the client:
+    // wiping a customer's history is not recoverable in-app.
+    await assertFails(deleteDoc(doc(asOwner(), `users/${CUSTOMER}`)));
+  });
+
   test('a customer may set their own display name', async () => {
     await assertSucceeds(
       updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { displayName: 'New Name' }),
@@ -919,10 +949,10 @@ describe('users: self-service profile', () => {
     );
   });
 
-  test('a customer may NOT delete their own document', async () => {
-    // `allow delete: if false` — for everyone, including admins. Plan for
-    // deactivation via role, not deletion.
-    await assertFails(deleteDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`)));
+  test('a signed-out caller may NOT delete a user document', async () => {
+    await assertFails(
+      deleteDoc(doc(env.unauthenticatedContext().firestore(), `users/${CUSTOMER}`)),
+    );
   });
 
   test('a signed-out visitor may NOT read a user document', async () => {

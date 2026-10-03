@@ -16,6 +16,7 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
+  AlertController,
   IonHeader,
   IonToolbar,
   IonTitle,
@@ -42,6 +43,7 @@ import {
   type NotificationPermissionState,
 } from '../../core/services/notification.service';
 import type { AppUser } from '../../core/models/user.model';
+import { isStaffRole } from '../../core/models/user.model';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -77,6 +79,7 @@ export class ProfilePage implements OnInit {
   private uploads = inject(ImageUploadService);
   private notifications = inject(NotificationService);
   private toast = inject(ToastController);
+  private alertCtrl = inject(AlertController);
 
   user = signal<AppUser | null>(null);
 
@@ -282,6 +285,80 @@ export class ProfilePage implements OnInit {
       this.applyUser(updated);
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not save that preference.');
+    }
+  }
+
+  // ── Account deletion ───────────────────────────────────────────────────────
+
+  /** True for any staff tier. The delete UI is hidden for these. */
+  readonly isStaff = computed(() => isStaffRole(this.user()?.role));
+
+  readonly isDeleting = signal(false);
+  readonly deleteError = signal('');
+  deletePassword = '';
+
+  /**
+   * Whether the password field must be shown before deleting.
+   *
+   * `deleteUser()` throws `auth/requires-recent-login` unless the session is
+   * fresh, and the only way to refresh it is to re-enter the password. Checking
+   * up front means the user is prompted once, here, rather than pressing Delete
+   * and being handed an opaque Firebase error code.
+   *
+   * Google-managed accounts have no password to re-enter — reauthentication is
+   * Google's dialog — so the field is skipped entirely for them.
+   */
+  readonly needsPasswordForDelete = computed(
+    () => !this.auth.isEmailManagedByProvider() && !this.auth.recentlyAuthenticated(),
+  );
+
+  /**
+   * Deletes the account behind a confirmation dialog.
+   *
+   * The dialog is not decoration. This is the most irreversible action in the
+   * app, and a single mis-tap on a button that only appears on one page should
+   * not be able to destroy someone's account and order history.
+   */
+  async confirmDeleteAccount(): Promise<void> {
+    if (this.isDeleting()) return;
+    this.deleteError.set('');
+
+    const alert = await this.alertCtrl.create({
+      header: 'Delete your account?',
+      message:
+        'This permanently deletes your account and cannot be undone. Your past orders are kept as sales records, but your name, email and address are removed from them.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Delete my account', role: 'destructive' },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== 'destructive') return;
+
+    this.isDeleting.set(true);
+    try {
+      // Re-authenticate first when required, so the session is fresh by the time
+      // deleteUser() runs rather than failing after the Firestore document is
+      // already gone.
+      if (this.needsPasswordForDelete() && this.deletePassword) {
+        await this.auth.reauthenticateWithPassword(this.deletePassword);
+      }
+      await this.auth.deleteAccount();
+      // Nothing to navigate to -- the session is gone and every route is behind
+      // authGuard, which would bounce to /auth anyway. A full reload clears any
+      // cached state that assumed a signed-in user.
+      window.location.assign('/auth');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // `auth/requires-recent-login` is the one failure the user can actually
+      // act on, so it gets a sentence rather than a code.
+      this.deleteError.set(
+        /requires-recent-login/i.test(message)
+          ? 'Your session is too old for this. Enter your password above and try again.'
+          : message,
+      );
+      this.isDeleting.set(false);
     }
   }
 

@@ -15,12 +15,20 @@ import {
   updateProfile,
   verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
+  deleteUser,
   EmailAuthProvider,
   User,
 } from '@angular/fire/auth';
-import { Firestore, doc, getDoc, setDoc, serverTimestamp } from '@angular/fire/firestore';
+import {
+  Firestore,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
+} from '@angular/fire/firestore';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { AppUser } from '../models/user.model';
+import { AppUser, isStaffRole } from '../models/user.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -429,7 +437,89 @@ export class AuthService {
     const EXTERNAL = ['google.com', 'facebook.com', 'apple.com', 'github.com'];
     return firebaseUser.providerData.some((p) => EXTERNAL.includes(p.providerId));
   }
+
+  // ── Account deletion ───────────────────────────────────────────────────────
+
+  /**
+   * Deletes the signed-in user's account. Irreversible.
+   *
+   * Both app stores require an in-app deletion path for an app that lets people
+   * create an account, and PRIVACY.md could only describe a manual email route
+   * because nothing could delete anything.
+   *
+   * ORDER MATTERS, and getting it backwards is the trap:
+   *
+   *   1. Firestore `users/{uid}` FIRST, via the self-delete rule.
+   *   2. The Auth record SECOND, via `deleteUser()`.
+   *
+   * Doing it the other way round leaves an orphaned user document that the rules
+   * still recognise — `myRole()` would keep resolving and the account would look
+   * alive in every read, with no way to remove it because `deleteUser()` is
+   * irreversible and the session is gone. Doing Firestore first means the worst
+   * failure is a user document with no Auth record, which is inert and removable
+   * by an owner from the console.
+   *
+   * `deleteUser()` requires a RECENT sign-in. A user who set their profile up
+   * weeks ago and taps Delete will get `auth/requires-recent-login`, so the
+   * caller must re-authenticate first; `recentlyAuthenticated()` is exposed so
+   * the page can decide whether to prompt for a password before calling this.
+   *
+   * Staff are refused. If an owner deletes their own account, every admin page is
+   * stranded — `isStaff()` fails for everyone and the only recovery is another
+   * owner promoting a replacement. A single-account shop would have no other
+   * owner, so the message tells them to promote someone else first.
+   *
+   * Their ORDERS are not deleted, because they are the shop's financial records.
+   * `anonymiseDeletedCustomerOrders` (functions/src/index.ts) redacts the
+   * personal fields on them once the user document goes.
+   */
+  async deleteAccount(): Promise<void> {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) throw new Error('You must be signed in to delete your account.');
+    const uid = firebaseUser.uid;
+
+    if (isStaffRole(this.currentUserSnapshot?.role)) {
+      throw new Error(
+        'You cannot delete an account that has staff access. Promote someone else to owner first, then delete this one.',
+      );
+    }
+
+    await deleteDoc(doc(this.firestore, `users/${uid}`));
+    await deleteUser(firebaseUser);
+
+    // Clear local state. The Auth SDK fires its own sign-out for the deleted
+    // user, but the in-memory profile is a separate subject and would otherwise
+    // keep rendering the deleted user's name until the next full reload.
+    this.currentUserSubject.next(null);
+  }
+
+  /**
+   * Whether the session is recent enough for `deleteUser()` to be accepted.
+   *
+   * Firebase requires a sign-in within roughly the last few minutes. Checking
+   * this before offering the action means the user is prompted for their
+   * password up front instead of pressing Delete and getting an opaque
+   * `auth/requires-recent-login` failure.
+   */
+  recentlyAuthenticated(): boolean {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) return false;
+    // `creationTime` is the moment of the LAST sign-in, not account creation --
+    // Firebase overwrites it on every sign-in, which is exactly the semantic
+    // wanted here. It is typed `string | undefined`; absent means "unknown",
+    // and treating unknown as stale is the safe direction, because it makes the
+    // password field appear rather than letting deleteUser() fail opaquely.
+    const signedInAt = firebaseUser.metadata.creationTime;
+    if (!signedInAt) return false;
+    const elapsed = Date.now() - new Date(signedInAt).getTime();
+    // A clock skew that puts the sign-in in the future yields a negative elapsed.
+    // That is not "fresh" by accident; treat anything implausible as stale.
+    return elapsed >= 0 && elapsed < FIVE_MINUTES_MS;
+  }
 }
+
+/** Firebase's own freshness window for destructive Auth operations. */
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 /**
  * The fields a user may change about themselves.

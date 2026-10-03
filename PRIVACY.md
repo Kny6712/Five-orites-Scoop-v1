@@ -6,14 +6,14 @@ This policy describes what the Five-orites Scoop mobile app actually does. It wa
 written from the source code, not from a template — where the app does not do
 something, this document does not claim it does.
 
-> ### ⚠ BEFORE PUBLISHING — TWO PLACEHOLDERS
+> ### ⚠ BEFORE PUBLISHING — ONE PLACEHOLDER
 >
-> 1. **`[CONTACT_EMAIL]`** — replace with a real address you monitor. Both Google
->    Play and the App Store require a working contact route for privacy requests,
->    and an unreachable one is a rejection, not a minor issue.
-> 2. **The "Deleting your account" section below is not yet true.** The app has
->    no self-service account deletion. Either build it, or change that section to
->    describe the manual process. See the note in that section.
+> **`[CONTACT_EMAIL]`** — replace with a real address you monitor. Both Google
+> Play and the App Store require a working contact route for privacy requests,
+> and an unreachable one is a rejection, not a minor issue.
+>
+> Account deletion is now implemented in-app (Profile → Delete account), so no
+> caveat is needed for it.
 
 ---
 
@@ -122,14 +122,20 @@ You can, at any time:
 
 ### Deleting your account
 
-**This is not yet self-service.** There is no "delete my account" button in the
-app today. To have your account and order history deleted, email
-`[CONTACT_EMAIL]` with the subject "Delete my account" and we will action it
-manually.
+**You can do this yourself: Profile → Delete account.** It asks you to confirm,
+may ask for your password first, and then permanently deletes your account and
+signs you out. It cannot be undone.
 
-If you would rather have the button, say so — it is a known gap on our list, and
-both app stores require an in-app deletion path for apps that support account
-creation. We would rather tell you that than imply a feature we have not built.
+**What happens to your orders.** They are kept, because they are the shop's sales
+and accounting records. What is removed from them is anything that identifies
+you: your name, your email address, your delivery address, and any note you
+attached. The items, amounts, dates and status stay.
+
+**If you have staff access**, the option is not shown and deletion is refused.
+Promote another owner first, then delete your own account — otherwise the shop
+would be left with no way in.
+
+If you would rather we did it by email, contact `[CONTACT_EMAIL]`.
 
 ## Children
 
