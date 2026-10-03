@@ -9,9 +9,6 @@ import {
   where,
   limit,
   getDocs,
-  doc,
-  updateDoc,
-  increment,
 } from '@angular/fire/firestore';
 import { Voucher, calculateDiscount, voucherUsability } from '../models/voucher.model';
 
@@ -105,23 +102,5 @@ export class VoucherService {
     const discount = calculateDiscount(subtotal, voucher);
     if (discount <= 0) throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
     return { voucher, discount };
-  }
-
-  /**
-   * Records one redemption against a voucher.
-   *
-   * `increment` rather than an absolute set: two customers checking out with the
-   * same code at the same moment would otherwise both write the same number and
-   * one redemption would vanish. `increment` is atomic server-side, which is why
-   * this cannot be folded into the caller's own write.
-   *
-   * The `isActive` guard in the query is repeated here deliberately — without it
-   * this would happily count a redemption on a voucher an admin has since
-   * switched off.
-   */
-  async recordRedemption(voucherId: string): Promise<void> {
-    await updateDoc(doc(this.firestore, 'vouchers', voucherId), {
-      usageCount: increment(1),
-    });
   }
 }

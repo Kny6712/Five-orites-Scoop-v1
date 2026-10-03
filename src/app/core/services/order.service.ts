@@ -122,7 +122,6 @@ export class OrderService {
       // from the caller — that would let a tampered client dictate the price.
       const normalizedCode = voucherCode?.trim().toUpperCase() || null;
       let appliedCode: string | null = null;
-      let appliedVoucherId: string | null = null;
       let discountAmount = 0;
       if (normalizedCode) {
         const { voucher, discount } = await this.voucherService.validateVoucher(
@@ -130,7 +129,6 @@ export class OrderService {
           totalAmount
         );
         appliedCode = voucher.code;
-        appliedVoucherId = voucher.id;
         discountAmount = Math.min(Math.max(discount, 0), totalAmount);
       }
       const grandTotal = totalAmount - discountAmount + deliveryFee;
@@ -166,28 +164,21 @@ export class OrderService {
       const ordersCol = collection(this.firestore, 'orders');
       const orderRef = await addDoc(ordersCol, orderData);
 
-      // Step 4: Count the redemption, once the order exists.
-      //
-      // This has to run AFTER the order write: counting before it would burn a
-      // redemption for an order that then failed to commit. It is a separate
-      // write (a voucher's usageCount is not part of the order), so it cannot be
-      // folded into the order transaction.
-      //
-      // `maxRedemptions` was previously decoration — `recordRedemption` existed
-      // but was never called, so `usageCount` stayed at whatever the admin page
-      // wrote and one code was redeemable forever. The customer-side voucher
-      // update runs as the SHOP AUTH context (the customer cannot write
-      // `vouchers/` — `allow write: if isAdmin()`), so a failure here must not
-      // fail an order that already committed.
-      if (appliedVoucherId) {
-        try {
-          await this.voucherService.recordRedemption(appliedVoucherId);
-        } catch (err) {
-          console.error('Voucher redemption count failed (order committed).', err);
-        }
-      }
-
       // Step 5: Clear cart ONCE after successful order
+      //
+      // There is deliberately NO redemption counter here. It used to call
+      // `voucherService.recordRedemption(voucherId)` immediately after `addDoc`,
+      // which could never succeed: `firestore.rules` is `allow write: if
+      // isAdmin()` on `vouchers/`, the customer is not an admin, and there is no
+      // impersonation mechanism anywhere in the codebase. Every attempt threw
+      // PERMISSION_DENIED into the `console.error` two lines below, so
+      // `usageCount` never moved and `maxRedemptions` could never trip — a promo
+      // code was redeemable without limit, forever.
+      //
+      // The counter is now incremented by the `reconcileOrderStock` Cloud Function
+      // inside the same transaction that decrements the stock, so the cap is
+      // checked and spent atomically and a cancelled order never burns a use.
+      // See functions/src/index.ts and CUTOVER.md.
       this.cartService.clearCart();
 
       return orderRef.id;

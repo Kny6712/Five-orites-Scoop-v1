@@ -50,7 +50,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
-import { getDeliveryFee } from './config';
+import { calculateDiscount, getDeliveryFee } from './config';
 
 // Initialised at MODULE LOAD, not inside a handler. The Admin SDK resolves its
 // credentials and project id from the environment once; calling initializeApp()
@@ -124,12 +124,32 @@ interface OrderDoc {
   items?: OrderItemDoc[];
   discountAmount?: number;
   /**
+   * The code the customer claimed, written by the browser and therefore
+   * untrusted. It is used only to LOOK UP a voucher — never as an amount. The
+   * discount actually granted is recomputed from the voucher document.
+   */
+  voucherCode?: string | null;
+  /**
    * True once nothing is owed back for this order — either the stock was
    * returned, or (the case that matters here) it was never taken. False means
    * a restock failed and the order is in the admin repair queue. Absent means
    * "unknown", which is why neither handler treats it as an answer on its own.
    */
   stockRestored?: boolean;
+}
+
+/** The subset of a voucher document this handler reads. */
+interface VoucherDoc {
+  code?: string;
+  type?: string;
+  value?: number;
+  minOrder?: number;
+  isActive?: boolean;
+  usageCount?: number;
+  maxRedemptions?: number;
+  perCustomerLimit?: number;
+  startsAt?: number;
+  expiresAt?: number;
 }
 
 /** An order line that survived validation and was priced from the catalog. */
@@ -162,6 +182,39 @@ class InsufficientStockError extends Error {}
  * this handler declining to do work that another handler has already undone.
  */
 class AlreadyCancelledError extends Error {}
+
+/**
+ * Thrown to abort the reservation when the voucher the customer claimed cannot
+ * be honoured — unknown, switched off, expired, already at its cap, or past this
+ * customer's personal limit.
+ *
+ * Aborting is the honest response: the order is cancelled with a reason the
+ * customer can read rather than confirmed at a discount the shop did not agree
+ * to. The alternative — quietly charging full price — is the behaviour that made
+ * the cap unenforceable in the first place.
+ */
+/** Why a voucher was refused, as shown to the customer. */
+type VoucherRejection = 'unknown' | 'inactive' | 'not_started' | 'expired' | 'exhausted' | 'per_customer';
+
+/**
+ * The customer-facing text for each refusal, kept next to the check that
+ * produces it so a new reason cannot be added to one without the other.
+ */
+const VOUCHER_REJECTION_TEXT: Record<VoucherRejection, string> = {
+  unknown: 'Promo code not recognised',
+  inactive: 'This promo code is no longer active',
+  not_started: 'This promo code is not active yet',
+  expired: 'This promo code has expired',
+  exhausted: 'This promo code has reached its redemption limit',
+  per_customer: 'You have reached your limit for this promo code',
+};
+
+class VoucherRejectedError extends Error {
+  constructor(readonly reason: VoucherRejection) {
+    super(VOUCHER_REJECTION_TEXT[reason]);
+    this.name = 'VoucherRejectedError';
+  }
+}
 
 // ── Validation helpers ──────────────────────────────────────────────────────
 
@@ -244,6 +297,97 @@ async function cancelOrder(
     }),
     updatedAt: Timestamp.now(),
   });
+}
+
+// ── Voucher redemption ───────────────────────────────────────────────────────
+
+/**
+ * Normalises a claimed code the same way the client does before it looks one up.
+ *
+ * The code arrives from a browser, so it is trimmed and upper-cased here for the
+ * same reason the client does it: ` scoop10 ` and `SCOOP10` are the same code,
+ * and a mismatch here would be read as "no such voucher" rather than as a hit.
+ */
+function normaliseVoucherCode(raw: unknown): string {
+  return typeof raw === 'string' ? raw.trim().toUpperCase() : '';
+}
+
+/**
+ * Resolves and validates the voucher an order claimed, or throws.
+ *
+ * This is the whole reason the redemption counter could never work. The counter
+ * was incremented by the CLIENT (`VoucherService.recordRedemption`), but
+ * `firestore.rules` is `allow write: if isAdmin()` on `vouchers/` — a customer is
+ * not an admin, there is no impersonation mechanism anywhere in the codebase, and
+ * the failure was swallowed into a `console.error`. So `usageCount` stayed
+ * wherever the admin page last wrote it and `maxRedemptions` could never trip.
+ *
+ * Doing it here fixes three things at once: the counter actually moves, the cap
+ * is checked against the same value it spends, and the discount is derived from
+ * the voucher's own `value` instead of the number the client sent.
+ *
+ * `maxRedemptions` is checked a SECOND time inside the transaction, against the
+ * value that is about to be written. The check here is for a fast, readable
+ * failure; the one in the transaction is what makes two simultaneous checkouts
+ * on the last remaining redemption impossible.
+ */
+async function resolveVoucher(
+  claimedCode: unknown,
+  customerId: string | undefined,
+  orderId: string,
+  now: number
+): Promise<{ doc: FirebaseFirestore.DocumentReference; data: VoucherDoc; code: string }> {
+  const code = normaliseVoucherCode(claimedCode);
+  if (!code) throw new VoucherRejectedError('unknown');
+
+  // Looked up by CODE, not by an id the client supplied. The order document
+  // carries only `voucherCode`; trusting a client-supplied voucher id would let a
+  // customer name any document in the collection.
+  const snap = await db.collection('vouchers').where('code', '==', code).limit(1).get();
+  if (snap.empty) throw new VoucherRejectedError('unknown');
+
+  const ref = snap.docs[0].ref;
+  const data = snap.docs[0].data() as VoucherDoc;
+
+  if (data.isActive !== true) throw new VoucherRejectedError('inactive');
+  if (typeof data.startsAt === 'number' && now < data.startsAt) {
+    throw new VoucherRejectedError('not_started');
+  }
+  if (typeof data.expiresAt === 'number' && now > data.expiresAt) {
+    throw new VoucherRejectedError('expired');
+  }
+
+  // A cap with no recorded usage has not been reached. `usageCount` is absent on
+  // every voucher written before tracking existed, and treating absent as zero
+  // is what "no data yet" means — treating it as a failure would refuse every
+  // legacy code from its first use.
+  const used = typeof data.usageCount === 'number' && Number.isFinite(data.usageCount) ? data.usageCount : 0;
+  if (typeof data.maxRedemptions === 'number' && used >= data.maxRedemptions) {
+    throw new VoucherRejectedError('exhausted');
+  }
+
+  // Per-customer limit. Firestore rules cannot COUNT documents, which is why this
+  // was declared, admin-editable and enforced nowhere: `voucherUsability` and
+  // `validateVoucher` both ignore it. It has to be a query, and the query has to
+  // run here.
+  //
+  // Our OWN order is already in the collection — `onDocumentCreated` fires after
+  // the write — so it is excluded by id rather than subtracted blindly.
+  if (typeof data.perCustomerLimit === 'number' && customerId) {
+    const limit = data.perCustomerLimit;
+    // Bounded: fetching limit + 2 rows is enough to prove the customer is over
+    // the line, and never reads a customer's whole order history.
+    const prior = await db
+      .collection('orders')
+      .where('customerId', '==', customerId)
+      .where('voucherCode', '==', code)
+      .limit(limit + 2)
+      .get();
+    const earlier = prior.docs.filter((d) => d.id !== orderId).length;
+    if (earlier >= limit) throw new VoucherRejectedError('per_customer');
+  }
+
+  return { doc: ref, data, code };
 }
 
 // ── Handler 1: a new order, priced and reserved server-side ─────────────────
@@ -331,17 +475,42 @@ export const reconcileOrderStock = onDocumentCreated('orders/{orderId}', async (
   const totalAmount = lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
   const deliveryFee = getDeliveryFee(totalAmount);
 
-  // The client's discount is accepted as a NUMBER but clamped into
-  // [0, totalAmount]. The clamp is not paranoia: an unclamped discount equal to
-  // the subtotal gives a ₱50 basket a negative grandTotal, and Firestore happily
-  // stores negative money. The rules already express this bound
-  // (`discountAmount <= totalAmount`); repeating it here means the invariant
-  // holds even while the client is the one writing the field.
-  const requestedDiscount = Number(order.discountAmount);
-  const discountAmount = Math.min(
-    Number.isFinite(requestedDiscount) ? Math.max(requestedDiscount, 0) : 0,
-    totalAmount
-  );
+  // ── Step 2a: resolve the voucher the order claimed ────────────────────────
+  //
+  // Resolve BEFORE the money so a refused voucher aborts before any arithmetic
+  // depends on it. `voucherCode` came from a browser and is used only as a lookup
+  // key — the amount comes from the voucher document.
+  const claimedCode = normaliseVoucherCode(order.voucherCode);
+  let voucherClaim: { doc: FirebaseFirestore.DocumentReference; data: VoucherDoc; code: string } | null = null;
+  if (claimedCode) {
+    try {
+      voucherClaim = await resolveVoucher(order.voucherCode, order.customerId, orderId, Date.now());
+    } catch (err) {
+      if (err instanceof VoucherRejectedError) {
+        await cancelOrder(orderRef, err.message, `voucher_${err.reason}`, true);
+        return;
+      }
+      throw err;
+    }
+  }
+
+  // The discount is RECOMPUTED, not clamped. The previous code read the client's
+  // `discountAmount` and bounded it to [0, totalAmount]; the rules permit
+  // anything in that range, so a forged client could send `discountAmount:
+  // totalAmount` and take the entire basket for the delivery fee. The bound was
+  // real, the value was still the client's.
+  //
+  // No voucher means no discount. That is the fail-closed direction: an order
+  // claiming a code that does not resolve is cancelled above, never charged full
+  // price in silence.
+  const discountAmount = voucherClaim
+    ? calculateDiscount(totalAmount, {
+        type: voucherClaim.data.type ?? 'percent',
+        value: typeof voucherClaim.data.value === 'number' ? voucherClaim.data.value : 0,
+        minOrder: voucherClaim.data.minOrder,
+        isActive: voucherClaim.data.isActive === true,
+      })
+    : 0;
 
   const grandTotal = totalAmount - discountAmount + deliveryFee;
 
@@ -413,6 +582,28 @@ export const reconcileOrderStock = onDocumentCreated('orders/{orderId}', async (
         });
       }
 
+      // The voucher is re-read here too, and this is the check that actually
+      // matters. `resolveVoucher` ran a moment ago and could already be stale —
+      // two customers checking out the last remaining redemption would both pass
+      // it. Reading the document inside the transaction means the cap is tested
+      // against the same value that is about to be incremented, and Firestore
+      // retries the whole body on contention, so exactly one of them wins and the
+      // other is cancelled by the catch below.
+      let voucherUsage: { ref: FirebaseFirestore.DocumentReference; next: number } | null = null;
+      if (voucherClaim) {
+        const voucherSnap = await tx.get(voucherClaim.doc);
+        const fresh = (voucherSnap.exists ? voucherSnap.data() : undefined) as VoucherDoc | undefined;
+        const used =
+          typeof fresh?.usageCount === 'number' && Number.isFinite(fresh.usageCount) ? fresh.usageCount : 0;
+        if (typeof fresh?.maxRedemptions === 'number' && used >= fresh.maxRedemptions) {
+          throw new VoucherRejectedError('exhausted');
+        }
+        // Absolute value from the read, not `increment(1)`. Inside a transaction
+        // the two agree, but writing the number that was checked is the only form
+        // where "checked" and "wrote" cannot drift apart.
+        voucherUsage = { ref: voucherClaim.doc, next: used + 1 };
+      }
+
       for (const read of reads) {
         const next = read.current - read.quantity;
 
@@ -442,12 +633,29 @@ export const reconcileOrderStock = onDocumentCreated('orders/{orderId}', async (
           createdAt: Timestamp.now(),
         });
       }
+
+      // The redemption is spent in the SAME transaction as the stock it buys. That
+      // single fact is what closes the double-spend race: check and spend are one
+      // atomic unit, so two customers racing for the last redemption cannot both
+      // win. It also means an order that fails for any other reason above never
+      // burns a redemption — the old client-side counter incremented after the
+      // order committed, so a cancelled order still consumed a use.
+      if (voucherUsage) {
+        tx.update(voucherUsage.ref, {
+          usageCount: voucherUsage.next,
+          updatedAt: Timestamp.now(),
+        });
+      }
     });
   } catch (err) {
     // The order was cancelled underneath this handler and its stock has already
     // been returned. There is nothing left to confirm: writing `confirmed` here
     // would resurrect an order the customer just cancelled.
     if (err instanceof AlreadyCancelledError) {
+      return;
+    }
+    if (err instanceof VoucherRejectedError) {
+      await cancelOrder(orderRef, err.message, `voucher_${err.reason}`, true);
       return;
     }
     if (err instanceof InsufficientStockError) {

@@ -286,6 +286,72 @@ describe('delivery fee', () => {
   });
 });
 
+describe('voucher discount: client and function copies agree', () => {
+  // Same duplication, higher stakes. `reconcileOrderStock` recomputes the
+  // discount from the voucher document and OVERWRITES the client's figure, so
+  // the function's copy is the one that decides what the shop keeps. If the two
+  // disagree the cart quotes a number the order will not honour — and the
+  // customer finds out at the moment the order is confirmed, not before.
+  const VOUCHER_SHAPES = [
+    { type: 'percent', value: 10, minOrder: 200, isActive: true },
+    { type: 'percent', value: 90, minOrder: 0, isActive: true },
+    { type: 'percent', value: 100, minOrder: 0, isActive: true },
+    { type: 'fixed', value: 50, minOrder: 500, isActive: true },
+    { type: 'fixed', value: 99999, minOrder: 0, isActive: true },
+    { type: 'fixed', value: -20, minOrder: 0, isActive: true },
+    { type: 'percent', value: 10, minOrder: 1000, isActive: false },
+  ] as const;
+  const SUBTOTALS = [0, 99, 100, 199, 200, 201, 499, 500, 1200, 5000];
+
+  it('the function copy of the percent ceiling matches the client copy', () => {
+    assert.equal(fnConfig.MAX_PERCENT_DISCOUNT, MAX_PERCENT_DISCOUNT);
+  });
+
+  it('computes an identical discount across every voucher shape and subtotal', () => {
+    for (const voucher of VOUCHER_SHAPES) {
+      for (const subtotal of SUBTOTALS) {
+        assert.equal(
+          fnConfig.calculateDiscount(subtotal, voucher),
+          calculateDiscount(subtotal, voucher),
+          `discount mismatch for ${voucher.type} ${voucher.value} at subtotal ${subtotal}`
+        );
+      }
+    }
+  });
+
+  it('never returns a negative discount on either copy', () => {
+    for (const voucher of VOUCHER_SHAPES) {
+      for (const subtotal of SUBTOTALS) {
+        assert.ok(
+          fnConfig.calculateDiscount(subtotal, voucher) >= 0,
+          `function copy went negative for ${voucher.type} ${voucher.value} at ${subtotal}`
+        );
+        assert.ok(
+          calculateDiscount(subtotal, voucher) >= 0,
+          `client copy went negative for ${voucher.type} ${voucher.value} at ${subtotal}`
+        );
+      }
+    }
+  });
+
+  it('never discounts more than the subtotal on either copy', () => {
+    // The invariant the function relies on when it recomputes grandTotal: an
+    // over-large fixed voucher must not manufacture a negative order total.
+    for (const voucher of VOUCHER_SHAPES) {
+      for (const subtotal of SUBTOTALS) {
+        assert.ok(
+          fnConfig.calculateDiscount(subtotal, voucher) <= subtotal,
+          `function copy exceeded subtotal for ${voucher.type} ${voucher.value} at ${subtotal}`
+        );
+        assert.ok(
+          calculateDiscount(subtotal, voucher) <= subtotal,
+          `client copy exceeded subtotal for ${voucher.type} ${voucher.value} at ${subtotal}`
+        );
+      }
+    }
+  });
+});
+
 describe('cart stock cap', () => {
   it('allows a quantity within available stock', () => {
     assert.doesNotThrow(() => assertCanAddToCart('Rocky Road (pint)', 2, 3, 10));
