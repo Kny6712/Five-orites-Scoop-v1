@@ -23,6 +23,7 @@ import {
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
@@ -39,7 +40,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton, IonButton, IonSpinner,
     IonInput, IonItem, IonLabel, IonAvatar, IonToggle,
-    AppIconComponent, AlertBannerComponent, CloudinaryPipe,
+    AppIconComponent, AlertBannerComponent, CloudinaryPipe, AppFooterComponent,
   ],
   templateUrl: './profile.page.html',
   styleUrls: ['./profile.page.scss'],

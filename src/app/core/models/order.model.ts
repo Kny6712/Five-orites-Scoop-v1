@@ -43,7 +43,28 @@ export interface Order {
   cancelReason?: string | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
-  statusHistory: { status: OrderStatus; timestamp: Timestamp }[];
+  /**
+   * The fulfilment timeline. `reason` is optional and only present on entries the
+   * Cloud Function writes (`insufficient_stock`, `no_price`, `invalid_line`,
+   * `empty_order`) — it records WHY the server cancelled an order, which is the
+   * only place that distinction survives. Client-written entries omit it.
+   */
+  statusHistory: { status: OrderStatus; timestamp: Timestamp; reason?: string }[];
+
+  /**
+   * Whether a cancelled order's stock has been returned to inventory.
+   *
+   * ABSENT IS NOT FALSE. Every order cancelled before this field existed has no
+   * marker, and reading "absent" as "stock was never returned" would flood the
+   * repair queue with orders that are actually fine.
+   *
+   * So: `true` means confirmed returned, `false` means confirmed NOT returned
+   * (the restock threw), and `undefined` means unknown — which is why the repair
+   * panel only offers `false`, and shows unknown ones separately rather than
+   * guessing. See `OrderService.repairStockRestock`.
+   */
+  stockRestored?: boolean;
+  stockRestoredAt?: Timestamp | null;
 }
 
 export interface OrderStatusMeta {

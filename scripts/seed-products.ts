@@ -263,6 +263,11 @@ async function seedProducts(): Promise<void> {
       }
     }
 
+    // Real Timestamps, not ISO strings. `product.model.ts` types createdAt and
+    // updatedAt as `Timestamp`; writing `.toISOString()` here produced string
+    // fields that violate the app's own model and make any `.toDate()` call
+    // throw. The Node admin SDK serialises a JS Date to a Firestore Timestamp.
+    const now = new Date();
     batch.set(docRef, {
       setNumber: product.setNumber,
       setName: product.setName,
@@ -273,8 +278,8 @@ async function seedProducts(): Promise<void> {
       pricing,
       stock: stockToWrite,
       isActive: true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     }, { merge: true });
 
     console.log(`  ✔  Set ${product.setNumber} · ${product.setName.padEnd(15)} → ${product.variantName}`);

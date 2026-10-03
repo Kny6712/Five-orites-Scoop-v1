@@ -9,8 +9,11 @@ import {
   where,
   limit,
   getDocs,
+  doc,
+  updateDoc,
+  increment,
 } from '@angular/fire/firestore';
-import { Voucher, calculateDiscount } from '../models/voucher.model';
+import { Voucher, calculateDiscount, voucherUsability } from '../models/voucher.model';
 
 @Injectable({ providedIn: 'root' })
 export class VoucherService {
@@ -74,8 +77,51 @@ export class VoucherService {
     if (snap.empty) throw new Error(`Voucher "${normalized}" not found. or is no longer active.`);
 
     const voucher = { id: snap.docs[0].id, ...snap.docs[0].data() } as Voucher;
+
+    /**
+     * Window and cap checks, in the order a shopper would hit them.
+     *
+     * The query above already filtered `isActive == true`, so a deactivated code
+     * never reaches here. The remaining three reasons are new with redemption
+     * tracking: a code can be active, inside its window, and still be spent out.
+     * Previously "usable" meant exactly "isActive", so `maxRedemptions` could be
+     * displayed on the admin page while checkout happily honoured the code past
+     * its cap — the limit was decoration.
+     */
+    const usability = voucherUsability(voucher);
+    if (!usability.usable) {
+      switch (usability.reason) {
+        case 'inactive':
+          throw new Error(`Voucher "${normalized}" is no longer active.`);
+        case 'not_started':
+          throw new Error(`Voucher "${normalized}" is not available yet.`);
+        case 'expired':
+          throw new Error(`Voucher "${normalized}" has expired.`);
+        case 'exhausted':
+          throw new Error(`Voucher "${normalized}" has reached its redemption limit.`);
+      }
+    }
+
     const discount = calculateDiscount(subtotal, voucher);
     if (discount <= 0) throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
     return { voucher, discount };
+  }
+
+  /**
+   * Records one redemption against a voucher.
+   *
+   * `increment` rather than an absolute set: two customers checking out with the
+   * same code at the same moment would otherwise both write the same number and
+   * one redemption would vanish. `increment` is atomic server-side, which is why
+   * this cannot be folded into the caller's own write.
+   *
+   * The `isActive` guard in the query is repeated here deliberately — without it
+   * this would happily count a redemption on a voucher an admin has since
+   * switched off.
+   */
+  async recordRedemption(voucherId: string): Promise<void> {
+    await updateDoc(doc(this.firestore, 'vouchers', voucherId), {
+      usageCount: increment(1),
+    });
   }
 }

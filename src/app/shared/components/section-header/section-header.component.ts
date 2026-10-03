@@ -54,7 +54,7 @@ import { IonButton } from '@ionic/angular/standalone';
     }
 
     .see-all {
-      --color: var(--color-strawberry-ink);
+      --color: var(--color-primary-ink);
       --border-radius: var(--radius-pill);
       font-weight: 800;
       font-size: 13px;

@@ -15,14 +15,21 @@ import { OrderService } from '../../core/services/order.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Order, OrderStatus } from '../../core/models/order.model';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
+import { toCsv, downloadCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import type { SizeVariant } from '../../core/models/product.model';
 import { DonutChartComponent, type DonutSlice } from '../../shared/components/charts/donut-chart.component';
 import { BarChartComponent, type BarDatum } from '../../shared/components/charts/bar-chart.component';
+import { LineChartComponent, type LinePoint } from '../../shared/components/charts/line-chart.component';
+import { bucketsFor, bucketize, runningTotal } from '../../core/logic/series';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
-import { PesoPipe } from '../../shared/pipes/peso.pipe';import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { PesoPipe } from '../../shared/pipes/peso.pipe';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 
-interface TopFlavor { name: string; count: number; revenue: number; }
+/** One row of the ranked flavors table. setName is carried so the table can
+ *  group by set without a second lookup at render time. */
+interface TopFlavor { name: string; setName: string; count: number; revenue: number; }
 
 /**
  * Upper bound on a single reporting read. Comfortably above what a small shop
@@ -41,8 +48,9 @@ const ANALYTICS_MAX_ORDERS = 500;
     IonButtons, IonMenuButton,
     IonCard, IonCardContent, IonText,
     IonSkeletonText, IonRefresher, IonRefresherContent,
-    IonChip, IonLabel, IonButton, IonSegment, IonSegmentButton, PesoPipe, CartButtonComponent,
-    AppIconComponent, DonutChartComponent, BarChartComponent, AlertBannerComponent],
+    IonChip, IonLabel, IonButton, IonSegment, IonSegmentButton, PesoPipe,
+    AppIconComponent, DonutChartComponent, BarChartComponent, LineChartComponent, AlertBannerComponent, PaginationComponent,
+    AppFooterComponent],
   templateUrl: './analytics.page.html',
   styleUrls: ['./analytics.page.scss'],
 })
@@ -152,28 +160,183 @@ export class AnalyticsPage implements OnInit, OnDestroy {
 
   deliveredOrders = computed(() => this.deliveredOnly().length);
 
+  /**
+   * Revenue per day (or per week on a long range).
+   *
+   * The gap this fills: every figure above is an AGGREGATE for the whole
+   * window, so "last 30 days" could only ever be one number. An owner's first
+   * question is usually directional — is it going up or down — and a single
+   * total cannot answer that.
+   *
+   * DELIVERED ONLY, matching every other figure on this page. Mixing in-progress
+   * orders would put revenue on the chart that the Revenue tile excludes, and the
+   * page would contradict itself on the same screen.
+   *
+   * 'all' has no window to plot against, so it plots nothing and says why rather
+   * than picking an arbitrary 30 days.
+   */
+  readonly rangeDays = computed<number | null>(() => {
+    switch (this.dateRange()) {
+      case 'today': return 1;
+      case '7d': return 7;
+      case '30d': return 30;
+      default: return null;
+    }
+  });
+
+  readonly trendBuckets = computed(() => {
+    const days = this.rangeDays();
+    if (days === null) return [];
+    return bucketsFor(days, new Date());
+  });
+
+  readonly revenueTrend = computed<LinePoint[]>(() => {
+    const buckets = this.trendBuckets();
+    if (!buckets.length) return [];
+    const sums = bucketize(
+      buckets,
+      this.deliveredOnly(),
+      (o) => {
+        try {
+          const ts = o.createdAt as unknown as { toDate(): Date } | string;
+          return typeof ts === 'string' ? new Date(ts).getTime() : ts.toDate().getTime();
+        } catch {
+          return Number.NaN;
+        }
+      },
+      (o) => o.grandTotal ?? 0
+    );
+    return buckets.map((b, i) => ({ label: b.label, value: sums[i] }));
+  });
+
+  readonly cumulativeRevenue = computed<LinePoint[]>(() => {
+    const trend = this.revenueTrend();
+    if (!trend.length) return [];
+    return trend.map((p, i) => ({ label: p.label, value: runningTotal(trend.slice(0, i + 1).map((x) => x.value))[i] }));
+  });
+
+  readonly trendSeries = signal<'daily' | 'cumulative' | 'orders'>('daily');
+
+  /** Plain integer, for the orders axis. */
+  readonly formatCount = (v: number): string => String(Math.round(v));
+
+  /** The series the chart should render, chosen by the toggle. */
+  readonly activeTrend = computed(() => {
+    switch (this.trendSeries()) {
+      case 'cumulative': return this.cumulativeRevenue();
+      case 'orders': return this.ordersTrend();
+      default: return this.revenueTrend();
+    }
+  });
+
+  /**
+   * Orders per day, which is a different question from pesos per day.
+   *
+   * A shop can hold revenue flat by doubling prices while halving orders, and
+   * the revenue line alone would show that as stability.
+   */
+  readonly ordersTrend = computed<LinePoint[]>(() => {
+    const buckets = this.trendBuckets();
+    if (!buckets.length) return [];
+    const counts = bucketize(
+      buckets,
+      this.deliveredOnly(),
+      (o) => {
+        try {
+          const ts = o.createdAt as unknown as { toDate(): Date } | string;
+          return typeof ts === 'string' ? new Date(ts).getTime() : ts.toDate().getTime();
+        } catch {
+          return Number.NaN;
+        }
+      },
+      () => 1
+    );
+    return buckets.map((b, i) => ({ label: b.label, value: counts[i] }));
+  });
+
   avgOrderValue = computed(() =>
     this.deliveredOnly().length > 0
       ? this.totalRevenue() / this.deliveredOnly().length
       : 0
   );
 
+  /**
+   * Every flavor that sold, ranked highest to lowest.
+   *
+   * NOT sliced to ten. This is the backing data for the ranked table on the
+   * page, and a "top 10" table with no way to see 11th place answers only half
+   * the question an owner actually has — which of my flavors is not selling?
+   * The chart beside it takes a slice of this; the table shows all of it, and
+   * says so.
+   */
   topFlavors = computed<TopFlavor[]>(() => {
     const map = new Map<string, TopFlavor>();
     this.deliveredOnly().forEach((o) =>
       o.items?.forEach((item) => {
         const key = item.variantName;
-        const existing = map.get(key) ?? { name: key, count: 0, revenue: 0 };
+        const existing = map.get(key) ?? { name: key, count: 0, revenue: 0, setName: item.setName || '—' };
         map.set(key, {
           name: key,
+          setName: item.setName || '—',
           count: existing.count + item.quantity,
           revenue: existing.revenue + item.subtotal,
         });
       })
     );
-    return Array.from(map.values())
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 10);
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  });
+
+  /** The ten best sellers, for the chart. */
+  readonly topTenFlavors = computed(() => this.topFlavors().slice(0, 10));
+
+  /**
+   * The ranked table is paged rather than rendered whole.
+   *
+   * This page was the one list in the app still missing the shared pager, and
+   * the ranked table is the one that grows without bound — a busy month can put
+   * every flavor in the catalog on screen at once, which is exactly the "top 10
+   * answers only half the question" case the table was built to solve, defeated
+   * by its own length.
+   *
+   * The CHART stays top-10 on purpose: a bar chart of 60 flavors is unreadable,
+   * so slicing there is a design decision rather than a shortcut. The TABLE shows
+   * all of them, a page at a time.
+   */
+  readonly flavorPage = signal(1);
+  readonly FLAVOR_PAGE_SIZE = 12;
+  readonly flavorPageOffset = computed(() => (this.flavorPage() - 1) * this.FLAVOR_PAGE_SIZE);
+  readonly pagedFlavors = computed(() => {
+    const start = this.flavorPageOffset();
+    return this.topFlavors().slice(start, start + this.FLAVOR_PAGE_SIZE);
+  });
+
+  /**
+   * Share of all units sold, per flavor, highest first.
+   *
+   * A count alone does not tell an owner whether a flavor is doing well. 40
+   * units is excellent against 200 total and poor against 4,000 — the percentage
+   * is what makes the ranking mean anything, so it is computed rather than left
+   * for the reader to work out.
+   */
+  readonly flavorShare = computed<Record<string, number>>(() => {
+    const flavors = this.topFlavors();
+    const total = flavors.reduce((sum, f) => sum + f.count, 0);
+    if (total === 0) return {};
+    const out: Record<string, number> = {};
+    for (const f of flavors) out[f.name] = (f.count / total) * 100;
+    return out;
+  });
+
+  /** The single best-selling size, for the headline under the size chart. */
+  readonly topSize = computed(() => {
+    const sizes = this.salesBySize();
+    if (sizes.length === 0) return null;
+    const top = sizes[0];
+    return {
+      label: SIZE_DISPLAY_LABELS[top.name as SizeVariant] ?? top.name,
+      count: top.count,
+      revenue: top.revenue,
+    };
   });
 
   salesBySet = computed(() => {
@@ -226,9 +389,10 @@ export class AnalyticsPage implements OnInit, OnDestroy {
     ];
   });
 
-  /** Units per flavor, with revenue as the annotation. */
+  /** Units per flavor, with revenue as the annotation. Chart data is the top
+   *  ten; the full ranking is in the table below it. */
   readonly flavorBars = computed<BarDatum[]>(() =>
-    this.topFlavors().map((f) => ({
+    this.topTenFlavors().map((f) => ({
       label: f.name,
       value: f.count,
       annotation: this.formatPesoValue(f.revenue),
@@ -253,14 +417,41 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       // "undefined".
       label: SIZE_DISPLAY_LABELS[s.name as SizeVariant] ?? s.name,
       value: s.count,
+      // Revenue as the annotation, because units alone cannot answer "which size
+      // should we push?" — a gallon sells one unit and earns four pints.
+      annotation: this.formatPesoValue(s.revenue),
       tone: 'sunny' as const,
     }))
   );
+
+  /**
+   * Nothing to report here yet.
+   *
+   * A "flavors with no sales" list is the most actionable thing this page could
+   * show, but it needs the full catalog to be meaningful and the Analytics read
+   * is orders-only by design. Rather than fire a second Firestore read for it,
+   * the ranked table's own tail tells the same story: anything below the last
+   * row with a low share is a flavor that is barely moving.
+   */
 
   // Formatters are bound as properties, not arrow calls in the template, so the
   // bar chart's input signal sees a stable reference across change detection.
   protected readonly formatUnits = (v: number): string => `${v}`;
   protected readonly formatPeso = (v: number): string => this.formatPesoValue(v);
+
+  /**
+   * A flavor's share of all units sold, as a percentage string.
+   *
+   * One decimal below 10%, whole numbers above — "0.4%" and "23%" are both
+   * meaningful, "23.0%" and "0.4%" both being one decimal is noise. A flavor
+   * that sold nothing in the window reports 0% rather than a dash, because zero
+   * is the answer.
+   */
+  protected shareLabel(flavorName: string): string {
+    const share = this.flavorShare()[flavorName];
+    if (share === undefined) return '0%';
+    return `${share < 10 ? share.toFixed(1) : Math.round(share)}%`;
+  }
 
   private formatPesoValue(v: number): string {
     return `₱${v.toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
@@ -290,31 +481,14 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       ['order_id', 'date', 'status', 'items', 'subtotal', 'discount', 'delivery', 'grand_total'],
       ...this.deliveredOnly().map((o) => [
         o.id,
-        this.formatDateIso(o.createdAt),
+        toIsoDate(o.createdAt),
         o.status,
-        String(o.items?.reduce((s, i) => s + i.quantity, 0) ?? 0),
-        String(o.totalAmount ?? 0),
-        String(o.discountAmount ?? 0),
-        String(o.deliveryFee ?? 0),
-        String(o.grandTotal ?? 0)])];
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `five-orites-delivered-sales-${this.dateRange()}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  }
-
-  private formatDateIso(timestamp: unknown): string {
-    try {
-      const ts = timestamp as { toDate(): Date } | string;
-      const d = typeof ts === 'string' ? new Date(ts) : ts.toDate();
-      return d.toISOString();
-    } catch {
-      return '';
-    }
+        o.items?.reduce((s, i) => s + i.quantity, 0) ?? 0,
+        o.totalAmount ?? 0,
+        o.discountAmount ?? 0,
+        o.deliveryFee ?? 0,
+        o.grandTotal ?? 0])];
+    downloadCsv(toCsv(rows), csvFilename('delivered-sales', this.dateRange()));
   }
 
 
@@ -335,6 +509,8 @@ export class AnalyticsPage implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.loadError.set('');
     this.truncated.set(false);
+    // A new range is a new ranking; staying on page 7 would show an empty table.
+    this.flavorPage.set(1);
     this.sub?.unsubscribe();
 
     const range = this.dateRange();

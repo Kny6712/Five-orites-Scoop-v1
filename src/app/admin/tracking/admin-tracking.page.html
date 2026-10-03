@@ -1,5 +1,8 @@
+<!-- src/app/admin/tracking/admin-tracking.page.html -->
+<!-- Five-orites Scoop — Admin Delivery Map -->
+
 <ion-header>
-  <ion-toolbar>
+  <ion-toolbar color="primary">
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
@@ -13,107 +16,274 @@
   </ion-refresher>
 
   @if (errorMessage()) {
-    <app-alert-banner tone="danger" [message]="errorMessage()" />
+    <app-alert-banner
+      tone="danger"
+      title="Could not load orders"
+      [message]="errorMessage()"
+      actionLabel="Try again"
+      (action)="reload()"
+    />
   }
 
-  <div class="map-wrap">
-    <app-scoop-map
-      [markers]="mapMarkers()"
-      [height]="'340px'"
-      ariaLabel="Map of active delivery destinations"
-      (markerTapped)="onMarkerTapped($event)"
+  @if (truncated() && !errorMessage()) {
+    <app-alert-banner
+      tone="warning"
+      title="List truncated"
+      [message]="'Showing the ' + orders().length + ' most recent orders. Older active orders may not appear here. Check Fulfillment for the full queue.'"
     />
+  }
 
-    <p class="map-caption">
-      <app-icon name="map-pin" />
-      The shop plus {{ mappedOrders().length }} active
-      {{ mappedOrders().length === 1 ? 'order' : 'orders' }} with a resolved address.
-      Tapping a pin selects it below.
-    </p>
+  <!--
+    Map on the left, search panel on the right.
+
+    The map used to be a 340px letterbox across the full width, with the order
+    list below it — so the two things you compare while working (where the
+    orders are, and which orders those are) were never on screen together. A
+    square map beside the panel keeps both visible at once on a tablet or
+    desktop, and stacks on a phone where there is no room to do otherwise.
+  -->
+  <div class="track-split">
+    <div class="map-col">
+      <app-scoop-map
+        [markers]="mapMarkers()"
+        [square]="true"
+        ariaLabel="Map of active delivery destinations and the shop"
+        (markerTapped)="onMarkerTapped($event)"
+      />
+      <p class="map-caption">
+        <app-icon name="map-pin" />
+        <span>The shop plus {{ mappedOrders().length }} active order{{ mappedOrders().length === 1 ? '' : 's' }} with a resolved address. Tap a pin to select it.</span>
+      </p>
+    </div>
+
+    <aside class="panel-col">
+      <!-- Search & filters -->
+      <section class="search-panel">
+        <ion-searchbar
+          placeholder="Search order, email or address"
+          debounce="250"
+          (ionInput)="onQuery($event)"
+          [value]="query()"
+          class="track-search"
+          aria-label="Search active orders"
+        ></ion-searchbar>
+
+        <div class="status-chips" role="group" aria-label="Filter by status">
+          @for (opt of statusOptions; track opt.value) {
+            <button
+              type="button"
+              class="status-chip"
+              [class.is-on]="statusFilter() === opt.value"
+              [attr.aria-pressed]="statusFilter() === opt.value"
+              (click)="onStatusFilter(opt.value)"
+            >
+              {{ opt.label }}
+            </button>
+          }
+        </div>
+
+        <p class="result-count" role="status">
+          @if (visibleOrders().length === 0) {
+            No matching orders
+          } @else {
+            {{ visibleOrders().length }} of {{ activeOrders().length }} active
+            @if (hiddenCount() > 0) {
+              &middot; {{ hiddenCount() }} hidden
+            }
+          }
+        </p>
+
+        @if (hasFilter()) {
+          <button type="button" class="clear-btn" (click)="clearFilters()">
+            <app-icon name="x" />
+            Clear filters
+          </button>
+        }
+      </section>
+
+      <!-- Selected order detail. Sits above the list, under the filters, because
+           it is the answer to "what did I just tap" and should not require a
+           scroll to find. -->
+      @if (selectedOrder(); as sel) {
+        <section class="selected-card">
+          <header class="selected-head">
+            <div>
+              <span class="selected-id">#{{ sel.id.slice(-6).toUpperCase() }}</span>
+              <app-order-status-badge [status]="sel.status"></app-order-status-badge>
+            </div>
+            <button
+              type="button"
+              class="selected-close"
+              (click)="selectedId.set(null)"
+              aria-label="Clear selection"
+            >
+              <app-icon name="x" />
+            </button>
+          </header>
+
+          <p class="selected-address">{{ sel.deliveryAddress }}</p>
+          <p class="selected-meta">
+            {{ sel.customerEmail }} &middot; {{ itemCount(sel) }} item{{ itemCount(sel) === 1 ? '' : 's' }} &middot; {{ distanceFor(sel) }} away
+          </p>
+
+          @if (canAdvance(sel)) {
+            <ion-button
+              expand="block"
+              class="advance-btn"
+              (click)="advance($event, sel)"
+              [disabled]="busyId() === sel.id"
+            >
+              {{ busyId() === sel.id ? 'Updating…' : nextLabel(sel) }}
+            </ion-button>
+          }
+        </section>
+      }
+    </aside>
   </div>
 
-  @if (selectedOrder(); as order) {
-    <section class="panel selected">
-      <div class="panel-head">
-        <h2 class="panel-title">#{{ order.id.slice(-6).toUpperCase() }}</h2>
-        <app-order-status-badge [status]="order.status" />
-      </div>
-      <p class="selected-address">{{ order.deliveryAddress }}</p>
-      <p class="selected-meta">{{ order.customerEmail }} · {{ distanceFor(order) }} away</p>
-      @if (canAdvance(order)) {
-        <ion-button
-          expand="block"
-          class="advance-btn"
-          [disabled]="busyId() === order.id"
-          (click)="advance(order)"
-        >
-          {{ nextLabel(order) }}
-        </ion-button>
-      }
-    </section>
-  }
-
+  <!-- Order list, as a table -->
   @if (isLoading()) {
-    <div class="list">
-      @for (s of [1, 2, 3]; track s) {
-        <div class="order-row">
-          <ion-skeleton-text animated style="height: 18px; width: 40%;"></ion-skeleton-text>
+    <div class="table-wrap">
+      @for (s of [1,2,3,4]; track s) {
+        <div class="skeleton-row">
+          <ion-skeleton-text animated style="width:26%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:34%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:12%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:18%; height:14px"></ion-skeleton-text>
         </div>
       }
     </div>
   } @else if (activeOrders().length === 0) {
-    <div class="empty">
-      <app-icon name="truck" />
-      <h2>Nothing out right now</h2>
-      <p>Active orders will appear here with their delivery addresses pinned.</p>
-    </div>
+    <app-empty-state
+      icon="truck"
+      title="Nothing in transit"
+      message="No orders are currently pending, preparing or out for delivery."
+      [compact]="true"
+    />
+  } @else if (visibleOrders().length === 0) {
+    <app-empty-state
+      icon="search"
+      title="No matching orders"
+      message="No active order matches that search or filter."
+      actionLabel="Clear filters"
+      (action)="clearFilters()"
+      [compact]="true"
+    />
   } @else {
-    <div class="list">
-      @for (order of activeOrders(); track order.id) {
-        <article
-          class="order-row"
-          [class.selected]="selectedId() === order.id"
-          (click)="selectedId.set(order.id)"
-        >
-          <div class="order-info">
-            <div class="order-top">
-              <span class="order-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
-              <app-order-status-badge [status]="order.status" />
-            </div>
-            <span class="order-address">{{ order.deliveryAddress }}</span>
-            <span class="order-meta">
-              {{ order.customerEmail }} · {{ order.items.length }} items ·
-              {{ distanceFor(order) }} away
-            </span>
-          </div>
+    <div class="table-wrap">
+      <table class="track-table">
+        <caption class="visually-hidden">
+          Active delivery orders, {{ visibleOrders().length }} shown
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Order</th>
+            <th scope="col">Destination</th>
+            <th scope="col" class="num">Items</th>
+            <th scope="col" class="num">Value</th>
+            <th scope="col">Status</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (order of pagedVisibleOrders(); track order.id) {
+            <!--
+              The row is NOT clickable.
 
-          @if (canAdvance(order)) {
-            <ion-button
-              fill="outline"
-              size="small"
-              class="advance-small"
-              [disabled]="busyId() === order.id"
-              (click)="advance(order); $event.stopPropagation()"
-            >
-              {{ nextLabel(order) }}
-            </ion-button>
+              It used to be, and it contained the advance button — so tapping
+              "Mark as Preparing" both advanced the order AND re-selected it, and
+              tapping anywhere near the button did the same thing. That is the
+              unintended-interaction bug this row had.
+
+              Selection is now an explicit button in the Order cell, and the
+              advance button lives in its own cell, so each does exactly one
+              thing. Neither is nested inside the other.
+            -->
+            <tr class="track-row" [class.is-selected]="selectedId() === order.id">
+              <td data-label="Order">
+                <button
+                  type="button"
+                  class="pick-btn"
+                  (click)="select(order)"
+                  [attr.aria-pressed]="selectedId() === order.id"
+                  [attr.aria-label]="'Select order ' + order.id.slice(-6).toUpperCase()"
+                >
+                  <app-icon name="map-pin" class="pick-icon" />
+                  <span class="pick-text">
+                    <span class="row-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
+                    <span class="row-email">{{ order.customerEmail }}</span>
+                  </span>
+                </button>
+              </td>
+
+              <td data-label="Destination">
+                <span class="row-address">{{ order.deliveryAddress }}</span>
+                <span class="row-distance">{{ distanceFor(order) }}</span>
+              </td>
+
+              <td class="num" data-label="Items">
+                <span class="row-items">{{ itemCount(order) }}</span>
+              </td>
+
+              <td class="num" data-label="Value">
+                <span class="row-value">{{ order.grandTotal | peso }}</span>
+              </td>
+
+              <td data-label="Status">
+                <app-order-status-badge [status]="order.status"></app-order-status-badge>
+              </td>
+
+              <td class="action-cell">
+                @if (canAdvance(order)) {
+                  <ion-button
+                    size="small"
+                    fill="outline"
+                    class="row-advance"
+                    (click)="advance($event, order)"
+                    [disabled]="busyId() === order.id"
+                    [attr.aria-label]="'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + nextLabel(order)"
+                  >
+                    {{ busyId() === order.id ? '…' : 'Advance' }}
+                  </ion-button>
+                }
+              </td>
+            </tr>
           }
-        </article>
-      }
+        </tbody>
+      </table>
     </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="visibleOrders().length"
+      [pageSize]="PAGE_SIZE"
+      itemLabel="active orders"
+      (pageChange)="onPageChange($event)"
+    />
   }
 
+  <!-- Orders with no coordinates, kept visible below the table. -->
   @if (unmappedOrders().length > 0) {
-    <!--
-      Said out loud, because an order missing from the map is an order staff might
-      not think to prepare. These have no cached coordinate yet — the customer
-      tracker resolves one when they open their own order.
-    -->
-    <p class="unmapped-note">
-      {{ unmappedOrders().length }}
-      {{ unmappedOrders().length === 1 ? 'order has' : 'orders have' }} no address on
-      the map yet — {{ unmappedOrders().length === 1 ? 'it is' : 'they are' }} listed
-      above by address only.
-    </p>
+    <section class="unmapped">
+      <h3 class="unmapped-title">
+        <app-icon name="map-pin" />
+        {{ unmappedOrders().length }} order{{ unmappedOrders().length === 1 ? '' : 's' }} not on the map
+      </h3>
+      <p class="unmapped-note">
+        These have an address but no coordinates yet. They are not hidden — open one
+        on the customer's tracker once to resolve its location.
+      </p>
+      <ul class="unmapped-list">
+        @for (order of unmappedOrders().slice(0, 6); track order.id) {
+          <li class="unmapped-item">
+            <span class="unmapped-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
+            <span class="unmapped-address">{{ order.deliveryAddress }}</span>
+          </li>
+        }
+      </ul>
+    </section>
   }
+
 </ion-content>
+
+<app-footer></app-footer>

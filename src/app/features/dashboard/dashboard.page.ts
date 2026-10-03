@@ -21,14 +21,16 @@ import { AuthService } from '../../core/services/auth.service';
 import { InventoryService } from '../../core/services/inventory.service';
 import { OrderService } from '../../core/services/order.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { LOW_STOCK_THRESHOLD } from '../../core/config/stock.config';
+import { ShopSettingsService } from '../../core/services/shop-settings.service';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { Product } from '../../core/models/product.model';
 import { Order } from '../../core/models/order.model';
-import { AppUser } from '../../core/models/user.model';
+import { AppUser, isStaffRole } from '../../core/models/user.model';
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
+
 import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -44,7 +46,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
     IonButton, IonText, IonSkeletonText,
     IonChip, IonLabel,
     IonRefresher, IonRefresherContent, IonToggle,
-    ProductCardComponent, OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
+    ProductCardComponent, OrderStatusBadgeComponent, PesoPipe,
+    PaginationComponent, AppFooterComponent,
     AppIconComponent, VoucherCardsComponent, AlertBannerComponent],
   templateUrl: './dashboard.page.html',
   styleUrls: ['./dashboard.page.scss'],
@@ -58,7 +61,7 @@ export class DashboardPage implements OnInit, OnDestroy {
   private subs: Subscription[] = [];
 
   currentUser = signal<AppUser | null>(null);
-  isAdmin = computed(() => this.currentUser()?.role === 'admin');
+  isAdmin = computed(() => isStaffRole(this.currentUser()?.role));
   isLoading = signal(true);
   /**
    * Set when any dashboard feed fails. Non-empty means "we could not read
@@ -82,7 +85,38 @@ export class DashboardPage implements OnInit, OnDestroy {
   totalOrderCount = signal(0);
   adminRecentOrders = signal<Order[]>([]);
   lowStockProducts = signal<Product[]>([]);
-  readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
+
+  /**
+   * The admin-editable threshold, not the build constant.
+   *
+   * Read from the same service `InventoryService.subscribeToLowStock()` uses, so
+   * the count on screen and the rows in the low-stock panel can never disagree
+   * about what "low" means.
+   */
+  readonly shop = inject(ShopSettingsService);
+  readonly lowStockThreshold = computed(() => this.shop.lowStockThreshold());
+
+  /**
+   * Recent Orders paging.
+   *
+   * This list was a hard `.slice(0, 10)` with no pager, so an admin with 40
+   * orders had no way to see the 11th-most-recent from this page at all — the
+   * only route was "View All" into the fulfillment queue, which is a different
+   * task with different controls. Eight a page keeps the whole list reachable
+   * here without turning the dashboard into a table.
+   *
+   * The underlying fetch is unchanged: getAllOrders() is capped at 100 by the
+   * service, so the pager pages what was fetched rather than fetching more. That
+   * is the right trade for a dashboard — it is a "what needs attention now"
+   * surface, and the fulfillment queue is the exhaustive one.
+   */
+  readonly RECENT_PAGE_SIZE = 8;
+  readonly recentPage = signal(1);
+
+  readonly pagedRecentOrders = computed(() => {
+    const start = (this.recentPage() - 1) * this.RECENT_PAGE_SIZE;
+    return this.adminRecentOrders().slice(start, start + this.RECENT_PAGE_SIZE);
+  });
 
   constructor() {
 
@@ -101,11 +135,16 @@ export class DashboardPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Live so the banner and the low-stock threshold react to an admin saving
+    // without a reload. `watch()` drops any previous listener first, so a
+    // re-entry cannot stack subscriptions.
+    this.shop.watch();
     this.loadDashboard();
   }
 
   ngOnDestroy(): void {
     this.subs.forEach((s) => s.unsubscribe());
+    this.shop.stop();
   }
 
   loadDashboard(): void {
@@ -200,20 +239,36 @@ export class DashboardPage implements OnInit, OnDestroy {
         });
         this.todayRevenue.set(todayOrders.reduce((sum, o) => sum + (o.grandTotal ?? 0), 0));
 
-        this.adminRecentOrders.set(orders.slice(0, 10));
+        // The full recent slice, no longer truncated to a display count: the
+        // pager slices for display and needs the whole list to know its length.
+        this.adminRecentOrders.set(orders.slice(0, 60));
+        this.recentPage.set(1);
         this.isLoading.set(false);
       });
     this.subs.push(s1);
 
-    // Low stock
+    // Low stock. The threshold is passed explicitly so the query and the number
+    // shown beside it are read from the same source at the same moment — a
+    // change to the setting mid-load would otherwise make them disagree.
     const s2 = this.inventoryService
-      .subscribeToLowStock()
+      .subscribeToLowStock(this.lowStockThreshold())
       .pipe(catchError((err) => this.feedFailed('low stock alerts', err)))
       .subscribe((products) => {
-        this.lowStockProducts.set(products.slice(0, 5));
         this.lowStockCount.set(products.length);
+        // Show the WORST first, so the panel's top rows are the ones that will
+        // sell out today. It was previously sliced in whatever order the snapshot
+        // arrived, which meant a flavor at zero could sit below four flavors
+        // merely "low" — the panel's job is triage, and triage is sorted.
+        this.lowStockProducts.set(
+          [...products].sort((a, b) => this.shortestSize(a) - this.shortestSize(b))
+        );
       });
     this.subs.push(s2);
+  }
+
+  /** The smallest single-size stock figure for a flavor — its worst number. */
+  private shortestSize(p: Product): number {
+    return Math.min(p.stock.cup, p.stock.pint, p.stock.halfGallon, p.stock.gallon);
   }
 
   /**

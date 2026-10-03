@@ -2,7 +2,7 @@
 // Five-orites Scoop — Customer Order History Page
 // Author: Five-orites Scoop team (see README)
 
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import {
@@ -21,6 +21,8 @@ import { AuthService } from '../../core/services/auth.service';
 import { Order } from '../../core/models/order.model';
 import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 
 @Component({
@@ -34,6 +36,7 @@ import { PesoPipe } from '../../shared/pipes/peso.pipe';
     IonSkeletonText, IonRefresher, IonRefresherContent,
     IonNote, IonBadge, IonButton,
     OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
+    PaginationComponent, AppFooterComponent,
     AppIconComponent, EmptyStateComponent],
   templateUrl: './orders.page.html',
   styleUrls: ['./orders.page.scss'],
@@ -80,6 +83,7 @@ export class OrdersPage implements OnInit, OnDestroy {
       }))
       .subscribe((orders) => {
         this.orders.set(orders);
+        this.page.set(1);
         this.isLoading.set(false);
       });
   }
@@ -87,6 +91,33 @@ export class OrdersPage implements OnInit, OnDestroy {
   handleRefresh(event: CustomEvent): void {
     this.loadOrders();
     setTimeout(() => (event.target as HTMLIonRefresherElement).complete(), 1000);
+  }
+
+  /**
+   * Eight orders a page.
+   *
+   * The list read is uncapped — `getCustomerOrders` has no limit — so a customer
+   * with a long history got a single unbounded scroll. Eight rows is about one
+   * screen of this list, and the pager matches the admin screens' component so
+   * the control looks identical wherever it appears.
+   */
+  readonly PAGE_SIZE = 8;
+  readonly page = signal(1);
+
+  readonly pagedOrders = computed(() => {
+    const start = (this.page() - 1) * this.PAGE_SIZE;
+    return this.orders().slice(start, start + this.PAGE_SIZE);
+  });
+
+  /**
+   * Total units on an order, not the number of line items.
+   *
+   * "Items" for a customer means how much ice cream arrived: two cups and a pint
+   * of the same flavor is three items, not one line. The row previously showed
+   * the line count, which understated it.
+   */
+  itemCount(order: Order): number {
+    return order.items.reduce((sum, i) => sum + i.quantity, 0);
   }
 
   goToProducts(): void {

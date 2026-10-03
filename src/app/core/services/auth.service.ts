@@ -71,7 +71,18 @@ export class AuthService {
         const userSnap = await getDoc(userDocRef);
 
         if (userSnap.exists()) {
-          // User doc already exists — return it
+          // User doc already exists — return it AS STORED.
+          //
+          // We deliberately do NOT trim/normalize the role here. `firestore.rules`
+          // compares the raw stored string, and the client's `can()`/`isStaffRole()`
+          // do the same. Normalizing only on the client (as a former version did)
+          // made `isStaffRole('owner')` TRUE while the rules still denied every
+          // admin request — a full Admin Panel that 403s on every tap, which is
+          // worse than the truthful failure. A role with stray whitespace now
+          // fails closed IDENTICALLY in both layers (empty Admin Panel for the
+          // user, every write refused by the rules). Fix the stored value, not
+          // the read path — and the drift lint in tests/logic.test.ts guards the
+          // client/rules boundary.
           return userSnap.data() as AppUser;
         }
 
@@ -120,7 +131,48 @@ export class AuthService {
   }
 
   async signInWithEmail(email: string, password: string): Promise<void> {
-    await signInWithEmailAndPassword(this.auth, email, password);
+    const credential = await signInWithEmailAndPassword(this.auth, email, password);
+    await this.assertNotSuspended(credential.user.uid);
+  }
+
+  /**
+   * Signs the user out if their account has been suspended, and says why.
+   *
+   * WHY THIS IS HERE AND NOT IN THE RULES
+   * Firestore rules can block a suspended user's READS and WRITES, but they
+   * cannot revoke a Firebase AUTH session that already exists — and this app's
+   * carts, wishlists and saved addresses all live in localStorage keyed by uid,
+   * so a session that survives the block still has working client state. The
+   * honest enforcement point is the moment credentials are accepted.
+   *
+   * The read itself is permitted: `users/{uid}` is readable by its owner, so
+   * this does not need admin rights and works from any sign-in path.
+   *
+   * Signing out rather than merely refusing matters — if the session were left
+   * open the user would sit on a signed-in shell that fails on every query, with
+   * no way to tell that the reason was the account and not the network.
+   */
+  private async assertNotSuspended(uid: string): Promise<void> {
+    let reason = '';
+    let suspended = false;
+    try {
+      const snap = await getDoc(doc(this.firestore, `users/${uid}`));
+      const data = snap.data() as { isSuspended?: boolean; suspendReason?: string | null } | undefined;
+      suspended = data?.isSuspended === true;
+      reason = data?.suspendReason?.trim() ?? '';
+    } catch {
+      // If the check itself fails, do NOT block the sign-in. A Firestore outage
+      // must not read as "your account is banned", and the rules still gate the
+      // data itself.
+      return;
+    }
+    if (!suspended) return;
+    await this.signOut();
+    throw new Error(
+      reason
+        ? `This account has been suspended: ${reason}`
+        : 'This account has been suspended. Contact the shop if you think this is a mistake.'
+    );
   }
 
   /**
@@ -190,7 +242,10 @@ export class AuthService {
 
   async signInWithGoogle(): Promise<void> {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(this.auth, provider);
+    const credential = await signInWithPopup(this.auth, provider);
+    // Same check as the password path. A suspension that only applied to email
+    // sign-in would be trivially bypassed by signing in with Google instead.
+    await this.assertNotSuspended(credential.user.uid);
   }
 
   async signOut(): Promise<void> {

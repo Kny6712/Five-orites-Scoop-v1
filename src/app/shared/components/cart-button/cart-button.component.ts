@@ -49,11 +49,18 @@ import { CartService } from '../../../core/services/cart.service';
   standalone: true,
   imports: [CommonModule, RouterLink, IonButton, AppIconComponent],
   template: `
-    <ion-button [routerLink]="'/cart'" [attr.aria-label]="cartLabel()" class="cart-btn">
-      <app-icon name="cart" slot="icon-only" class="cart-icon" />
-      @if (itemCount() > 0) {
-        <span class="cart-count">{{ itemCount() }}</span>
-      }
+    <ion-button
+      [routerLink]="'/cart'"
+      [attr.aria-label]="cartLabel()"
+      [class.has-items]="itemCount() > 0"
+      class="cart-btn"
+    >
+      <span class="cart-icon-wrap" aria-hidden="true">
+        <app-icon name="shopping-bag" class="cart-icon" />
+        @if (itemCount() > 0) {
+          <span class="cart-count">{{ itemCount() }}</span>
+        }
+      </span>
     </ion-button>
   `,
   styles: [`
@@ -61,67 +68,75 @@ import { CartService } from '../../../core/services/cart.service';
        is a flex container — see the note above. */
     :host { display: contents; }
 
-    /* ion-button's inner .button-native is the positioned ancestor, so the
-       count anchors to the clickable box rather than to the glyph. */
-    .cart-btn { position: relative; }
-    .cart-icon { --icon-size: 29px; }
+    /* ── The redesign, and why ─────────────────────────────────────────────
+       The old button was a bare 29px wireframe trolley glyph with a red number
+       wedged into its top-right corner, hanging 4px outside the button box. It
+       read as two overlapping things rather than one icon, and the number was
+       the only saturated colour on a powder-blue toolbar.
 
-    /* 29px is what the old icon rendered at. Ionic used to size an
-       ion-icon[slot=icon-only] at 1.8em via ::slotted, which cannot reach an
-       app-icon -- the new icon is sized by --icon-size, not font-size -- so the
-       size is now stated explicitly rather than inherited.
-       Inside a button that ion-buttons pads by 8px per side, the glyph's edge
-       sits ~8px clear of the button edge, which is what lets the count sit
-       mostly outside the cart rather than on top of it. */
+       Three changes:
+         1. A ShoppingBag glyph instead of ShoppingCart. A wireframe trolley
+            reads as a generic commerce icon; a bag is the shape people picture
+            when they think about what they are carrying.
+         2. The glyph sits in a rounded tile, so the count has a surface to sit
+            against and the button has a visible hit area on a pastel toolbar.
+         3. The count is a filled pill INSIDE that tile rather than a red bubble
+            overlapping the stroke. Nothing overlaps anything now, and the pill
+            takes the brand ink instead of the danger red — a cart with two
+            things in it is not an error state. */
+    .cart-btn {
+      --padding-start: 4px;
+      --padding-end: 4px;
+      --border-radius: var(--radius-sm);
+      --background: transparent;
+    }
 
-    /* A plain span, deliberately not <ion-badge>. ion-badge is a shadow-DOM
-       component whose :host sets display:inline-block, font-size:0.8125rem and
-       3px vertical padding, so pinning a height on it leaves the digit riding
-       high in the bubble — overriding those from a document-level class means
-       winning a tree-context cascade against the shadow stylesheet, which is
-       fragile and browser-dependent. It also carries contain:content (paint
-       containment), which clips at the padding box. A span has neither problem.
+    .cart-icon-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: var(--radius-sm);
+      background: rgb(255 255 255 / 0.55);
+      transition: background-color 0.15s ease;
+    }
 
-       Flex centring is what actually centres the digit: an inline-block with a
-       fixed height just parks the line box at the top. box-sizing is stated
-       because Ionic resets it globally, which would otherwise treat the height
-       as content-box and let the padding skew the bubble. border-radius:999px
-       keeps it a true circle for one digit and turns it into a pill for two. */
+    .cart-btn:hover .cart-icon-wrap { background: rgb(255 255 255 / 0.8); }
+    .cart-btn.has-items .cart-icon-wrap { background: var(--color-white); }
+
+    .cart-icon { --icon-size: 21px; color: var(--color-primary-ink); }
+
     .cart-count {
       position: absolute;
-      top: 0;
-      /* Pushed past the button's padding box, not flush with it. At right:0 the
-         ring sat wholly inside the clickable box, which read as a badge
-         *attached* to the corner; letting it hang ~4px out puts the bubble's own
-         centre on the cart glyph's top-right, matching the reference design. */
-      right: -4px;
-      z-index: 1;
+      top: -5px;
+      right: -5px;
       display: flex;
       align-items: center;
       justify-content: center;
       box-sizing: border-box;
-      min-width: 16px;
-      height: 16px;
-      padding: 0 4px;
+      min-width: 19px;
+      height: 19px;
+      padding: 0 5px;
       font-size: 11px;
-      font-weight: 700;
+      font-weight: 800;
       line-height: 1;
-      /* ion-button's .button-native sets letter-spacing: 0.0335em, which the
-         span inherits. That trailing track is added *after* the glyph, so the
-         flex-centred text is pushed a couple of pixels left of the bubble's
-         true middle. Zeroing it is what actually centres the digit — flex
-         centring alone cannot, because the box it centres is already off-centre. */
+      /* Zeroed because ion-button's .button-native sets letter-spacing, and that
+         trailing track lands after the glyph and pushes a flex-centred digit
+         left of the pill's true middle. */
       letter-spacing: 0;
-      color: var(--ion-color-danger-contrast, #ffffff);
-      background: var(--ion-color-danger, #c62828);
+      color: var(--color-ink);
+      background: var(--color-brand-accent);
       border-radius: 999px;
-      /* Thin ring in the toolbar's own colour so the bubble reads as sitting on
-         top of the cart stroke instead of merging into it. */
-      box-shadow: 0 0 0 2px var(--ion-color-primary, #6b3fa0);
+      /* A ring in the toolbar's own colour so the pill reads as sitting on the
+         tile rather than merging into it. */
+      box-shadow: 0 0 0 2px var(--color-brand-primary);
       /* Decoration on top of the button — clicks belong to the button, not to
          the number sitting in its corner. */
       pointer-events: none;
     }
+
   `],
 })
 export class CartButtonComponent {

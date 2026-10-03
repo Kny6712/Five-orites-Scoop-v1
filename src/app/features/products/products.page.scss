@@ -9,15 +9,23 @@
   position: sticky;
   top: 0;
   z-index: 10;
-  background: #fff;
+  background: var(--color-white);
   padding: 8px 0 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-card);
 }
 
+/* Capped and left-aligned. Unconstrained, this spanned the full width of every
+   screen — a 1440px search field for a catalog of 64 items, with every filter
+   below it pushed off the top of a laptop viewport. A search input has a
+   comfortable measure and no more. */
 .product-searchbar {
   --border-radius: 12px;
   --background: var(--ion-color-light);
+  display: block;
+  width: 100%;
+  max-width: 300px;
   padding: 0 8px;
+  margin: 0 8px;
 }
 
 // ── Set Chips Horizontal Scroll ──────────────────────────
@@ -37,26 +45,110 @@
   height: 30px;
 }
 
-// ── Secondary Filters ─────────────────────────────────────
-.secondary-filters {
-  padding: 0 8px 4px;
-}
-
-.stock-filter-item {
-  --padding-start: 8px;
-  --padding-end: 8px;
-  --min-height: 40px;
-}
-
 .filter-label {
   font-size: 14px;
-  color: var(--ion-color-dark);
+  color: var(--color-ink);
   font-weight: 500;
 }
 
-// ── Size / Max price ──────────────────────────────────
-.price-filters {
+// ── Consolidated filter block ────────────────────────────
+/* One container for the switches and one for the three selects, where there
+   were four stacked blocks before (including a fourth that held only "Type" and
+   existed to borrow another block's padding). */
+.filters {
   padding: 0 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Switch rows. The label sits directly beside its own switch, with the icon
+   between them, rather than the switch being flung to the far edge of a
+   full-width row by slot="end" — which is what made these read as a settings
+   list rather than as a pair of catalog filters. */
+.switch-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  background: var(--tile-powder);
+  border-radius: var(--radius-xs);
+  min-width: 0;
+}
+
+.switch-icon { --icon-size: 15px; color: var(--color-primary-ink); flex: 0 0 auto; }
+
+.switch-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* margin-left:auto is what pins the switch to the row's right edge while the
+   label stays at the left — the label and its control now read as one unit
+   because the row is only as wide as they need. */
+.switch-toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+  --width: 42px;
+  --height: 26px;
+}
+
+/* Three selects in one compact panel. Two columns on a phone rather than one,
+   so the block is ~80px tall instead of ~120px. */
+.select-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  background: var(--tile-powder);
+  border-radius: var(--radius-xs);
+  padding: 5px 6px;
+}
+
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 4px;
+  background: var(--color-white);
+  border-radius: 6px;
+  min-height: 32px;
+}
+
+.select-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.select-control {
+  --padding-start: 0;
+  --padding-end: 0;
+  min-width: 0;
+  flex: 1;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+}
+
+@media (max-width: 420px) {
+  /* Below this the two-up select grid squeezes "Max price" and its value into
+     unreadable widths, so it drops to one column. */
+  .select-panel { grid-template-columns: 1fr; }
 }
 
 // ── Sort ──────────────────────────────────────────────
@@ -87,6 +179,14 @@
   padding: 0 8px 2px;
 }
 
+.clear-btn {
+  --color: var(--color-primary-ink);
+  --border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+}
+.clear-btn app-icon { --icon-size: 14px; }
+
 // ── Product Grid ─────────────────────────────────────────
 .products-grid {
   padding: 12px 8px 24px;
@@ -103,31 +203,7 @@ ion-col {
   margin: 0;
 }
 
-// ── Empty / Error State ───────────────────────────────────
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 24px;
-  text-align: center;
-  gap: 12px;
-}
-
-.empty-icon {
-  --icon-size: 64px;
-  color: var(--ion-color-light-shade);
-}
-
-.empty-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--ion-color-dark);
-  margin: 0;
-}
-
-.empty-message {
-  font-size: 15px;
-  color: var(--ion-color-medium);
-  margin: 0;
-}
+/* The empty and error states are <app-empty-state> components, not local
+   classes — these four blocks were left behind when that swap happened and
+   styled nothing. Deleted rather than kept "in case": there is no branch of this
+   template that renders them. */

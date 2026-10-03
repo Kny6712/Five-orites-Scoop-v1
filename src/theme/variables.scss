@@ -1,48 +1,97 @@
 // src/theme/variables.scss
 // Five-orites Scoop — Global CSS Variables & Design Tokens
-// Author: [Developer Placeholder]
 //
 // ── Palette rationale ────────────────────────────────────────────────────────
-// Brief: playful and vibrant — strawberry pinks, mint greens, warm sunny
-// yellows, soft rounded corners, cheerful typography.
+// Brief: soft and premium — powder blue, mint green, soft pastel accents, rounded
+// corners, friendly typography. Pink is a supporting accent, never the lead.
 //
-// The central decision: the three brand hues stay BRIGHT, and everything printed
-// on them is deep plum rather than white. That keeps the candy-bright feel the
-// brief asks for while staying legible. The obvious alternative — white on
-// bright pink — measures 2.72:1 and fails WCAG AA by a wide margin, which is why
-// the "primary" contrast colour here is plum and not white.
+// The central decision: the brand hues stay BRIGHT but the primary is now a MID
+// PASTEL (powder blue), and everything printed on a brand hue is deep plum rather
+// than white. White on a pastel is hopeless — measured below at 1.79:1 — so the
+// "primary" contrast colour is plum and not white, exactly as before. The move
+// from a saturated pink to a pastel blue is what makes the plum-on-bright-hue
+// pattern keep working at all: plum on the old #FF6B8A only reached 4.74:1, and
+// on #8ECAE6 it clears 7.20:1 with room to spare.
 //
 // Every pair below was computed, not eyeballed (see scripts/check-contrast.mjs):
 //
 //   plum  #3D2B45 on cream #FFF9F4 ....... 12.34:1   body text
-//   plum  #3D2B45 on strawberry #FF6B8A ...  4.74:1   primary surface   AA
-//   plum  #3D2B45 on mint      #5FD9B4 ...  7.41:1   secondary surface AA
-//   plum  #3D2B45 on sunny     #FFC53D ...  8.16:1   tertiary surface  AA
-//   white #FFFFFF on #CF3F5E ..............  4.64:1   strawberry w/ white text
-//   white #FFFFFF on #12866A ..............  4.52:1   mint w/ white text
-//   white #FFFFFF on #8A5B00 ..............  5.87:1   sunny w/ white text
+//   plum  #3D2B45 on white #FFFFFF ....... 13.10:1   body text on a card
+//   plum  #3D2B45 on powder  #8ECAE6 .....  7.20:1   primary surface    AA
+//   plum  #3D2B45 on mint     #5FD9B4 .....  7.41:1   secondary surface AA
+//   plum  #3D2B45 on sunny    #FFC53D .....  8.16:1   tertiary surface  AA
+//   plum  #3D2B45 on blush    #F8A9BE .....  7.00:1   accent surface    AA
+//   white #FFFFFF on powder  #8ECAE6 .....  1.79:1   FAILS — hence plum
+//   primary-ink #1B5E7E on cream ........  6.82:1   accent text        AA
+//   primary-ink #1B5E7E on white ........  7.12:1   accent text        AA
+//   mint-ink    #12866A on cream ........  4.52:1
+//   sunny-ink   #8A5B00  on cream ........  5.87:1
 //
-// The three `-ink` variants exist only for the cases that genuinely need white
-// text. Prefer plum on the bright hue; reach for an ink variant when you don't
-// have a choice.
+// The three `-ink` variants exist for the cases that need a DARK version of a
+// brand hue — accent text and icons sitting on a white card or a pastel tile.
+// Prefer plum on the bright hue; reach for an ink when there is no bright hue to
+// print on.
+//
+// ── Pink is a demoted accent, not a role colour ───────────────────────────────
+// The old design had strawberry #FF6B8A as the primary, which made it the
+// toolbar on every page and the fill on every CTA — roughly 104 call sites. It is
+// gone as a role colour. What survives is `--color-brand-blush` #F8A9BE, a soft
+// pastel used only for small moments that genuinely want warmth: the wishlist
+// heart, a promo banner, a "Sale" style badge. It is never a surface.
 //
 // ── Semantic colours are a different story ───────────────────────────────────
 // success / warning / danger are already dark, so plum text on them is
-// unreadable (2.3–3.1:1). Those three keep white text, and their bases were
-// picked to clear 4.5:1 with it — note success is #17803F, not the more common
-// #1E8E4E, which only reaches 4.17:1 with white.
+// unreadable. Those three keep white text, and their bases were picked to clear
+// 4.5:1 with it. The `--tone-*` triples below are the pastelled equivalents for
+// BANNERS and notices: a tinted background, a matching border, and a dark ink.
+// They replaced 17 hardcoded pastel triples that had been duplicated across 11
+// files, which is how the palette used to drift.
 
 :root {
   // ── Brand Tokens ──────────────────────────────────────────
-  --color-brand-primary: #FF6B8A;   // strawberry — bright
-  --color-brand-accent: #FFC53D;    // sunny — highlights, CTAs
-  --color-brand-light: #5FD9B4;     // mint
-  --color-brand-mint: #5FD9B4;
+  --color-brand-primary: #8ECAE6;   // powder blue — the lead hue
+  --color-brand-secondary: #5FD9B4; // mint green
+  --color-brand-accent: #FFC53D;    // sunny — highlights, stars, CTAs
+  // Pink, demoted to a soft accent. Wishlists and promos only.
+  --color-brand-blush: #F8A9BE;
 
-  // Text-safe variants of the three brand hues (see header).
-  --color-strawberry-ink: #CF3F5E;
-  --color-mint-ink: #12866A;
+  /* `--color-brand-light` is the historical name for the mint hue and is
+     referenced by ~22 call sites that predate the primary/secondary split.
+     It stays as an alias so those keep working, but new code should reach for
+     `--color-brand-secondary`. */
+  --color-brand-light: var(--color-brand-secondary);
+
+  // Text-safe variants of the brand hues (see header).
+  --color-primary-ink: #1B5E7E;
+  --color-mint-ink: #0F7358;
   --color-sunny-ink: #8A5B00;
+  --color-blush-ink: #A63A5E;
+
+  // ── Gradients ────────────────────────────────────────────
+  /* Defined once, here, because there used to be eight inline gradients whose
+     second stop was a hardcoded purple (#9b6ed4, #8b56c4) left over from a
+     palette that no longer exists. With a powder-blue first stop they rendered
+     as a blue-to-purple wash that read as a rendering bug rather than a choice.
+
+     All three run light-to-light, so text on them is PLUM, never white — the same
+     rule as the toolbar. White on these measures 1.58–1.84:1. */
+  --gradient-brand: linear-gradient(135deg, #8ecae6 0%, #5fd9b4 100%);
+  --gradient-brand-soft: linear-gradient(135deg, #a6d5ed 0%, #8ee3c9 100%);
+  --gradient-brand-warm: linear-gradient(135deg, #8ecae6 0%, #f8a9be 100%);
+  --gradient-sun: linear-gradient(135deg, #ffd470 0%, #ffb60a 100%);
+
+  /* A DARK brand ramp, for the metric tiles that carry a large white number.
+     The pastel gradients above cannot hold white text, so any tile whose value
+     is set in white needs this instead. It is the primary hue walked down to
+     ink, so it still reads as "brand" without inverting the type. */
+  --gradient-ink-brand: linear-gradient(135deg, #17566f 0%, #1b5e7e 100%);
+
+  // Pastel tile backgrounds for icon wells and soft chips.
+  --tile-powder: #E4F1F8;
+  --tile-mint: #E4F6EA;
+  --tile-lemon: #FFF3D6;
+  --tile-blush: #FDE8EE;
+  --tile-periwinkle: #E8EEF9;
 
   // The one ink colour for the whole app. Not pure black — a deep plum keeps
   // the warm cast and measures better than #000 on a cream background.
@@ -55,35 +104,58 @@
   --color-success: #17803F;
   --color-warning: #B45309;
   --color-danger: #C62828;
-  --color-stock-ok: var(--color-success);
-  --color-stock-low: var(--color-warning);
-  --color-stock-out: var(--color-danger);
+
+  // ── Toned surfaces (banners, notices, soft chips) ─────────
+  /* Each triple is a background you can put text on, a border that reads as an
+     edge against BOTH the white card it sits on and its own background, and an
+     ink that clears 4.5:1 on that background. All three constraints are
+     asserted in scripts/check-contrast.mjs — the first draft of this layer
+     failed two of them, because a tint that is pleasant against cream can be
+     invisible against the white card it is actually drawn on.
+
+     These replaced 17 hardcoded pastel triples that had been duplicated across
+     eleven files, which is how the palette used to drift. */
+  --tone-success-bg: #DDF2E4;
+  --tone-success-border: #7FC49A;
+  --tone-success-ink: #14622F;
+
+  --tone-warning-bg: #FCEBC4;
+  --tone-warning-border: #E0B85C;
+  --tone-warning-ink: #7A4B00;
+
+  --tone-danger-bg: #FDE8EE;
+  --tone-danger-border: #F5B8C8;
+  --tone-danger-ink: #8F1F38;
+
+  --tone-info-bg: #E4F1F8;
+  --tone-info-border: #A8CBE8;
+  --tone-info-ink: #17456F;
 
   // ── Ionic Ion Color Overrides ─────────────────────────────
   // Contrast is PLUM for the three brand hues (see header). Ionic reads
   // -contrast for text and icon colour on a `color="…"` surface, so this is what
-  // keeps a pink button readable.
-  --ion-color-primary: #FF6B8A;
-  --ion-color-primary-rgb: 255, 107, 138;
+  // keeps a pastel button readable.
+  --ion-color-primary: #8ECAE6;
+  --ion-color-primary-rgb: 142, 202, 230;
   --ion-color-primary-contrast: #3D2B45;
   --ion-color-primary-contrast-rgb: 61, 43, 69;
-  --ion-color-primary-shade: #D65A74;
-  --ion-color-primary-tint: #FF839D;
+  --ion-color-primary-shade: #64B6DD;
+  --ion-color-primary-tint: #B8DEEF;
 
   --ion-color-secondary: #5FD9B4;
   --ion-color-secondary-rgb: 95, 217, 180;
   --ion-color-secondary-contrast: #3D2B45;
   --ion-color-secondary-contrast-rgb: 61, 43, 69;
-  --ion-color-secondary-shade: #50B697;
-  --ion-color-secondary-tint: #79DFC0;
+  --ion-color-secondary-shade: #36CFA1;
+  --ion-color-secondary-tint: #88E3C7;
 
   // Used by the "Out for Delivery" status badge and the team role chips.
   --ion-color-tertiary: #FFC53D;
   --ion-color-tertiary-rgb: 255, 197, 61;
   --ion-color-tertiary-contrast: #3D2B45;
   --ion-color-tertiary-contrast-rgb: 61, 43, 69;
-  --ion-color-tertiary-shade: #D6A533;
-  --ion-color-tertiary-tint: #FFCE5C;
+  --ion-color-tertiary-shade: #FFB60A;
+  --ion-color-tertiary-tint: #FFD470;
 
   // These three stay dark, so they keep WHITE text.
   --ion-color-success: #17803F;
@@ -108,11 +180,13 @@
   --ion-color-danger-tint: #CF4A4A;
 
   // ── Neutral Palette ──────────────────────────────────────
-  --ion-color-light: #FDF1EC;
-  --ion-color-medium: #8A7B93;
+  --ion-color-light: #F2F7FA;
+  --ion-color-medium: #7A6B84;
   --ion-color-dark: #3D2B45;
-  --ion-color-light-shade: #F3E3DD;
+  --ion-color-light-shade: #E4EDF3;
+  --ion-color-light-tint: #F6FAFC;
   --ion-color-dark-shade: #33253A;
+  --ion-color-dark-tint: #55445D;
 
   // ── Radius Scale ─────────────────────────────────────────
   // A SCALE, not one value. A single radius applied everywhere is the "SaaS card
@@ -133,10 +207,16 @@
   // ── Elevation ────────────────────────────────────────────
   // Tinted with the brand rather than neutral grey: a pure rgba(0,0,0,.08) on a
   // cream surface reads as dirt. Each step is a real step.
-  --shadow-card: 0 2px 10px rgba(61, 43, 69, 0.07);
-  --shadow-raised: 0 6px 20px rgba(61, 43, 69, 0.10);
-  --shadow-float: 0 12px 32px rgba(61, 43, 69, 0.14);
-  --shadow-pressed: inset 0 2px 4px rgba(61, 43, 69, 0.12);
+  //
+  // These were deepened when the palette moved to pastels. On a cream page a
+  // 0.07-alpha shadow is nearly invisible against a white card, so containers
+  // were reading as flat — the audit found six surfaces that had given up on the
+  // scale and hardcoded rgba(0,0,0,.05-.06) anyway, which is the same problem
+  // with a worse value.
+  --shadow-card: 0 2px 12px rgba(61, 43, 69, 0.10);
+  --shadow-raised: 0 8px 24px rgba(61, 43, 69, 0.14);
+  --shadow-float: 0 16px 40px rgba(61, 43, 69, 0.18);
+  --shadow-inset: inset 0 2px 4px rgba(61, 43, 69, 0.12);
 
   // ── Spacing ──────────────────────────────────────────────
   --space-1: 4px;
@@ -147,6 +227,22 @@
   --space-6: 32px;
   --space-7: 48px;
 
+  // ── Breakpoints ──────────────────────────────────────────
+  // Raw px rather than a SCSS variable: this file is loaded as a plain global
+  // stylesheet and has no `stylePreprocessorOptions.includePaths` configured, so
+  // there is nowhere for a SCSS mixin to live and be shared. The `.bp-*` helper
+  // classes in global.scss are the intended way to consume these.
+  --bp-sm: 480px;
+  --bp-md: 768px;
+  --bp-lg: 1024px;
+  --bp-xl: 1280px;
+
+  // ── Layout ───────────────────────────────────────────────
+  // A readable measure for body content, and the cap every page body should sit
+  // inside on a tablet. About was full-bleed here while Profile capped at 640.
+  --container-max: 1080px;
+  --measure-max: 68ch;
+
   // ── Typography ───────────────────────────────────────────
   // Fredoka for display (rounded, friendly, and deliberately not a default
   // UI face); Nunito for body, which stays legible at the 12–14px sizes this
@@ -154,7 +250,9 @@
   --font-display: 'Fredoka', 'Trebuchet MS', sans-serif;
   --font-body: 'Nunito', 'Segoe UI', system-ui, -apple-system, sans-serif;
   // Order IDs. A real token rather than the bare `monospace` keyword, which was
-  // hardcoded in four files and would otherwise drift from the brand faces.
+  // hardcoded in one file and would otherwise drift from the brand faces.
+  // NOTE: JetBrains Mono was declared here but never actually requested from
+  // Google Fonts, so every "mono" string silently rendered as Consolas.
   --font-mono: 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
 
   --ion-font-family: var(--font-body);
@@ -163,9 +261,13 @@
   --ion-background-color: var(--color-cream);
   --ion-text-color: var(--color-ink);
   --ion-toolbar-background: var(--color-brand-primary);
-  // Plum, not white: the toolbar sits on bright pink, where white measures
-  // 2.72:1 and is unreadable.
+  // Plum, not white: the toolbar sits on a pastel, where white measures 1.79:1
+  // and is unreadable.
   --ion-toolbar-color: var(--color-ink);
+
+  // ── Footer ───────────────────────────────────────────────
+  --footer-height: 62px;
+  --footer-bg: #FFFFFF;
 }
 
 // ── Typography Scale ─────────────────────────────────────────
@@ -178,12 +280,13 @@ h1, h2, h3, h4 {
 h1 { font-size: 28px; font-weight: 600; line-height: 1.2; }
 h2 { font-size: 22px; font-weight: 600; line-height: 1.25; }
 h3 { font-size: 18px; font-weight: 600; line-height: 1.3; }
+h4 { font-size: 15px; font-weight: 700; line-height: 1.35; }
 
 // ── Global Component Defaults ─────────────────────────────────
 /* No `!important` here. The previous version had it, which silently killed six
-   box-shadows and four border-radii declared in per-page SCSS — including a
-   purple-tinted hover lift on product cards. Those declarations are now live,
-   and this rule is only the default for cards that don't set their own. */
+   box-shadows and four border-radii declared in per-page SCSS. Those
+   declarations are now live, and this rule is only the default for cards that
+   don't set their own. */
 ion-card {
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
@@ -200,14 +303,14 @@ ion-toolbar {
 }
 
 /* Toolbar controls need the INK colour, not white. Ionic derives a toolbar
-   button's colour from the toolbar's own text colour, so with the toolbar on
-   pink these would otherwise render white-on-pink at 2.72:1.
+   button's colour from the toolbar's own text colour, so with the toolbar on a
+   pastel these would otherwise render white-on-powder at 1.79:1.
 
    The original note here described a different bug — a bare <ion-button> picking
    up `.button-clear`'s `--color: var(--ion-color-primary)`, which is now the
-   same pink as the toolbar background, i.e. pink-on-pink. Naming the contrast
-   token explicitly fixes that case too, because `--ion-color-primary-contrast`
-   is plum. */
+   same pastel as the toolbar background, i.e. powder-on-powder. Naming the
+   contrast token explicitly fixes that case too, because
+   `--ion-color-primary-contrast` is plum. */
 ion-toolbar ion-button,
 ion-menu-button,
 ion-back-button {
@@ -218,13 +321,13 @@ ion-back-button {
 /* The audit found only three `:focus-visible` rules in the entire app, none of
    them global, so ~20 custom buttons (qty steppers, remove buttons, mode tabs,
    the wishlist button, the promo banner) fell back to the user-agent ring — which
-   is near-invisible on cream and on the pink toolbar. This is the one place that
-   fixes all of them at once.
+   is near-invisible on cream and on the pastel toolbar. This is the one place
+   that fixes all of them at once.
 
    `:focus-visible` rather than `:focus` so a mouse click does not leave a ring
    behind, while keyboard and switch-access users always get one. */
 :focus-visible {
-  outline: 3px solid var(--color-sunny-ink);
+  outline: 3px solid var(--color-primary-ink);
   outline-offset: 2px;
   border-radius: var(--radius-xs);
 }
@@ -235,9 +338,14 @@ ion-back-button {
    spinners. This collapses all of them for users who ask for it.
 
    The `*` selector is deliberate and is the standard technique — it forces the
-   effective duration of every animation and transition to 0.01ms rather than
+   effective duration of every animation and transition to be 0.01ms rather than
    having to enumerate them, which is what makes it robust against the styles
-   that have not been written yet. */
+   that have not been written yet.
+
+   The `[data-motion='reduced']` twin lets the Settings page turn this on from
+   inside the app. It is a second selector rather than a class toggle so the
+   preference can be written to the document element and observed by CSS without
+   a stylesheet swap. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -247,6 +355,37 @@ ion-back-button {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+html[data-motion='reduced'] *,
+html[data-motion='reduced'] *::before,
+html[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+// ── High contrast (Settings) ─────────────────────────────────
+/* Powder blue on cream is a comfortable 7.20:1 but the pastel TIEL behind icons
+   are near-white, so a pastel-on-pastel detail (a mint border on a mint tile)
+   drops below the 3:1 that WCAG 1.4.11 asks of non-text UI. This darkens the
+   inks and the borders without touching the brand hues themselves, so the page
+   still looks like the same product. */
+html[data-contrast='high'] {
+  --color-ink: #241833;
+  --color-ink-soft: #4A3A54;
+  --ion-color-medium: #5B4C66;
+  --color-brand-light: #A8D9B8;
+  --tile-powder: #CFE4F2;
+  --tile-mint: #CDEAD9;
+  --tile-lemon: #FBE9BE;
+  --tile-blush: #F8D2DD;
+  --tile-periwinkle: #D3DDF7;
+  --tone-success-border: #4F9A6C;
+  --tone-warning-border: #A8791C;
+  --tone-danger-border: #C25C7C;
+  --tone-info-border: #4C82B0;
 }
 
 // ── Wave / Drip ─────────────────────────────────────────────

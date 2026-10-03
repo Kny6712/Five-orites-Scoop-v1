@@ -1,188 +1,430 @@
 // src/app/admin/inventory/inventory.page.scss
+// Five-orites Scoop — Admin Inventory Manager
 
 :host { display: block; }
 
-.inv-header { padding: 8px 12px 0; }
-.inv-search { --border-radius: 12px; --background: var(--ion-color-light); }
-.inv-count { font-size: 13px; color: var(--ion-color-medium); padding: 0 4px 4px; margin: 0; }
+// ── Header ─────────────────────────────────────────────
+.inv-header { padding: 10px 12px 6px; }
 
-.inv-list { padding: 4px 12px 32px; display: flex; flex-direction: column; gap: 10px; }
-
-// A failed catalog read. Deliberately not styled like the empty list, so a
-// permissions failure is never mistaken for a wiped catalog.
-.inv-error {
-  padding: 48px 24px;
-  text-align: center;
+.inv-count {
+  margin: 0 0 8px;
+  font-size: 12px;
   color: var(--ion-color-medium);
 }
-.inv-error-icon { --icon-size: 48px; color: var(--ion-color-danger); }
-.inv-error-title { font-size: 16px; font-weight: 600; color: var(--ion-color-dark); margin: 12px 0 4px; }
-.inv-error-sub { font-size: 14px; margin: 0 0 16px; }
 
-.inv-card {
-  border-radius: 16px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.07);
-  margin: 0;
-  &.inactive-card { opacity: 0.6; }
+.inv-actions { display: flex; gap: 8px; }
+
+.inv-list {
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.inv-card-header { padding: 14px 14px 0; }
+// ── Card ───────────────────────────────────────────────
+.inv-card {
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  margin: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* A deactivated flavor stays fully legible and stays on the page. Dimming it to
+   near-invisible was the old treatment, and it read as "this card is broken"
+   rather than "this flavor is off sale" — especially for the stock numbers, which
+   still matter because they are what you are here to restock. */
+.inv-card.inactive-card { opacity: 0.72; }
+
+.inv-card.inactive-card .inv-thumb-img { filter: grayscale(0.7); }
+
+.inv-card-main {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  align-items: flex-start;
+}
+
+.inv-card-body { flex: 1; min-width: 0; }
+
+// ── Thumbnail ──────────────────────────────────────────
+.inv-thumb-btn {
+  flex: 0 0 auto;
+  width: 84px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.inv-thumb-btn:disabled { cursor: progress; }
+
+.inv-thumb-frame {
+  position: relative;
+  display: block;
+  width: 84px;
+  /* A locked 4:3 box. This is what satisfies "the container resizes cleanly to
+     the new image": the frame never derives its height from the picture, and
+     object-fit: cover fills it without distortion. Replace a portrait photo on
+     one card and that card is exactly as tall as its neighbours. */
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--tile-powder);
+  border: 1px solid var(--ion-color-light-shade);
+}
+
+.inv-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.inv-thumb-veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(36 24 51 / 0.5);
+  color: var(--color-white);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* The "you can change this" affordance, bottom-right of the frame. */
+.inv-thumb-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: 0 1px 4px rgb(36 24 51 / 0.3);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.inv-thumb-badge app-icon { --icon-size: 13px; color: var(--color-primary-ink); }
+
+.inv-thumb-btn:hover .inv-thumb-badge,
+.inv-thumb-btn:focus-visible .inv-thumb-badge { opacity: 1; }
+
+// ── Card header ────────────────────────────────────────
+.inv-card-header { padding: 0; margin: 0 0 8px; }
 
 .inv-card-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
-.set-chip-sm { font-size: 11px; height: 22px; margin: 0 0 2px; }
-.inv-set-name { font-size: 12px; color: var(--ion-color-medium); margin: 0; }
-.inv-variant-name { font-size: 16px; font-weight: 700; color: var(--ion-color-dark); }
+.inv-ident { min-width: 0; }
 
-// ── Status Pill (Active / Inactive) ─────────────────────────
-// Same visual language as app-order-status-badge so both admin screens share
-// one status idiom, but tinted rather than solid: a filled green pill would
-// again out-weigh the stock figures on the card. Off is a muted grey pill, on
-// is the same pill in a low-alpha success tint.
+.inv-set-name {
+  margin: 3px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.inv-variant-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Tool row: Active · edit · delete ─────────────────────
+   Three controls in one row, and the spacing between them is doing real work.
+   The Active pill is the common, reversible action; X is destructive and
+   irreversible. They are the same size and the same distance apart, which is
+   exactly the mistake this layout avoids: putting them side by side with no
+   separation is how a mis-tap erases a flavor. The gap before X says "this one
+   is different" without a dialog. */
+.inv-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
-  flex: 0 0 auto;
   gap: 6px;
   margin: 0;
-  padding: 5px 12px 5px 10px;
-  border: 1px solid rgba(107, 63, 160, 0.18);
-  border-radius: 999px;
+  padding: 6px 11px 6px 9px;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-pill);
   background: var(--ion-color-light);
   color: var(--ion-color-medium);
-  font-family: inherit;
   font-size: 12px;
   font-weight: 700;
-  line-height: 1.4;
   cursor: pointer;
-  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+  white-space: nowrap;
+}
 
-  &:hover { background: #e9ebee; }
-  // :focus-visible rather than :focus so a mouse click does not leave a ring.
-  &:focus-visible { outline: 2px solid var(--color-brand-primary); outline-offset: 2px; }
-}
 .status-pill--on {
-  background: rgba(46, 125, 50, 0.10);
-  border-color: rgba(46, 125, 50, 0.32);
-  color: var(--color-success);
+  background: var(--tone-success-bg);
+  border-color: var(--tone-success-border);
+  color: var(--tone-success-ink);
 }
+
 .status-dot {
-  flex: 0 0 auto;
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: currentColor;
+  flex: 0 0 auto;
 }
 
-.inv-card-content { padding: 12px 14px 14px; }
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
 
-// ── Stock View Grid ────────────────────────────────────────
+.tool-btn app-icon { --icon-size: 15px; }
+
+.tool-btn:hover { background: var(--tile-powder); border-color: var(--color-primary-ink); }
+
+.tool-btn--danger {
+  color: var(--tone-danger-ink);
+  /* margin-left is the separator described above. */
+  margin-left: 6px;
+}
+
+.tool-btn--danger:hover {
+  background: var(--tone-danger-bg);
+  border-color: var(--tone-danger-border);
+}
+
+.inv-card-content { padding: 0; }
+
+// ── Stock steppers ─────────────────────────────────────
 .stock-view-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.stock-view-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; background: var(--ion-color-light); border-radius: 10px; padding: 8px 4px; position: relative; }
-.stock-size-label { font-size: 11px; color: var(--ion-color-medium); font-weight: 600; }
-.stock-qty { font-size: 18px; font-weight: 800; }
-.stock-in-stock { color: var(--color-success); }
-.stock-low-stock { color: var(--color-warning); }
-.stock-out-of-stock { color: var(--color-danger); }
-.stock-alert-icon { --icon-size: 14px; position: absolute; top: 4px; right: 4px; }
-/* The alert glyph used to take an ion-icon [color] binding, which has no
-   equivalent on an SVG element. Two classes carry the same meaning instead. */
-.stock-alert-icon.stock-alert-danger { color: var(--ion-color-danger); }
-.stock-alert-icon.stock-alert-warning { color: var(--ion-color-warning); }
-
-// ── Stock Edit Grid ────────────────────────────────────────
-// .stock-edit-grid is only a positioning frame; the 2x2 of size inputs lives in
-// .stock-edit-sizes. On phones the frame is a single column, so the inputs sit
-// on top and the total panel drops underneath as a full-width bar.
-.stock-edit-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
-  margin-bottom: 12px;
-}
-.stock-edit-sizes {
-  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.stock-edit-cell { display: flex; flex-direction: column; gap: 4px; }
-.stock-edit-label { font-size: 12px; font-weight: 600; color: var(--ion-color-dark); }
-.stock-edit-input {
-  --background: var(--ion-color-light);
-  --border-radius: 10px;
-  --padding-start: 12px;
-  // ion-input's .native-input sets font-size/font-weight to inherit, so these
-  // reach the real <input> instead of stopping at the host. Bumped from
-  // 16px/700: the stock numbers are the point of this row and were getting
-  // visually lost next to the total panel.
-  font-weight: 800;
-  font-size: 20px;
-  &.low-input { --background: #fff7e6; }
-  &.out-input { --background: #fde8e8; }
+  gap: 8px;
 }
 
-// Live sum of the four inputs. Full-width bar under the 2x2 on phones; on wide
-// screens it is placed in the last track of .stock-edit-grid, hard right.
-.stock-edit-total {
+@media (min-width: 560px) {
+  .stock-view-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.stock-view-cell {
+  position: relative;
+  background: var(--ion-color-light);
+  border-radius: var(--radius-sm);
+  padding: 7px 8px 8px;
+  text-align: center;
+}
+
+.stock-size-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  margin-bottom: 4px;
+}
+
+/* The stepper itself. - 12 - on one row: the quantity is the thing being read,
+   and the buttons are the thing being aimed at, so they sit either side of it
+   where the eye already is. */
+.stock-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  cursor: pointer;
+  /* 28px is a little under the 44px touch target, but this is a dense admin
+     grid and the button is not the only way to reach the number — and a 44px
+     target in a 4-across grid on a 360px phone would leave ~34px per column. */
+  transition: background-color 0.12s ease;
+}
+
+.step-btn app-icon { --icon-size: 14px; }
+.step-btn:hover:not(:disabled) { background: var(--color-brand-primary); }
+.step-btn:active:not(:disabled) { background: var(--color-brand-primary-shade); }
+
+.step-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+.stock-qty {
+  min-width: 30px;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+  /* tabular so the number does not jitter sideways as it counts up */
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-in-stock { color: var(--color-ink); }
+.stock-low-stock { color: var(--tone-warning-ink); }
+.stock-out-of-stock { color: var(--tone-danger-ink); }
+
+.stock-alert-icon {
+  --icon-size: 13px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.stock-alert-danger { color: var(--ion-color-danger); }
+.stock-alert-warning { color: var(--color-warning); }
+
+// ── Empty / error ──────────────────────────────────────
+/* The catalog can legitimately be empty after a search, which is a different
+   screen from "no products exist". The old page showed a bare blank list. */
+.inv-empty {
+  padding: var(--space-7) var(--space-4);
+  text-align: center;
+}
+
+.inv-empty p { margin: 0; font-size: 14px; color: var(--ion-color-medium); }
+
+
+/* -- Bulk CSV import ------------------------------------------ */
+.import-panel {
+  margin: 12px;
+  padding: 16px;
+  background: var(--color-white);
+  border: 1px solid var(--tone-info-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.import-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--color-brand-light);
-  border: 1px solid rgba(107, 63, 160, 0.15);
-}
-.stock-total-label { font-size: 13px; font-weight: 700; color: var(--ion-color-dark); }
-.stock-total-value { font-size: 22px; font-weight: 800; color: var(--color-brand-primary); }
-
-// 1024px, not 768px: the wide layout has a hard minimum width of roughly
-// 70 + 470 + 320 + gaps = ~890px (gutter + the 2x2 + the total panel). At a
-// 768px viewport the card content is only ~716px, so a 768px breakpoint
-// overflowed the card. Below 1024px the stacked single-column layout is used
-// instead, which fits any phone.
-@media (min-width: 1024px) {
-  .stock-edit-grid {
-    // Four tracks: [left gutter][the 2x2 of inputs][gap][total panel].
-    // Both groups are placed explicitly because auto-placement always starts
-    // in track 1 and would drop the inputs into the empty gutter.
-    grid-template-columns: minmax(0, 70px) auto minmax(0, 1fr) auto;
-  }
-  .stock-edit-sizes {
-    grid-column: 2;
-    // The gutter and this gap are two halves of one adjustment. Taking 60px
-    // out of the gutter walks the Cup / Half Gallon column left, and giving
-    // the same 60px back here holds the Pint / Gallon column exactly where it
-    // was. Changing one without the other moves both pairs.
-    column-gap: 70px;
-  }
-  .stock-edit-total {
-    grid-column: 4;
-    width: 320px;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 2px;
-    text-align: center;
-  }
-  .stock-total-value { font-size: 30px; }
+  gap: 10px;
+  margin-bottom: 6px;
 }
 
-.edit-actions { display: flex; flex-direction: column; gap: 6px; }
-.save-btn { --background: var(--color-brand-primary); --border-radius: 10px; font-weight: 700; }
-.edit-btn { --border-radius: 10px; --color: var(--color-brand-primary); --border-color: var(--color-brand-primary); }
+.import-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
 
-// ── View-mode action row: Edit Stock + Details side-by-side ───────────────
-.card-actions { display: flex; gap: 8px; margin-top: 4px; }
-.action-btn { flex: 1; margin: 0; --border-radius: 10px; font-weight: 600; min-height: 36px; }
-.details-btn { --color: var(--color-brand-primary); border: 1px solid var(--ion-color-light-shade, #e0e0e0); border-radius: 10px; }
+.import-close {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 8px;
+  border-radius: var(--radius-xs);
+  color: var(--ion-color-medium);
+  cursor: pointer;
+  min-width: 40px;
+  min-height: 40px;
+}
+.import-close:hover { background: var(--tile-powder); color: var(--color-ink); }
+.import-close-icon { --icon-size: 18px; }
+
+.import-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ion-color-medium);
+}
+
+.import-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.import-help {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.import-help summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--color-primary-ink);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+.import-help p { margin: 8px 0 0; line-height: 1.6; }
+.import-help code {
+  background: var(--tile-powder);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.import-errors {
+  margin: 12px 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink);
+}
+.import-errors li { overflow-wrap: anywhere; }
+
+.import-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.import-pill {
+  background: var(--tile-mint);
+  color: var(--color-mint-ink);
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.import-pill--more {
+  background: var(--tile-powder);
+  color: var(--color-primary-ink);
+}

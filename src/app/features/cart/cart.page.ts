@@ -28,6 +28,7 @@ import { PENDING_VOUCHER_KEY } from '../dashboard/voucher-cards/voucher-cards.co
 import { QtyStepperComponent } from '../../shared/components/qty-stepper/qty-stepper.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 
 /**
  * Ceiling used when live stock is unknown.
@@ -50,7 +51,8 @@ type CheckoutStep = 1 | 2 | 3;
     IonButton, IonText,
     IonTextarea, IonSpinner,
     PesoPipe, CloudinaryPipe,
-    AppIconComponent, QtyStepperComponent, EmptyStateComponent, AlertBannerComponent],
+    AppIconComponent, QtyStepperComponent, EmptyStateComponent, AlertBannerComponent,
+    AppFooterComponent],
   templateUrl: './cart.page.html',
   styleUrls: ['./cart.page.scss'],
 })
@@ -235,14 +237,6 @@ export class CartPage implements OnInit {
       quantity,
       this.availableFor(item)
     );
-  }
-
-  incrementQty(item: CartItem): void {
-    this.setQty(item, item.quantity + 1);
-  }
-
-  decrementQty(item: CartItem): void {
-    this.setQty(item, item.quantity - 1);
   }
 
   async clearCart(): Promise<void> {

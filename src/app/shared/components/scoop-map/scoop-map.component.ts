@@ -84,7 +84,19 @@ interface LeafletLike {
   standalone: true,
   imports: [CommonModule, AppIconComponent, IonSpinner],
   template: `
-    <div class="map-shell">
+    <!--
+      The height input is bound here rather than through a CSS custom property:
+      the stylesheet is a plain string and cannot read an input, and the
+      --map-height variable it fell back to was never set by anyone, which is
+      why every caller passing a height got the 260px default instead.
+      The square class takes precedence, so the admin map does not also get an
+      inline height fighting it.
+    -->
+    <div
+      class="map-shell"
+      [class.square]="square()"
+      [style.height]="square() || !height() ? null : height()"
+    >
       <div #mapEl class="map-canvas" [attr.aria-label]="ariaLabel()"></div>
 
       @if (isLoading()) {
@@ -112,11 +124,43 @@ interface LeafletLike {
     .map-shell {
       position: relative;
       /* A hard height is required: Leaflet reads the container's box, and an
-         auto-height parent collapses to 0 and renders nothing. */
+         auto-height parent collapses to 0 and renders nothing.
+
+         The height input is applied as an inline style on the element in the
+         template, not here — this is a plain CSS string, not a template, so it
+         cannot carry a binding. It was previously declared and never read: both
+         call sites passed a height ("340px" on admin tracking, "240px" on the
+         customer tracker) and both maps rendered at the 260px fallback instead. */
       height: var(--map-height, 260px);
       border-radius: var(--radius-md);
       overflow: hidden;
-      background: var(--color-brand-light);
+      background: var(--tile-powder);
+    }
+
+    /* The square variant, for the admin map. A delivery map next to a tall
+       search panel needs to be square rather than a wide letterbox, or the two
+       columns read as unrelated.
+
+       WIDTH carries the constraint and height:auto lets aspect-ratio derive
+       the height. This is the fix for a bug that made the square a rectangle:
+       the rule used to set width:100% AND an explicit height:min(58vh,520px),
+       and with both axes definite aspect-ratio:1/1 is ignored entirely — the
+       shell rendered ~1012x468px at 1440x900, about 2.2:1, not square at all.
+
+       Only ONE axis may be definite for aspect-ratio to apply. Sizing the
+       width by viewport units keeps it square at any width without a media
+       query, and the cap stops it becoming a full-screen square on a large
+       monitor. Leaflet still gets a resolved pixel box, because the height is
+       computed from the width before paint rather than after layout. */
+    .map-shell.square {
+      width: min(100%, 58vh, 520px);
+      height: auto;
+      aspect-ratio: 1 / 1;
+      margin-inline: auto;
+    }
+
+    @media (min-width: 1024px) {
+      .map-shell.square { width: min(100%, 52vh, 560px); }
     }
 
     .map-canvas { position: absolute; inset: 0; }
@@ -131,7 +175,7 @@ interface LeafletLike {
       gap: var(--space-2);
       padding: var(--space-4);
       text-align: center;
-      background: var(--color-brand-light);
+      background: var(--tile-powder);
       color: var(--color-ink-soft);
       font-size: 13px;
       font-weight: 600;
@@ -149,7 +193,17 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
   readonly markers = input<MapMarker[]>([]);
   readonly route = input<MapRoute | null>(null);
   readonly ariaLabel = input<string>('Map');
+  /**
+   * CSS height for the map shell, e.g. '340px'. Null falls back to 260px.
+   *
+   * This was dead until now: the input existed and both call sites passed a
+   * value, but nothing bound it to the element, so every map silently rendered
+   * at the fallback. `square` is the alternative for the admin map.
+   */
   readonly height = input<string | null>(null);
+
+  /** Render as a balanced square rather than a letterbox. */
+  readonly square = input<boolean>(false);
 
   readonly markerTapped = output<MapMarker>();
 
@@ -253,9 +307,16 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
     if (route) {
       points.push([route.from.lat, route.from.lng], [route.to.lat, route.to.lng]);
       this.drawnRoute = L.polyline(points, {
-        color: '#FF6B8A',
+        // The primary INK, not the primary hue. This is a polyline drawn over
+        // OpenStreetMap tiles, which are themselves mid-tone greens, greys and
+        // blues — a powder-blue route on that background would disappear. The
+        // ink at 7.12:1 on white stays visible over any of it. Read from the
+        // computed token rather than hardcoded, so it follows a palette change.
+        color: getComputedStyle(document.documentElement)
+          .getPropertyValue('--color-primary-ink')
+          .trim() || '#1B5E7E',
         weight: 4,
-        opacity: 0.75,
+        opacity: 0.85,
         dashArray: '8 8',
       }).addTo(this.mapInstance);
     }

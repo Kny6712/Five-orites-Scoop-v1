@@ -60,8 +60,19 @@
 
   <!-- Orders List -->
   @if (!isLoading() && orders().length > 0) {
-    <ion-list class="orders-list">
-      @for (order of orders(); track trackOrder($index, order)) {
+    <!--
+      Paged at eight. This list was un-paged and unbounded — `getCustomerOrders`
+      has no cap — so a customer with a few years of history got a single endless
+      scroll with no way to jump. Eight a page is about one screen of this list,
+      and the pager is the same component the admin screens use.
+
+      The cancel button stays inside the row. `stopPropagation` on it is what
+      keeps "Cancel Order" from also opening the tracker, which is the
+      nesting-a-button-in-a-link case: the row is a routerLink and the button is
+      a separate action on the same card.
+    -->
+    <div class="orders-body">
+      @for (order of pagedOrders(); track trackOrder($index, order)) {
         <ion-item
           [routerLink]="['/orders', order.id]"
           detail="true"
@@ -74,9 +85,9 @@
               <app-order-status-badge [status]="order.status"></app-order-status-badge>
             </div>
             <p class="order-meta">
-              {{ order.items.length }} item{{ order.items.length !== 1 ? 's' : '' }}
-              · {{ order.grandTotal | peso }}
-              @if (order.voucherCode) { · {{ order.voucherCode }} }
+              {{ itemCount(order) }} item{{ itemCount(order) !== 1 ? 's' : '' }}
+              &middot; {{ order.grandTotal | peso }}
+              @if (order.voucherCode) { &middot; {{ order.voucherCode }} }
             </p>
             <p class="order-date">{{ formatDate(order.createdAt) }}</p>
             @if (canCancel(order)) {
@@ -86,14 +97,25 @@
                 size="small"
                 (click)="cancelOrder(order, $event)"
                 [disabled]="cancellingId() === order.id"
+                class="cancel-order-btn"
               >
-                {{ cancellingId() === order.id ? 'Cancelling...' : 'Cancel Order' }}
+                {{ cancellingId() === order.id ? 'Cancelling…' : 'Cancel Order' }}
               </ion-button>
             }
           </div>
         </ion-item>
       }
-    </ion-list>
+
+      <app-pagination
+        [page]="page()"
+        [total]="orders().length"
+        [pageSize]="PAGE_SIZE"
+        itemLabel="orders"
+        (pageChange)="page.set($event)"
+      />
+    </div>
   }
 
 </ion-content>
+
+<app-footer></app-footer>

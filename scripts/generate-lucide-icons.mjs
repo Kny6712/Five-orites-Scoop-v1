@@ -40,14 +40,6 @@ if (!existsSync(BUNDLE)) {
   process.exit(1);
 }
 
-const BUNDLE = resolve('node_modules/lucide-angular/fesm2020/lucide-angular.mjs');
-const OUT = resolve('src/app/core/icons/lucide-icon-data.ts');
-
-if (!existsSync(BUNDLE)) {
-  console.error(`Source bundle not found: ${BUNDLE}`);
-  process.exit(1);
-}
-
 /** app icon name -> [candidate Lucide export names, newest first] */
 const WANTED = {
   home: ['House', 'Home'],
@@ -123,6 +115,39 @@ const WANTED = {
   'chart-pie': ['ChartPie', 'PieChart'],
   'chart-bar': ['ChartBar', 'BarChart'],
   peso: ['PhilippinePeso'],
+
+  // ── Added for the UI polish pass ──────────────────────────────────────────
+  // Pagination. Only ChevronRight was registered before, which made a one-sided
+  // pager — a "Previous" affordance had no icon to use.
+  'chevron-left': ['ChevronLeft'],
+  'chevrons-left': ['ChevronsLeft'],
+  'chevrons-right': ['ChevronsRight'],
+  // Search inputs. `filter` was registered but is a funnel, not a magnifier,
+  // and a funnel next to a text field reads as "open filters" rather than
+  // "type to search".
+  search: ['Search'],
+  // Table/list affordances for the admin pages that became real tables.
+  list: ['List'],
+  'chart-column': ['ChartColumnBig', 'ChartColumn'],
+  gauge: ['Gauge'],
+  // Export / external navigation.
+  download: ['Download'],
+  'external-link': ['ExternalLink'],
+  // The redesigned cart affordance and its menu entry. ShoppingCart reads as a
+  // wireframe trolley; ShoppingBag is the shape most people picture.
+  'shopping-bag': ['ShoppingBag'],
+  // Inventory: the card's replace-image and delete actions, and the size
+  // steppers that replaced the "Edit Stock" button.
+  'image-plus': ['ImagePlus'],
+  'square-pen': ['SquarePen'],
+  'circle-minus': ['CircleMinus'],
+  'circle-plus': ['CirclePlus'],
+  // Users table (joined date) and Settings.
+  calendar: ['Calendar'],
+  'text-cursor-input': ['TextCursorInput'],
+  'sliders-horizontal': ['SlidersHorizontal'],
+  contrast: ['Contrast'],
+  'map-pinned': ['MapPinned'],
 };
 
 const src = readFileSync(BUNDLE, 'utf8');

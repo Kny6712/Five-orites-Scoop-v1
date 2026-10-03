@@ -40,6 +40,7 @@ import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../../shared/pipes/cloudinary.pipe';
 import { StarRatingComponent } from '../../../shared/components/star-rating/star-rating.component';
 import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
+import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
 import { LOW_STOCK_THRESHOLD } from '../../../core/config/stock.config';
 
@@ -58,7 +59,7 @@ interface SizeOption {
     IonButton, IonSkeletonText, IonBadge,
     IonChip, IonLabel, IonText, IonItem, IonNote, IonTextarea,
     PesoPipe, StarRatingComponent, CloudinaryPipe, CartButtonComponent,
-    AppIconComponent, QtyStepperComponent],
+    AppIconComponent, QtyStepperComponent, AppFooterComponent],
   templateUrl: './product-detail.page.html',
   styleUrls: ['./product-detail.page.scss'],
 })
@@ -290,16 +291,6 @@ export class ProductDetailPage implements OnInit, OnDestroy {
    * `isOutOfStock`, so the control is not the thing gating the action.
    */
   readonly stepperMax = computed(() => Math.max(1, this.currentStock()));
-
-  incrementQty(): void {
-    if (this.isUnavailable()) return;
-    const max = this.currentStock();
-    if (this.quantity() < max) this.quantity.update((q) => q + 1);
-  }
-
-  decrementQty(): void {
-    if (this.quantity() > 1) this.quantity.update((q) => q - 1);
-  }
 
   async addToCart(): Promise<void> {
     const product = this.product();

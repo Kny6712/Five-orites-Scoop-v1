@@ -25,6 +25,7 @@ import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
 import { OrderNotificationService } from './core/services/order-notification.service';
 import type { AppIcon } from './core/icons/app-icons';
+import { can, isStaffRole, type Capability } from './core/models/user.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface NavItem {
@@ -36,7 +37,21 @@ interface NavItem {
    */
   icon: AppIcon;
   role: 'all' | 'customer' | 'admin';
+  /**
+   * The capability this row requires, for the ADMIN section.
+   *
+   * Added with role tiers: a `manager` reaches Inventory but not Users, so a
+   * single `role: 'admin'` flag can no longer describe the admin nav. Absent
+   * means "the customer list", which is where it has always applied.
+   */
+  capability?: Capability;
   badge?: boolean;
+  /**
+   * Hidden from the drawer when the viewer is staff. The route stays
+   * reachable — this only removes the shortcut, and only for staff. See
+   * `visibleCustomerNavItems` for why the cart specifically.
+   */
+  hideForStaff?: boolean;
 }
 
 @Component({
@@ -76,24 +91,51 @@ export class AppComponent implements OnInit {
   readonly customerNavItems: NavItem[] = [
     { title: 'Dashboard', url: '/dashboard', icon: 'home', role: 'all' },
     { title: 'Our Flavors', url: '/products', icon: 'ice-cream', role: 'all' },
-    { title: 'My Cart', url: '/cart', icon: 'cart', role: 'customer', badge: true },
+    { title: 'My Cart', url: '/cart', icon: 'cart', role: 'customer', badge: true, hideForStaff: true },
     { title: 'My Orders', url: '/orders', icon: 'receipt', role: 'customer' },
     // 'all', not 'customer': an admin is a signed-in user with a profile, and the
     // profile page is role-agnostic by design. Gating it to customers would hide
     // it from exactly the people most likely to want to fix their own name.
     { title: 'My Profile', url: '/profile', icon: 'user', role: 'all' },
     { title: 'About', url: '/about', icon: 'info', role: 'all' },
-    { title: 'Developers', url: '/developers', icon: 'users', role: 'all' }];
+    { title: 'Developers', url: '/developers', icon: 'users', role: 'all' },
+    { title: 'Settings', url: '/settings', icon: 'settings', role: 'all' }];
 
   readonly adminNavItems: NavItem[] = [
-    { title: 'Inventory', url: '/admin/inventory', icon: 'layers', role: 'admin' },
-    { title: 'Fulfillment', url: '/admin/orders', icon: 'clipboard', role: 'admin' },
-    { title: 'Tracking', url: '/admin/tracking', icon: 'map', role: 'admin' },
-    { title: 'Analytics', url: '/admin/analytics', icon: 'chart', role: 'admin' },
-    { title: 'Vouchers', url: '/admin/vouchers', icon: 'ticket', role: 'admin' },
-    { title: 'Users', url: '/admin/users', icon: 'users', role: 'admin' }];
+    { title: 'Inventory', url: '/admin/inventory', icon: 'layers', role: 'admin', capability: 'manage_inventory' },
+    { title: 'Fulfillment', url: '/admin/orders', icon: 'clipboard', role: 'admin', capability: 'manage_orders' },
+    { title: 'Tracking', url: '/admin/tracking', icon: 'map', role: 'admin', capability: 'manage_orders' },
+    { title: 'Reviews', url: '/admin/reviews', icon: 'star', role: 'admin', capability: 'moderate_reviews' },
+    { title: 'Analytics', url: '/admin/analytics', icon: 'chart', role: 'admin', capability: 'view_analytics' },
+    { title: 'Vouchers', url: '/admin/vouchers', icon: 'ticket', role: 'admin', capability: 'manage_vouchers' },
+    { title: 'Users', url: '/admin/users', icon: 'users', role: 'admin', capability: 'manage_users' },
+    { title: 'Settings', url: '/admin/settings', icon: 'settings', role: 'admin', capability: 'manage_settings' },
+  ];
 
-  isAdmin = computed(() => this.currentUser()?.role === 'admin');
+  /**
+   * Any staff role — i.e. someone who reaches the admin area at all.
+   *
+   * This is what the drawer's admin section and the `/admin` route use. It is a
+   * CAPABILITY check rather than a role comparison, so adding a tier later does
+   * not require hunting for every `role === 'admin'`.
+   */
+  isAdmin = computed(() => isStaffRole(this.currentUser()?.role));
+
+  /** Whether the signed-in user holds a specific capability. */
+  can(capability: Capability): boolean {
+    return can(this.currentUser()?.role, capability);
+  }
+
+  /**
+   * Admin rows this user may actually see.
+   *
+   * Filtering the DRAWER is a convenience, not a security control — the routes
+   * and the Firestore rules are the boundaries. Hiding a row a user cannot open
+   * anyway is about not offering an action that cannot work.
+   */
+  readonly visibleAdminNavItems = computed(() =>
+    this.adminNavItems.filter((item) => !item.capability || this.can(item.capability))
+  );
 
   /**
    * Nav items the current user may actually see.
@@ -101,19 +143,36 @@ export class AppComponent implements OnInit {
    * `role` used to be declared on NavItem but never read, so signed-out guests
    * were shown "My Cart" / "My Orders" and got redirected to /auth on tap.
    *
-   * Admins also get the customer items. They are signed in, the cart and orders
-   * routes are behind authGuard only, and an admin has to be able to walk the
-   * buying flow to check a price or photo edit they just made. Guests still see
-   * neither, which is the case that bug was actually about.
+   * Admins also get the customer items — they are signed in, the routes are
+   * behind authGuard only, and an admin has to be able to walk the buying flow to
+   * check a price or photo edit they just made. EXCEPT the cart, which is
+   * `hideForAdmin`.
+   *
+   * The cart is hidden from admins on purpose, and the reason is that the admin
+   * UI is not a shopping UI: an admin works out of Inventory, Fulfillment,
+   * Tracking, Analytics, Vouchers and Users. A "My Cart" row in that drawer
+   * invites the one thing an admin should not be doing while holding admin
+   * rights — buying stock at retail and then approving orders. The route itself
+   * stays open (authGuard only, unchanged) so an admin who genuinely needs to
+   * test the buying flow can still navigate to /cart directly; this only removes
+   * the shortcut. The same reasoning removed the cart button from the four admin
+   * toolbars.
+   *
+   * "My Orders" stays visible: an admin does need to see their own orders, and
+   * unlike the cart, placing one is not a conflict of interest.
    */
   visibleCustomerNavItems = computed(() => {
     const user = this.currentUser();
     const role = user?.role ?? 'guest';
+    // "Is staff", not "is exactly admin" — a `staff` account must not be shown a
+    // shopping cart for the same reason an `owner` is not.
+    const staff = isStaffRole(user?.role);
     return this.customerNavItems.filter(
       (item) =>
-        item.role === 'all' ||
-        item.role === role ||
-        (role === 'admin' && item.role === 'customer')
+        !(staff && item.hideForStaff) &&
+        (item.role === 'all' ||
+          item.role === role ||
+          (staff && item.role === 'customer'))
     );
   });
 
@@ -134,6 +193,20 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {}
+
+  /**
+   * Closes the side drawer after navigating from the profile panel.
+   *
+   * On a phone the menu is an overlay, so routing from inside it without closing
+   * leaves the drawer covering the page the user just asked for. On `md` and up
+   * `ion-split-pane` makes the menu persistent and this is a no-op, which is why it
+   * is safe to call unconditionally. The nav rows deliberately do NOT do this —
+   * they use `ion-menu-toggle auto-hide="false"` — so this is a separate tap target
+   * with its own behaviour rather than a change to those.
+   */
+  closeMenu(): void {
+    void this.menuCtrl.close();
+  }
 
   /**
    * Accessible name for a nav row.

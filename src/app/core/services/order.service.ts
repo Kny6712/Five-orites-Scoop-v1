@@ -32,6 +32,10 @@ import { VoucherService } from './voucher.service';
  * Statuses at which the order is still physically in the store, so cancelling
  * it should return stock. `out_for_delivery` and `delivered` are excluded: the
  * ice cream has left, and restocking would invent inventory.
+ *
+ * This constant is now DUPLICATED in the server: `restockCancelledOrder`
+ * (functions/src/index.ts) makes the pre-dispatch decision on the trigger that
+ * watches the cancellation, not here. Keep the two lists identical.
  */
 const PRE_DISPATCH_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'preparing'];
 
@@ -61,13 +65,21 @@ export class OrderService {
     if (cart.items.length === 0) throw new Error('Cart is empty.');
     if (!deliveryAddress.trim()) throw new Error('Delivery address is required.');
 
-    // Declared outside the try so the catch block can compensate.
-    const stockItems = cart.items.map((i) => ({
-      productId: i.productId,
-      size: i.size,
-      quantity: i.quantity,
-    }));
-    let stockCommitted = false;
+    // ── Stock is no longer written here ─────────────────────────────────────────
+    //
+    // This used to call `InventoryService.validateAndDecrementStock` BEFORE the
+    // order was written, and compensate in the catch. Both halves are gone:
+    // stock is now reserved server-side by the `reconcileOrderStock` Cloud
+    // Function (functions/src/index.ts), which decrements in a transaction and
+    // cancels the order itself if the shelf is short. Leaving the client write in
+    // place would decrement twice for every sale — inventory drifting the exact
+    // opposite way from the corruption the function exists to stop.
+    //
+    // The client-side price pass below is still worth doing: it gives the customer
+    // an honest quote at checkout instead of a number that changes a second later.
+    // It is a DISPLAY value only. The function recomputes every line from
+    // `products/{id}.pricing` and overwrites the totals, so nothing here is trusted
+    // as money.
 
     try {
       // Step 1: Re-price from Firestore (never trust localStorage prices).
@@ -110,6 +122,7 @@ export class OrderService {
       // from the caller — that would let a tampered client dictate the price.
       const normalizedCode = voucherCode?.trim().toUpperCase() || null;
       let appliedCode: string | null = null;
+      let appliedVoucherId: string | null = null;
       let discountAmount = 0;
       if (normalizedCode) {
         const { voucher, discount } = await this.voucherService.validateVoucher(
@@ -117,17 +130,10 @@ export class OrderService {
           totalAmount
         );
         appliedCode = voucher.code;
+        appliedVoucherId = voucher.id;
         discountAmount = Math.min(Math.max(discount, 0), totalAmount);
       }
       const grandTotal = totalAmount - discountAmount + deliveryFee;
-
-      // Step 2: Validate and decrement stock (transactional).
-      // Stock and the order document cannot be written in one transaction
-      // (different collections), so track the commit and roll the decrement
-      // back if the order write fails. Without this, a failed order write
-      // silently destroys inventory.
-      await this.inventoryService.validateAndDecrementStock(stockItems);
-      stockCommitted = true;
 
       // ── FIX: never pass undefined to Firestore ──────────────
       // notes undefined → use null instead
@@ -160,21 +166,36 @@ export class OrderService {
       const ordersCol = collection(this.firestore, 'orders');
       const orderRef = await addDoc(ordersCol, orderData);
 
-      // Step 4: Clear cart ONCE after successful order
+      // Step 4: Count the redemption, once the order exists.
+      //
+      // This has to run AFTER the order write: counting before it would burn a
+      // redemption for an order that then failed to commit. It is a separate
+      // write (a voucher's usageCount is not part of the order), so it cannot be
+      // folded into the order transaction.
+      //
+      // `maxRedemptions` was previously decoration — `recordRedemption` existed
+      // but was never called, so `usageCount` stayed at whatever the admin page
+      // wrote and one code was redeemable forever. The customer-side voucher
+      // update runs as the SHOP AUTH context (the customer cannot write
+      // `vouchers/` — `allow write: if isAdmin()`), so a failure here must not
+      // fail an order that already committed.
+      if (appliedVoucherId) {
+        try {
+          await this.voucherService.recordRedemption(appliedVoucherId);
+        } catch (err) {
+          console.error('Voucher redemption count failed (order committed).', err);
+        }
+      }
+
+      // Step 5: Clear cart ONCE after successful order
       this.cartService.clearCart();
 
       return orderRef.id;
     } catch (err) {
+      // No compensation needed: nothing was written outside this function, and
+      // the order document was either created (and the function will reserve its
+      // stock, or cancel it) or never was.
       console.error('Order placement error:', err);
-      // Compensate: the decrement already committed, so give the stock back
-      // before surfacing the failure. Never mask the original error.
-      if (stockCommitted) {
-        try {
-          await this.inventoryService.restockItems(stockItems);
-        } catch (rollbackErr) {
-          console.error('CRITICAL: stock rollback failed — inventory may be short.', rollbackErr);
-        }
-      }
       throw err;
     }
   }
@@ -307,20 +328,25 @@ export class OrderService {
 
     const safeReason = (reason && reason.trim().length > 0) ? reason.trim().slice(0, 300) : null;
 
-    // Flip the status inside a transaction rather than a bare read-then-write.
-    // Two concurrent cancels (a double-tap, or the Orders page and the Tracker
-    // page cancelling the same order) both used to read 'pending', both wrote,
-    // and both restocked — so the previous "a retry cannot double-restock"
-    // comment was not true. runTransaction re-reads on conflict, so the loser
-    // observes 'cancelled' here, returns null, and skips the restock.
+    // ── The restock is the FUNCTION's job ─────────────────────────────────────
     //
-    // The status we transitioned FROM is returned as well, because it decides
-    // whether stock should come back at all. See PRE_DISPATCH_STATUSES below.
-    const previousStatus = await runTransaction(this.firestore, async (tx) => {
+    // `restockCancelledOrder` (functions/src/index.ts) watches exactly this
+    // transition — `status` moving into `cancelled` — and returns the stock in a
+    // transaction, writing the ledger row and the `stockRestored` marker with it.
+    // This method used to do all of that itself via
+    // `InventoryService.restockItems`, and doing both would return the stock
+    // twice for every cancellation.
+    //
+    // The transaction below therefore does ONE thing: move the status, atomically,
+    // so two concurrent cancels cannot both write it. Everything downstream —
+    // the restock, the marker, the repair-queue entry on failure — belongs to the
+    // trigger, which can see the transition and react to it even when the cancel
+    // came from the admin queue or the tracker page.
+    await runTransaction(this.firestore, async (tx) => {
       const fresh = await tx.get(orderRef);
-      if (!fresh.exists()) return null;
+      if (!fresh.exists()) return;
       const current = fresh.data() as { status?: OrderStatus };
-      if (current.status === 'cancelled') return null;
+      if (current.status === 'cancelled') return;
       if (current.status === 'delivered') {
         throw new Error('Delivered orders cannot be cancelled.');
       }
@@ -330,21 +356,33 @@ export class OrderService {
         updatedAt: serverTimestamp(),
         statusHistory: arrayUnion({ status: 'cancelled', timestamp: Timestamp.now() }),
       });
-      return current.status ?? 'pending';
     });
+  }
 
-    // Only the caller that actually moved the order out of its current status
-    // does anything further.
-    if (previousStatus === null) return;
+  /**
+   * Re-runs the restock for a cancelled order whose stock never came back.
+   *
+   * Admin-only in effect: `stockRestored` is outside the customer cancel clause's
+   * `hasOnly([...])`, so only `allow update: if isAdmin()` can write it. The
+   * marker is set to true FIRST, before the restock is attempted, so a second
+   * click cannot double-restock while the first write is in flight — a
+   * double-restock inflates inventory the same way a failed one deflates it.
+   *
+   * On failure the marker is rolled back to false, because leaving it true would
+   * hide the order from the repair queue permanently.
+   */
+  async repairStockRestock(orderId: string): Promise<void> {
+    const orderRef = doc(this.firestore, `orders/${orderId}`);
 
-    // Stock only comes back if the order had not left the shop. An admin
-    // cancelling an `out_for_delivery` order is a legitimate operational
-    // action, but the ice cream is physically on a bike — restocking it would
-    // invent inventory the store can then oversell. The Firestore rules already
-    // confine a *customer* to cancelling while `pending`; this closes the same
-    // hole on the admin path, which the rules intentionally allow more freedom.
-    if (!PRE_DISPATCH_STATUSES.includes(previousStatus)) {
-      return;
+    // Claim it first. `stockRestored: false` is also the filter the panel uses, so
+    // this both prevents a double-claim and marks it in-progress for a refresh.
+    await updateDoc(orderRef, { stockRestored: false, stockRestoredAt: null });
+
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) throw new Error('That order no longer exists.');
+    const order = snap.data() as Order;
+    if (order.status !== 'cancelled') {
+      throw new Error('Only a cancelled order needs its stock returned.');
     }
 
     try {
@@ -352,11 +390,11 @@ export class OrderService {
         order.items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity }))
       );
     } catch (err) {
-      // The order is already cancelled, and a retry will short-circuit above,
-      // so this leak has no self-healing path and needs manual repair. The
-      // rules deliberately do not let a customer write a `restocked` marker.
-      console.error('CRITICAL: restock after cancellation failed.', err);
-      throw new Error('Order cancelled, but restocking failed. Please contact staff.');
+      throw new Error(
+        err instanceof Error ? err.message : 'Restocking failed. Check the product still exists.'
+      );
     }
+
+    await updateDoc(orderRef, { stockRestored: true, stockRestoredAt: serverTimestamp() });
   }
 }

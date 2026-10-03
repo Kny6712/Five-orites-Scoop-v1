@@ -96,11 +96,33 @@ const TONE_ICON: Record<AlertTone, AppIcon> = {
     .banner-action:hover { background: rgb(255 255 255 / 0.55); }
 
     /* Tinted surface + a same-hue border, so the tone is legible without
-       relying on colour alone — the text states the problem too. */
-    .tone-danger { background: #fde8ee; border-color: #f5b8c8; color: #8f1f38; }
-    .tone-warning { background: #fff3dc; border-color: #f2d49a; color: #7a4b00; }
-    .tone-success { background: #e4f6ea; border-color: #a8d9b8; color: #14622f; }
-    .tone-info { background: #e6f1fb; border-color: #a8cbe8; color: #17456f; }
+       relying on colour alone — the text states the problem too.
+
+       These four triples were the canonical definition of the banner tones, but
+       they were written as literals while eleven other files had grown their own
+       private copies of the same pastels. They are tokens now: the copies are
+       gone, and the high-contrast setting in variables.scss can reach all of
+       them at once, which it could not do when each file owned its values. */
+    .tone-danger {
+      background: var(--tone-danger-bg);
+      border-color: var(--tone-danger-border);
+      color: var(--tone-danger-ink);
+    }
+    .tone-warning {
+      background: var(--tone-warning-bg);
+      border-color: var(--tone-warning-border);
+      color: var(--tone-warning-ink);
+    }
+    .tone-success {
+      background: var(--tone-success-bg);
+      border-color: var(--tone-success-border);
+      color: var(--tone-success-ink);
+    }
+    .tone-info {
+      background: var(--tone-info-bg);
+      border-color: var(--tone-info-border);
+      color: var(--tone-info-ink);
+    }
   `],
 })
 export class AlertBannerComponent {

@@ -15,6 +15,7 @@ import {
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { Subscription } from 'rxjs';
 import { catchError, of } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
@@ -51,11 +52,11 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
     IonSearchbar, IonChip, IonLabel, IonGrid, IonRow, IonCol,
     IonSkeletonText, IonCard, IonCardContent, IonText,
     IonRefresher, IonRefresherContent,
-    IonButtons, IonMenuButton, IonToggle, IonItem,
+    IonButtons, IonMenuButton, IonToggle,
     IonInfiniteScroll, IonInfiniteScrollContent,
     IonSelect, IonSelectOption, IonSegment, IonSegmentButton, IonButton,
     ProductCardComponent, CartButtonComponent,
-    AppIconComponent, EmptyStateComponent],
+    AppIconComponent, EmptyStateComponent, AppFooterComponent],
   templateUrl: './products.page.html',
   styleUrls: ['./products.page.scss'],
 })

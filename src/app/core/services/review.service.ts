@@ -12,7 +12,9 @@ import {
   onSnapshot,
   doc,
   setDoc,
+  updateDoc,
   deleteDoc,
+  deleteField,
   serverTimestamp,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
@@ -98,6 +100,82 @@ export class ReviewService {
   /** The deterministic id for a user's review of a product. */
   reviewId(productId: string, uid: string): string {
     return `${productId}_${uid}`;
+  }
+
+  // ── Admin moderation ───────────────────────────────────────────────
+  //
+  // `firestore.rules:178` grants admins `delete` and `update` on any review,
+  // and tests/firestore.rules.test.ts pins both. No UI ever called them, which
+  // is the whole gap: the rules were correct and the feature was still missing,
+  // so the correction was a page rather than a schema or rules change.
+  //
+  // Everything below is admin-scoped BY CONSTRUCTION (the route sits behind
+  // adminGuard) but NOT by rules per call — the rules simply allow an admin.
+  // That is the same trust model as the rest of the admin side.
+
+  /**
+   * Every review, newest first, for the moderation queue.
+   *
+   * No `where` clause: the queue's job is to show what needs attention, and a
+   * filtered query would hide the rows nobody remembered to filter for. Paged
+   * client-side because the moderation queue is bounded by `REVIEWS_PAGE_LIMIT`
+   * and reports that cap rather than pretending otherwise.
+   */
+  streamAllReviews(maxResults = REVIEWS_PAGE_LIMIT): Observable<Review[]> {
+    return new Observable<Review[]>((observer) => {
+      const q = query(
+        collection(this.firestore, 'reviews'),
+        orderBy('createdAt', 'desc'),
+        limit(maxResults)
+      );
+      const unsub = onSnapshot(
+        q,
+        (snap) => observer.next(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Review[]),
+        (err) => observer.error(err)
+      );
+      return () => unsub();
+    });
+  }
+
+  /** Removes a review outright. Admin-only in effect; see the note above. */
+  async deleteReview(reviewId: string): Promise<void> {
+    await deleteDoc(doc(this.firestore, 'reviews', reviewId));
+  }
+
+  /**
+   * Posts a public staff reply on a review.
+   *
+   * `adminResponse` is a NEW optional field. It is a merge, so an existing
+   * review gains the reply without its rating, comment or author being
+   * rewritten — the reason `updateDoc` is used rather than `setDoc`.
+   *
+   * Rules note: `allow update` for an admin is unconditional, so this needs no
+   * rules change. The author-side branch of that same clause does NOT permit
+   * writing this field, so a customer cannot forge a staff reply.
+   */
+  async replyToReview(
+    reviewId: string,
+    response: string,
+    responderName: string
+  ): Promise<void> {
+    const text = response.trim().slice(0, 500);
+    if (!text) throw new Error('Write a reply first.');
+    await updateDoc(doc(this.firestore, 'reviews', reviewId), {
+      adminResponse: text,
+      adminRespondedAt: serverTimestamp(),
+      adminResponderName: responderName || 'Five-orites Scoop',
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  /** Clears a staff reply, returning the review to unanswered. */
+  async clearReply(reviewId: string): Promise<void> {
+    await updateDoc(doc(this.firestore, 'reviews', reviewId), {
+      adminResponse: deleteField(),
+      adminRespondedAt: deleteField(),
+      adminResponderName: deleteField(),
+      updatedAt: serverTimestamp(),
+    });
   }
 
   /**

@@ -56,7 +56,7 @@
           <ion-list lines="none" class="nav-list admin-nav">
             <ion-list-header class="nav-section-label admin-label">Admin Panel</ion-list-header>
 
-            @for (item of adminNavItems; track item.url) {
+            @for (item of visibleAdminNavItems(); track item.url) {
               <ion-menu-toggle auto-hide="false">
                 <ion-item
                   [routerLink]="item.url"
@@ -79,7 +79,18 @@
         <!-- User Profile Panel -->
         @if (currentUser()) {
           <div class="user-panel">
-            <div class="user-info">
+            <!-- The identity block is a link to My Profile. It stays a SIBLING of the
+                 logout button, never its parent: nesting <ion-button> inside an <a> is
+                 invalid, breaks keyboard/AT semantics, and would make signing out also
+                 navigate. So the panel is two independent tap targets — this one goes to
+                 /profile, the icon to its right signs out. -->
+            <a
+              class="user-info user-link"
+              [routerLink]="'/profile'"
+              routerLinkActive="active-user-link"
+              (click)="closeMenu()"
+              aria-label="My Profile"
+            >
               <ion-avatar class="user-avatar">
                 @if (currentUser()?.photoURL) {
                   <img [src]="currentUser()!.photoURL" [alt]="'Profile photo of ' + currentUser()!.displayName" />
@@ -91,7 +102,7 @@
                 <span class="user-name">{{ currentUser()?.displayName }}</span>
                 <span class="user-email">{{ currentUser()?.email }}</span>
               </div>
-            </div>
+            </a>
             <ion-button
               fill="clear"
               class="logout-btn"

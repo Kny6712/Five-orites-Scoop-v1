@@ -3,19 +3,50 @@
 :host { display: block; }
 
 // ── Hero ──────────────────────────────────────────────────
+/* The illustration sits in a white card ON the gradient rather than being drawn
+   straight onto it. The artwork's own palette is powder and mint, so on a
+   powder-to-mint gradient it would have almost no edge — the card is what makes
+   the scene readable, and it also gives the title a surface to sit against. */
 .dev-hero {
-  background: linear-gradient(145deg, var(--color-brand-primary) 0%, #9b6ed4 100%);
-  padding: 36px 24px 28px;
+  background: var(--gradient-brand);
+  padding: 28px 24px 30px;
   text-align: center;
-  color: #fff;
+  // Plum, not white — see the header note in variables.scss. This is a
+  // light-to-light pastel gradient, so white text would sit at 1.79:1.
+  color: var(--color-ink);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
-.dev-hero-icon { --icon-size: 48px; color: rgba(255,255,255,0.85); }
-.dev-hero-title { font-size: 26px; font-weight: 800; margin: 0; letter-spacing: -0.4px; }
-.dev-hero-sub { font-size: 14px; margin: 0; opacity: 0.8; }
+
+.dev-hero-art {
+  width: 100%;
+  max-width: 380px;
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+/* A locked 8:5 so the illustration never letterboxes on a tall phone or a wide
+   desktop, and the hero keeps a predictable height. */
+.vendor-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 8 / 5;
+}
+
+.dev-hero-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+.dev-hero-sub { font-size: 14px; margin: 0; color: var(--color-ink-soft); }
 
 // ── Grid ──────────────────────────────────────────────────
 .dev-grid { padding: 12px 8px 8px; }
@@ -25,7 +56,7 @@ ion-col { padding: 6px; }
 // ── Developer Card ────────────────────────────────────────
 .dev-card {
   border-radius: 18px;
-  box-shadow: 0 3px 14px rgba(107,63,160,0.1);
+  box-shadow: var(--shadow-card);
   margin: 0;
 }
 
@@ -51,7 +82,9 @@ ion-col { padding: 6px; }
 .dev-initials {
   font-size: 22px;
   font-weight: 800;
-  color: #fff;
+  /* Plum, not white: the five avatar discs are pastel tiles now, and white on
+     them measures 1.58–1.9:1. Plum clears 6:1 on all five. */
+  color: var(--color-ink);
   width: 72px;
   height: 72px;
   display: flex;
@@ -63,9 +96,10 @@ ion-col { padding: 6px; }
 .dev-info { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; }
 
 .dev-name {
+  font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 800;
-  color: var(--ion-color-dark);
+  font-weight: 600;
+  color: var(--color-ink);
   margin: 0;
   line-height: 1.3;
 }
@@ -78,17 +112,19 @@ ion-col { padding: 6px; }
   margin: 0;
 }
 
-// ── Footer ────────────────────────────────────────────────
+// ── Credit ────────────────────────────────────────────────
+/* Reduced from 40px of bottom padding to 16px: the site footer now closes the
+   page, so a second 40px band directly above it was dead space. */
 .dev-footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 24px 16px 40px;
+  gap: 3px;
+  padding: var(--space-4) 16px var(--space-3);
   text-align: center;
   border-top: 1px solid var(--ion-color-light-shade);
   margin: 8px 16px 0;
 }
-.footer-icon { --icon-size: 28px; color: var(--color-brand-primary); }
-.footer-text { font-size: 14px; font-weight: 600; color: var(--ion-color-dark); margin: 0; }
+.footer-icon { --icon-size: 24px; color: var(--color-primary-ink); }
+.footer-text { font-size: 13px; font-weight: 600; color: var(--color-ink); margin: 0; }
 .footer-sub { font-size: 12px; color: var(--ion-color-medium); margin: 0; }

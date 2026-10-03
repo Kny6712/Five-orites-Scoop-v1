@@ -7,9 +7,10 @@
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>Inventory Manager</ion-title>
-    <ion-buttons slot="end">
-      <app-cart-button></app-cart-button>
-    </ion-buttons>
+    <!--
+      No cart button here. This is an admin surface: an admin has no cart, and
+      the toolbar's end slot is now where the page's own actions live.
+    -->
   </ion-toolbar>
 </ion-header>
 
@@ -44,10 +45,22 @@
       class="inv-search"
       aria-label="Search inventory"
     ></ion-searchbar>
-    <p class="inv-count">{{ filteredProducts().length }} products</p>
+    <p class="inv-count">
+      @if (totalCount() === 0) {
+        No products
+      } @else if (page() > 1 || totalPages() > 1) {
+        {{ totalCount() }} products &middot; page {{ page() }} of {{ totalPages() }}
+      } @else {
+        {{ totalCount() }} products
+      }
+    </p>
     <div class="inv-actions">
       <ion-button size="small" (click)="addProduct()">+ Add Product</ion-button>
       <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
+      <ion-button size="small" fill="clear" (click)="toggleImport()">
+        <app-icon name="upload" slot="start" />
+        Import CSV
+      </ion-button>
     </div>
   </div>
   }
@@ -66,128 +79,263 @@
   <!-- Product List -->
   @if (!isLoading() && !loadError()) {
     <div class="inv-list">
-      @for (product of filteredProducts(); track product.id) {
+      @for (product of pagedProducts(); track product.id) {
         <ion-card class="inv-card" [class.inactive-card]="!product.isActive">
 
-          <ion-card-header class="inv-card-header">
-            <div class="inv-card-title-row">
-              <div>
-                <ion-chip color="primary" class="set-chip-sm">Set {{ product.setNumber }}</ion-chip>
-                <p class="inv-set-name">{{ product.setName }}</p>
-              </div>
-              <!-- Status pill. Deliberately a real <button>, not a chip styled to
-                   look clickable: it gives native keyboard support, an accessible
-                   name, and aria-pressed for free. The bare ion-toggle it replaces
-                   had none of those, and its saturated green out-shouted the stock
-                   numbers, which are the actual data on this card. -->
-              <button
-                type="button"
-                class="status-pill"
-                [class.status-pill--on]="product.isActive"
-                [attr.aria-pressed]="product.isActive"
-                [attr.aria-label]="(product.isActive ? 'Deactivate ' : 'Activate ') + product.variantName"
-                (click)="toggleActive(product)"
-              >
-                <span class="status-dot" aria-hidden="true"></span>
-                {{ product.isActive ? 'Active' : 'Inactive' }}
-              </button>
-            </div>
-            <ion-card-title class="inv-variant-name">{{ product.variantName }}</ion-card-title>
-          </ion-card-header>
+          <div class="inv-card-main">
+            <!--
+              The product image, and the way to replace it. One tap opens the
+              upload sheet — the previous path was Details → scroll → tap image →
+              pick file → Save.
 
-          <ion-card-content class="inv-card-content">
+              A real <button> rather than a div with role="button": native
+              keyboard support, a real accessible name, and Enter/Space for free.
+              The fixed 4:3 frame is what keeps every card the same height
+              regardless of the new image's aspect ratio.
+            -->
+            <button
+              type="button"
+              class="inv-thumb-btn"
+              (click)="replaceImage(product)"
+              [attr.aria-label]="'Change photo of ' + product.variantName"
+            >
+              <span class="inv-thumb-frame">
+                <img
+                  [src]="(product.imageUrl | cloudinary: 200) || 'assets/placeholder-scoop.svg'"
+                  [alt]="product.variantName"
+                  class="inv-thumb-img"
+                  loading="lazy"
+                />
+                <span class="inv-thumb-badge" aria-hidden="true">
+                  <app-icon name="image-plus" />
+                </span>
+              </span>
+            </button>
 
-            @if (editingId() === product.id) {
-              <!-- Edit Mode -->
-              <div class="stock-edit-grid">
-                <!-- The four size inputs live in their own grid so the 2x2 pair can be
-                     positioned as one block on wide screens, without per-iteration
-                     grid-column maths inside the @for. -->
-                <div class="stock-edit-sizes">
+            <div class="inv-card-body">
+              <ion-card-header class="inv-card-header">
+                <div class="inv-card-title-row">
+                  <div class="inv-ident">
+                    <ion-chip color="primary" class="set-chip-sm">Set {{ product.setNumber }}</ion-chip>
+                    <p class="inv-set-name">{{ product.setName }}</p>
+                  </div>
+
+                  <!--
+                    Three controls, in one row, each a real <button>.
+
+                    The Active pill is not a toggle switch, and that is deliberate:
+                    it answers "can this be sold right now", which is a different
+                    question from the quantity steppers below, and a switch next
+                    to a stock number reads as a control for that number. A pill
+                    with a dot states the state at a glance and does not invite
+                    the misreading.
+
+                    X is destructive and irreversible — it deletes the Firestore
+                    document. It is separated from the pill by a gap, given its
+                    own hit area, and guarded by a confirm dialog that names the
+                    flavor. The pencil is the same Details modal the old
+                    "Details" button opened, reduced to an icon.
+                  -->
+                  <div class="inv-tools">
+                    <button
+                      type="button"
+                      class="status-pill"
+                      [class.status-pill--on]="product.isActive"
+                      [attr.aria-pressed]="product.isActive"
+                      [attr.aria-label]="(product.isActive ? 'Deactivate ' : 'Activate ') + product.variantName"
+                      (click)="toggleActive(product)"
+                    >
+                      <span class="status-dot" aria-hidden="true"></span>
+                      {{ product.isActive ? 'Active' : 'Inactive' }}
+                    </button>
+
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      (click)="editDetails(product)"
+                      [attr.aria-label]="'Edit details of ' + product.variantName"
+                    >
+                      <app-icon name="pencil" />
+                    </button>
+
+                    <button
+                      type="button"
+                      class="tool-btn tool-btn--danger"
+                      (click)="confirmDelete(product)"
+                      [attr.aria-label]="'Delete ' + product.variantName + ' permanently'"
+                    >
+                      <app-icon name="x" />
+                    </button>
+                  </div>
+                </div>
+
+                <ion-card-title class="inv-variant-name">{{ product.variantName }}</ion-card-title>
+              </ion-card-header>
+
+              <ion-card-content class="inv-card-content">
+                <!--
+                  Direct quantity controls. This replaces the "Edit Stock" button
+                  and its separate in-place edit mode entirely: an admin adjusting
+                  one size should not have to open an editor, retype a number and
+                  press Save to move it by one.
+
+                  The value is the source of truth from the live snapshot, and
+                  each press calls an atomic server-side adjust — see
+                  InventoryService.adjustStock for why this is a transaction
+                  rather than a client-side read-modify-write.
+                -->
+                <div class="stock-view-grid">
                   @for (size of sizes; track size) {
-                    <div class="stock-edit-cell">
-                      <label class="stock-edit-label" [attr.for]="'stock-' + product.id + '-' + size">
-                        {{ sizeLabels[size] }}
-                      </label>
-                      <ion-input
-                        [id]="'stock-' + product.id + '-' + size"
-                        type="number"
-                        [attr.aria-label]="sizeLabels[size] + ' stock quantity for ' + product.variantName"
-                        [(ngModel)]="editStock[product.id][size]"
-                        [min]="0"
-                        (ionBlur)="validateStock(product.id, size)"
-                        class="stock-edit-input"
-                      ></ion-input>
+                    <div class="stock-view-cell">
+                      <span class="stock-size-label">{{ sizeLabels[size] }}</span>
+                      <div class="stock-stepper">
+                        <button
+                          type="button"
+                          class="step-btn"
+                          [disabled]="busySizeId() !== null || product.stock[size] === 0"
+                          (click)="adjustStock(product, size, -1)"
+                          [attr.aria-label]="'Decrease ' + sizeLabels[size] + ' stock for ' + product.variantName"
+                        >
+                          <app-icon name="minus" />
+                        </button>
+
+                        <span
+                          class="stock-qty"
+                          [class.stock-in-stock]="product.stock[size] >= lowStockThreshold()"
+                          [class.stock-low-stock]="product.stock[size] > 0 && product.stock[size] < lowStockThreshold()"
+                          [class.stock-out-of-stock]="product.stock[size] === 0"
+                          [attr.aria-live]="'polite'"
+                        >
+                          {{ product.stock[size] }}
+                        </span>
+
+                        <button
+                          type="button"
+                          class="step-btn"
+                          [disabled]="busySizeId() !== null"
+                          (click)="adjustStock(product, size, 1)"
+                          [attr.aria-label]="'Increase ' + sizeLabels[size] + ' stock for ' + product.variantName"
+                        >
+                          <app-icon name="plus" />
+                        </button>
+                      </div>
+
+                      @if (product.stock[size] < lowStockThreshold()) {
+                        <app-icon
+                          name="circle-alert"
+                          class="stock-alert-icon"
+                          [class.stock-alert-danger]="product.stock[size] === 0"
+                          [class.stock-alert-warning]="product.stock[size] > 0"
+                        />
+                      }
                     </div>
                   }
                 </div>
-                <!-- Live sum of the four inputs; mirrors exactly what saveStock writes. -->
-                <div class="stock-edit-total">
-                  <span class="stock-total-label">Total quantity</span>
-                  <span class="stock-total-value">{{ totalStock(product.id) }}</span>
-                </div>
-              </div>
-              <div class="edit-actions">
-                <ion-button
-                  expand="block"
-                  class="save-btn"
-                  (click)="saveStock(product)"
-                  [disabled]="savingId() === product.id"
-                >
-                  <app-icon name="save" slot="start" />
-                  {{ savingId() === product.id ? 'Saving...' : 'Save Changes' }}
-                </ion-button>
-                <ion-button expand="block" fill="outline" color="medium" (click)="cancelEdit()">
-                  Cancel
-                </ion-button>
-              </div>
-            } @else {
-              <!-- View Mode -->
-              <div class="stock-view-grid">
-                @for (size of sizes; track size) {
-                  <div class="stock-view-cell">
-                    <span class="stock-size-label">{{ sizeLabels[size] }}</span>
-                    <span class="stock-qty"
-                      [class.stock-in-stock]="product.stock[size] >= lowStockThreshold"
-                      [class.stock-low-stock]="product.stock[size] > 0 && product.stock[size] < lowStockThreshold"
-                      [class.stock-out-of-stock]="product.stock[size] === 0">
-                      {{ product.stock[size] }}
-                    </span>
-                    @if (product.stock[size] < lowStockThreshold) {
-                      <app-icon
-                        name="circle-alert"
-                        class="stock-alert-icon"
-                        [class.stock-alert-danger]="product.stock[size] === 0"
-                        [class.stock-alert-warning]="product.stock[size] > 0"
-                      />
-                    }
-                  </div>
-                }
-              </div>
-              <div class="card-actions">
-                <ion-button
-                  fill="outline"
-                  size="small"
-                  class="edit-btn action-btn"
-                  (click)="startEdit(product)"
-                >
-                  <app-icon name="pencil" slot="start" />
-                  Edit Stock
-                </ion-button>
-                <ion-button
-                  fill="clear"
-                  size="small"
-                  class="details-btn action-btn"
-                  (click)="editDetails(product)"
-                >
-                  Details
-                </ion-button>
-              </div>
-            }
-          </ion-card-content>
+              </ion-card-content>
+            </div>
+          </div>
         </ion-card>
+      }
+    </div>
+
+    @if (totalCount() === 0) {
+      <app-empty-state
+        icon="search"
+        title="No matching flavors"
+        message="No product matches that search. Try a different name or clear the search."
+        [compact]="true"
+      />
+    } @else {
+      <app-pagination
+        [page]="page()"
+        [total]="totalCount()"
+        [pageSize]="PAGE_SIZE"
+        itemLabel="flavor variants"
+        (pageChange)="page.set($event)"
+      />
+    }
+  }
+
+<!-- Bulk CSV import. All-or-nothing by construction: parseProductCsv returns
+       zero valid rows if any row fails, so there is no partial-import state. -->
+  @if (importOpen()) {
+    <div class="import-panel" role="region" aria-label="Bulk product import">
+      <div class="import-head">
+        <h2 class="import-title">Bulk import flavors</h2>
+        <button type="button" class="import-close" (click)="closeImport()" aria-label="Close the import panel">
+          <app-icon name="x" class="import-close-icon" />
+        </button>
+      </div>
+
+      @if (!importPlan()) {
+        <p class="import-note">
+          Upload a CSV of flavors. Every row is checked before anything is written
+          &mdash; if one row is wrong, nothing is imported.
+        </p>
+        <input #csvInput type="file" accept=".csv,text/csv" hidden (change)="onCsvPicked($event)" />
+        <div class="import-actions">
+          <ion-button size="small" (click)="csvInput.click()">Choose CSV file</ion-button>
+          <ion-button size="small" fill="clear" (click)="downloadTemplate()">
+            <app-icon name="download" slot="start" />
+            Template
+          </ion-button>
+        </div>
+        <details class="import-help">
+          <summary>Which columns?</summary>
+          <p>
+            <code>set_number, set_name, variant_name</code> are required.
+            <code>description</code>, <code>category</code> (flavor / sundae / cone)
+            and the four price and stock columns are optional. Names are matched
+            loosely, so <code>Price (Half Gallon)</code> works as well as
+            <code>half_gallon_price</code>. Lines starting with <code>#</code> are ignored.
+          </p>
+        </details>
+      } @else {
+        @if (importErrors().length) {
+          <app-alert-banner
+            tone="danger"
+            title="Nothing was imported"
+            [message]="importErrors().length + ' problem' + (importErrors().length === 1 ? '' : 's') + ' found. Fix the file and try again.'"
+          />
+          <ul class="import-errors">
+            @for (e of importErrors(); track e.line) {
+              <li><strong>Line {{ e.line }}:</strong> {{ e.message }}</li>
+            }
+          </ul>
+          <div class="import-actions">
+            <ion-button size="small" fill="outline" (click)="resetImport()">Choose another file</ion-button>
+          </div>
+        } @else {
+          <app-alert-banner
+            tone="success"
+            title="File is ready"
+            [message]="importValid().length + ' flavor' + (importValid().length === 1 ? '' : 's') + ' validated.'"
+          />
+          @if (importUnknown().length) {
+            <p class="import-note">
+              Ignored unknown column{{ importUnknown().length === 1 ? '' : 's' }}:
+              {{ importUnknown().join(', ') }}
+            </p>
+          }
+          <div class="import-summary">
+            @for (row of importValid().slice(0, 8); track row.setNumber + row.variantName) {
+              <span class="import-pill">{{ row.variantName }}</span>
+            }
+            @if (importValid().length > 8) {
+              <span class="import-pill import-pill--more">+{{ importValid().length - 8 }} more</span>
+            }
+          </div>
+          <div class="import-actions">
+            <ion-button size="small" (click)="commitImport()" [disabled]="importing()">
+              {{ importing() ? 'Importing...' : 'Import ' + importValid().length + ' flavors' }}
+            </ion-button>
+            <ion-button size="small" fill="clear" (click)="resetImport()">Cancel</ion-button>
+          </div>
+        }
       }
     </div>
   }
 
 </ion-content>
+
+<app-footer></app-footer>

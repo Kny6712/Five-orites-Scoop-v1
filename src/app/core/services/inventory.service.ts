@@ -12,6 +12,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   runTransaction,
   QueryConstraint,
@@ -21,10 +22,16 @@ import { shareReplay } from 'rxjs/operators';
 import { Product, FlavorSet, SizeVariant, StockLevel, ProductFilter, ProductCategory, productCategory } from '../models/product.model';
 import { LOW_STOCK_THRESHOLD } from '../config/stock.config';
 import { normaliseStockLines, SIZE_VARIANTS } from '../logic/stock';
+import { AuthService } from './auth.service';
+import { ShopSettingsService } from './shop-settings.service';
 
 @Injectable({ providedIn: 'root' })
 export class InventoryService {
   private firestore = inject(Firestore);
+  /** For the ledger's `actorUid` — who made the change, not just that one did. */
+  private authService = inject(AuthService);
+  /** The admin-editable low-stock threshold, falling back to the build default. */
+  private shopSettings = inject(ShopSettingsService);
 
   // ── Real-time product stream ──────────────────────────────────────────────────
   /**
@@ -161,7 +168,17 @@ export class InventoryService {
     });
   }
 
-  subscribeToLowStock(threshold = LOW_STOCK_THRESHOLD): Observable<Product[]> {
+  /**
+   * Products with any size at or below the threshold.
+   *
+   * `threshold` now defaults to the ADMIN-EDITABLE value from
+   * `ShopSettingsService`, falling back to `LOW_STOCK_THRESHOLD` (the build-time
+   * environment number) when nothing has been saved. Callers that already hold
+   * the current value can pass it explicitly, which is what the dashboard and
+   * the product card do so they show the same number the query used.
+   */
+  subscribeToLowStock(threshold?: number): Observable<Product[]> {
+    const cutoff = threshold ?? this.shopSettings.lowStockThreshold();
     return new Observable<Product[]>((observer) => {
       const productsCol = collection(this.firestore, 'products');
       const q = query(productsCol, where('isActive', '==', true));
@@ -173,10 +190,10 @@ export class InventoryService {
             .map((d) => ({ id: d.id, ...d.data() }) as Product)
             .filter(
               (p) =>
-                p.stock.cup < threshold ||
-                p.stock.pint < threshold ||
-                p.stock.halfGallon < threshold ||
-                p.stock.gallon < threshold
+                p.stock.cup < cutoff ||
+                p.stock.pint < cutoff ||
+                p.stock.halfGallon < cutoff ||
+                p.stock.gallon < cutoff
             );
           observer.next(lowStock);
         },
@@ -202,16 +219,81 @@ export class InventoryService {
     });
   }
 
-  // ── Replace ALL size quantities at once (Edit Details modal) ──────────────
-  async updateStocks(productId: string, stock: StockLevel): Promise<void> {
-    for (const size of Object.keys(stock) as SizeVariant[]) {
-      const qty = stock[size];
-      if (!Number.isInteger(qty) || qty < 0) throw new Error('Stock cannot be negative.');
+  /**
+   * Permanently remove a product document.
+   *
+   * THIS IS IRREVERSIBLE. There is no archive flag and no recovery path, which
+   * is the whole point of the distinction the UI draws:
+   *
+   *   updateProductActive(false)  keeps the document, hides it from sale
+   *   deleteProduct()             erases the document, its stock, its image
+   *                                reference and every trace of it
+   *
+   * An admin who wants to take a flavor off the shelf should be using the
+   * Active pill. This exists for the case where the flavor was created in error
+   * and should not be recoverable.
+   *
+   * `deleteDoc` rather than `setDoc` with a tombstone: a tombstone would still
+   * appear in getAllProducts() (which has no deleted filter) and would reappear
+   * in the storefront if the rule ever changed, which is precisely the failure
+   * mode a "complete removal" is supposed to rule out.
+   */
+  async deleteProduct(productId: string): Promise<void> {
+    const productRef = doc(this.firestore, `products/${productId}`);
+    await deleteDoc(productRef);
+  }
+
+  /**
+   * Change one size's quantity by a delta, atomically.
+   *
+   * The inventory page's +/- buttons call this rather than read-modify-write
+   * client-side, because a client-side round trip is a race: two admins tapping
+   * "+1" on the same size at the same time both read 4, both write 5, and one
+   * increment is lost. runTransaction makes the read and the write one atomic
+   * unit, so concurrent taps queue and each one lands.
+   *
+   * Returns the quantity actually stored afterwards, which may be higher than
+   * the caller expected if someone else changed it in between — the caller uses
+   * that to resync rather than to assume.
+   */
+  async adjustStock(productId: string, size: SizeVariant, delta: number): Promise<number> {
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new Error('Adjustment must be a non-zero whole number.');
     }
     const productRef = doc(this.firestore, `products/${productId}`);
-    await updateDoc(productRef, {
-      stock: { ...stock },
-      updatedAt: serverTimestamp(),
+    return runTransaction(this.firestore, async (tx) => {
+      const snap = await tx.get(productRef);
+      if (!snap.exists()) {
+        throw new Error('That product no longer exists.');
+      }
+      const current = ((snap.data() as Product).stock?.[size] ?? 0) as number;
+      // Clamped at zero rather than allowed to go negative: a negative stock
+      // level means "sell N of something you do not have", and the cart's own
+      // validation would have to catch it downstream.
+      const next = Math.max(current + delta, 0);
+      if (next !== current) {
+        tx.update(productRef, {
+          stock: { ...(snap.data() as Product).stock, [size]: next } as StockLevel,
+          updatedAt: serverTimestamp(),
+        });
+        // The ledger row is written INSIDE the same transaction, so a movement
+        // can never be recorded for a change that did not happen, or missed for
+        // one that did. `applied` rather than `delta`, because the clamp above
+        // means the two can differ.
+        const ledgerRef = doc(collection(this.firestore, 'stockMovements'));
+        tx.set(ledgerRef, {
+          productId,
+          variantName: (snap.data() as Product).variantName ?? 'Unknown',
+          size,
+          delta: next - current,
+          balanceAfter: next,
+          reason: delta > 0 ? 'admin_restock' : 'manual_adjust',
+          orderId: null,
+          actorUid: this.authService.currentUserSnapshot?.uid ?? null,
+          createdAt: serverTimestamp(),
+        });
+      }
+      return next;
     });
   }
 

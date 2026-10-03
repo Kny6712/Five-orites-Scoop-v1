@@ -62,9 +62,9 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
       width: 44px;
       height: 44px;
       border-radius: var(--radius-pill);
-      border: 1px solid var(--color-brand-primary);
+      border: 1px solid var(--color-primary-ink);
       background: var(--color-white);
-      color: var(--color-strawberry-ink);
+      color: var(--color-primary-ink);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -74,7 +74,7 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
       transition: background-color 0.12s ease, transform 0.12s ease;
     }
 
-    .qty-btn:hover:not(:disabled) { background: #fde8ee; }
+    .qty-btn:hover:not(:disabled) { background: var(--tile-blush); }
     .qty-btn:active:not(:disabled) { transform: scale(0.94); }
 
     .qty-btn:disabled {

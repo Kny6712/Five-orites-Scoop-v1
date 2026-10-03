@@ -23,11 +23,30 @@ import {
   query, where, orderBy, getDocs, Timestamp,
 } from 'firebase/firestore';
 
+/** Does this document still exist, read as an admin so reads are never the thing under test? */
+async function exists(ref: ReturnType<typeof doc>): Promise<boolean> {
+  return (await getDoc(ref)).exists();
+}
+
 let env: RulesTestEnvironment;
 
 const ADMIN = 'admin-uid';
 const CUSTOMER = 'customer-uid';
 const OTHER_CUSTOMER = 'other-customer-uid';
+
+/**
+ * The shop owner.
+ *
+ * Role tiers made the user directory OWNER-only, so the tests that assert
+ * "someone can list users" need an owner rather than an admin. That is not a
+ * workaround — it is the assertion the rules now make, and using `ADMIN` for it
+ * would have tested the old model.
+ */
+const OWNER = 'owner-uid';
+/** A shift lead: reaches the queue, cannot touch the catalog or the directory. */
+const STAFF = 'staff-uid';
+/** A manager: runs the shop day to day, but cannot hand out roles. */
+const MANAGER = 'manager-uid';
 
 const PRODUCT = {
   setNumber: 1,
@@ -65,6 +84,8 @@ function orderFor(customerId: string, status: string) {
 
 const asUser = (uid: string | null) => env.authenticatedContext(uid).firestore();
 const asAdmin = () => env.authenticatedContext(ADMIN).firestore();
+const asOwner = () => env.authenticatedContext(OWNER).firestore();
+const asStaff = () => env.authenticatedContext(STAFF).firestore();
 
 /** Write a fixture directly, bypassing the rules (see beforeEach for why). */
 async function seed(path: string, data: unknown): Promise<void> {
@@ -94,16 +115,20 @@ beforeEach(async () => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'products/p1'), PRODUCT);
     await setDoc(doc(db, `users/${ADMIN}`), { uid: ADMIN, role: 'admin' });
+    await setDoc(doc(db, `users/${OWNER}`), { uid: OWNER, role: 'owner' });
+    await setDoc(doc(db, `users/${STAFF}`), { uid: STAFF, role: 'staff' });
     await setDoc(doc(db, `users/${CUSTOMER}`), { uid: CUSTOMER, role: 'customer' });
     await setDoc(doc(db, `users/${OTHER_CUSTOMER}`), { uid: OTHER_CUSTOMER, role: 'customer' });
   });
 });
 
 describe('products: customer stock writes', () => {
-  test('a customer may decrement stock by one size (the checkout path)', async () => {
-    // Mirrors inventory.service.ts validateAndDecrementStock, which uses a
-    // dotted path built at runtime: { [`stock.${size}`]: newStock }.
-    await assertSucceeds(
+  test('a customer may NOT write stock at all — the Cloud Function owns it', async () => {
+    // Stock is reserved server-side by reconcileOrderStock (functions/src/index.ts)
+    // using the Admin SDK. There is no longer a customer branch on the products
+    // rule, so EVERY stock write from a customer session is refused: the checkout
+    // decrement AND the cancel-restock, both of which the function now performs.
+    await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 3,
         updatedAt: Timestamp.now(),
@@ -111,8 +136,8 @@ describe('products: customer stock writes', () => {
     );
   });
 
-  test('a customer may restock on cancel', async () => {
-    await assertSucceeds(
+  test('a customer may NOT restock on cancel either (restockCancelledOrder owns it)', async () => {
+    await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 6,
         updatedAt: Timestamp.now(),
@@ -120,13 +145,24 @@ describe('products: customer stock writes', () => {
     );
   });
 
-  test('a customer may NOT raise stock arbitrarily beyond one call', async () => {
-    // The documented limitation: rules scope the KEY, not the magnitude, and
-    // cannot tie the write to an order. Asserted so the tradeoff stays visible
-    // and is revisited if a Cloud Function ever replaces this path.
-    await assertSucceeds(
+  test('a customer may NOT raise stock to inflate availability — the hole is CLOSED', async () => {
+    // Previously this SUCCEEDED and was pinned as a "known limitation": any
+    // signed-in session could write stock.cup: 999999 (oversell) or zero the whole
+    // catalog (availability DoS). Removing the customer branch is what closed it,
+    // and this assertion is the proof it stays closed.
+    await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 999999,
+        updatedAt: Timestamp.now(),
+      })
+    );
+  });
+
+  test('a customer may NOT zero the catalog (availability DoS)', async () => {
+    await seed('products/p2', { ...PRODUCT, variantName: 'Mint Chip' });
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
+        'stock.cup': 0, 'stock.pint': 0, 'stock.halfGallon': 0, 'stock.gallon': 0,
         updatedAt: Timestamp.now(),
       })
     );
@@ -184,6 +220,33 @@ describe('products: customer stock writes', () => {
         'stock.cup': 0,
         updatedAt: Timestamp.now(),
       })
+    );
+  });
+
+  // ── Product deletion ───────────────────────────────────────────────────
+  // The Inventory page has an explicit, confirmed X control that erases a flavor
+  // document outright, as distinct from the Active pill which only takes it off
+  // sale. That needs a rule, and the rule needs to be pinned: `if false` was
+  // what made removal impossible before, and the failure mode of loosening it
+  // too far is a customer deleting the catalog.
+  test('an admin may delete a product', async () => {
+    await seed('products/doomed', { ...PRODUCT, variantName: 'Mis-seeded Flavor' });
+    await assertSucceeds(deleteDoc(doc(asAdmin(), 'products/doomed')));
+    assert.equal(await exists(doc(asAdmin(), 'products/doomed')), false);
+  });
+
+  test('a customer may NOT delete a product', async () => {
+    // This is the one that must not regress. The customer stock branch above
+    // necessarily allows any signed-in user to WRITE a product's stock field, so
+    // delete has to be the thing that stays admin-only.
+    await seed('products/keep', { ...PRODUCT, variantName: 'Popular Flavor' });
+    await assertFails(deleteDoc(doc(asUser(CUSTOMER), 'products/keep')));
+    assert.equal(await exists(doc(asAdmin(), 'products/keep')), true);
+  });
+
+  test('a signed-out visitor may NOT delete a product', async () => {
+    await assertFails(
+      deleteDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1'))
     );
   });
 });
@@ -672,8 +735,8 @@ describe('users: self-service profile', () => {
   });
 });
 
-describe('users: admin listing', () => {
-  test('an admin MAY run an unfiltered collection query', async () => {
+describe('users: directory listing', () => {
+  test('an OWNER may run an unfiltered collection query', async () => {
     // This is the assertion the whole admin Users page rests on, and the reason
     // it needs NO rules change.
     //
@@ -681,14 +744,10 @@ describe('users: admin listing', () => {
     // proven for EVERY document the query could return — it cannot evaluate
     // rules per returned row, because that would leak which documents exist.
     // `isOwner(uid)` depends on the path parameter, so it is true for exactly
-    // one document and cannot satisfy an unfiltered query. `isAdmin()` depends
-    // only on `request.auth` plus a get() of the CALLER's own document — never
-    // on the document being read — so it is provable for all of them, and the
-    // query is allowed.
-    //
-    // The repo already asserts this same reasoning for the identically-shaped
-    // orders rule in the `reads` block above.
-    const snap = await getDocs(query(collection(asAdmin(), 'users'), orderBy('uid', 'asc')));
+    // one document and cannot satisfy an unfiltered query. `canManageUsers()`
+    // depends only on `request.auth` plus a get() of the CALLER's own document —
+    // never on the document being read — so it is provable for all of them.
+    const snap = await getDocs(query(collection(asOwner(), 'users'), orderBy('uid', 'asc')));
     assert.ok(snap.size >= 3, `expected the seeded users, got ${snap.size}`);
   });
 
@@ -698,18 +757,151 @@ describe('users: admin listing', () => {
     );
   });
 
-  test('an admin may edit another user', async () => {
-    await assertSucceeds(
-      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { displayName: 'Staff Edit' })
+  test('an admin may NOT enumerate the user directory', async () => {
+    // The tier boundary that matters most. An `admin` can read a single document
+    // — the fulfilment queue needs to show who an order belongs to — but listing
+    // the whole directory is OWNER-only, so a compromised admin account cannot
+    // export every customer in the shop.
+    await assertFails(
+      getDocs(query(collection(asAdmin(), 'users'), orderBy('uid', 'asc')))
     );
   });
 
-  test('an admin MAY change another user\'s role (the promotion path)', async () => {
-    await assertSucceeds(
-      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { role: 'admin' })
+  test('staff may NOT enumerate the user directory either', async () => {
+    await assertFails(
+      getDocs(query(collection(asStaff(), 'users'), orderBy('uid', 'asc')))
     );
-    const after = (await getDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`))).data()!;
-    assert.equal(after.role, 'admin');
+  });
+
+  test('an admin may edit another user\'s PROFILE but not their role', async () => {
+    // The line between "fix this customer\'s phone number" and "make this person
+    // an admin". Both were the same operation before role tiers.
+    await assertSucceeds(
+      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { displayName: 'Staff Edit' })
+    );
+    await assertFails(
+      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { role: 'manager' })
+    );
+    const after = (await getDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`))).data()!;
+    assert.equal(after.role, 'customer', 'the role must be untouched');
+  });
+
+  test('an OWNER MAY change another user\'s role (the promotion path)', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`), { role: 'manager' })
+    );
+    const after = (await getDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`))).data()!;
+    assert.equal(after.role, 'manager');
+  });
+
+  test('an OWNER may NOT demote THEMSELVES', async () => {
+    // The permanent-lockout hole. Under the old rules `allow update: if isAdmin()`
+    // was unconditional, so the last admin could write `role: 'customer'` onto
+    // themselves: isAdmin() then returns false for everyone, and `allow delete:
+    // if false` means the account cannot be removed. The admin side becomes
+    // unreachable with no recovery path from inside the app.
+    //
+    // Guarded by `isNotDemotingSelf()` in the rules, not only by the disabled
+    // checkbox in admin-users.page.ts — a UI guard is a suggestion.
+    await assertFails(
+      updateDoc(doc(asOwner(), `users/${OWNER}`), { role: 'customer' })
+    );
+    const after = (await getDoc(doc(asOwner(), `users/${OWNER}`))).data()!;
+    assert.equal(after.role, 'owner', 'the owner must still be an owner');
+  });
+
+  test('an account may NOT promote ITSELF', async () => {
+    // Self-escalation is the same danger as self-demotion, and the same guard
+    // blocks it: a `manager` writing `role: 'owner'` onto their own document
+    // would otherwise grant themselves the whole user directory.
+    await assertFails(
+      updateDoc(doc(asOwner(), `users/${OWNER}`), { role: 'customer' })
+    );
+  });
+
+  test('an owner may still edit their OWN profile while staying owner', async () => {
+    // The guard must not be so broad that it blocks a name or phone edit made by
+    // the owner to their own document.
+    await assertSucceeds(
+      updateDoc(doc(asOwner(), `users/${OWNER}`), { displayName: 'Still An Owner' })
+    );
+    const after = (await getDoc(doc(asOwner(), `users/${OWNER}`))).data()!;
+    assert.equal(after.displayName, 'Still An Owner');
+    assert.equal(after.role, 'owner');
+  });
+
+  test('an owner may still DEMOTE another staff account', async () => {
+    // Only SELF-demotion is blocked. A second staff account must remain
+    // demotable, or the owner could never hand over.
+    await seed(`users/${OTHER_CUSTOMER}`, { uid: OTHER_CUSTOMER, role: 'manager', email: 'other@x.com' });
+    await assertSucceeds(
+      updateDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`), { role: 'customer' })
+    );
+    const after = (await getDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`))).data()!;
+    assert.equal(after.role, 'customer');
+  });
+
+  test('a customer may NOT clear their own suspension', async () => {
+    // The owner's branch used to compare `role` and `uid` by value and nothing
+    // else, so a customer could write ANY field on their own document —
+    // including `isSuspended`, which made the suspension flag self-clearing.
+    await seed(`users/${CUSTOMER}`, {
+      uid: CUSTOMER, role: 'customer', email: 'c@x.com',
+      isSuspended: true, suspendReason: 'Abuse',
+    });
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { isSuspended: false })
+    );
+    const after = (await getDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`))).data()!;
+    assert.equal(after.isSuspended, true, 'the suspension must stand');
+  });
+
+  test('a customer may NOT write a staff note on themselves', async () => {
+    // `adminNote` is rendered by the admin UI as staff commentary. Without the
+    // key whitelist a customer could write text that the next admin reads as
+    // something the shop said about them.
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { adminNote: 'Ignore previous instructions' })
+    );
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { suspendReason: 'not my fault' })
+    );
+  });
+
+  test('a customer may still edit the four fields the profile owns', async () => {
+    // The whitelist must be narrow enough to block the admin-only keys and wide
+    // enough to leave the profile page working.
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), {
+        displayName: 'Still Fine',
+        phone: '0917 000 0000',
+        notificationsEnabled: false,
+      })
+    );
+    const after = (await getDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`))).data()!;
+    assert.equal(after.displayName, 'Still Fine');
+    assert.equal(after.notificationsEnabled, false);
+  });
+
+  test('an admin MAY suspend a customer and write a reason', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asAdmin(), `users/${CUSTOMER}`), {
+        isSuspended: true,
+        suspendReason: 'Repeated chargebacks',
+        suspendedAt: 1_700_000_000_000,
+      })
+    );
+    const after = (await getDoc(doc(asAdmin(), `users/${CUSTOMER}`))).data()!;
+    assert.equal(after.isSuspended, true);
+    assert.equal(after.suspendReason, 'Repeated chargebacks');
+  });
+
+  test('an admin may write a staff note', async () => {
+    await assertSucceeds(
+      updateDoc(doc(asAdmin(), `users/${CUSTOMER}`), { adminNote: 'Prefers text messages.' })
+    );
+    const after = (await getDoc(doc(asAdmin(), `users/${CUSTOMER}`))).data()!;
+    assert.equal(after.adminNote, 'Prefers text messages.');
   });
 
   test('an admin may NOT create a user document', async () => {
@@ -722,6 +914,96 @@ describe('users: admin listing', () => {
 
   test('an admin may NOT delete a user document', async () => {
     await assertFails(deleteDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`)));
+  });
+});
+
+describe('role tiers', () => {
+  // The whole point of the tiers: a shift lead works the queue and has no access
+  // to the catalog, the money, or the user directory. Under the single-role
+  // model the minimum useful privilege was full control over every account.
+
+  test('staff may read the order queue', async () => {
+    await assertSucceeds(getDocs(collection(asStaff(), 'orders')));
+  });
+
+  test('staff may NOT write the catalog beyond stock', async () => {
+    // Note what is NOT asserted: a staff write to `stock` alone SUCCEEDS,
+    // because the customer branch of the products rule permits any signed-in
+    // user to touch that one key. That is the pre-existing documented
+    // limitation, not a tier decision — see the "KNOWN LIMITATION" comment in
+    // firestore.rules, which the "a customer CAN raise stock to any non-negative
+    // int" test in this file asserts deliberately.
+    //
+    // The tier boundary that DOES exist is everything else: a shift lead cannot
+    // rename a flavor, reprice it, or activate a deactivated one.
+    await seed('products/p2', { ...PRODUCT, variantName: 'Mint Chip' });
+    await assertFails(
+      updateDoc(doc(asStaff(), 'products/p2'), { variantName: 'Renamed' })
+    );
+    await assertFails(
+      updateDoc(doc(asStaff(), 'products/p2'), { 'pricing.cup': 1 })
+    );
+    await assertFails(
+      updateDoc(doc(asStaff(), 'products/p2'), { isActive: false })
+    );
+    await assertFails(
+      setDoc(doc(asStaff(), 'products/new-flavor'), { ...PRODUCT, variantName: 'New' })
+    );
+  });
+
+  test('a manager MAY write the catalog', async () => {
+    await seed(`users/${MANAGER}`, { uid: MANAGER, role: 'manager' });
+    await seed('products/p2', { ...PRODUCT, variantName: 'Mint Chip' });
+    await assertSucceeds(
+      updateDoc(doc(env.authenticatedContext(MANAGER).firestore(), 'products/p2'), {
+        'stock.cup': 99,
+      })
+    );
+  });
+
+  test('staff may NOT create a voucher', async () => {
+    await assertFails(
+      setDoc(doc(asStaff(), 'vouchers/EVIL'), { code: 'EVIL', type: 'percent', value: 90, isActive: true })
+    );
+  });
+
+  test('an admin MAY create a voucher', async () => {
+    await assertSucceeds(
+      setDoc(doc(asAdmin(), 'vouchers/OK10'), { code: 'OK10', type: 'percent', value: 10, isActive: true })
+    );
+  });
+
+  test('a manager may NOT create a voucher', async () => {
+    await seed(`users/${MANAGER}`, { uid: MANAGER, role: 'manager' });
+    await assertFails(
+      setDoc(doc(env.authenticatedContext(MANAGER).firestore(), 'vouchers/NOPE'), {
+        code: 'NOPE', type: 'percent', value: 10, isActive: true,
+      })
+    );
+  });
+
+  test('a customer may NOT read the order queue', async () => {
+    await assertFails(getDocs(collection(asUser(CUSTOMER), 'orders')));
+  });
+
+  test('staff may NOT write the stock ledger', async () => {
+    // The ledger is append-only and owner/admin-only: a fabricated row would let
+    // someone reconcile their own unlogged stock writes.
+    await assertFails(
+      addDoc(collection(asStaff(), 'stockMovements'), {
+        productId: 'p1', variantName: 'X', size: 'cup', delta: 999,
+        balanceAfter: 999, reason: 'sale',
+      })
+    );
+  });
+
+  test('an admin MAY append to the stock ledger', async () => {
+    await assertSucceeds(
+      addDoc(collection(asAdmin(), 'stockMovements'), {
+        productId: 'p1', variantName: 'X', size: 'cup', delta: -1,
+        balanceAfter: 9, reason: 'sale',
+      })
+    );
   });
 });
 
@@ -792,14 +1074,127 @@ describe('vouchers', () => {
   });
 });
 
+describe('shop settings', () => {
+  const settings = () => ({
+    lowStockThreshold: 12,
+    promoTitle: 'Mango season',
+    promoBody: 'New flavors this week.',
+    promoActive: true,
+    contactPhone: '0917 000 0000',
+  });
+
+  test('a signed-in customer may read the settings document', async () => {
+    // The storefront renders the promo banner and the low-stock pill reads the
+    // threshold, so customer-side read is required, not a leak.
+    await seed('shopSettings/app', settings());
+    const snap = await getDoc(doc(asUser(CUSTOMER), 'shopSettings/app'));
+    assert.equal(snap.exists(), true);
+  });
+
+  test('a signed-OUT visitor may NOT read the settings document', async () => {
+    await seed('shopSettings/app', settings());
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'shopSettings/app')));
+  });
+
+  test('an admin may NOT write the settings document (owner-only now)', async () => {
+    // shopSettings/app changes are one of the owner-role capabilities, NOT admin:
+    // the capability guard on the client blocks the page, and the deploy must now
+    // honor that rather than granting admin a write the model denies.
+    const docRef = doc(asAdmin(), 'shopSettings/app');
+    await assertFails(setDoc(docRef, settings()));
+  });
+
+  test('an owner MAY write the settings document', async () => {
+    const docRef = doc(asOwner(), 'shopSettings/app');
+    await assertSucceeds(setDoc(docRef, settings()));
+  });
+
+  test('settings delete is refused for everyone', async () => {
+    await seed('shopSettings/app', settings());
+    const asAny = asOwner();
+    await assertFails(deleteDoc(doc(asAny, 'shopSettings/app')));
+  });
+
+  test('a customer may NOT write the settings document', async () => {
+    // Otherwise any customer could raise the low-stock threshold out of the way
+    // and hide their own overselling from the dashboard.
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'shopSettings/app'), { ...settings(), lowStockThreshold: 999 })
+    );
+  });
+});
+
+describe('stock movements (the ledger)', () => {
+  const movement = () => ({
+    productId: '1_rocky_road',
+    variantName: 'Rocky Road',
+    size: 'cup',
+    delta: -2,
+    balanceAfter: 8,
+    reason: 'sale',
+    orderId: 'order-1',
+    createdAt: new Date(),
+  });
+
+  test('an admin may append a movement', async () => {
+    await assertSucceeds(addDoc(collection(asAdmin(), 'stockMovements'), movement()));
+  });
+
+  test('an admin may read the ledger', async () => {
+    await seed('stockMovements/m1', movement());
+    const snap = await getDocs(collection(asAdmin(), 'stockMovements'));
+    assert.equal(snap.size, 1);
+  });
+
+  test('a customer may NOT read the ledger', async () => {
+    // Rows carry order ids and who moved the stock. A customer reading the audit
+    // trail would learn other people's order ids.
+    await seed('stockMovements/m1', movement());
+    await assertFails(getDocs(collection(asUser(CUSTOMER), 'stockMovements')));
+  });
+
+  test('a customer may NOT append a movement', async () => {
+    // The whole value of the ledger is that a row means "this changed through the
+    // app". If a customer could write one, they could fabricate the history that
+    // reconciles their own unlogged stock writes.
+    await assertFails(addDoc(collection(asUser(CUSTOMER), 'stockMovements'), movement()));
+  });
+
+  test('a movement may NOT be edited or deleted, not even by an admin', async () => {
+    // An append-only log. An editable ledger is not evidence of anything.
+    await seed('stockMovements/m1', movement());
+    await assertFails(updateDoc(doc(asAdmin(), 'stockMovements/m1'), { delta: 0 }));
+    await assertFails(deleteDoc(doc(asAdmin(), 'stockMovements/m1')));
+  });
+});
+
+describe('unlisted collections are denied by design', () => {
+  test('the catch-all denies a collection with no match block', async () => {
+    // Firestore denies unmatched paths implicitly, so this asserts the behaviour
+    // rather than the mechanism — but the explicit `match /{document=**}` means it
+    // is now a stated rule instead of an omission nobody wrote down.
+    await seed('secretThing/x', { hello: 'world' });
+    await assertFails(
+      getDocs(collection(asAdmin(), 'secretThing'))
+    );
+    await assertFails(
+      setDoc(doc(asAdmin(), 'secretThing/x'), { hello: 'world' })
+    );
+  });
+});
+
 describe('orders: cached geocode', () => {
   // The tracking map caches a geocoded destination on the order as
   // `geo: { lat, lng }` so an address is resolved once rather than on every page
   // open. The order create rule validates eleven specific fields and contains no
   // hasOnly/keys() check, so unknown fields are permitted — this pins that, since
   // the map feature depends on it.
-  test('a customer may create an order carrying a geo field', async () => {
-    await assertSucceeds(
+  test('a customer may NOT create an order carrying a geo field', async () => {
+    // The order create rule now has a keys() allow-list (the laundering defense),
+    // so unknown fields are rejected at create. The map feature caches `geo` via a
+    // later STAFF update (see `an admin may write a geo field onto an order`), so
+    // no customer create needs to carry it.
+    await assertFails(
       addDoc(collection(asUser(CUSTOMER), 'orders'), {
         ...orderFor(CUSTOMER, 'pending'),
         geo: { lat: 14.6188159, lng: 121.1029457, label: 'Cainta, Rizal' },

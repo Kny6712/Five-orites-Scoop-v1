@@ -6,7 +6,7 @@
 
 .product-card {
   border-radius: 16px;
-  box-shadow: 0 2px 12px rgba(107, 63, 160, 0.1);
+  box-shadow: var(--shadow-card);
   margin: 0;
   overflow: hidden;
   cursor: pointer;
@@ -14,7 +14,7 @@
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(107, 63, 160, 0.18);
+    box-shadow: var(--shadow-raised);
   }
 }
 
@@ -53,7 +53,9 @@
   top: 10px;
   left: 10px;
   background: var(--color-brand-primary);
-  color: #ffffff;
+  /* Plum on the powder fill: 7.20:1, where white was 1.79:1. This badge sits on
+     top of a photograph, so it also has a subtle shadow for separation. */
+  color: var(--color-ink);
   font-size: 11px;
   font-weight: 600;
   padding: 3px 10px;
@@ -147,9 +149,11 @@
 }
 
 // ── Add to Cart ────────────────────────────────────────
+/* Plum, not white: white on the sunny accent measures 1.58:1. This button is on
+   every product card, so it is the most-repeated contrast decision in the app. */
 .add-to-cart-btn {
   --background: var(--color-brand-accent);
-  --color: #ffffff;
+  --color: var(--color-ink);
   --border-radius: 10px;
   --padding-top: 10px;
   --padding-bottom: 10px;

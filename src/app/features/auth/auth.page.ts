@@ -9,6 +9,7 @@ import {
   IonContent, IonInput, IonButton, IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { AuthService } from '../../core/services/auth.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -22,8 +23,8 @@ type AuthMode = 'login' | 'register';
   imports: [
     CommonModule, FormsModule,
     IonContent, IonInput, IonButton,
-    IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
-    AppIconComponent, AlertBannerComponent],
+    IonText, IonSpinner, IonLabel,
+    AppIconComponent, AlertBannerComponent, AppFooterComponent],
   templateUrl: './auth.page.html',
   styleUrls: ['./auth.page.scss'],
 })

@@ -2,16 +2,23 @@
 
 :host { display: block; }
 
-.orders-list { padding: 8px 0; }
+/* The ion-list only exists to give each row ion-item's tap handling and ripple.
+   A plain container is enough now, since the pager — not the list — controls
+   what is on screen. */
+.orders-body {
+  padding: 8px 0 4px;
+  display: flex;
+  flex-direction: column;
+}
 
 .order-item {
   --padding-start: 16px;
   --padding-end: 16px;
   --min-height: 72px;
-  --border-radius: 14px;
+  --border-radius: var(--radius-md);
   margin: 6px 12px;
-  border-radius: 14px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
 }
 
 .order-skeleton-item {
@@ -34,15 +41,15 @@
 }
 
 .order-id {
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: 13px;
   font-weight: 700;
-  color: var(--ion-color-dark);
-  font-family: monospace;
+  color: var(--color-ink);
 }
 
 .order-meta {
   font-size: 13px;
-  color: var(--ion-color-medium);
+  color: var(--color-ink-soft);
   margin: 0 0 2px;
 }
 
@@ -52,16 +59,16 @@
   margin: 0;
 }
 
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 80px 24px;
-  text-align: center;
-  gap: 8px;
+/* Sized to its own label rather than filling the row. It is a destructive action
+   available on exactly one status, and a full-width outline button under every
+   cancellable order made it look like the main thing to do with the row — which
+   competes with tapping the row to track it. */
+.cancel-order-btn {
+  --border-radius: var(--radius-pill);
+  margin-top: var(--space-2);
+  font-size: 12px;
+  font-weight: 700;
 }
 
-.empty-icon { --icon-size: 64px; color: var(--ion-color-light-shade); }
-.empty-title { font-size: 20px; font-weight: 700; color: var(--ion-color-dark); margin: 0; }
-.empty-sub { font-size: 14px; color: var(--ion-color-medium); margin: 0; }
+/* The empty and error states are <app-empty-state> components; the .empty-state
+   block that used to sit here styled nothing and has been removed. */

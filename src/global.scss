@@ -18,6 +18,91 @@
   --border-radius: 18px;
 }
 
+/* ── Layout utilities ────────────────────────────────────────────────────
+   Before these, every page hand-rolled its own wrapper. The audit found
+   `.profile-wrap` capping at 640px while `.about-body` had no max-width at all,
+   so the same content went full-bleed edge-to-edge on a tablet on one page and
+   stayed readable on the next. These are the shared answer.
+
+   `.container` is the standard centred column; `.page-shell` is the same thing
+   with the page's vertical padding already applied, which is what most page
+   bodies actually want. */
+.container,
+.page-shell {
+  width: 100%;
+  max-width: var(--container-max);
+  margin-inline: auto;
+  padding-inline: var(--space-4);
+}
+
+.page-shell {
+  padding-block: var(--space-4) var(--space-6);
+}
+
+/* A narrower measure for long-form prose. `.story-text` on About had this inline
+   as 68ch; it is a token now because it is a typographic decision, not a layout
+   one. */
+.measure { max-width: var(--measure-max); }
+
+/* ── Breakpoint helpers ─────────────────────────────────────────────────
+   CSS custom properties cannot be used in a media query condition, so these
+   are literal values. They exist so a page can respond to a width without
+   inventing its own threshold, and they mirror --bp-* in variables.scss.
+   `.stack-md` is the workhorse: it stacks on a phone and becomes a row from
+   tablet up, which is the layout the tracking page and the admin split views
+   both need. */
+@media (min-width: 480px) {
+  .bp-sm-up { display: revert; }
+}
+
+@media (min-width: 768px) {
+  .bp-md-up { display: revert; }
+  .stack-md { flex-direction: row; }
+  .stack-md > * { flex: 1 1 0; min-width: 0; }
+}
+
+@media (min-width: 1024px) {
+  .bp-lg-up { display: revert; }
+  .stack-lg { flex-direction: row; }
+  .stack-lg > * { flex: 1 1 0; min-width: 0; }
+}
+
+/* Hidden by default, revealed from a breakpoint up. */
+.bp-only { display: none; }
+@media (min-width: 768px) { .bp-md-only { display: revert; } }
+
+/* ── Toggle switches ─────────────────────────────────────────────────────
+   All six ion-toggles in this app previously rendered with stock Ionic
+   theming and zero overrides, so they were whatever --ion-color-primary
+   happened to be — including a pill track with a plum handle. One place to
+   restyle them, so every switch matches.
+
+   The track is a muted surface and the handle is white, which is the modern
+   convention: the ON state is indicated by the track filling with the brand
+   colour, not by the handle changing. That also means the handle is identical
+   in both states, so nothing shifts when the switch moves. */
+ion-toggle {
+  --track-background: var(--ion-color-light-shade);
+  --track-background-checked: var(--color-brand-primary);
+  --handle-background: var(--color-white);
+  --handle-background-checked: var(--color-white);
+  --handle-width: 22px;
+  --handle-height: 22px;
+  --handle-spacing: 3px;
+  --handle-box-shadow: 0 2px 5px rgba(61, 43, 69, 0.28);
+  --border-radius: 999px;
+}
+
+/* The track's ON fill is a pastel, so it needs an edge to read as "on" — the
+   same reasoning as the selected-state borders elsewhere. */
+ion-toggle::part(native)::after {
+  border-radius: 999px;
+}
+
+ion-toggle.toggle-checked::part(native) {
+  border: 1px solid var(--color-primary-ink);
+}
+
 /* ── Map pins ─────────────────────────────────────────────────────────────
    These MUST live here, not in a component stylesheet.
 

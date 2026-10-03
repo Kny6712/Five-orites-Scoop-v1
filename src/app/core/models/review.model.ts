@@ -17,4 +17,15 @@ export interface Review {
   rating: number; // 1-5
   comment: string;
   createdAt: Timestamp;
+  /**
+   * A public staff reply, written from the admin moderation queue.
+   *
+   * Optional because every review that predates the queue lacks it, and because
+   * `clearReply()` removes it with `deleteField()` rather than blanking it — an
+   * empty string and "never answered" are different states and only the second
+   * one should read as unanswered.
+   */
+  adminResponse?: string;
+  adminRespondedAt?: Timestamp;
+  adminResponderName?: string;
 }

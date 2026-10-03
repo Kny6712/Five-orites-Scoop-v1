@@ -4,7 +4,7 @@
 
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
-import { adminGuard } from './core/guards/admin.guard';
+import { adminGuard, capabilityGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -76,11 +76,18 @@ export const routes: Routes = [
       import('./features/auth/auth.page').then((m) => m.AuthPage),
   },
   {
+    path: 'settings',
+    loadComponent: () =>
+      import('./features/settings/settings.page').then((m) => m.SettingsPage),
+    canActivate: [authGuard],
+  },
+  {
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     children: [
       {
         path: 'inventory',
+        canActivate: [capabilityGuard('manage_inventory')],
         loadComponent: () =>
           import('./admin/inventory/inventory.page').then(
             (m) => m.InventoryPage
@@ -88,13 +95,31 @@ export const routes: Routes = [
       },
       {
         path: 'orders',
+        canActivate: [capabilityGuard('manage_orders')],
         loadComponent: () =>
           import('./admin/orders/admin-orders.page').then(
             (m) => m.AdminOrdersPage
           ),
       },
       {
+        path: 'reviews',
+        canActivate: [capabilityGuard('moderate_reviews')],
+        loadComponent: () =>
+          import('./admin/reviews/admin-reviews.page').then(
+            (m) => m.AdminReviewsPage
+          ),
+      },
+      {
+        path: 'settings',
+        canActivate: [capabilityGuard('manage_settings')],
+        loadComponent: () =>
+          import('./admin/settings/admin-settings.page').then(
+            (m) => m.AdminSettingsPage
+          ),
+      },
+      {
         path: 'analytics',
+        canActivate: [capabilityGuard('view_analytics')],
         loadComponent: () =>
           import('./admin/analytics/analytics.page').then(
             (m) => m.AnalyticsPage
@@ -102,6 +127,7 @@ export const routes: Routes = [
       },
       {
         path: 'vouchers',
+        canActivate: [capabilityGuard('manage_vouchers')],
         loadComponent: () =>
           import('./admin/vouchers/admin-vouchers.page').then(
             (m) => m.AdminVouchersPage
@@ -109,6 +135,7 @@ export const routes: Routes = [
       },
       {
         path: 'users',
+        canActivate: [capabilityGuard('manage_users')],
         loadComponent: () =>
           import('./admin/users/admin-users.page').then(
             (m) => m.AdminUsersPage
@@ -116,6 +143,7 @@ export const routes: Routes = [
       },
       {
         path: 'tracking',
+        canActivate: [capabilityGuard('manage_orders')],
         loadComponent: () =>
           import('./admin/tracking/admin-tracking.page').then(
             (m) => m.AdminTrackingPage

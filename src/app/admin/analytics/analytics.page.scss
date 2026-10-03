@@ -13,14 +13,20 @@
   flex-direction: column;
   gap: 4px;
 }
-.kpi-revenue { background: linear-gradient(135deg, #2E7D32, #43a047); }
-.kpi-orders { background: linear-gradient(135deg, var(--color-brand-primary), #9b6ed4); }
-.kpi-delivered { background: linear-gradient(135deg, #00838f, #00acc1); }
-.kpi-avg { background: linear-gradient(135deg, #E65100, #fb8c00); }
+/* Pastel tile + dark ink, per the "soft pastel accents only" rule. These were
+   three saturated Material gradients (deep green, teal, orange) on white text.
+   Each pair below is a `--tone-*` / `--tile-*` triple already carrying a
+   contrast-verified ink: 6.35:1, 8.61:1, 5.17:1 and 5.32:1 respectively, so the
+   figure is still comfortably readable at 22px/800. The ink is set per tile
+   rather than once on `.kpi-tile`, because each pastel has its own dark ink. */
+.kpi-revenue { background: var(--tone-success-bg); --kpi-ink: var(--tone-success-ink); }
+.kpi-orders { background: var(--tone-info-bg); --kpi-ink: var(--tone-info-ink); }
+.kpi-delivered { background: var(--tile-mint); --kpi-ink: var(--color-mint-ink); }
+.kpi-avg { background: var(--tile-lemon); --kpi-ink: var(--color-sunny-ink); }
 
-.kpi-icon { --icon-size: 22px; color: rgba(255,255,255,0.7); }
-.kpi-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.8); margin: 0; }
-.kpi-val { font-size: 22px; font-weight: 800; color: #fff; margin: 0; }
+.kpi-icon { --icon-size: 22px; color: var(--kpi-ink); opacity: 0.75; }
+.kpi-label { font-size: 11px; font-weight: 600; color: var(--kpi-ink); opacity: 0.8; margin: 0; }
+.kpi-val { font-size: 22px; font-weight: 800; color: var(--kpi-ink); margin: 0; }
 
 .section-title { font-size: 18px; font-weight: 700; margin: 4px 0 8px; color: var(--ion-color-dark); }
 
@@ -29,6 +35,38 @@
 // single column of bars.
 .chart-card {
   margin: var(--space-3) 0;
+}
+
+/* ── Trend measure toggle ────────────────────────────────── */
+/* Three real buttons with aria-pressed, not a segmented control: these change
+   WHICH measure is drawn rather than filtering a list, so "selected" would be
+   the wrong announcement. */
+.trend-toggles {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0 14px;
+}
+
+.trend-toggle {
+  appearance: none;
+  border: 1px solid var(--ion-color-light-shade);
+  background: var(--color-white);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  min-height: 36px;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.trend-toggle:hover { background: var(--tile-powder); }
+.trend-toggle.is-on {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+  color: var(--color-ink);
 }
 
 .chart-sub {
@@ -46,27 +84,132 @@
   padding: 9px 12px;
   border-radius: 10px;
   background: var(--ion-color-light);
-  border-left: 3px solid var(--color-brand-primary);
+  border-left: 3px solid var(--color-primary-ink);
   font-size: 12px;
   line-height: 1.45;
   color: var(--ion-color-dark);
 }
 
-.flavor-row {
+// ── Toolbar row (Export) ────────────────────────────────
+// Export sits on its own row rather than spanning the page. It was
+// `expand="block"`, which made a secondary action the largest control on the
+// screen and pushed every figure below the fold.
+.toolbar-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: var(--space-2);
+}
+
+.export-btn {
+  --border-radius: var(--radius-pill);
+  --border-color: var(--color-primary-ink);
+  --color: var(--color-primary-ink);
+  font-size: 13px;
+  font-weight: 700;
+  --padding-start: 12px;
+  --padding-end: 12px;
+}
+
+.export-btn app-icon { --icon-size: 15px; }
+
+// ── Chart pair ──────────────────────────────────────────
+// Two charts side by side from tablet up. A donut is square and a bar chart is
+// not; stacking them full-width made the donut taller than the data beneath it
+// warranted, and pushed the size breakdown — the number an owner usually wants —
+// to the bottom of the scroll.
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+@media (min-width: 720px) {
+  .chart-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
+  .chart-row .chart-card { margin: var(--space-3) 0; }
+}
+
+/* The donut is capped so it cannot grow to fill a wide column. The SVG sizes
+   itself from its container, so without a max-width a 700px-wide card renders
+   a 700px-wide donut and the numbers inside it become unreadable. */
+.chart-card--donut app-donut-chart {
+  display: block;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.chart-callout {
+  margin: 0 0 var(--space-3);
+  padding: 8px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--tile-powder);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+.chart-callout strong { font-weight: 800; color: var(--color-primary-ink); }
+
+// ── Ranked flavors table ────────────────────────────────
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 calc(var(--space-4) * -1);
+  padding: 0 var(--space-4);
+}
+
+.flavor-table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.flavor-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-white);
+  padding: 7px 8px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
   border-bottom: 1px solid var(--ion-color-light-shade);
 }
 
-.flavor-rank { font-size: 14px; font-weight: 800; color: var(--ion-color-medium); min-width: 28px; }
-.flavor-info { flex: 1; min-width: 0; }
-.flavor-name { font-size: 14px; font-weight: 600; color: var(--ion-color-dark); display: block; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flavor-table tbody td {
+  padding: 8px;
+  border-bottom: 1px solid var(--ion-color-light);
+  color: var(--color-ink);
+}
 
-.flavor-bar-wrap { height: 6px; background: var(--ion-color-light-shade); border-radius: 3px; overflow: hidden; }
-.flavor-bar { height: 100%; background: linear-gradient(90deg, var(--color-brand-primary), var(--color-brand-accent)); border-radius: 3px; transition: width 0.3s ease; }
+.flavor-table tbody tr:last-child td { border-bottom: none; }
 
-.flavor-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-.flavor-units { font-size: 12px; color: var(--ion-color-medium); }
-.flavor-revenue { font-size: 13px; font-weight: 700; color: var(--color-brand-primary); }
+/* The top three get a tinted row: on a list this long, "which are my best
+   sellers" is answered by position, and position is hard to see in 40 identical
+   rows. */
+.flavor-table tbody tr:nth-child(-n+3) { background: var(--tile-powder); }
+
+.num { text-align: right; width: 1%; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.rank { color: var(--ion-color-medium); font-weight: 700; }
+
+.flavor-name { font-weight: 700; }
+.flavor-set { color: var(--ion-color-medium); font-size: 12px; }
+.revenue { font-weight: 700; color: var(--color-primary-ink); }
+
+// Available to assistive tech, invisible on screen.
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

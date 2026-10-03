@@ -1,7 +1,7 @@
 // src/app/app.config.ts
 // Five-orites Scoop — Angular Application Configuration
 
-import { ApplicationConfig, inject } from '@angular/core';
+import { ApplicationConfig, inject, Injectable } from '@angular/core';
 import {
   provideRouter,
   withPreloading,
@@ -17,6 +17,7 @@ import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { routes } from './app.routes';
 import { AuthService } from './core/services/auth.service';
+import { isStaffRole } from './core/models/user.model';
 import { environment } from '../environments/environment';
 
 /**
@@ -61,6 +62,7 @@ function collectAdminLoaders(config: Route[], into: Set<unknown>, underAdmin = f
  * the preloader re-runs on every navigation, an admin who signs in mid-session
  * still gets the admin chunks preloaded on their next navigation.
  */
+@Injectable({ providedIn: 'root' })
 class AdminAwarePreloadingStrategy implements PreloadingStrategy {
   private authService = inject(AuthService);
   private adminLoaders = new Set<unknown>();
@@ -77,7 +79,7 @@ class AdminAwarePreloadingStrategy implements PreloadingStrategy {
   /** Unresolved user counts as "not an admin" — see the class comment. */
   private isAdminUser(): boolean {
     try {
-      return this.authService.currentUserSnapshot?.role === 'admin';
+      return isStaffRole(this.authService.currentUserSnapshot?.role);
     } catch {
       // AuthService not resolvable from this injector, or Firebase config
       // missing. Skip the preload rather than guess.

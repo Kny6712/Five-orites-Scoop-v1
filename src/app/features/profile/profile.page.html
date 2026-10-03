@@ -17,193 +17,223 @@
       />
     }
 
-    <!-- ── Avatar ──────────────────────────────────────────────────────── -->
-    <section class="avatar-section">
-      <div class="avatar-frame">
-        @if (user()?.photoURL) {
-          <img
-            [src]="user()!.photoURL | cloudinary: 256"
-            alt="Your profile photo"
-            class="avatar-img"
-          />
-        } @else {
-          <div class="avatar-initials" aria-hidden="true">{{ initials() }}</div>
-        }
-        @if (isUploadingPhoto()) {
-          <div class="avatar-busy" aria-live="polite">
-            <ion-spinner name="crescent"></ion-spinner>
-          </div>
-        }
-      </div>
+    <!--
+      ONE container.
 
-      <div class="avatar-actions">
-        <!--
-          A styled label wrapping a real <input type="file">, not a div with a
-          click handler: that keeps it keyboard-reachable and screen-reader
-          announceable, and gives us the native file picker for free.
-        -->
-        <label class="file-label" [class.disabled]="isUploadingPhoto()">
-          <app-icon name="camera" />
-          {{ isUploadingPhoto() ? 'Uploading…' : 'Change photo' }}
-          <input
-            type="file"
-            accept="image/*"
-            class="file-input"
-            (change)="onPhotoSelected($event)"
-            [disabled]="isUploadingPhoto()"
-          />
-        </label>
+      This was four stacked sections — an avatar block with no surface at all, then
+      three separate white cards each with 24px of padding, a 16px bottom margin
+      and its own drop shadow. On a phone that is roughly 100px of card padding
+      and 48px of margin between the cards, holding about 40px of actual content:
+      the page was mostly the space between the boxes.
 
-        @if (user()?.photoURL) {
-          <button type="button" class="link-btn" (click)="removePhoto()">
-            Remove
-          </button>
-        }
-      </div>
-    </section>
+      Now there is one surface. The three groups are still visually separate — the
+      avatar, then your details, then email, then notifications — but they are
+      separated by hairline rules inside a single panel, which is the same
+      information architecture at roughly a third of the height. The page also
+      gets wider (720px rather than 640px), so the email and password fields stop
+      being the narrowest thing on a desktop screen.
 
-    <!-- ── Details ─────────────────────────────────────────────────────── -->
-    <section class="panel">
-      <h2 class="panel-title">Your details</h2>
+      The grouping is not decorative. Each section is a separate set of fields
+      with its own save button and its own failure modes, and the dividers make
+      it clear which button belongs to which group.
+    -->
+    <section class="profile-card">
 
-      <label class="field">
-        <span class="field-label">Display name</span>
-        <ion-input
-          [(ngModel)]="displayName"
-          name="displayName"
-          type="text"
-          placeholder="Your name"
-          maxlength="60"
-          autocomplete="name"
-        ></ion-input>
-      </label>
-
-      <label class="field">
-        <span class="field-label">Phone number</span>
-        <ion-input
-          [(ngModel)]="phone"
-          name="phone"
-          type="tel"
-          placeholder="0917 123 4567"
-          inputmode="tel"
-          autocomplete="tel"
-        ></ion-input>
-        <span class="field-hint">Used for delivery updates only.</span>
-      </label>
-
-      <ion-button
-        expand="block"
-        class="save-btn"
-        [disabled]="!isDirty() || saveState() === 'saving'"
-        (click)="saveProfile()"
-      >
-        @if (saveState() === 'saving') {
-          <ion-spinner name="crescent" slot="start"></ion-spinner>
-        }
-        Save changes
-      </ion-button>
-    </section>
-
-    <!-- ── Email ───────────────────────────────────────────────────────── -->
-    <section class="panel">
-      <h2 class="panel-title">Email address</h2>
-
-      @if (emailLocked()) {
-        <!--
-          A Google account's address belongs to Google. Changing it here would
-          change the login identity and lock the user out, so it is shown, not
-          hidden — hiding it looks like a missing feature.
-        -->
-        <div class="locked-note">
-          <app-icon name="lock" />
-          <div>
-            <p class="locked-title">Managed by your Google account</p>
-            <p class="locked-text">{{ user()?.email }}</p>
-          </div>
+      <!-- ── Avatar ────────────────────────────────────────────────────── -->
+      <header class="avatar-section">
+        <div class="avatar-frame">
+          @if (user()?.photoURL) {
+            <img
+              [src]="user()!.photoURL | cloudinary: 256"
+              alt="Your profile photo"
+              class="avatar-img"
+            />
+          } @else {
+            <div class="avatar-initials" aria-hidden="true">{{ initials() }}</div>
+          }
+          @if (isUploadingPhoto()) {
+            <div class="avatar-busy" aria-live="polite">
+              <ion-spinner name="crescent"></ion-spinner>
+            </div>
+          }
         </div>
-      } @else {
+
+        <div class="avatar-copy">
+          <span class="avatar-name">{{ user()?.displayName || 'Your profile' }}</span>
+          <span class="avatar-email">{{ user()?.email }}</span>
+        </div>
+
+        <div class="avatar-actions">
+          <!--
+            A styled label wrapping a real <input type="file">, not a div with a
+            click handler: that keeps it keyboard-reachable and screen-reader
+            announceable, and gives us the native file picker for free.
+          -->
+          <label class="file-label" [class.disabled]="isUploadingPhoto()">
+            <app-icon name="camera" />
+            {{ isUploadingPhoto() ? 'Uploading…' : 'Change' }}
+            <input
+              type="file"
+              accept="image/*"
+              class="file-input"
+              (change)="onPhotoSelected($event)"
+              [disabled]="isUploadingPhoto()"
+            />
+          </label>
+
+          @if (user()?.photoURL) {
+            <button type="button" class="link-btn" (click)="removePhoto()">
+              Remove
+            </button>
+          }
+        </div>
+      </header>
+
+      <!-- ── Details ───────────────────────────────────────────────────── -->
+      <div class="group">
+        <h2 class="panel-title">Your details</h2>
+
         <label class="field">
-          <span class="field-label">Email address</span>
+          <span class="field-label">Display name</span>
           <ion-input
-            [(ngModel)]="newEmail"
-            name="newEmail"
-            type="email"
-            inputmode="email"
-            autocomplete="email"
+            [(ngModel)]="displayName"
+            name="displayName"
+            type="text"
+            placeholder="Your name"
+            maxlength="60"
+            autocomplete="name"
           ></ion-input>
         </label>
 
         <label class="field">
-          <span class="field-label">Current password</span>
+          <span class="field-label">Phone number</span>
           <ion-input
-            [(ngModel)]="emailPassword"
-            name="emailPassword"
-            type="password"
-            autocomplete="current-password"
+            [(ngModel)]="phone"
+            name="phone"
+            type="tel"
+            placeholder="0917 123 4567"
+            inputmode="tel"
+            autocomplete="tel"
           ></ion-input>
-          <!--
-            Stated up front rather than discovered on submit: Firebase rejects an
-            email change without a recent sign-in, and the resulting
-            auth/requires-recent-login error names none of that.
-          -->
-          <span class="field-hint">Needed to confirm the change.</span>
+          <span class="field-hint">Used for delivery updates only.</span>
         </label>
 
         <ion-button
           expand="block"
-          fill="outline"
-          [disabled]="isChangingEmail"
-          (click)="changeEmail()"
+          class="save-btn"
+          [disabled]="!isDirty() || saveState() === 'saving'"
+          (click)="saveProfile()"
         >
-          @if (isChangingEmail) {
+          @if (saveState() === 'saving') {
             <ion-spinner name="crescent" slot="start"></ion-spinner>
           }
-          Change email
+          Save changes
         </ion-button>
-        <p class="field-hint standalone-hint">
-          We'll email a confirmation link to the new address before anything changes.
-        </p>
-      }
-    </section>
-
-    <!-- ── Notifications ───────────────────────────────────────────────── -->
-    <section class="panel">
-      <h2 class="panel-title">Order notifications</h2>
-
-      <div class="toggle-row">
-        <div class="toggle-text">
-          <p class="toggle-title">Order updates</p>
-          <p class="toggle-sub">Get a notification when your order's status changes.</p>
-        </div>
-        <ion-toggle
-          [checked]="notificationState() !== 'off'"
-          (ionChange)="onNotificationsToggle($event)"
-          [attr.aria-label]="'Order update notifications'"
-        ></ion-toggle>
       </div>
 
-      @if (notificationState() === 'blocked') {
-        <!--
-          A denied browser permission cannot be re-requested from a page; the
-          user has to change it in site settings. Saying that is the difference
-          between a setting and a switch that looks broken.
-        -->
-        <div class="blocked-note">
-          <app-icon name="wifi-off" />
-          <div>
-            <p class="locked-title">Notifications are blocked</p>
-            <p class="locked-text">
-              Your browser is blocking notifications for this site. Allow them in
-              your browser's site settings, then switch this back on.
-            </p>
+      <!-- ── Email ─────────────────────────────────────────────────────── -->
+      <div class="group">
+        <h2 class="panel-title">Email address</h2>
+
+        @if (emailLocked()) {
+          <!--
+            A Google account's address belongs to Google. Changing it here would
+            change the login identity and lock the user out, so it is shown, not
+            hidden — hiding it looks like a missing feature.
+          -->
+          <div class="locked-note">
+            <app-icon name="lock" />
+            <div>
+              <p class="locked-title">Managed by your Google account</p>
+              <p class="locked-text">{{ user()?.email }}</p>
+            </div>
           </div>
+        } @else {
+          <label class="field">
+            <span class="field-label">Email address</span>
+            <ion-input
+              [(ngModel)]="newEmail"
+              name="newEmail"
+              type="email"
+              inputmode="email"
+              autocomplete="email"
+            ></ion-input>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Current password</span>
+            <ion-input
+              [(ngModel)]="emailPassword"
+              name="emailPassword"
+              type="password"
+              autocomplete="current-password"
+            ></ion-input>
+            <!--
+              Stated up front rather than discovered on submit: Firebase rejects an
+              email change without a recent sign-in, and the resulting
+              auth/requires-recent-login error names none of that.
+            -->
+            <span class="field-hint">Needed to confirm the change.</span>
+          </label>
+
+          <ion-button
+            fill="outline"
+            class="change-email-btn"
+            [disabled]="isChangingEmail"
+            (click)="changeEmail()"
+          >
+            @if (isChangingEmail) {
+              <ion-spinner name="crescent" slot="start"></ion-spinner>
+            }
+            Change email
+          </ion-button>
+          <p class="field-hint standalone-hint">
+            We'll email a confirmation link to the new address before anything changes.
+          </p>
+        }
+      </div>
+
+      <!-- ── Notifications ─────────────────────────────────────────────── -->
+      <div class="group">
+        <h2 class="panel-title">Order notifications</h2>
+
+        <div class="toggle-row">
+          <div class="toggle-text">
+            <p class="toggle-title">Order updates</p>
+            <p class="toggle-sub">Get a notification when your order's status changes.</p>
+          </div>
+          <ion-toggle
+            [checked]="notificationState() !== 'off'"
+            (ionChange)="onNotificationsToggle($event)"
+            aria-label="Order update notifications"
+          ></ion-toggle>
         </div>
+
+        @if (notificationState() === 'blocked') {
+          <!--
+            A denied browser permission cannot be re-requested from a page; the
+            user has to change it in site settings. Saying that is the difference
+            between a setting and a switch that looks broken.
+          -->
+          <div class="blocked-note">
+            <app-icon name="wifi-off" />
+            <div>
+              <p class="locked-title">Notifications are blocked</p>
+              <p class="locked-text">
+                Your browser is blocking notifications for this site. Allow them in
+                your browser's site settings, then switch this back on.
+              </p>
+            </div>
+          </div>
+        }
+      </div>
+
+      @if (saveState() === 'saved') {
+        <p class="saved-note" role="status">Your profile has been updated.</p>
       }
     </section>
-
-    @if (saveState() === 'saved') {
-      <p class="saved-note" role="status">Your profile has been updated.</p>
-    }
 
   </div>
 </ion-content>
+
+<app-footer></app-footer>

@@ -5,49 +5,232 @@
 .filter-scroll { padding: 8px 12px 0; overflow-x: auto; }
 .status-segment { --background: var(--ion-color-light); border-radius: 12px; }
 
-.orders-list { padding: 8px 12px 32px; display: flex; flex-direction: column; gap: 8px; }
+.order-search { padding: 4px 4px 0; }
 
-// Shown when the queue read hit its cap. An order the staff cannot see is an
-// order they never prepare, so this is an operational warning, not a footnote.
-.queue-warning {
+/* ── Bulk actions ───────────────────────────────────────── */
+/* Only present when something is selected, so the common case stays uncluttered. */
+.bulk-bar {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 8px 12px 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: var(--ion-color-warning-tint, #fff4e0);
-  color: var(--ion-color-warning-shade, #7a4b00);
-  font-size: 13px;
-  line-height: 1.4;
-}
-.queue-warning p { margin: 0; }
-.queue-warning app-icon { flex: 0 0 auto; font-size: 18px; margin-top: 1px; }
-
-.order-card { border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); margin: 0; overflow: hidden; }
-
-.order-card-header {
-  display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 14px;
-  gap: 10px;
-  cursor: pointer;
-  transition: background 0.1s;
-  &:hover { background: var(--ion-color-light); }
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 12px 0;
+  padding: 8px 10px 8px 14px;
+  background: var(--tile-powder);
+  border: 1px solid var(--tone-info-border);
+  border-radius: var(--radius-sm);
 }
 
-.order-card-left { display: flex; flex-direction: column; gap: 2px; flex: 1; }
-.order-id-label { font-size: 14px; font-weight: 800; font-family: monospace; color: var(--ion-color-dark); }
-.order-email { font-size: 12px; color: var(--ion-color-medium); }
-.order-date { font-size: 12px; color: var(--ion-color-medium); }
+.bulk-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  font-variant-numeric: tabular-nums;
+}
 
-.order-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
-.order-total { font-size: 16px; font-weight: 800; color: var(--color-brand-primary); }
+.bulk-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+
+/* ── Row selection ──────────────────────────────────────── */
+/* The pick column is 1% wide: it must not compete for space with the columns an
+   admin actually reads. Same trick as `.col-actions` on the users table. */
+.col-pick { width: 1%; }
+
+.pick-btn {
+  appearance: none;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pick-btn:hover { border-color: var(--color-primary-ink); }
+.pick-btn.is-on {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+  color: var(--color-ink);
+}
+.pick-icon { --icon-size: 17px; }
+
+.pick-all {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.order-row.is-selected { background: var(--tile-powder); }
+
+/* The free-form status picker. Compact and quiet: the primary "next step"
+   button stays the thing the eye lands on. */
+.row-status-pick {
+  --padding-start: 4px;
+  --padding-end: 4px;
+  min-height: 32px;
+  max-width: 120px;
+  font-size: 12px;
+  color: var(--color-ink-soft);
+}
+.row-status-pick::part(placeholder) { color: var(--ion-color-medium); }
+
+// ── Table ───────────────────────────────────────────────
+// A real <table>, not a grid of divs. It is a queue of comparable records and
+// the browser's own table semantics — column headers, row/cell relationships,
+// and the ability to select a whole column — are worth having for free.
+.table-wrap {
+  padding: 8px 12px 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  /* Collapses at a real width rather than squashing: at ~520px the six columns
+     stop being comparable and the cells start wrapping mid-word. */
+  min-width: 520px;
+}
+
+.orders-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ion-color-light);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+
+.orders-table tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--ion-color-light);
+  vertical-align: middle;
+}
+
+.orders-table tbody tr:last-child td { border-bottom: none; }
+
+.order-row:hover { background: var(--tile-powder); }
+.order-row.is-expanded { background: var(--tile-powder); }
+
+/* Column widths. Items, Total and Status are the three things being compared
+   down the page, so they get fixed widths and the flexible space goes to
+   Customer, which is the only one that genuinely varies in length. */
+.col-order { width: 1%; white-space: nowrap; }
+.col-items { width: 1%; text-align: center; }
+.col-total { width: 1%; text-align: right; white-space: nowrap; }
+.col-status { width: 1%; }
+.col-action { width: 1%; text-align: right; white-space: nowrap; }
+
+/* ── Disclosure ──────────────────────────────────────────
+   An explicit button, not a click handler on the <tr>. Nesting a clickable
+   region inside a clickable row is what made the old card header ambiguous:
+   a tap on the row's whitespace and a tap on its text did the same thing, and
+   the row also contained the action buttons. Here the button is the only
+   target and the row itself does nothing. */
+.order-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+  margin: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  color: var(--color-ink);
+}
+
+.order-chevron {
+  --icon-size: 14px;
+  color: var(--ion-color-medium);
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.order-chevron.is-open { transform: rotate(90deg); }
+
+.order-id-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.order-date {
+  display: block;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.order-email {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  /* Long addresses are the normal case, not the exception. */
+  display: block;
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-item-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-total {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The common case gets a quiet button: most rows in a busy queue are simply
+   "move this along", and a filled primary button on every row made the page a
+   wall of primary colour and buried the rows that needed a decision. */
+.row-advance {
+  --border-radius: var(--radius-pill);
+  --background: var(--color-brand-primary);
+  --color: var(--color-ink);
+  --padding-start: 12px;
+  --padding-end: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  min-height: 34px;
+}
+
+// ── Detail row ──────────────────────────────────────────
+.detail-row > td { padding: 0 !important; background: var(--tile-powder); }
 
 .order-detail-panel {
-  padding: 0 14px 14px;
-  border-top: 1px solid var(--ion-color-light-shade);
+  padding: 4px 14px 16px;
+  border-left: 3px solid var(--color-primary-ink);
 }
 
 .detail-section-label {
@@ -55,28 +238,76 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-brand-primary);
+  color: var(--color-primary-ink);
   margin: 12px 0 6px;
 }
 
-.detail-item-row { display: flex; gap: 8px; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--ion-color-light); align-items: center; }
-.detail-item-name { flex: 1; color: var(--ion-color-dark); }
+.detail-item-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-white);
+  align-items: center;
+}
+.detail-item-name { flex: 1; color: var(--color-ink); }
 .detail-item-qty { color: var(--ion-color-medium); }
-.detail-item-price { font-weight: 700; color: var(--color-brand-primary); }
+.detail-item-price { font-weight: 700; color: var(--color-primary-ink); font-variant-numeric: tabular-nums; }
 
 .detail-address { margin-top: 4px; }
-.detail-address-value { font-size: 14px; color: var(--ion-color-dark); margin: 0; }
+.detail-address-value { font-size: 14px; color: var(--color-ink); margin: 0; }
 .detail-notes { font-size: 13px; color: var(--ion-color-medium); margin: 4px 0 0; font-style: italic; }
 
-.detail-totals { margin-top: 8px; background: var(--ion-color-light); border-radius: 10px; padding: 10px 12px; }
-.detail-total-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--ion-color-dark); padding: 3px 0; }
-.grand { font-size: 15px; font-weight: 800; color: var(--color-brand-primary); border-top: 1px solid var(--ion-color-light-shade); padding-top: 6px; margin-top: 4px; }
+.detail-totals {
+  margin-top: 8px;
+  background: var(--color-white);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.detail-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-ink);
+  padding: 3px 0;
+}
+.grand {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+  border-top: 1px solid var(--ion-color-light-shade);
+  padding-top: 6px;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
 
 .detail-actions { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
-.advance-btn { --background: var(--color-brand-primary); --border-radius: 10px; font-weight: 700; }
+.advance-btn { --background: var(--color-brand-primary); --color: var(--color-ink); --border-radius: 10px; font-weight: 700; }
 .cancel-btn { --border-radius: 10px; }
 
-.empty-state { display: flex; flex-direction: column; align-items: center; padding: 80px 24px; gap: 8px; text-align: center; }
-.empty-icon { --icon-size: 60px; color: var(--ion-color-light-shade); }
-.empty-title { font-size: 20px; font-weight: 700; margin: 0; }
-.empty-sub { font-size: 14px; color: var(--ion-color-medium); margin: 0; }
+// ── Skeleton ─────────────────────────────────────────────
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 34% 1fr 10% 12% 16%;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 12px;
+  background: var(--color-white);
+  border-bottom: 1px solid var(--ion-color-light);
+}
+.skeleton-row:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.skeleton-row:last-child { border-bottom: none; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+
+// Available to assistive tech, invisible on screen. Used for the table caption
+// and the empty header cells.
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

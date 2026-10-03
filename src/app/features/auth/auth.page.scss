@@ -5,7 +5,7 @@
 }
 
 .auth-content {
-  --background: linear-gradient(145deg, var(--color-brand-primary) 0%, #9b6ed4 60%, #f9a8d4 100%);
+  --background: var(--gradient-brand);
 }
 
 .auth-container {
@@ -21,7 +21,11 @@
 // ── Hero ────────────────────────────────────────────────
 .auth-hero {
   text-align: center;
-  color: #fff;
+  // Plum, not white. The hero sits on a light-to-light pastel gradient where
+  // white measures 1.79:1. This was white-on-purple before the palette change,
+  // which is the kind of contrast that silently disappears when the backdrop
+  // changes colour rather than when anyone looks at it.
+  color: var(--color-ink);
 }
 
 .auth-logo-wrap {
@@ -63,7 +67,7 @@
   background: #ffffff;
   border-radius: 24px;
   padding: 28px 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-float);
 }
 
 .auth-title {
@@ -107,7 +111,7 @@
   transition: border-color 0.15s ease;
 
   &:focus-within {
-    border-color: var(--color-brand-primary);
+    border-color: var(--color-primary-ink);
   }
 }
 
@@ -136,9 +140,11 @@
   font-size: 18px;
 }
 
+/* Plum, not white: this is the app's main sign-in action and white on the
+   powder primary measured 1.79:1. */
 .submit-btn {
   --background: var(--color-brand-primary);
-  --color: #ffffff;
+  --color: var(--color-ink);
   --border-radius: 12px;
   --padding-top: 14px;
   --padding-bottom: 14px;
@@ -227,38 +233,9 @@
 
   &.active {
     background: #ffffff;
-    color: var(--color-brand-primary);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    color: var(--color-primary-ink);
+    box-shadow: var(--shadow-card);
   }
-
-  &.mode-tab-admin.active {
-    background: #fff7e6;
-    color: #E65100;
-  }
-}
-
-// ── Admin Notice ─────────────────────────────────────────────
-.admin-notice {
-  background: #fff7e6;
-  border: 1.5px solid #F4A435;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 13px;
-  color: #E65100;
-  margin-bottom: 14px;
-  line-height: 1.5;
-}
-
-// ── Admin Code Input ─────────────────────────────────────────
-.admin-code-group {
-  border-color: #F4A435 !important;
-  &:focus-within { border-color: #E65100 !important; }
-}
-.admin-icon { color: #E65100 !important; }
-
-// ── Admin Submit Button ───────────────────────────────────────
-.submit-btn-admin {
-  --background: #E65100 !important;
 }
 
 // Forgot-password link. A real <button>, so keyboard and screen-reader support

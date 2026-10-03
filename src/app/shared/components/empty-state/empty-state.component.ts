@@ -22,7 +22,9 @@ import type { AppIcon } from '../../../core/icons/app-icons';
   imports: [AppIconComponent, IonButton],
   template: `
     <div class="empty" [class.compact]="compact()">
-      <app-icon [name]="icon()" class="empty-icon" />
+      <span class="empty-glyph">
+        <app-icon [name]="icon()" class="empty-icon" />
+      </span>
       <h2 class="empty-title">{{ title() }}</h2>
       @if (message()) {
         <p class="empty-text">{{ message() }}</p>
@@ -50,9 +52,24 @@ import type { AppIcon } from '../../../core/icons/app-icons';
        so a compact mode exists rather than the size being guessed per page. */
     .empty.compact { padding: var(--space-6) var(--space-4); }
 
+    .empty-glyph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 92px;
+      height: 92px;
+      border-radius: var(--radius-lg);
+      background: var(--tile-powder);
+      margin-bottom: var(--space-2);
+    }
+    .empty.compact .empty-glyph { width: 68px; height: 68px; }
+
+    /* The icon sits in a pastel tile rather than being tinted directly: a pastel
+       glyph on a cream page measures 1.71:1, which is decoration pretending to be
+       an affordance. The tile gives it an edge, and the ink inside is legible. */
     .empty-icon {
       --icon-size: 56px;
-      color: var(--color-brand-primary);
+      color: var(--color-primary-ink);
     }
 
     .compact .empty-icon { --icon-size: 40px; }

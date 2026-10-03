@@ -9,10 +9,29 @@
 
 <ion-content fullscreen>
   @if (errorMessage()) {
-    <app-alert-banner tone="danger" [message]="errorMessage()" />
+    <app-alert-banner
+      tone="danger"
+      [message]="errorMessage()"
+      [actionLabel]="loadFailed() ? 'Try again' : null"
+      (action)="load()"
+    />
   }
 
-  @if (truncated()) {
+  <!--
+        The spend join reads a capped slice of orders, so the Spent column is a
+        lower bound past that cap. Saying nothing and letting an admin conclude
+        a regular customer's spend is zero would be the one outcome worse than
+        showing a partial figure.
+      -->
+      @if (statsTruncated()) {
+        <app-alert-banner
+          tone="warning"
+          title="Spend column is a lower bound"
+          message="'Based on the ' + ORDERS_FOR_STATS_MAX_LABEL + ' most recent orders. Older orders were not included, so a customer's lifetime spend may be higher than shown.'"
+        />
+      }
+
+      @if (truncated()) {
     <!-- Said out loud rather than quietly trimmed: a directory that silently
          stops at 300 rows looks complete when it is not. -->
     <app-alert-banner
@@ -25,10 +44,12 @@
   <!-- ── Filters ──────────────────────────────────────────────────────── -->
   <div class="filters">
     <div class="search-wrap">
-      <app-icon name="filter" class="search-icon" />
+      <!-- A magnifier, not a funnel: this is a text field, and a funnel icon
+           beside it invites the reader to expect a filter panel. -->
+      <app-icon name="search" class="search-icon" />
       <ion-input
         [ngModel]="search()"
-        (ngModelChange)="search.set($event)"
+        (ngModelChange)="onSearch($event)"
         placeholder="Search name, email or phone"
         type="search"
         aria-label="Search users"
@@ -40,27 +61,74 @@
         type="button"
         class="role-chip"
         [class.active]="roleFilter() === 'all'"
-        (click)="roleFilter.set('all')"
+        (click)="onRoleFilter('all')"
       >
         All ({{ users().length }})
       </button>
       <button
         type="button"
         class="role-chip"
-        [class.active]="roleFilter() === 'admin'"
-        (click)="roleFilter.set('admin')"
+        [class.active]="roleFilter() === 'manager'"
+        (click)="onRoleFilter('manager')"
       >
-        Admins ({{ adminCount() }})
+        Managers ({{ managerCount() }})
+      </button>
+      <button
+        type="button"
+        class="role-chip"
+        [class.active]="roleFilter() === 'staff'"
+        (click)="onRoleFilter('staff')"
+      >
+        Staff ({{ staffCount() }})
       </button>
       <button
         type="button"
         class="role-chip"
         [class.active]="roleFilter() === 'customer'"
-        (click)="roleFilter.set('customer')"
+        (click)="onRoleFilter('customer')"
       >
-        Customers
+        Customers ({{ customerCount() }})
       </button>
     </div>
+
+    <!--
+      Every tier, with live counts. One "Admins (3)" chip stopped meaning
+      anything once there were four roles, and the question behind it — "who can
+      do what I cannot?" — is asked per tier.
+    -->
+    <div class="role-chips" role="group" aria-label="Filter by staff tier">
+      @for (tier of staffTiers(); track tier.role) {
+        <button
+          type="button"
+          class="role-chip role-chip--tier"
+          [class.active]="roleFilter() === tier.role"
+          [attr.aria-pressed]="roleFilter() === tier.role"
+          (click)="onRoleFilter(tier.role)"
+        >
+          {{ tier.label }} ({{ tier.count }})
+        </button>
+      }
+    </div>
+
+    <!--
+      Suspended accounts get their own chip rather than a column, because they
+      are rare and the question "who have I blocked?" is asked occasionally —
+      not on every pass down the list.
+    -->
+    @if (suspendedCount() > 0) {
+      <div class="role-chips" role="group" aria-label="Filter by account status">
+        <button
+          type="button"
+          class="role-chip role-chip--danger"
+          [class.active]="statusFilter() === 'suspended'"
+          [attr.aria-pressed]="statusFilter() === 'suspended'"
+          (click)="onStatusFilter('suspended')"
+        >
+          <app-icon name="lock" class="chip-icon" />
+          Suspended ({{ suspendedCount() }})
+        </button>
+      </div>
+    }
   </div>
 
   <!-- ── Editor ────────────────────────────────────────────────────────── -->
@@ -78,22 +146,84 @@
         <ion-input [(ngModel)]="editPhone" type="tel" inputmode="tel" placeholder="0917 123 4567"></ion-input>
       </label>
 
+      <!--
+        Staff note. Written only by an admin: the rules whitelist on the owner's
+        branch means a customer cannot write this field, so it cannot be forged
+        or erased from the client.
+      -->
+      <label class="field">
+        <span class="field-label">Staff note</span>
+        <ion-textarea
+          [(ngModel)]="editNote"
+          rows="2"
+          maxlength="300"
+          placeholder="Anything worth remembering about this customer…"
+        ></ion-textarea>
+      </label>
+
+      <!--
+        Suspension. A FLAG, not a delete — `allow delete: if false` means the
+        account's order history has to survive being blocked.
+      -->
+      <div class="field">
+        <div class="suspend-toggle">
+          <div class="suspend-text">
+            <span class="field-label">Account suspended</span>
+            <span class="field-hint">
+              Blocks sign-in. Their orders are kept.
+            </span>
+          </div>
+          <ion-toggle
+            [(ngModel)]="isSuspended"
+            aria-label="Suspend this account"
+          ></ion-toggle>
+        </div>
+      </div>
+
+      @if (isSuspended) {
+        <label class="field">
+          <span class="field-label">Reason</span>
+          <ion-input
+            [(ngModel)]="suspendReason"
+            maxlength="200"
+            placeholder="Shown to the customer at sign-in"
+          ></ion-input>
+          <span class="field-hint">
+            Left empty, the customer is told to contact the shop instead.
+          </span>
+        </label>
+      }
+
       <div class="field">
         <span class="field-label">Role</span>
-        <ion-select [(ngModel)]="editRole" interface="popover">
-          <ion-select-option value="customer">Customer</ion-select-option>
-          <ion-select-option value="admin">Admin</ion-select-option>
-        </ion-select>
-        @if (isSelf()(editUid()!)) {
+        @if (canChangeEditRole()) {
+          <ion-select [(ngModel)]="editRole" interface="popover" aria-label="Role">
+            @for (opt of roleOptions; track opt.value) {
+              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+            }
+          </ion-select>
+        } @else {
           <!--
-            Not merely disabled: the reason is shown. A silently inert control
-            reads as a bug, and the reason (self-lockout) is not obvious.
+            Shown, not offered. An `admin` CAN edit this profile but cannot change
+            the role — the rules exclude `role` from `isAdminUserEdit`. A control
+            that looks enabled and is rejected on save is worse than one that says
+            plainly why it is off.
           -->
-          <p class="field-hint warn">
-            This is your own account — you cannot remove your own admin access.
+          <p class="field-hint">
+            {{ editRole | titlecase }} — only an Owner can change a role.
           </p>
         }
       </div>
+
+      @if (isSelf()(editUid()!)) {
+        <!--
+          Not merely disabled: the reason is shown. A silently inert control
+          reads as a bug, and the reason (self-lockout) is not obvious.
+        -->
+        <p class="field-hint warn">
+          This is your own account — you cannot change your own role.
+        </p>
+      }
 
       <p class="field-hint">
         Email is not editable here. It is the address the person signs in with.
@@ -115,80 +245,180 @@
 
   <!-- ── List ─────────────────────────────────────────────────────────── -->
   @if (isLoading()) {
-    <div class="list">
-      @for (s of [1, 2, 3, 4]; track s) {
-        <div class="user-row">
-          <ion-skeleton-text animated style="height: 44px; width: 44px; border-radius: 50%;"></ion-skeleton-text>
-          <div class="user-info">
-            <ion-skeleton-text animated style="height: 15px; width: 50%;"></ion-skeleton-text>
-            <ion-skeleton-text animated style="height: 12px; width: 70%; margin-top: 6px;"></ion-skeleton-text>
-          </div>
+    <div class="table-wrap">
+      @for (s of [1, 2, 3, 4, 5]; track s) {
+        <div class="skeleton-row">
+          <ion-skeleton-text animated style="width:24%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:28%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:14%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:12%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:14%; height:14px"></ion-skeleton-text>
         </div>
       }
     </div>
   } @else if (filteredUsers().length === 0) {
-    <div class="empty">
-      <app-icon name="users" />
-      <h2>{{ users().length === 0 ? 'No users yet' : 'No matches' }}</h2>
-      <p>
-        {{ users().length === 0
-          ? 'Accounts appear here as soon as they sign up.'
-          : 'Try a different name, email or role filter.' }}
-      </p>
-    </div>
+    <app-empty-state
+      icon="users"
+      [title]="users().length === 0 ? 'No users yet' : 'No matching users'"
+      [message]="users().length === 0
+        ? 'Accounts appear here as soon as they sign up.'
+        : 'Try a different name, email or role filter.'"
+      [compact]="true"
+    />
   } @else {
-    <div class="list">
-      @for (user of filteredUsers(); track user.uid) {
-        <article class="user-row">
-          <ion-avatar class="user-avatar">
-            @if (user.photoURL) {
-              <img [src]="user.photoURL | cloudinary: 96" [alt]="'Photo of ' + (user.displayName || user.email)" />
-            } @else {
-              <div class="avatar-initials" aria-hidden="true">{{ initials(user) }}</div>
-            }
-          </ion-avatar>
+    <!--
+      A real table.
 
-          <div class="user-info">
-            <div class="user-top">
-              <span class="user-name">{{ user.displayName || 'Unnamed' }}</span>
-              @if (user.role === 'admin') {
-                <span class="role-badge">Admin</span>
-              }
-              @if (isSelf()(user.uid)) {
-                <span class="self-badge">You</span>
-              }
-            </div>
-            <span class="user-email">{{ user.email }}</span>
-            <span class="user-meta">
-              @if (user.phone) {
-                {{ user.phone }} ·
-              }
-              Joined {{ formatDate(user.createdAt) }}
-            </span>
-          </div>
+      This was a card per user, and each card carried five separate fields
+      stacked in three columns: avatar, name, two badges, email, a
+      phone-and-date line, and two icon buttons. With 40 users that is 40 large
+      cards where the actual data occupies maybe a third of the height.
 
-          <div class="user-actions">
-            <ion-button
-              fill="clear"
-              size="small"
-              (click)="startEdit(user)"
-              [attr.aria-label]="'Edit ' + (user.displayName || user.email)"
-            >
-              <app-icon name="pencil" />
-            </ion-button>
-            <ion-button
-              fill="clear"
-              size="small"
-              [color]="user.role === 'admin' ? 'warning' : 'primary'"
-              [disabled]="busyUid() === user.uid"
-              (click)="changeRole(user, user.role === 'admin' ? 'customer' : 'admin')"
-              [attr.aria-label]="(user.role === 'admin' ? 'Remove admin access from ' : 'Make admin: ') + (user.displayName || user.email)"
-            >
-              <app-icon [name]="user.role === 'admin' ? 'shield-check' : 'sparkles'" />
-            </ion-button>
-          </div>
-        </article>
-      }
+      A table puts the comparable fields — name, role, phone, joined — on one
+      line each, which makes the role question ("who has admin access?") a
+      scannable column instead of a hunt for orange badges. The avatar stays
+      because recognising a face is faster than reading a name, but at 32px
+      rather than 46px, and the action icons drop to 16px.
+    -->
+    <div class="table-wrap">
+      <table class="users-table">
+        <caption class="visually-hidden">
+          Registered users, {{ filteredUsers().length }} shown
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">User</th>
+            <th scope="col">Email</th>
+            <th scope="col">Phone</th>
+            <th scope="col">Joined</th>
+            <th scope="col" class="num">
+              <button
+                type="button"
+                class="sort-btn"
+                (click)="sortBySpend(spendSort() === -1)"
+                [attr.aria-label]="'Sort by lifetime spend, currently ' + (spendSort() === -1 ? 'highest first' : 'lowest first')"
+              >
+                Spent
+                <app-icon
+                  [name]="spendSort() === -1 ? 'chevron-down' : 'chevron-right'"
+                  class="sort-icon"
+                />
+              </button>
+            </th>
+            <th scope="col">Role</th>
+            <th scope="col"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (user of pagedUsers(); track user.uid) {
+            <tr class="user-row">
+              <td class="col-user">
+                <div class="user-cell">
+                  <ion-avatar class="user-avatar">
+                    @if (user.photoURL) {
+                      <img [src]="user.photoURL | cloudinary: 64" [alt]="'Photo of ' + (user.displayName || user.email)" />
+                    } @else {
+                      <div class="avatar-initials" aria-hidden="true">{{ initials(user) }}</div>
+                    }
+                  </ion-avatar>
+                  <span class="user-name">{{ user.displayName || 'Unnamed' }}</span>
+                  @if (isSelf()(user.uid)) {
+                    <span class="self-badge">You</span>
+                  }
+                </div>
+              </td>
+
+              <td class="col-email">
+                <span class="user-email">{{ user.email }}</span>
+              </td>
+
+              <td class="col-phone" data-label="Phone">
+                @if (user.phone) {
+                  <span class="user-phone">{{ user.phone }}</span>
+                } @else {
+                  <span class="is-empty">&mdash;</span>
+                }
+              </td>
+
+              <td class="col-joined" data-label="Joined">
+                <span class="user-joined">{{ formatDate(user.createdAt) }}</span>
+              </td>
+
+              <!--
+                Lifetime spend from DELIVERED orders, with the total order count
+                beside it. The two answer different questions, so they are not
+                collapsed into one number: "₱2,400 across 9 orders" tells an admin
+                both what this customer is worth and how often they buy, and a
+                single figure would lose whichever one it did not carry.
+              -->
+              <td class="num col-spent" data-label="Spent">
+                @if (statsFor(user.uid).delivered > 0) {
+                  <span class="spent-amount">₱{{ statsFor(user.uid).spent | number:'1.0-0' }}</span>
+                  <span class="spent-orders">
+                    {{ statsFor(user.uid).delivered }} delivered
+                  </span>
+                } @else if (statsFor(user.uid).orders > 0) {
+                  <span class="spent-none">
+                    {{ statsFor(user.uid).orders }} order{{ statsFor(user.uid).orders === 1 ? '' : 's' }},
+                    none delivered
+                  </span>
+                } @else {
+                  <span class="is-empty">&mdash;</span>
+                }
+              </td>
+
+              <td class="col-role" data-label="Role">
+                <span class="role-badge"
+                  [class.role-badge--staff]="user.role === 'staff'"
+                  [class.role-badge--manager]="user.role === 'manager'"
+                  [class.role-badge--admin]="user.role === 'admin'"
+                  [class.role-badge--owner]="user.role === 'owner'"
+                >
+                  {{ roleLabel(user) }}
+                </span>
+                @if (user.isSuspended === true) {
+                  <span class="role-badge role-badge--suspended">Suspended</span>
+                }
+              </td>
+
+              <td class="col-actions">
+                <div class="user-actions">
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="startEdit(user)"
+                    [attr.aria-label]="'Edit ' + (user.displayName || user.email)"
+                  >
+                    <app-icon name="pencil" />
+                  </button>
+                  @if (user.role === 'admin' || user.role === 'customer') {
+                    <button
+                      type="button"
+                      class="icon-btn"
+                      [class.icon-btn--danger]="user.role === 'admin'"
+                      [disabled]="busyUid() === user.uid"
+                      (click)="changeRole(user, user.role === 'admin' ? 'customer' : 'admin')"
+                      [attr.aria-label]="(user.role === 'admin' ? 'Remove admin access from ' : 'Make admin: ') + (user.displayName || user.email)"
+                    >
+                      <app-icon [name]="user.role === 'admin' ? 'shield-check' : 'sparkles'" />
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
     </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="filteredUsers().length"
+      [pageSize]="PAGE_SIZE"
+      itemLabel="users"
+      (pageChange)="onPageChange($event)"
+    />
   }
 </ion-content>
+
+<app-footer></app-footer>

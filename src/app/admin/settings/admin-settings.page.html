@@ -1,0 +1,291 @@
+<!-- src/app/admin/settings/admin-settings.page.html -->
+<!-- Five-orites Scoop — Admin shop settings, stock ledger and reconciliation -->
+
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Shop Settings</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="settings-body">
+
+    <!-- ═══ Low stock ══════════════════════════════════════════════ -->
+    <section class="panel">
+      <h2 class="panel-title">
+        <app-icon name="package" class="panel-icon" />
+        Low stock
+      </h2>
+      <p class="panel-note">
+        A flavor is flagged as low when any size drops to this number or below.
+        It drives the low-stock panel on the dashboard and the "Low stock" pill
+        on every product card.
+      </p>
+      <ion-input
+        label="Threshold (units)"
+        labelPlacement="stacked"
+        type="number"
+        inputmode="numeric"
+        min="1"
+        [ngModel]="threshold()"
+        (ngModelChange)="threshold.set($event)"
+      ></ion-input>
+    </section>
+
+    <!-- ═══ Promo banner ═══════════════════════════════════════════ -->
+    <section class="panel">
+      <h2 class="panel-title">
+        <app-icon name="zap" class="panel-icon" />
+        Announcement banner
+      </h2>
+      <p class="panel-note">
+        Shows on the customer dashboard. Leave the title empty to show nothing.
+      </p>
+      <div class="row">
+        <div class="row-text">
+          <span class="row-title">Banner visible</span>
+          <span class="row-sub">Turning it on with a title saves it as on.</span>
+        </div>
+        <ion-toggle
+          [checked]="promoActive()"
+          (ionChange)="promoActive.set($event.detail.checked)"
+          aria-label="Show the announcement banner"
+        ></ion-toggle>
+      </div>
+      <ion-input
+        label="Headline"
+        labelPlacement="stacked"
+        placeholder="e.g. Mango season is here!"
+        maxlength="80"
+        [ngModel]="promoTitle()"
+        (ngModelChange)="promoTitle.set($event)"
+      ></ion-input>
+      <ion-textarea
+        label="Message"
+        labelPlacement="stacked"
+        rows="3"
+        maxlength="240"
+        placeholder="Optional detail line."
+        [ngModel]="promoBody()"
+        (ngModelChange)="promoBody.set($event)"
+      ></ion-textarea>
+    </section>
+
+    <!-- ═══ Contact ═════════════════════════════════════════════════ -->
+    <section class="panel">
+      <h2 class="panel-title">
+        <app-icon name="phone" class="panel-icon" />
+        Contact
+      </h2>
+      <p class="panel-note">Shown on the About page. Empty falls back to the built-in number.</p>
+      <ion-input
+        label="Shop phone"
+        labelPlacement="stacked"
+        type="tel"
+        inputmode="tel"
+        placeholder="e.g. 0917 000 0000"
+        [ngModel]="contactPhone()"
+        (ngModelChange)="contactPhone.set($event)"
+      ></ion-input>
+    </section>
+
+    <ion-button expand="block" (click)="save()" [disabled]="isSaving() || !loaded()">
+      {{ isSaving() ? 'Saving…' : 'Save settings' }}
+    </ion-button>
+
+    <!-- ═══ Stock reconciliation ═══════════════════════════════════ -->
+    <!--
+      The panel that makes the stock rules limitation visible.
+
+      A signed-in customer can write any stock level (the products update rule's
+      customer branch), and
+      that write leaves no ledger row. Anything reported here was changed by
+      something that did not go through the inventory UI.
+    -->
+    <section class="panel">
+      <h2 class="panel-title">
+        <app-icon name="shield-check" class="panel-icon" />
+        Stock integrity
+      </h2>
+      <p class="panel-note">
+        Compares every flavor's stored stock against the sum of its logged
+        movements. A mismatch means the number was changed outside the inventory
+        screen — most often by a signed-in customer using the raw SDK, which the
+        security rules cannot prevent.
+      </p>
+      <ion-button
+        expand="block"
+        fill="outline"
+        (click)="reconcile()"
+        [disabled]="checking()"
+      >
+        {{ checking() ? 'Checking…' : 'Run reconciliation check' }}
+      </ion-button>
+
+      @if (checked() && drift().length === 0) {
+        <app-alert-banner
+          tone="success"
+          title="Everything reconciles"
+          message="Every flavor's stock matches its logged movements."
+        />
+      }
+
+      @if (drift().length > 0) {
+        <app-alert-banner
+          tone="danger"
+          title="Stock does not match the ledger"
+          [message]="drift().length + ' ' + (drift().length === 1 ? 'value differs' : 'values differ') + ' from the recorded movements. Set the correct quantity from the inventory screen; the ledger is the record of what should have happened.'"
+        />
+        <div class="table-wrap">
+          <table class="drift-table">
+            <caption class="visually-hidden">Stock values that disagree with the ledger</caption>
+            <thead>
+              <tr>
+                <th scope="col">Flavor</th>
+                <th scope="col">Size</th>
+                <th scope="col" class="num">Stored</th>
+                <th scope="col" class="num">Ledger</th>
+                <th scope="col" class="num">Drift</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (d of drift(); track d.productId + d.size) {
+                <tr>
+                  <td>{{ d.variantName }}</td>
+                  <td>{{ d.size }}</td>
+                  <td class="num">{{ d.stored }}</td>
+                  <td class="num">{{ d.logged }}</td>
+                  <td class="num drift-num">{{ d.drift > 0 ? '+' : '' }}{{ d.drift }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <ion-button size="small" fill="clear" (click)="exportDrift()">
+          <app-icon name="download" slot="icon-only" />
+          Export as CSV
+        </ion-button>
+      }
+    </section>
+
+    <!-- ═══ Movement history ═══════════════════════════════════════ -->
+    <section class="panel">
+      <h2 class="panel-title">
+        <app-icon name="clock" class="panel-icon" />
+        Recent stock movements
+      </h2>
+      <p class="panel-note">
+        Every change made from the inventory screen, newest first. Sales and
+        cancellation restocks are NOT recorded here — only admin adjustments are.
+      </p>
+
+      @if (movementsLoading()) {
+        @for (i of [1, 2, 3]; track i) {
+          <ion-skeleton-text class="sk-line" [animated]="true"></ion-skeleton-text>
+        }
+      } @else if (!movements().length) {
+        <app-empty-state
+          [compact]="true"
+          icon="clock"
+          title="No movements yet"
+          message="Adjust stock from the inventory screen and each change will be logged here."
+        />
+      } @else {
+        <div class="movement-list">
+          @for (m of filteredMovements(); track m.id) {
+            <div class="movement-row">
+              <span class="movement-delta" [class.is-plus]="m.delta > 0">
+                {{ m.delta > 0 ? '+' : '' }}{{ m.delta }}
+              </span>
+              <div class="movement-text">
+                <span class="movement-flavor">{{ m.variantName }} · {{ m.size }}</span>
+                <span class="movement-when">
+                  {{ reasonLabels[m.reason] }} · {{ formatWhen(m.createdAt) }}
+                </span>
+              </div>
+              <span class="movement-balance">{{ m.balanceAfter }} left</span>
+            </div>
+          }
+        </div>
+        <ion-button size="small" fill="clear" (click)="exportLedger()">
+          <app-icon name="download" slot="icon-only" />
+          Export as CSV
+        </ion-button>
+      }
+    </section>
+
+  <!-- ═══ Cancelled-order restock repair ═════════════════════════ -->
+    <!--
+      `corrected-gap-analysis.md:299` recorded that a restock failure after a
+      cancellation "has no self-healing path. Needs staff repair." This is that
+      repair path: the cancelled orders carrying an explicit `stockRestored:false`
+      marker, with a one-tap fix.
+
+      Orders with NO marker are counted but not offered, because absent means
+      "unknown" — see Order.stockRestored. Treating every pre-existing
+      cancellation as broken would have been both wrong and alarming.
+    -->
+    <section class="panel">
+      <h2 class="panel-title">
+        <app-icon name="refresh" class="panel-icon" />
+        Cancelled-order restock repair
+      </h2>
+      <p class="panel-note">
+        When an order is cancelled, its stock should go back on the shelf. If
+        that write failed the order is marked, and the items are still missing
+        from inventory until they are put back here.
+      </p>
+
+      @if (repairLoading()) {
+        <ion-skeleton-text class="sk-line" [animated]="true"></ion-skeleton-text>
+      } @else {
+        <p class="repair-count">
+          @if (unrestoredOrders().length === 0) {
+            No cancelled orders are missing stock. 🎉
+          } @else {
+            <strong>{{ unrestoredOrders().length }}</strong> order{{ unrestoredOrders().length === 1 ? '' : 's' }}
+            need{{ unrestoredOrders().length === 1 ? 's' : '' }} stock putting back.
+          }
+        </p>
+
+        @if (unknownRestockCount() > 0) {
+          <p class="field-hint">
+            {{ unknownRestockCount() }} older cancelled order{{ unknownRestockCount() === 1 ? '' : 's' }}
+            {{ unknownRestockCount() === 1 ? 'has' : 'have' }} no stock marker at all
+            (they predate this tracking), so nothing is claimed about them.
+          </p>
+        }
+
+        @for (order of unrestoredOrders(); track order.id) {
+          <div class="repair-row">
+            <div class="repair-text">
+              <span class="repair-id">
+                #{{ order.id.slice(-6).toUpperCase() }}
+              </span>
+              <span class="repair-meta">
+                {{ order.items.length }} line{{ order.items.length === 1 ? '' : 's' }} ·
+                {{ order.customerEmail || 'no email' }}
+              </span>
+              @if (order.cancelReason) {
+                <span class="repair-reason">Cancelled: {{ order.cancelReason }}</span>
+              }
+            </div>
+            <ion-button
+              size="small"
+              fill="outline"
+              [disabled]="repairingId() === order.id"
+              (click)="repair(order)"
+            >
+              {{ repairingId() === order.id ? 'Putting back…' : 'Return stock' }}
+            </ion-button>
+          </div>
+        }
+      }
+    </section>
+
+  </div>
+  <app-footer></app-footer>
+</ion-content>

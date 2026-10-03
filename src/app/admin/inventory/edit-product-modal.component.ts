@@ -13,7 +13,8 @@ import {
 } from '@ionic/angular/standalone';
 import { InventoryService } from '../../core/services/inventory.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import { Product, ProductCategory, PRODUCT_CATEGORIES, productCategory } from '../../core/models/product.model';
+import { Product, ProductCategory, SizePricing, SizeVariant, PRODUCT_CATEGORIES, productCategory } from '../../core/models/product.model';
+import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 
 @Component({
@@ -76,6 +77,39 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
                 [(ngModel)]="description"
               ></ion-textarea>
             </ion-item>
+          </ion-list>
+
+          <!--
+            Per-size pricing.
+
+            This is the fix for a documented permanent bug: corrected-gap-analysis.md:308
+            recorded that "admin-created flavor sets above number 8 are permanently
+            mispriced" because getPricingForSet falls back to the Chocolate tier and
+            NOTHING in the app could ever change it — updateProductDetails accepted a
+            pricing patch all along, but no UI exposed one.
+
+            Only sent when a price actually changed, so renaming a flavor cannot
+            silently rewrite its pricing.
+          -->
+          <h3 class="section-title">Pricing per size</h3>
+          <p class="pricing-note">
+            Prices are per variant, not per set — two variants in the same set can
+            charge differently.
+          </p>
+          <ion-list class="card-list price-grid">
+            @for (row of priceFields; track row.key) {
+              <ion-item>
+                <ion-input
+                  [label]="row.label"
+                  labelPlacement="stacked"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  [ngModel]="price[row.key]"
+                  (ngModelChange)="onPriceInput(row.key, $event)"
+                ></ion-input>
+              </ion-item>
+            }
           </ion-list>
 
           <!-- The preview lives outside the card so it can be centred in the
@@ -160,7 +194,22 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
   styles: [`
     .section-title { font-size: 15px; font-weight: 800; color: var(--ion-color-dark); margin: 18px 2px 8px; }
     .section-title:first-of-type { margin-top: 2px; }
-    .card-list { border-radius: 14px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .card-list { border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-card); }
+    .pricing-note {
+      margin: -4px 0 8px;
+      padding: 0 16px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--ion-color-medium);
+    }
+    /* Two columns of price boxes rather than four stacked rows — the four sizes
+       are a set the admin reads ACROSS, not a list they read down. */
+    .price-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 8px;
+    }
+    @media (max-width: 380px) { .price-grid { grid-template-columns: 1fr; } }
     /* Fills ion-content's scroll area so margin-block: auto below has some free
        space to distribute. The 100% resolves because ion-content's .inner-scroll
        is position:absolute with all four offsets set, giving it a definite
@@ -234,7 +283,7 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
        clipped to the same 18px curve as the header instead of poking out square. */
     ion-footer {
       box-shadow: 0 -1px 6px rgba(0,0,0,0.06);
-      border-bottom: 3px solid var(--color-brand-primary);
+      border-bottom: 3px solid var(--color-primary-ink);
     }
     /* variables.scss paints every ion-toolbar brand-violet, which is right for
        the header but wrong here — this bar must read as part of the white
@@ -257,7 +306,7 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
     ion-button.save-btn {
       --background: transparent;
       --color: var(--color-brand-primary);
-      --border-color: var(--color-brand-primary);
+      --border-color: var(--color-primary-ink);
       --border-style: solid;
       --border-width: 1.5px;
       --border-radius: 12px;
@@ -292,6 +341,40 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
   }));
   isSaving = false;
 
+  /**
+   * Live price editing, in pesos.
+   *
+   * Held as a plain object because it is driven by `ngModel` over a dynamic set
+   * of four controls, and the `priceChanged` getter below tracks whether anything
+   * moved so an untouched modal never writes the field.
+   */
+  price: Record<SizeVariant, number> = { cup: 0, pint: 0, halfGallon: 0, gallon: 0 };
+  private storedPrice: SizePricing | null = null;
+
+  readonly priceFields: readonly { key: SizeVariant; label: string }[] = (
+    ['cup', 'pint', 'halfGallon', 'gallon'] as const
+  ).map((k) => ({ key: k, label: SIZE_DISPLAY_LABELS[k] }));
+
+  /**
+   * Coerces whatever `ion-input` hands back into a whole peso count.
+   *
+   * An empty field arrives as `''` and a partially-typed number as a string, so
+   * this cannot assume a number. 0 is the floor: a negative price is not a
+   * discount, it is a bug that would let checkout credit the customer.
+   */
+  onPriceInput(key: SizeVariant, value: unknown): void {
+    const n = Math.round(Number(value));
+    this.price[key] = Number.isFinite(n) && n > 0 ? n : 0;
+  }
+
+  /** True when any price differs from what is stored. */
+  private get priceChanged(): boolean {
+    if (!this.storedPrice) return false;
+    return (['cup', 'pint', 'halfGallon', 'gallon'] as const).some(
+      (k) => this.price[k] !== this.storedPrice![k]
+    );
+  }
+
   /** A photo chosen in this session, uploaded to Cloudinary on save. */
   pendingFile: File | null = null;
   private previewObjectUrl = '';
@@ -307,6 +390,16 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
       // before categories existed opens with the right value selected rather
       // than an empty control that would overwrite it on save.
       this.category = productCategory(this.product);
+      // Seed the price boxes from what is stored, and remember that value so
+      // `priceChanged` can tell a real edit from a form that was merely opened.
+      const p = this.product.pricing;
+      this.price = {
+        cup: p?.cup ?? 0,
+        pint: p?.pint ?? 0,
+        halfGallon: p?.halfGallon ?? 0,
+        gallon: p?.gallon ?? 0,
+      };
+      this.storedPrice = { ...this.price };
     }
   }
 
@@ -398,12 +491,16 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
       }
 
       // Stock is deliberately not touched here — it is edited from the
-      // inventory list (startEdit/saveStock), so this modal only owns the
-      // descriptive fields.
+      // inventory list's steppers, so this modal only owns the descriptive
+      // fields and the price.
       const patch: Parameters<InventoryService['updateProductDetails']>[1] = {
         variantName: name,
         description: this.description.trim(),
       };
+      // Only when a price actually moved. Sending it unconditionally would
+      // rewrite the pricing map on every rename, which is how an unrelated edit
+      // turns into a silent price change.
+      if (this.priceChanged) patch.pricing = { ...this.price };
       // Only send category when it actually differs from what is stored, so
       // renaming a flavor of a category-less product does not backfill the field
       // as a side effect of an unrelated edit.

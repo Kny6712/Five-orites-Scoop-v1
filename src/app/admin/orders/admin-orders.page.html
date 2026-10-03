@@ -8,7 +8,9 @@
     </ion-buttons>
     <ion-title>Order Fulfillment</ion-title>
     <ion-buttons slot="end">
-      <app-cart-button></app-cart-button>
+      <ion-button size="small" (click)="exportCsv()" aria-label="Export orders as CSV">
+        <app-icon name="download" slot="icon-only" />
+      </ion-button>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
@@ -35,13 +37,34 @@
     </ion-segment>
   </div>
 
+  <!--
+    Search, matching the one on Tracking.
+
+    Two admin queues answering "where is order ABC123?" differently depending on
+    which one you opened was the problem; both now search id, customer, address
+    and item name the same way.
+  -->
+  <ion-searchbar
+    class="order-search"
+    placeholder="Search order id, customer, address or flavor"
+    [value]="search()"
+    (ionInput)="onSearch($any($event).detail?.value)"
+    (ionBlur)="query.set(search())"
+    (ionKeyDown.enter)="query.set(search())"
+    aria-label="Search orders"
+  ></ion-searchbar>
+
   <!-- Loading -->
   @if (isLoading()) {
-    <div class="orders-list">
+    <div class="table-wrap">
       @for (s of skeletonItems; track $index) {
-        <ion-card class="order-card">
-          <ion-skeleton-text animated style="height:80px;"></ion-skeleton-text>
-        </ion-card>
+        <div class="skeleton-row">
+          <ion-skeleton-text animated style="width:34%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:22%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:10%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:12%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width:16%; height:14px"></ion-skeleton-text>
+        </div>
       }
     </div>
   }
@@ -71,41 +94,159 @@
 
   <!-- Orders -->
   @if (!isLoading() && filteredOrders().length > 0) {
-    <div class="orders-list">
-      @for (order of filteredOrders(); track trackOrder($index, order)) {
-        <ion-card class="order-card">
-          <!-- Order Header (always visible) -->
-          <!--
-            This header is the ONLY way to reach "Mark as ..." and "Cancel
-            Order". It was a bare <div (click)>, so keyboard and screen-reader
-            users could not expand a card at all and those actions were
-            completely unreachable. role/tabindex/keydown + aria-expanded make
-            the disclosure state announceable.
-          -->
-          <div
-            class="order-card-header"
-            role="button"
-            tabindex="0"
-            [attr.aria-expanded]="expandedId() === order.id"
-            [attr.aria-label]="'Order #' + order.id.slice(-6).toUpperCase() + ', ' + order.status.replace('_', ' ') + '. ' + (expandedId() === order.id ? 'Collapse' : 'Expand') + ' order details'"
-            (click)="toggleExpand(order.id)"
-            (keydown.enter)="toggleExpand(order.id)"
-            (keydown.space)="toggleExpand(order.id); $event.preventDefault()"
-          >
-            <div class="order-card-left">
-              <span class="order-id-label">#{{ order.id.slice(-6).toUpperCase() }}</span>
-              <span class="order-email">{{ order.customerEmail }}</span>
-              <span class="order-date">{{ formatDate(order.createdAt) }}</span>
-            </div>
-            <div class="order-card-right">
-              <span class="order-total">{{ order.grandTotal | peso }}</span>
-              <app-order-status-badge [status]="order.status"></app-order-status-badge>
-            </div>
-          </div>
+    <!--
+      A real table.
 
-          <!-- Expanded Detail Panel -->
-          @if (expandedId() === order.id) {
-            <ion-card-content class="order-detail-panel">
+      The queue was a stack of cards, each one a disclosure that had to be
+      expanded to see anything beyond order id, customer and total. Scanning the
+      queue to answer "what is waiting, in order" meant opening every card in
+      turn, and the answer columns — status, item count, age — were not all
+      present at once even then. A table puts the comparable fields on one line
+      per order, which is the entire job of this screen.
+
+      The detail panel is preserved below the row, because the items, address and
+      totals are still needed to fulfil, and the action buttons live there.
+    -->
+    <!--
+      Bulk bar. Only rendered once something is selected, so the queue stays
+      uncluttered the 95% of the time nobody is multi-selecting.
+    -->
+    @if (selectedCount() > 0) {
+      <div class="bulk-bar" role="group" aria-label="Bulk actions">
+        <span class="bulk-count">{{ selectedCount() }} selected</span>
+        <div class="bulk-actions">
+          <ion-button size="small" fill="outline" (click)="bulkAdvance('confirmed')">
+            Confirm
+          </ion-button>
+          <ion-button size="small" fill="outline" (click)="bulkAdvance('preparing')">
+            Preparing
+          </ion-button>
+          <ion-button size="small" fill="clear" (click)="clearSelection()">Clear</ion-button>
+        </div>
+      </div>
+    }
+
+    <div class="table-wrap">
+      <table class="orders-table">
+        <caption class="visually-hidden">
+          Orders awaiting fulfilment, {{ filteredOrders().length }} total
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col" class="col-pick">
+              <button
+                type="button"
+                class="pick-all"
+                (click)="selectAllOnPage()"
+                aria-label="Select every order on this page"
+              >All</button>
+            </th>
+            <th scope="col" class="col-order">Order</th>
+            <th scope="col" class="col-customer">Customer</th>
+            <th scope="col" class="col-items">Items</th>
+            <th scope="col" class="col-total">Total</th>
+            <th scope="col" class="col-status">Status</th>
+            <th scope="col" class="col-action"><span class="visually-hidden">Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (order of pagedOrders(); track trackOrder($index, order)) {
+            <tr
+              class="order-row"
+              [class.is-expanded]="expandedId() === order.id"
+              [class.is-selected]="isSelected(order.id)"
+            >
+              <td class="col-pick" data-label="Pick">
+                <button
+                  type="button"
+                  class="pick-btn"
+                  [class.is-on]="isSelected(order.id)"
+                  [attr.aria-pressed]="isSelected(order.id)"
+                  [attr.aria-label]="'Select order ' + order.id"
+                  (click)="toggleSelected(order.id)"
+                >
+                  <app-icon name="check" class="pick-icon" />
+                </button>
+              </td>
+              <td class="col-order" data-label="Order">
+                <!--
+                  The row itself is not clickable. It was, before, and that put a
+                  nested interactive region inside another one — which is why the
+                  disclosure is now an explicit button in its own cell rather
+                  than a click handler on the row.
+                -->
+                <button
+                  type="button"
+                  class="order-disclosure"
+                  [attr.aria-expanded]="expandedId() === order.id"
+                  [attr.aria-label]="'Order #' + order.id.slice(-6).toUpperCase() + '. ' + (expandedId() === order.id ? 'Hide' : 'Show') + ' details'"
+                  (click)="toggleExpand(order.id)"
+                >
+                  <app-icon
+                    name="chevron-right"
+                    class="order-chevron"
+                    [class.is-open]="expandedId() === order.id"
+                  />
+                  <span class="order-id-label">#{{ order.id.slice(-6).toUpperCase() }}</span>
+                </button>
+                <span class="order-date">{{ formatDate(order.createdAt) }}</span>
+              </td>
+
+              <td class="col-customer" data-label="Customer">
+                <span class="order-email">{{ order.customerEmail }}</span>
+              </td>
+
+              <td class="col-items" data-label="Items">
+                <span class="order-item-count">{{ itemCount(order) }}</span>
+              </td>
+
+              <td class="col-total" data-label="Total">
+                <span class="order-total">{{ order.grandTotal | peso }}</span>
+              </td>
+
+              <td class="col-status" data-label="Status">
+                <app-order-status-badge [status]="order.status"></app-order-status-badge>
+              </td>
+
+              <td class="col-action">
+                @if (nextStatus[order.status]) {
+                  <ion-button
+                    size="small"
+                    class="row-advance"
+                    (click)="advanceStatus(order)"
+                    [disabled]="updatingId() === order.id"
+                    [attr.aria-label]="'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + getNextStatusLabel(order.status)"
+                  >
+                    {{ updatingId() === order.id ? 'Updating...' : getNextStatusLabel(order.status) }}
+                  </ion-button>
+                }
+                <!--
+                  Any-status picker, beside the normal "next step" button.
+
+                  A phone order handed over in person has no path to Delivered that
+                  does not require four false status changes first.
+                -->
+                <ion-select
+                  class="row-status-pick"
+                  interface="popover"
+                  placeholder="Set status"
+                  [value]="order.status"
+                  [disabled]="updatingId() === order.id"
+                  [attr.aria-label]="'Change status of order ' + order.id.slice(-6).toUpperCase()"
+                  (ionChange)="setStatus(order, $any($event).detail.value)"
+                >
+                  @for (s of statusOptionsFor(order); track s) {
+                    <ion-select-option [value]="s">{{ statusMeta[s].label }}</ion-select-option>
+                  }
+                </ion-select>
+              </td>
+            </tr>
+
+            <!-- Expanded Detail Panel -->
+            @if (expandedId() === order.id) {
+              <tr class="detail-row">
+                <td [attr.colspan]="7">
+                  <div class="order-detail-panel">
 
               <!-- Items -->
               <p class="detail-section-label">Items</p>
@@ -170,11 +311,24 @@
                 }
               </div>
 
-            </ion-card-content>
+                  </div>
+                </td>
+              </tr>
+            }
           }
-        </ion-card>
-      }
+        </tbody>
+      </table>
     </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="filteredOrders().length"
+      [pageSize]="PAGE_SIZE"
+      itemLabel="orders"
+      (pageChange)="onPageChange($event)"
+    />
   }
 
 </ion-content>
+
+<app-footer></app-footer>

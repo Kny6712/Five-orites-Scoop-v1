@@ -22,9 +22,18 @@
 
   <!-- Sticky Filter Bar -->
   <div class="filter-bar">
+    <!--
+      Capped at 300px and left-aligned.
+
+      It was unconstrained, so it spanned the full width of every screen from a
+      360px phone to a 1440px desktop — a 1440px-wide search box for a catalog
+      of 64 items, with the filter controls stacked beneath it. A search field
+      has a comfortable reading measure and no more; past ~300px it is just
+      empty space, and on a wide screen it pushed every filter below the fold.
+    -->
     <ion-searchbar
       #searchbar
-      placeholder="Search flavors..."
+      placeholder="Search flavors"
       debounce="300"
       (ionInput)="onSearch($event)"
       class="product-searchbar"
@@ -53,88 +62,97 @@
       }
     </div>
 
-    <!-- Secondary Filters -->
-    <div class="secondary-filters">
-      <ion-item lines="none" class="stock-filter-item">
-        <ion-label class="filter-label">In Stock Only</ion-label>
-        <ion-toggle
-          slot="end"
-          [checked]="inStockOnly()"
-          (ionChange)="onInStockToggle($event)"
-          aria-label="Show in-stock products only"
-        ></ion-toggle>
-      </ion-item>
-      <ion-item lines="none" class="stock-filter-item">
-        <ion-label class="filter-label">💖 Wishlist Only</ion-label>
-        <ion-toggle
-          slot="end"
-          [checked]="wishlistOnly()"
-          (ionChange)="onWishlistToggle($event)"
-          aria-label="Show wishlisted products only"
-        ></ion-toggle>
-      </ion-item>
-    </div>
-
-    <!-- Size + price.
-         Two selects rather than chips: size and price are a single dependent
-         pair (the price ceiling only means something relative to a size), and
-         a select keeps that relationship legible instead of splitting it
-         across two scrollers. Each control carries both a visible ion-label
-         and an aria-label, so the accessible name is announced either way. -->
-    <div class="price-filters">
-      <ion-item lines="none" class="stock-filter-item">
-        <ion-label class="filter-label" for="size-select">Size</ion-label>
-        <ion-select
-          id="size-select"
-          slot="end"
-          [value]="selectedSize()"
-          (ionChange)="onSizeChange($event)"
-          aria-label="Filter by size"
-        >
-          @for (opt of sizeOptions; track opt.label) {
-            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-          }
-        </ion-select>
-      </ion-item>
-
-      <ion-item lines="none" class="stock-filter-item">
-        <ion-label class="filter-label" for="max-price-select">Max price</ion-label>
-        <ion-select
-          id="max-price-select"
-          slot="end"
-          [value]="maxPrice()"
-          (ionChange)="onMaxPriceChange($event)"
-          aria-label="Maximum price"
-        >
-          @for (opt of maxPriceOptions; track opt.label) {
-            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-          }
-        </ion-select>
-      </ion-item>
-    </div>
-
     <!--
-      Catalog type. A select rather than a chip row: unlike flavor sets, these
-      three are a FIXED set defined in code, not something derived from what is
-      loaded, and a chip row would imply a fourth could appear. The default
-      "All types" leaves the catalog looking exactly as it did before categories
-      existed, so nothing is hidden until the shopper opts in.
+      Filters, in one container.
+
+      This is the consolidation. Previously the bar was seven stacked blocks —
+      a full-width searchbar, a chip scroller, two full-width toggle rows in
+      their own container, Size and Max price in a third, and Type alone in a
+      FOURTH block that existed purely to borrow that third block's padding. On a
+      640px-tall phone that was ~300px of permanently pinned chrome, roughly 40%
+      of the screen, before a single flavor card appeared.
+
+      Now: the two switches sit directly beside their own labels rather than at
+      the far end of a full-width row, and Size / Max price / Type share one
+      compact panel in the space the toggles used to occupy. Selects rather than
+      chips for all three, because each is a fixed set defined in code — a chip
+      row would imply a fourth option could appear. Each control keeps both a
+      visible label and an aria-label, so the accessible name is announced
+      either way.
     -->
-    <div class="price-filters">
-      <ion-item lines="none" class="stock-filter-item">
-        <ion-label class="filter-label" for="category-select">Type</ion-label>
-        <ion-select
-          id="category-select"
-          slot="end"
-          [value]="selectedCategory()"
-          (ionChange)="onCategoryChange($event)"
-          aria-label="Product type"
-        >
-          @for (opt of categoryOptions; track opt.label) {
-            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-          }
-        </ion-select>
-      </ion-item>
+    <div class="filters">
+      <div class="switch-rows">
+        <div class="switch-row">
+          <app-icon name="package" class="switch-icon" />
+          <label class="switch-label" for="instock-toggle">In stock only</label>
+          <ion-toggle
+            id="instock-toggle"
+            class="switch-toggle"
+            [checked]="inStockOnly()"
+            (ionChange)="onInStockToggle($event)"
+            aria-label="Show in-stock products only"
+          ></ion-toggle>
+        </div>
+
+        <div class="switch-row">
+          <app-icon name="heart" class="switch-icon" />
+          <label class="switch-label" for="wishlist-toggle">Wishlist only</label>
+          <ion-toggle
+            id="wishlist-toggle"
+            class="switch-toggle"
+            [checked]="wishlistOnly()"
+            (ionChange)="onWishlistToggle($event)"
+            aria-label="Show wishlisted products only"
+          ></ion-toggle>
+        </div>
+      </div>
+
+      <div class="select-panel">
+        <div class="select-row">
+          <span class="select-label">Size</span>
+          <ion-select
+            id="size-select"
+            class="select-control"
+            [value]="selectedSize()"
+            (ionChange)="onSizeChange($event)"
+            aria-label="Filter by size"
+          >
+            @for (opt of sizeOptions; track opt.label) {
+              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+            }
+          </ion-select>
+        </div>
+
+        <div class="select-row">
+          <span class="select-label">Max price</span>
+          <ion-select
+            id="max-price-select"
+            class="select-control"
+            [value]="maxPrice()"
+            (ionChange)="onMaxPriceChange($event)"
+            aria-label="Maximum price"
+          >
+            @for (opt of maxPriceOptions; track opt.label) {
+              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+            }
+          </ion-select>
+        </div>
+
+        <div class="select-row">
+          <span class="select-label">Type</span>
+          <ion-select
+            id="category-select"
+            class="select-control"
+            [value]="selectedCategory()"
+            (ionChange)="onCategoryChange($event)"
+            aria-label="Product type"
+          >
+            @for (opt of categoryOptions; track opt.label) {
+              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+            }
+          </ion-select>
+        </div>
+      </div>
     </div>
 
     <!-- Sort: a segment, because it is a small fixed set of mutually exclusive
@@ -160,11 +178,12 @@
         <ion-button
           size="small"
           fill="clear"
-          color="medium"
           (click)="clearFilters()"
+          class="clear-btn"
           aria-label="Clear all filters and sorting"
         >
-          Clear filters
+          <app-icon name="x" />
+          Clear all
         </ion-button>
       </div>
     }
@@ -236,3 +255,5 @@
   </ion-infinite-scroll>
 
 </ion-content>
+
+<app-footer></app-footer>

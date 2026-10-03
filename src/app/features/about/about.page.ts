@@ -15,6 +15,9 @@ import {
 } from '@ionic/angular/standalone';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { ScoopMapComponent, type MapMarker } from '../../shared/components/scoop-map/scoop-map.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+import { SHOP_LOCATION, SHOP_HOURS } from '../../core/config/shop.config';
 import {
   HERO, STORY, MISSION, VISION,
   CUSTOMER_FEATURES, TEAM_FEATURES, HOW_IT_WORKS, TECH_STACK,
@@ -27,7 +30,8 @@ import {
     CommonModule, RouterLink,
     IonHeader, IonToolbar, IonTitle, IonContent,
     IonButtons, IonMenuButton,
-    IonButton, IonChip, IonLabel, CartButtonComponent, AppIconComponent,
+    IonButton, IonChip, IonLabel,
+    CartButtonComponent, AppIconComponent, ScoopMapComponent, AppFooterComponent,
   ],
   templateUrl: './about.page.html',
   styleUrls: ['./about.page.scss'],
@@ -41,4 +45,26 @@ export class AboutPage {
   readonly teamFeatures = TEAM_FEATURES;
   readonly howItWorks = HOW_IT_WORKS;
   readonly techStack = TECH_STACK;
+
+  readonly shop = SHOP_LOCATION;
+  readonly hours = SHOP_HOURS;
+
+  /**
+   * One pin, on the same OpenStreetMap the app already uses for delivery.
+   *
+   * Reusing ScoopMapComponent rather than embedding a second map means the tile
+   * layer, the attribution and the pin styling are all shared with the tracking
+   * pages — and the coordinates come from SHOP_LOCATION, so "where the shop is"
+   * is still stated in exactly one place in the codebase.
+   */
+  readonly shopMarkers: MapMarker[] = [
+    {
+      id: 'shop',
+      lat: SHOP_LOCATION.lat,
+      lng: SHOP_LOCATION.lng,
+      label: SHOP_LOCATION.name,
+      detail: SHOP_LOCATION.address,
+      tone: 'primary',
+    },
+  ];
 }
