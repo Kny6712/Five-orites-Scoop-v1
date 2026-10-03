@@ -15,7 +15,7 @@
 // that would have to be told about all six shapes.
 
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
-import { IonButton, IonIcon } from '@ionic/angular/standalone';
+import { IonButton } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../app-icon/app-icon.component';
 
 /** How many numbered buttons to show either side of the current page. */

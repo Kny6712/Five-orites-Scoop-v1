@@ -74,11 +74,11 @@
             <span class="tile-size">{{ opt.label }}</span>
             <span class="tile-price">{{ product()!.pricing[opt.key] | peso }}</span>
             <span class="tile-stock"
-              [class.stock-in-stock]="product()!.stock[opt.key] >= lowStockThreshold"
-              [class.stock-low-stock]="product()!.stock[opt.key] > 0 && product()!.stock[opt.key] < lowStockThreshold"
+              [class.stock-in-stock]="product()!.stock[opt.key] >= lowStockThreshold()"
+              [class.stock-low-stock]="product()!.stock[opt.key] > 0 && product()!.stock[opt.key] < lowStockThreshold()"
               [class.stock-out-of-stock]="product()!.stock[opt.key] === 0">
               {{ product()!.stock[opt.key] === 0 ? 'Out of Stock' :
-                 product()!.stock[opt.key] < lowStockThreshold ? 'Low Stock (' + product()!.stock[opt.key] + ')' : 'In Stock' }}
+                 product()!.stock[opt.key] < lowStockThreshold() ? 'Low Stock (' + product()!.stock[opt.key] + ')' : 'In Stock' }}
             </span>
           </button>
         }

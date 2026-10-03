@@ -10,7 +10,7 @@
 // Bars are sorted descending by the caller, not here, so a page can choose its
 // own ordering without fighting the component.
 
-import { Component, computed, input, signal } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 
 export interface BarDatum {
   label: string;

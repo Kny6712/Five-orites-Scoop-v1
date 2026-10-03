@@ -15,7 +15,6 @@
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, catchError, of } from 'rxjs';
-import { AuthService } from './auth.service';
 import { OrderService } from './order.service';
 import { NotificationService } from './notification.service';
 import { Order, OrderStatus } from '../models/order.model';

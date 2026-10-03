@@ -87,10 +87,15 @@ const SIZE_VARIANTS: readonly SizeVariant[] = ['cup', 'pint', 'halfGallon', 'gal
  * because the ice cream has left the building: restocking it would invent
  * inventory the shop can then sell a second time.
  *
- * Mirrors PRE_DISPATCH_STATUSES in src/app/core/services/order.service.ts. Keep
- * the two in step — the client path and this path restock the same orders, so a
- * disagreement shows up as an order that is cancelled and still has its stock,
- * or an order that is cancelled and has stock twice.
+ * This list USED to be a mirror of a client-side constant in
+ * src/app/core/services/order.service.ts, and the comment here asked the two to
+ * be kept in step on the grounds that "the client path and this path restock the
+ * same orders". That is no longer true and the mirror is gone: the client no
+ * longer restocks at all, so this is the only place the policy is expressed.
+ *
+ * It was worth deleting rather than leaving as an unused cross-reference. A
+ * comment demanding two lists stay in step, where one of them no longer exists,
+ * is a comment that stops meaning anything while still looking authoritative.
  */
 const PRE_DISPATCH_STATUSES: readonly string[] = ['pending', 'confirmed', 'preparing'];
 

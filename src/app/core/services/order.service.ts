@@ -52,16 +52,16 @@ import { CartService } from './cart.service';
 import { InventoryService } from './inventory.service';
 import { VoucherService } from './voucher.service';
 
-/**
- * Statuses at which the order is still physically in the store, so cancelling
- * it should return stock. `out_for_delivery` and `delivered` are excluded: the
- * ice cream has left, and restocking would invent inventory.
- *
- * This constant is now DUPLICATED in the server: `restockCancelledOrder`
- * (functions/src/index.ts) makes the pre-dispatch decision on the trigger that
- * watches the cancellation, not here. Keep the two lists identical.
- */
-const PRE_DISPATCH_STATUSES: OrderStatus[] = ['pending', 'confirmed', 'preparing'];
+// The "which statuses still count as pre-dispatch" policy is no longer
+// expressed here. It used to be a client constant that cancelOrder consulted
+// before restocking, mirrored in functions/src/index.ts with a comment asking
+// the two to be kept identical.
+//
+// cancelOrder no longer restocks -- `restockCancelledOrder` does, on the
+// cancellation trigger -- so this copy had no callers. It was deleted rather
+// than left as dead-but-documented, because two lists that must stay in step,
+// where only one is real, is exactly the arrangement that silently drifts.
+// The server is now the single place the policy lives.
 
 @Injectable({ providedIn: 'root' })
 export class OrderService {

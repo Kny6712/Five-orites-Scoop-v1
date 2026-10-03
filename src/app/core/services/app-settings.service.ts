@@ -22,7 +22,7 @@
 // motion-sensitive user never sees the animation they asked to skip, and writing
 // them to a shared profile would apply this phone's text size to every device.
 
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, signal } from '@angular/core';
 
 const MOTION_KEY = 'five_orites_motion';
 const CONTRAST_KEY = 'five_orites_contrast';

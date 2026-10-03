@@ -4,7 +4,7 @@
 
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonMenuButton,
@@ -16,7 +16,7 @@ import {
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { VoucherCardsComponent } from './voucher-cards/voucher-cards.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
-import { Subscription, combineLatest, catchError, of, Observable } from 'rxjs';
+import { Subscription, catchError, of, Observable } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { InventoryService } from '../../core/services/inventory.service';
 import { OrderService } from '../../core/services/order.service';
@@ -57,7 +57,6 @@ export class DashboardPage implements OnInit, OnDestroy {
   private inventoryService = inject(InventoryService);
   private orderService = inject(OrderService);
   private notifService = inject(NotificationService);
-  private router = inject(Router);
   private subs: Subscription[] = [];
 
   currentUser = signal<AppUser | null>(null);

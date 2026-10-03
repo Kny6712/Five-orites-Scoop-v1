@@ -32,7 +32,6 @@ import {
 import { CommonModule } from '@angular/common';
 import { IonSpinner } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../app-icon/app-icon.component';
-import type { AppIcon } from '../../../core/icons/app-icons';
 
 export interface MapMarker {
   id: string;

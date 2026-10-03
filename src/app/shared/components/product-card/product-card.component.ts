@@ -19,7 +19,7 @@ import { WishlistService } from '../../../core/services/wishlist.service';
 import { PesoPipe } from '../../pipes/peso.pipe';
 import { CloudinaryPipe } from '../../pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
-import { LOW_STOCK_THRESHOLD } from '../../../core/config/stock.config';
+import { ShopSettingsService } from '../../../core/services/shop-settings.service';
 
 @Component({
   selector: 'app-product-card',
@@ -48,7 +48,22 @@ export class ProductCardComponent implements OnInit {
 
   sizeLabels = SIZE_DISPLAY_LABELS;
   sizes: SizeVariant[] = ['cup', 'pint', 'halfGallon', 'gallon'];
-  lowStockThreshold = LOW_STOCK_THRESHOLD;
+
+  /**
+   * The admin-editable low-stock cutoff, not the build-time constant.
+   *
+   * This read `LOW_STOCK_THRESHOLD` directly, which is `environment
+   * .lowStockThreshold` frozen at build time. So an owner who set the threshold
+   * to 25 in Admin -> Settings saw the dashboard's low-stock panel honour it
+   * while every product card in the storefront kept flagging stock at 10 — the
+   * two surfaces disagreed, and the one an owner is most likely to change had no
+   * effect on the one customers actually look at.
+   *
+   * `subscribeToLowStock` already preferred the stored value; this was the
+   * display half that was missed. A signal, so the pill updates the moment the
+   * setting is saved rather than needing a reload.
+   */
+  readonly lowStockThreshold = inject(ShopSettingsService).lowStockThreshold;
 
   currentPrice = computed(() => this.product.pricing[this.selectedSize()]);
   currentStock = computed(() => this.product.stock?.[this.selectedSize()] ?? 0);

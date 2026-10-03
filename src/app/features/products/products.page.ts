@@ -9,7 +9,7 @@ import {
   IonHeader, IonToolbar, IonTitle, IonContent,
   IonSearchbar, IonChip, IonLabel, IonGrid, IonRow, IonCol,
   IonSkeletonText, IonCard, IonCardContent, IonText, IonRefresher, IonRefresherContent,
-  IonButtons, IonMenuButton, IonToggle, IonItem,
+  IonButtons, IonMenuButton, IonToggle,
   IonInfiniteScroll, IonInfiniteScrollContent,
   IonSelect, IonSelectOption, IonSegment, IonSegmentButton, IonButton,
 } from '@ionic/angular/standalone';

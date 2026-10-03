@@ -20,7 +20,6 @@ import {
 import { Observable } from 'rxjs';
 import { shareReplay } from 'rxjs/operators';
 import { Product, FlavorSet, SizeVariant, StockLevel, ProductFilter, ProductCategory, productCategory } from '../models/product.model';
-import { LOW_STOCK_THRESHOLD } from '../config/stock.config';
 import { normaliseStockLines, SIZE_VARIANTS } from '../logic/stock';
 import { AuthService } from './auth.service';
 import { ShopSettingsService } from './shop-settings.service';
@@ -345,7 +344,6 @@ export class InventoryService {
     const snap = await getDocs(query(productsCol, where('isActive', '==', true), limit(200)));
     let updated = 0;
     for (const d of snap.docs) {
-      const data = d.data() as Product;
       // Transactional, and the base is re-read INSIDE the transaction.
       //
       // This used to be a plain getDocs + a loop of updateDocs computing the
@@ -371,49 +369,17 @@ export class InventoryService {
     return updated;
   }
 
-  // ── Firestore Transaction: Stock Validation ────────────────────────────────────
-  async validateAndDecrementStock(
-    items: { productId: string; size: SizeVariant; quantity: number }[]
-  ): Promise<void> {
-    // Reject non-positive/fractional quantities and collapse duplicate
-    // product+size pairs before the transaction reads anything. A negative
-    // quantity would pass the check below and then *raise* stock, because the
-    // write is `stock - quantity`.
-    const lines = normaliseStockLines(items);
-
-    await runTransaction(this.firestore, async (transaction) => {
-      const stockChecks: {
-        ref: ReturnType<typeof doc>;
-        data: Product;
-        size: SizeVariant;
-        quantity: number;
-      }[] = [];
-
-      for (const item of lines) {
-        const ref = doc(this.firestore, `products/${item.productId}`);
-        const snap = await transaction.get(ref);
-        if (!snap.exists()) {
-          throw new Error(`Product ${item.productId} no longer exists.`);
-        }
-        const product = { id: snap.id, ...snap.data() } as Product;
-        const availableStock = product.stock?.[item.size] ?? 0;
-        if (availableStock < item.quantity) {
-          throw new Error(
-            `Insufficient stock for ${product.variantName} (${item.size}). Available: ${availableStock}`
-          );
-        }
-        stockChecks.push({ ref, data: product, size: item.size, quantity: item.quantity });
-      }
-
-      for (const check of stockChecks) {
-        const newStock = (check.data.stock?.[check.size] ?? 0) - check.quantity;
-        transaction.update(check.ref, {
-          [`stock.${check.size}`]: newStock,
-          updatedAt: serverTimestamp(),
-        });
-      }
-    });
-  }
+  // validateAndDecrementStock used to live here: 42 lines that opened a
+  // transaction, checked every line had stock, and wrote the decrements. It had
+  // no callers -- OrderService.placeOrder stopped calling it when stock moved to
+  // the reconcileOrderStock Cloud Function -- and it was still being cited in
+  // cart.page.ts as "the server-side check ... remains the backstop", which was
+  // false: a function nothing calls is not a backstop, and worse, it read like a
+  // live guarantee to anyone auditing checkout.
+  //
+  // The transaction discipline in it is not lost, it is in functions/src/index.ts
+  // where it belongs: one transaction, every line re-read inside it, all lines
+  // applied or none. See CUTOVER.md.
 
   // ── Restock (e.g. order cancelled) ──────────────────────────────────────────
   async restockItems(

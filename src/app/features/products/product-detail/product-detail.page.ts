@@ -4,7 +4,7 @@
 
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
   IonHeader,
@@ -42,7 +42,7 @@ import { StarRatingComponent } from '../../../shared/components/star-rating/star
 import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
 import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
-import { LOW_STOCK_THRESHOLD } from '../../../core/config/stock.config';
+import { ShopSettingsService } from '../../../core/services/shop-settings.service';
 
 interface SizeOption {
   key: SizeVariant;
@@ -113,7 +113,15 @@ export class ProductDetailPage implements OnInit, OnDestroy {
    */
   readonly reviewsTruncated = signal(false);
 
-  readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
+  /**
+   * The admin-editable cutoff, not the build-time constant.
+   *
+   * Same bug as ProductCardComponent: this read `LOW_STOCK_THRESHOLD`
+   * directly, so an owner's threshold change moved the dashboard and the admin
+   * inventory query but left the customer-facing product page flagging at the
+   * build default. Three surfaces, two numbers, no indication which was right.
+   */
+  readonly lowStockThreshold = inject(ShopSettingsService).lowStockThreshold;
 
   currentPrice = computed(() => this.product()?.pricing[this.selectedSize()] ?? 0);
   currentStock = computed(() => this.product()?.stock[this.selectedSize()] ?? 0);

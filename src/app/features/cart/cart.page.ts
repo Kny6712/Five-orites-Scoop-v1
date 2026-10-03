@@ -127,8 +127,15 @@ export class CartPage implements OnInit {
     // This must not collapse to an empty list on failure. An empty stockMap
     // makes availableFor() return undefined, and clampToStock passes the
     // quantity through uncapped when availability is unknown — so a failed read
-    // would silently DISABLE the stock cap. The user is told instead, and the
-    // server-side check in validateAndDecrementStock remains the backstop.
+    // would silently DISABLE the stock cap. The user is told instead.
+    //
+    // The comment here used to end "and the server-side check in
+    // validateAndDecrementStock remains the backstop". That method had no
+    // callers left and was deleted: stock is reserved by the
+    // reconcileOrderStock Cloud Function, which decrements in a transaction and
+    // cancels the order itself if the shelf is short. That is the backstop now.
+    // See CUTOVER.md for why the function has to be live before the customer
+    // branch of the products rule is removed.
     this.inventoryService
       .getProducts()
       .pipe(

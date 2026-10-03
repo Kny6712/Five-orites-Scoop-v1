@@ -17,7 +17,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
   IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton, IonIcon, IonSpinner,
+  IonButtons, IonMenuButton, IonButton, IonSpinner,
   IonInput, IonItem, IonLabel, IonAvatar, IonToggle,
   ToastController,
 } from '@ionic/angular/standalone';

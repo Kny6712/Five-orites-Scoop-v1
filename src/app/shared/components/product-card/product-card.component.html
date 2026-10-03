@@ -46,11 +46,11 @@
     <div class="price-stock-row">
       <span class="price">{{ currentPrice() | peso }}</span>
       <ion-chip
-        [color]="currentStock() === 0 ? 'danger' : currentStock() < lowStockThreshold ? 'warning' : 'success'"
+        [color]="currentStock() === 0 ? 'danger' : currentStock() < lowStockThreshold() ? 'warning' : 'success'"
         class="stock-chip"
       >
         <ion-label>
-          {{ currentStock() === 0 ? 'Out of Stock' : currentStock() < lowStockThreshold ? 'Low Stock' : 'In Stock' }}
+          {{ currentStock() === 0 ? 'Out of Stock' : currentStock() < lowStockThreshold() ? 'Low Stock' : 'In Stock' }}
         </ion-label>
       </ion-chip>
     </div>

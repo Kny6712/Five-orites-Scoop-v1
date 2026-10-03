@@ -8,6 +8,26 @@
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+    // Turned on deliberately, as its own commit, because the gap analysis had
+    // this standing as a "known gap": dead code in this project was only ever
+    // found by reading it, so the next batch would have been too.
+    //
+    // What it caught on the first pass, all in files whose dead paths had been
+    // commented at length as if they were live:
+    //   - VoucherService's doc/updateDoc/increment imports, orphaned when
+    //     recordRedemption moved into reconcileOrderStock.
+    //   - getPricingForSet in OrderService, orphaned when the PRICING_MATRIX
+    //     checkout fallback was removed so the client fails closed like the
+    //     server does.
+    //   - the Subscription field and rxjs import on AnalyticsPage, orphaned when
+    //     its onSnapshot read became a paged getDocs walk.
+    //
+    // Expect a burst of failures the first time this is enabled in a project;
+    // that is the point. `noUnusedParameters` is deliberately NOT set -- an
+    // intentionally-unused parameter (an event handler signature, an injected
+    // dependency kept for symmetry) is not a defect, and flagging those would
+    // train people to ignore the compiler.
+    "noUnusedLocals": true,
     "sourceMap": true,
     "declaration": false,
     "experimentalDecorators": true,

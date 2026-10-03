@@ -6,7 +6,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  IonContent, IonInput, IonButton, IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
+  IonContent, IonInput, IonButton, IonText, IonSpinner, IonLabel,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
