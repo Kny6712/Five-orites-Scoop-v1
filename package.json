@@ -16,6 +16,7 @@
     "build:ios": "ng build && npx cap sync ios && npx cap open ios",
     "seed": "npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",
     "seed:preserve-stock": "cross-env PRESERVE_STOCK=true npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",
+    "seed:admin": "npx ts-node --project scripts/tsconfig.json scripts/seed-admin.ts",
     "upload:images": "tsx scripts/upload-product-images.ts",
     "images:generate": "tsx scripts/generate-placeholder-images.ts",
     "images:seed": "cross-env IMAGE_FROM_ASSETS=true npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",

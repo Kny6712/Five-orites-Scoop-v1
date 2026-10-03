@@ -286,6 +286,40 @@ describe('delivery fee', () => {
   });
 });
 
+describe('scripts/seed-admin.ts: the role vocabulary cannot drift', () => {
+  // The script duplicates the role list rather than importing it, because scripts/
+  // is deployed and run with its own tsconfig and cannot reach into src/. A
+  // duplicated list can drift, and the failure it produces is silent: the script
+  // writes a role the rules do not recognise, the account authenticates fine, and
+  // every admin page is hidden with no error anywhere. That is the same failure
+  // mode as the "owner\n" incident above, reached by a different route.
+  //
+  // So the two lists are asserted equal here, in the same spirit as the delivery
+  // constants.
+  const scriptSource = readFileSync(join(__dirname, '..', 'scripts', 'seed-admin.ts'), 'utf8');
+  const declared = scriptSource.match(/const ROLES = \[([^\]]+)\]/)?.[1] ?? '';
+  const scriptRoles = [...declared.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+
+  it('declares exactly the five roles the client model defines', () => {
+    assert.deepEqual(
+      [...scriptRoles].sort(),
+      [...ALL_ROLES].sort(),
+      'scripts/seed-admin.ts ROLES has drifted from UserRole — a role the script writes but the rules do not know is a silently powerless admin'
+    );
+  });
+
+  it('rejects a role with stray whitespace instead of trimming it', () => {
+    // The script's parseRole deliberately has no `.trim()`. Trimming would be
+    // friendlier and would also re-open the exact incident this project already
+    // had: "owner\n" matching no tier. Assert the intent so a later "cleanup"
+    // does not reintroduce it.
+    assert.ok(
+      !/\.trim\(\)/.test(scriptSource.match(/function parseRole[\s\S]*?\n}/)?.[0] ?? ''),
+      'parseRole must not trim — exact matching is the guard against "owner\\n"'
+    );
+  });
+});
+
 describe('voucher discount: client and function copies agree', () => {
   // Same duplication, higher stakes. `reconcileOrderStock` recomputes the
   // discount from the voucher document and OVERWRITES the client's figure, so
