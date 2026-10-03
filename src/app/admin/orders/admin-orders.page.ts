@@ -21,7 +21,8 @@ import { Subscription, catchError, of } from 'rxjs';
 import { OrderService } from '../../core/services/order.service';
 import { Order, OrderStatus, ORDER_STATUS_META } from '../../core/models/order.model';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
-import { toCsv, downloadCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { toCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { CsvExportService } from '../../core/services/csv-export.service';
 import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
@@ -68,6 +69,7 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
+  private csvExport = inject(CsvExportService);
   private sub?: Subscription;
 
   allOrders = signal<Order[]>([]);
@@ -474,7 +476,7 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    * rendered slice, and an export that silently drops 40 rows because you were
    * on page 1 of 4 is worse than no export at all.
    */
-  exportCsv(): void {
+  async exportCsv(): Promise<void> {
     const rows = [
       ['order_id', 'date', 'status', 'customer', 'items', 'units', 'subtotal', 'discount', 'delivery', 'grand_total', 'address'],
       ...this.filteredOrders().map((o) => [
@@ -491,10 +493,18 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
         o.deliveryAddress ?? '',
       ]),
     ];
-    downloadCsv(toCsv(rows), csvFilename('orders'));
+    // The success toast is gated on the export actually succeeding. It used to be
+    // unconditional, which on a device claimed "Exported N orders" for a write
+    // that never happened.
+    const result = await this.csvExport.export(toCsv(rows), csvFilename('orders'));
+    const count = this.filteredOrders().length;
     void this.toastCtrl.create({
-      message: `Exported ${this.filteredOrders().length} orders.`,
-      color: 'success', duration: 2200, position: 'top',
+      message: result.ok
+        ? `Exported ${count} orders.`
+        : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+      color: result.ok ? 'success' : 'danger',
+      duration: 3200,
+      position: 'top',
     }).then((t) => t.present());
   }
 }

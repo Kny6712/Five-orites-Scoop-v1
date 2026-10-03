@@ -31,7 +31,8 @@ import { ReviewService } from '../../core/services/review.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Review } from '../../core/models/review.model';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
-import { toCsv, downloadCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { toCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { CsvExportService } from '../../core/services/csv-export.service';
 import { Subscription } from 'rxjs';
 
 const PAGE_SIZE = 12;
@@ -58,6 +59,7 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
   private auth = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
+  private csvExport = inject(CsvExportService);
 
   reviews_ = signal<Review[]>([]);
   isLoading = signal(true);
@@ -150,7 +152,7 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
   }
 
   /** Every review, not just this page — an export that silently drops rows is worse than none. */
-  exportCsv(): void {
+  async exportCsv(): Promise<void> {
     const rows = [
       ['review_id', 'product_id', 'author', 'rating', 'comment', 'staff_reply', 'posted'],
       ...this.filtered().map((r) => [
@@ -158,8 +160,12 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
         r.adminResponse ?? '', toIsoDate(r.createdAt),
       ]),
     ];
-    downloadCsv(toCsv(rows), csvFilename('reviews'));
-    void this.toast(`Exported ${this.filtered().length} reviews.`, 'success');
+    const result = await this.csvExport.export(toCsv(rows), csvFilename('reviews'));
+    const count = this.filtered().length;
+    void this.toast(
+      result.ok ? `Exported ${count} reviews.` : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+      result.ok ? 'success' : 'danger'
+    );
   }
 
   async confirmDelete(review: Review): Promise<void> {

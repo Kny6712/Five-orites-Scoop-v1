@@ -52,7 +52,16 @@
         the figures.
       -->
       <div class="toolbar-row">
-        <ion-button size="small" fill="outline" class="export-btn" (click)="exportCsv()">
+        @if (exportError()) {
+        <!--
+          An export that reports success but produced no file is worse than a
+          visible failure: the admin walks away believing they have a report. On a
+          device the old anchor-click path did exactly that.
+        -->
+        <app-alert-banner tone="danger" title="Export failed" [message]="exportError()" />
+      }
+
+      <ion-button size="small" fill="outline" class="export-btn" (click)="exportCsv()">
           <app-icon name="download" slot="start" />
           Export CSV
         </ion-button>

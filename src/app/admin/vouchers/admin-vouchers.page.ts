@@ -32,7 +32,8 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { Voucher, VoucherType, voucherUsability, type RedemptionStats } from '../../core/models/voucher.model';
 import { MAX_PERCENT_DISCOUNT } from '../../core/models/voucher.model';
-import { toCsv, downloadCsv, csvFilename } from '../../core/logic/csv';
+import { toCsv, csvFilename } from '../../core/logic/csv';
+import { CsvExportService } from '../../core/services/csv-export.service';
 import {
   Firestore, collection, getDocs, setDoc, doc, updateDoc, deleteDoc, query, where, limit, deleteField,
 } from '@angular/fire/firestore';
@@ -63,6 +64,7 @@ export class AdminVouchersPage implements OnInit {
   private firestore = inject(Firestore);
   private alertCtrl = inject(AlertController);
   private toast = inject(ToastController);
+  private csvExport = inject(CsvExportService);
 
   vouchers = signal<Voucher[]>([]);
   isLoading = signal(true);
@@ -359,7 +361,7 @@ export class AdminVouchersPage implements OnInit {
       })
   );
 
-  exportReport(): void {
+  async exportReport(): Promise<void> {
     const rows = [
       ['code', 'state', 'uses', 'delivered_orders', 'discount_given', 'revenue_affected'],
       ...this.ranked().map((s) => [
@@ -371,10 +373,14 @@ export class AdminVouchersPage implements OnInit {
         s.revenue,
       ]),
     ];
-    downloadCsv(toCsv(rows), csvFilename('voucher-performance'));
+    const result = await this.csvExport.export(toCsv(rows), csvFilename('voucher-performance'));
     void this.toast.create({
-      message: 'Exported voucher performance.',
-      color: 'success', duration: 2200, position: 'top',
+      message: result.ok
+        ? 'Exported voucher performance.'
+        : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+      color: result.ok ? 'success' : 'danger',
+      duration: result.ok ? 2200 : 3200,
+      position: 'top',
     }).then((t) => t.present());
   }
 

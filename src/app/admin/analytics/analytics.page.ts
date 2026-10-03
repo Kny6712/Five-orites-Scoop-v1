@@ -15,7 +15,8 @@ import { OrderService } from '../../core/services/order.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Order, OrderStatus } from '../../core/models/order.model';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
-import { toCsv, downloadCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { toCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { CsvExportService } from '../../core/services/csv-export.service';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import type { SizeVariant } from '../../core/models/product.model';
 import { DonutChartComponent, type DonutSlice } from '../../shared/components/charts/donut-chart.component';
@@ -80,6 +81,11 @@ export class AnalyticsPage implements OnInit, OnDestroy {
    * segment the admin already navigated away from.
    */
   private walkToken = 0;
+
+  private csvExport = inject(CsvExportService);
+
+  /** Set when an export fails, cleared on the next attempt. See exportReport. */
+  readonly exportError = signal('');
 
   orders = signal<Order[]>([]);
   isLoading = signal(true);
@@ -510,7 +516,7 @@ export class AnalyticsPage implements OnInit, OnDestroy {
    *
    * A cancelled or in-progress order is not revenue, so it is not exported.
    */
-  exportCsv(): void {
+  async exportCsv(): Promise<void> {
     const rows = [
       ['order_id', 'date', 'status', 'items', 'subtotal', 'discount', 'delivery', 'grand_total'],
       ...this.deliveredOnly().map((o) => [
@@ -522,9 +528,25 @@ export class AnalyticsPage implements OnInit, OnDestroy {
         o.discountAmount ?? 0,
         o.deliveryFee ?? 0,
         o.grandTotal ?? 0])];
-    downloadCsv(toCsv(rows), csvFilename('delivered-sales', this.dateRange()));
+    await this.exportReport(toCsv(rows), csvFilename('delivered-sales', this.dateRange()));
   }
 
+  /**
+   * Runs one export and tells the admin whether it actually happened.
+   *
+   * Previously the export button fired a synthetic anchor click and reported
+   * nothing. On the web that was mostly fine; inside a Capacitor WebView it
+   * produced no file at all and still looked like it worked. A silent export is
+   * worse than a failed one, because the admin walks away believing they have a
+   * report.
+   */
+  private async exportReport(csv: string, filename: string): Promise<void> {
+    const result = await this.csvExport.export(csv, filename);
+    if (result.ok) return;
+    this.exportError.set(
+      `Export failed${result.error ? `: ${result.error}` : ''}. On a phone, save the file from the share sheet instead.`
+    );
+  }
 
   ngOnInit(): void { this.loadData(); }
   ngOnDestroy(): void {

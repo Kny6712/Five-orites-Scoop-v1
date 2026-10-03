@@ -23,7 +23,7 @@ import { Product, SizeVariant, StockLevel } from '../../core/models/product.mode
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
 import { parseProductCsv, slug, PRODUCT_CSV_TEMPLATE, type ImportPlan } from '../../core/logic/csv-import';
-import { downloadCsv } from '../../core/logic/csv';
+import { CsvExportService } from '../../core/services/csv-export.service';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { AddProductModalComponent } from './add-product-modal.component';
 import { EditProductModalComponent } from './edit-product-modal.component';
@@ -109,6 +109,7 @@ export class InventoryPage implements OnInit, OnDestroy {
    * list rather than needing a reload.
    */
   private readonly shop = inject(ShopSettingsService);
+  private csvExport = inject(CsvExportService);
   readonly lowStockThreshold = computed(() => this.shop.lowStockThreshold());
   skeletonItems = Array(6).fill(0);
 
@@ -226,8 +227,16 @@ export class InventoryPage implements OnInit, OnDestroy {
     this.closeImport();
   }
 
-  downloadTemplate(): void {
-    downloadCsv(PRODUCT_CSV_TEMPLATE, 'five-orites-product-template.csv');
+  /**
+   * The import template is the one export a phone most needs.
+   *
+   * It is also the export most likely to be used on a device: an admin standing
+   * in the shop with stock to add is exactly who has no laptop. The old
+   * anchor-click did nothing there, so the import feature was unreachable on the
+   * platform the app ships to.
+   */
+  async downloadTemplate(): Promise<void> {
+    await this.csvExport.export(PRODUCT_CSV_TEMPLATE, 'five-orites-product-template.csv');
   }
 
   ngOnInit(): void {

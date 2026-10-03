@@ -10,9 +10,13 @@
 //
 // This module is framework-free on purpose — `npm run test:logic` imports it
 // directly and never touches the DOM — so the escaping rules are asserted
-// rather than hoped for. The DOM half (Blob, object URL, the anchor click) stays
-// in `downloadCsv` below, because that is the part that genuinely needs a
-// browser.
+// rather than hoped for.
+//
+// The DOM half (Blob, object URL, the anchor click) stays in `downloadCsv` below.
+// It is no longer what the app calls: every export goes through
+// CsvExportService, which uses `downloadCsv` on web and write-then-share on a
+// device. Keeping the primitives here means the escaping rules stay testable
+// without a DOM.
 //
 // WHAT IS NOT HANDLED HERE
 // Excel's leading-`=` formula injection. A product name beginning with `=` is
@@ -60,13 +64,18 @@ export function csvFilename(prefix: string, suffix?: string): string {
 /**
  * Hands a CSV to the browser as a download.
  *
- * The revoke is deferred by 2s rather than done immediately: Safari cancels an
- * in-flight download if its object URL disappears in the same tick as the click,
- * which is why the analytics page already did this and why every export should.
+ * WEB ONLY, and now unused by the app. It is kept because it is the honest
+ * browser primitive and it is small, but nothing calls it: every export goes
+ * through `CsvExportService`, which uses this on web and write-then-share on a
+ * device.
  *
- * Not a no-op on native: `a.click()` on a blob URL does not reliably write a
- * file inside a Capacitor WebView. See `Scripts/README` guidance — the web
- * target is what this serves today.
+ * It was previously the ONLY path, and it silently did nothing inside a
+ * Capacitor WebView — no download manager, no filesystem permission model, the
+ * click resolving to nothing. The export looked like it had worked. That is what
+ * CsvExportService exists to fix.
+ *
+ * The revoke is deferred by 2s rather than done immediately: Safari cancels an
+ * in-flight download if its object URL disappears in the same tick as the click.
  */
 export function downloadCsv(csv: string, filename: string): void {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

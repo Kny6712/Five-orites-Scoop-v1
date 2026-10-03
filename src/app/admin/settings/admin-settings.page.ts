@@ -35,7 +35,8 @@ import { StockLedgerService, STOCK_REASON_LABELS, type StockMovement, type Stock
 import { InventoryService } from '../../core/services/inventory.service';
 import { OrderService } from '../../core/services/order.service';
 import { Order } from '../../core/models/order.model';
-import { toCsv, downloadCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { toCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
+import { CsvExportService } from '../../core/services/csv-export.service';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { firstValueFrom } from 'rxjs';
 
@@ -60,6 +61,7 @@ export class AdminSettingsPage implements OnInit {
   private inventory = inject(InventoryService);
   private orderService = inject(OrderService);
   private toastCtrl = inject(ToastController);
+  private csvExport = inject(CsvExportService);
 
   isSaving = signal(false);
   loaded = signal(false);
@@ -177,7 +179,7 @@ export class AdminSettingsPage implements OnInit {
     });
   }
 
-  exportLedger(): void {
+  async exportLedger(): Promise<void> {
     const rows = [
       ['when', 'flavor', 'size', 'delta', 'balance_after', 'reason', 'order_id'],
       ...this.movements().map((m) => [
@@ -185,15 +187,15 @@ export class AdminSettingsPage implements OnInit {
         m.reason, m.orderId ?? '',
       ]),
     ];
-    downloadCsv(toCsv(rows), csvFilename('stock-movements'));
+    await this.csvExport.export(toCsv(rows), csvFilename('stock-movements'));
   }
 
-  exportDrift(): void {
+  async exportDrift(): Promise<void> {
     const rows = [
       ['flavor', 'size', 'stored', 'ledger_says', 'drift'],
       ...this.drift().map((d) => [d.variantName, d.size, d.stored, d.logged, d.drift]),
     ];
-    downloadCsv(toCsv(rows), csvFilename('stock-reconciliation'));
+    await this.csvExport.export(toCsv(rows), csvFilename('stock-reconciliation'));
   }
 
   /**
