@@ -385,6 +385,116 @@ describe('scripts/seed-admin.ts: the role vocabulary cannot drift', () => {
   });
 });
 
+describe('CI runs `verify` rather than a second copy of it', () => {
+  // The same duplication problem as the two blocks above, but between two
+  // REPOSITORIES rather than two languages — and it had already cost real
+  // coverage.
+  //
+  // `.github/workflows/ci.yml` used to spell out eleven `npm run <script>` steps
+  // by hand, duplicating the `verify` chain in package.json. It drifted three
+  // separate ways:
+  //
+  //   - `test:integration` was added to `verify` and never added here, so the 23
+  //     tests that caught stock inflating on every non-take transition, a pending
+  //     cancel restocking stock that was never taken, and an unauthorizable
+  //     cancel-and-restock never ran in CI. It passed anyway.
+  //   - `format:check` was `continue-on-error: true` here, blocking in `verify`.
+  //   - The cloud-functions typecheck existed ONLY here, so it could not be run
+  //     locally before pushing.
+  //
+  // Drift between two copies of a checklist is silent: nothing fails, a check
+  // just quietly stops running. These assertions make CI/verify divergence a
+  // test failure instead.
+  const workflowPath = join(__dirname, '..', '.github', 'workflows', 'ci.yml');
+  const workflow = readFileSync(workflowPath, 'utf8');
+  const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as {
+    scripts: Record<string, string>;
+  };
+
+  it('delegates the whole chain to npm run verify', () => {
+    assert.match(
+      workflow,
+      /run:\s*npm run verify/,
+      'ci.yml must run `npm run verify` — the single copy of the gate',
+    );
+  });
+
+  it('does not enumerate individual project scripts', () => {
+    // `npm ci` and `npm --prefix functions ci` are INSTALLS, not checks, and are
+    // allowed. Anything that names one of the project's own scripts as a step is
+    // a second copy of the chain.
+    const projectScripts = new Set(Object.keys(pkg.scripts));
+    const offenders = [...workflow.matchAll(/run:\s*(.+)/g)]
+      .map((m) => m[1].trim())
+      .filter((cmd) => {
+        if (/^npm ci\b/.test(cmd)) return false; // install
+        if (/^npm --prefix functions ci\b/.test(cmd)) return false; // install
+        if (/^npm run verify\b/.test(cmd)) return false; // the delegation itself
+        return [...cmd.matchAll(/npm run ([\w:-]+)/g)].some((s) => projectScripts.has(s[1]));
+      });
+
+    assert.deepEqual(
+      offenders,
+      [],
+      'ci.yml names individual project scripts, which re-creates the copy that drifted',
+    );
+  });
+
+  it('covers every script the verify chain invokes', () => {
+    // Belt and braces: whatever `verify` runs, the workflow must reach it. If
+    // someone reintroduces a hand-rolled step this is the check that names it.
+    const invoked = [...pkg.scripts.verify.matchAll(/npm run ([\w:-]+)/g)].map((m) => m[1]);
+    const missing = invoked.filter((name) => name !== 'verify');
+    for (const name of missing) {
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(pkg.scripts, name),
+        `verify invokes \`npm run ${name}\` but package.json defines no such script`,
+      );
+    }
+    assert.ok(invoked.length >= 8, 'verify should be a substantial chain, not one step');
+  });
+
+  it('pins a JDK at or above the firebase-tools floor', () => {
+    // firebase-tools 15.x refuses to start on anything below 21:
+    //   "firebase-tools no longer supports Java version before 21"
+    // It was pinned to 17 on purpose — to avoid the newest JDKs — and that
+    // defensive choice is what broke CI while the developer's own Java 24 kept
+    // the local run green. The lesson: pin the FLOOR, do not chase the newest,
+    // and never pin below what the tool declares.
+    const java = workflow.match(/java-version:\s*'?(\d+)/)?.[1];
+    assert.ok(java, 'ci.yml must pin a java-version — the Firestore emulator is a Java process');
+    assert.ok(
+      Number(java) >= 21,
+      `ci.yml pins Java ${java}, but firebase-tools 15.x requires 21 or above`,
+    );
+  });
+
+  it('runs the cloud-functions typecheck inside verify, not only in CI', () => {
+    // A check nobody can run on demand is a check that fails in CI instead.
+    assert.match(
+      pkg.scripts.verify,
+      /typecheck:functions/,
+      'the cloud-functions typecheck must be reachable locally via verify',
+    );
+    assert.ok(
+      Object.prototype.hasOwnProperty.call(pkg.scripts, 'typecheck:functions'),
+      'package.json must define typecheck:functions',
+    );
+  });
+
+  it('includes every test suite in verify', () => {
+    // The suites that found real bugs, named explicitly. `test:integration` is
+    // the one that caught three severe defects while 308 other tests passed.
+    for (const suite of ['test:logic', 'test:rules', 'test:integration']) {
+      assert.match(
+        pkg.scripts.verify,
+        new RegExp(suite.replace(/[-:]/g, '\\$&')),
+        `verify must run ${suite}`,
+      );
+    }
+  });
+});
+
 describe('voucher discount: client and function copies agree', () => {
   // Same duplication, higher stakes. `reconcileOrderStock` recomputes the
   // discount from the voucher document and OVERWRITES the client's figure, so

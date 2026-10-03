@@ -8,9 +8,6 @@
 # sale shipped without decrementing inventory, and how `test:rules` sat red for
 # months without anyone noticing.
 #
-# This workflow runs the project's own `verify` chain, which already existed and
-# already covered the right things. It was simply never wired to anything.
-#
 # It is deliberately a gate, not a deployment. Nothing here touches Firebase,
 # because deploying rules to a live project from a pull request is how you
 # discover what "matched pair" means. Deployment stays manual and stays in
@@ -35,6 +32,28 @@ jobs:
     name: typecheck, tests, build
     runs-on: ubuntu-latest
 
+    # ── THIS FILE MUST NOT CONTAIN CHECKING LOGIC ───────────────────────────
+    #
+    # It used to spell out eleven steps by hand — `npm run typecheck`, then
+    # `lint`, then `test:logic`, then `test:rules`, and so on. That is a second,
+    # hand-maintained copy of the `verify` chain in package.json, and it drifted:
+    #
+    #   - `test:integration` was added to `verify` and never appeared here, so
+    #     the 23 tests that caught stock inflating on every non-take transition,
+    #     a pending cancel restocking stock that was never taken, and an
+    #     unauthorizable cancel-and-restock all sat unrun in CI;
+    #   - `format:check` was `continue-on-error` here and blocking in `verify`;
+    #   - the cloud-functions typecheck existed ONLY here, so it could never be
+    #     run locally before pushing.
+    #
+    # One copy of the chain means one place to add a step. So this workflow now
+    # does exactly three things: set up the environment, install, and run
+    # `npm run verify` — the same command you run locally before pushing. If a
+    # check is missing, fix it in `verify` and both get it.
+    #
+    # `tests/logic.test.ts` asserts this file keeps that property, because the
+    # drift was silent and would be again.
+
     steps:
       - uses: actions/checkout@v4
 
@@ -50,60 +69,54 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # test:rules runs `firebase emulators:exec --only firestore`, and the
-      # Firestore emulator is a Java process. Temurin 17 rather than whatever is
-      # newest: the emulator and firebase-tools have historically broken on the
-      # newest JDKs, and a build that fails because the runner image gained a
-      # Java 25 is a build that trains people to ignore red.
+      # Java 21 IS A FLOOR, NOT A PREFERENCE.
+      #
+      # This was pinned to Temurin 17, chosen on purpose: "rather than whatever
+      # is newest: the emulator and firebase-tools have historically broken on
+      # the newest JDKs, and a build that fails because the runner image gained a
+      # Java 25 is a build that trains people to ignore red."
+      #
+      # That reasoning inverted. firebase-tools 15.x no longer supports Java
+      # before 21 and refuses to start with:
+      #
+      #   firebase-tools no longer supports Java version before 21
+      #
+      # so the defensive pin became the thing that broke the build, while the
+      # developer's own machine (Java 24) kept passing. It is a floor, and 21 is
+      # the floor: the lowest version that works, which is the opposite of
+      # chasing the newest.
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
+      # Install only. The cloud-functions packages are a separate npm project and
+      # so a separate install — but the CHECKING of them is inside `verify`, via
+      # `typecheck:functions`, so it cannot be skipped here again.
       - name: Install
         run: npm ci
 
-      - name: Typecheck app
-        run: npm run typecheck
+      - name: Install cloud functions dependencies
+        run: npm --prefix functions ci
 
-      # scripts/ is outside tsconfig.app.json (which lists only src/main.ts), so
-      # this is the only thing typechecking the seed script that writes 64
-      # documents to production Firestore. It has caught a real error before.
-      - name: Typecheck scripts
-        run: npm run typecheck:scripts
-
-      - name: Typecheck cloud functions
-        run: npm --prefix functions ci && npm --prefix functions run build
-
-      # Added after the linter landed, and it immediately found real things:
-      # a `let` that was never reassigned, an unused catch parameter, and two
-      # empty lifecycle methods still declared as `implements OnInit`.
-      - name: Lint
-        run: npm run lint
-
-      # Formatting only, and non-blocking. A formatting disagreement should never
-      # be the reason a change cannot merge; `npm run format` fixes it and the
-      # pre-commit hook formats what it touches.
-      - name: Format check
-        continue-on-error: true
-        run: npm run format:check
-
-      - name: Business logic tests
-        run: npm run test:logic
-
-      # Runs against the emulator with --project five-orites-scoop-rules-test,
-      # which is a label. It needs no credentials and touches no live project.
-      - name: Firestore rules tests (emulator)
-        run: npm run test:rules
-
-      - name: Colour contrast
-        run: npm run check:contrast
-
-      - name: Build
-        run: npm run build
+      # Everything. Typecheck (app, scripts, cloud functions), lint, 165 logic
+      # tests, 143 rules tests, 23 stock-movement integration tests, colour
+      # contrast, format check, production build.
+      #
+      # `format:check` used to be `continue-on-error: true` here on the grounds
+      # that "a formatting disagreement should never be the reason a change
+      # cannot merge". It is blocking now, and that is safe: `lint-staged` runs
+      # `prettier --write` over staged files in the pre-commit hook, so committed
+      # code is already formatted. A failure here means the hook was bypassed
+      # (`--no-verify`) or a file was edited outside it — which is exactly the
+      # case where a gate earns its keep.
+      - name: Verify
+        run: npm run verify
 
       # Uploaded as an artifact so a failed PR can be opened in a browser and
       # seen, rather than only read about. "It looks fine" is not a build result.
+      # `if: always()` so it uploads on failure too — the build is the last step
+      # of `verify` and will be present even when an earlier step failed.
       - name: Upload build output
         if: always()
         uses: actions/upload-artifact@v4
