@@ -6,12 +6,27 @@ import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-  IonButton, IonText, IonSkeletonText,
-  IonChip, IonLabel, IonRefresher, IonRefresherContent, IonToggle,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
+  IonButton,
+  IonText,
+  IonSkeletonText,
+  IonChip,
+  IonLabel,
+  IonRefresher,
+  IonRefresherContent,
+  IonToggle,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { VoucherCardsComponent } from './voucher-cards/voucher-cards.component';
@@ -38,17 +53,38 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   selector: 'app-dashboard',
   standalone: true,
   imports: [
-    CommonModule, RouterLink,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonGrid, IonRow, IonCol,
-    IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-    IonButton, IonText, IonSkeletonText,
-    IonChip, IonLabel,
-    IonRefresher, IonRefresherContent, IonToggle,
-    ProductCardComponent, OrderStatusBadgeComponent, PesoPipe,
-    PaginationComponent, AppFooterComponent,
-    AppIconComponent, VoucherCardsComponent, AlertBannerComponent],
+    CommonModule,
+    RouterLink,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
+    IonButton,
+    IonText,
+    IonSkeletonText,
+    IonChip,
+    IonLabel,
+    IonRefresher,
+    IonRefresherContent,
+    IonToggle,
+    ProductCardComponent,
+    OrderStatusBadgeComponent,
+    PesoPipe,
+    PaginationComponent,
+    AppFooterComponent,
+    AppIconComponent,
+    VoucherCardsComponent,
+    AlertBannerComponent,
+  ],
   templateUrl: './dashboard.page.html',
   styleUrls: ['./dashboard.page.scss'],
 })
@@ -118,19 +154,20 @@ export class DashboardPage implements OnInit, OnDestroy {
   });
 
   constructor() {
-
-    this.authService.currentUser$
-      .pipe(takeUntilDestroyed())
-      .subscribe((user) => {
-        const wasAdmin = this.isAdmin();
-        this.currentUser.set(user);
-        // Reload when role resolves (fixes admin seeing customer view on refresh).
-        if (user && this.isAdmin() !== wasAdmin) {
-          this.loadDashboard();
-        } else if (user && this.featuredProducts().length === 0 && this.adminRecentOrders().length === 0) {
-          this.loadDashboard();
-        }
-      });
+    this.authService.currentUser$.pipe(takeUntilDestroyed()).subscribe((user) => {
+      const wasAdmin = this.isAdmin();
+      this.currentUser.set(user);
+      // Reload when role resolves (fixes admin seeing customer view on refresh).
+      if (user && this.isAdmin() !== wasAdmin) {
+        this.loadDashboard();
+      } else if (
+        user &&
+        this.featuredProducts().length === 0 &&
+        this.adminRecentOrders().length === 0
+      ) {
+        this.loadDashboard();
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -222,7 +259,7 @@ export class DashboardPage implements OnInit, OnDestroy {
       .subscribe((orders) => {
         this.totalOrderCount.set(orders.length);
         this.pendingOrderCount.set(
-          orders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length
+          orders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length,
         );
 
         // Today's revenue: delivered orders today (paymentStatus stays
@@ -234,7 +271,9 @@ export class DashboardPage implements OnInit, OnDestroy {
             const raw = o.createdAt as unknown as { toDate(): Date } | string;
             const date = typeof raw === 'string' ? new Date(raw) : raw.toDate();
             return date >= today && (o.status === 'delivered' || o.paymentStatus === 'paid');
-          } catch { return false; }
+          } catch {
+            return false;
+          }
         });
         this.todayRevenue.set(todayOrders.reduce((sum, o) => sum + (o.grandTotal ?? 0), 0));
 
@@ -259,7 +298,7 @@ export class DashboardPage implements OnInit, OnDestroy {
         // arrived, which meant a flavor at zero could sit below four flavors
         // merely "low" — the panel's job is triage, and triage is sorted.
         this.lowStockProducts.set(
-          [...products].sort((a, b) => this.shortestSize(a) - this.shortestSize(b))
+          [...products].sort((a, b) => this.shortestSize(a) - this.shortestSize(b)),
         );
       });
     this.subs.push(s2);
@@ -278,7 +317,7 @@ export class DashboardPage implements OnInit, OnDestroy {
    * why.
    */
   readonly notificationState = computed(() =>
-    this.notifService.permissionState(this.currentUser()?.notificationsEnabled)
+    this.notifService.permissionState(this.currentUser()?.notificationsEnabled),
   );
 
   /**
@@ -294,11 +333,11 @@ export class DashboardPage implements OnInit, OnDestroy {
   async onNotificationsToggle(event: CustomEvent): Promise<void> {
     const enabled = event.detail.checked as boolean;
     try {
-      if (enabled && !await this.notifService.requestPermission()) {
+      if (enabled && !(await this.notifService.requestPermission())) {
         await this.authService.updateProfile({ notificationsEnabled: false });
         await this.authService.refreshProfile();
         this.loadError.set(
-          'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.'
+          'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.',
         );
         return;
       }
@@ -320,10 +359,21 @@ export class DashboardPage implements OnInit, OnDestroy {
       if (timestamp === null || timestamp === undefined) return '—';
       const ts = timestamp as { toDate(): Date } | string;
       const date = typeof ts === 'string' ? new Date(ts) : ts.toDate();
-      return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch { return '—'; }
+      return date.toLocaleDateString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '—';
+    }
   }
 
-  trackProduct(_: number, p: Product): string { return p.id; }
-  trackOrder(_: number, o: Order): string { return o.id; }
+  trackProduct(_: number, p: Product): string {
+    return p.id;
+  }
+  trackOrder(_: number, o: Order): string {
+    return o.id;
+  }
 }

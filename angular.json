@@ -43,11 +43,7 @@
             // that should win specificity ties against Leaflet's own component
             // styles deliberately rather than by accident. Both files land in one
             // concatenated stylesheet, so array order is the only tiebreaker.
-            "styles": [
-              "node_modules/leaflet/dist/leaflet.css",
-              "src/theme/variables.scss",
-              "src/global.scss"
-            ],
+            "styles": ["node_modules/leaflet/dist/leaflet.css", "src/theme/variables.scss", "src/global.scss"],
             "scripts": []
           },
           "configurations": {

@@ -4,12 +4,25 @@
 import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
   IonSearchbar,
-  IonButton, IonSkeletonText, IonRefresher, IonRefresherContent,
-  IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-  IonChip, AlertController, ToastController, ModalController,
+  IonButton,
+  IonSkeletonText,
+  IonRefresher,
+  IonRefresherContent,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
+  IonChip,
+  AlertController,
+  ToastController,
+  ModalController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -22,7 +35,12 @@ import { InventoryService } from '../../core/services/inventory.service';
 import { Product, SizeVariant, StockLevel } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
-import { parseProductCsv, slug, PRODUCT_CSV_TEMPLATE, type ImportPlan } from '../../core/logic/csv-import';
+import {
+  parseProductCsv,
+  slug,
+  PRODUCT_CSV_TEMPLATE,
+  type ImportPlan,
+} from '../../core/logic/csv-import';
 import { CsvExportService } from '../../core/services/csv-export.service';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { AddProductModalComponent } from './add-product-modal.component';
@@ -34,15 +52,29 @@ import { ImageReplaceSheetComponent } from './image-replace-sheet.component';
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
     IonSearchbar,
     IonButton,
-    IonSkeletonText, IonRefresher, IonRefresherContent,
-    IonCard, IonCardContent, IonCardHeader, IonCardTitle,
+    IonSkeletonText,
+    IonRefresher,
+    IonRefresherContent,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
     IonChip,
-    AppIconComponent, EmptyStateComponent, PaginationComponent, CloudinaryPipe,
-    AppFooterComponent, AlertBannerComponent],
+    AppIconComponent,
+    EmptyStateComponent,
+    PaginationComponent,
+    CloudinaryPipe,
+    AppFooterComponent,
+    AlertBannerComponent,
+  ],
   templateUrl: './inventory.page.html',
   styleUrls: ['./inventory.page.scss'],
 })
@@ -80,9 +112,7 @@ export class InventoryPage implements OnInit, OnDestroy {
 
   readonly totalCount = computed(() => this.filteredProducts().length);
 
-  readonly totalPages = computed(() =>
-    Math.max(1, Math.ceil(this.totalCount() / this.PAGE_SIZE))
-  );
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.PAGE_SIZE)));
 
   readonly pagedProducts = computed(() => {
     const start = (this.page() - 1) * this.PAGE_SIZE;
@@ -210,13 +240,16 @@ export class InventoryPage implements OnInit, OnDestroy {
     if (failures.length) {
       await this.toast(
         `${written} imported, ${failures.length} failed: ${failures.slice(0, 3).join(', ')}`,
-        'warning'
+        'warning',
       );
       // The failures stay in the panel so they can be fixed and re-tried, rather
       // than disappearing along with the successful ones.
       this.importPlan.set({
         valid: [],
-        errors: failures.map((name, i) => ({ line: i + 1, message: `"${name}" could not be written` })),
+        errors: failures.map((name, i) => ({
+          line: i + 1,
+          message: `"${name}" could not be written`,
+        })),
         unknownColumns: [],
         skipped: 0,
       });
@@ -262,7 +295,13 @@ export class InventoryPage implements OnInit, OnDestroy {
           // the template dereferences product.stock[size] directly. Normalise to a
           // full four-key map here so the page renders the product instead of
           // throwing on the first partial doc.
-          stock: { cup: 0, pint: 0, halfGallon: 0, gallon: 0, ...((p.stock as Partial<StockLevel>) ?? {}) },
+          stock: {
+            cup: 0,
+            pint: 0,
+            halfGallon: 0,
+            gallon: 0,
+            ...((p.stock as Partial<StockLevel>) ?? {}),
+          },
         }));
         this.products.set(normalised);
         this.filteredProducts.set(normalised);
@@ -285,9 +324,11 @@ export class InventoryPage implements OnInit, OnDestroy {
   onSearch(event: CustomEvent): void {
     const q = (event.detail.value ?? '').toLowerCase();
     this.filteredProducts.set(
-      q ? this.products().filter(
-        (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q)
-      ) : this.products()
+      q
+        ? this.products().filter(
+            (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q),
+          )
+        : this.products(),
     );
     // A search can shrink the result set below the current page, which would
     // otherwise leave the list blank with the pager on page 4 of 1.
@@ -351,13 +392,11 @@ export class InventoryPage implements OnInit, OnDestroy {
               await this.inventoryService.updateProductActive(product.id, !product.isActive);
               await this.toast(`Product ${action}d.`, 'success');
             } catch (err: unknown) {
-              await this.toast(
-                describeFirestoreError('that product', err),
-                'danger'
-              );
+              await this.toast(describeFirestoreError('that product', err), 'danger');
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -396,10 +435,7 @@ export class InventoryPage implements OnInit, OnDestroy {
               // rather than leaving the pager on a page that no longer exists.
               if (this.page() > this.totalPages()) this.page.set(this.totalPages());
             } catch (err: unknown) {
-              await this.toast(
-                describeFirestoreError('that flavor', err),
-                'danger'
-              );
+              await this.toast(describeFirestoreError('that flavor', err), 'danger');
             }
           },
         },
@@ -435,7 +471,8 @@ export class InventoryPage implements OnInit, OnDestroy {
               await this.toast(describeFirestoreError('the catalog', err), 'danger');
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }

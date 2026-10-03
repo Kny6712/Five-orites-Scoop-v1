@@ -179,7 +179,10 @@ function extractIcon(name) {
     if (ch === '[' || ch === '{') depth++;
     else if (ch === ']' || ch === '}') {
       depth--;
-      if (depth === 0) { end = i + 1; break; }
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
     }
   }
   if (end === -1) return null;
@@ -207,7 +210,10 @@ for (const [appName, candidates] of Object.entries(WANTED)) {
   let used = null;
   for (const c of candidates) {
     node = extractIcon(c);
-    if (node) { used = c; break; }
+    if (node) {
+      used = c;
+      break;
+    }
   }
   if (node) out[appName] = node;
   else missing.push(`${appName} (tried: ${candidates.join(', ')})`);
@@ -243,7 +249,9 @@ export type LucideIconName = keyof typeof LUCIDE_ICON_DATA;
 
 writeFileSync(OUT, file, 'utf8');
 
-console.log(`Extracted ${Object.keys(out).length} icons, ${total} shapes, ${(bytes / 1024).toFixed(1)} KB of geometry.`);
+console.log(
+  `Extracted ${Object.keys(out).length} icons, ${total} shapes, ${(bytes / 1024).toFixed(1)} KB of geometry.`,
+);
 console.log(`Wrote ${OUT}`);
 if (missing.length) {
   console.error(`\nMISSING (${missing.length}):`);

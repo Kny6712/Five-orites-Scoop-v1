@@ -14,25 +14,25 @@ checkouts or you oversell indefinitely.
 
 ## Current state, verified
 
-| Layer | State | Where |
-| --- | --- | --- |
-| Client stock decrement | **REMOVED** | `src/app/core/services/order.service.ts:68-83` |
-| `reconcileOrderStock` | Written, **not deployed** | `functions/src/index.ts:260` |
-| `restockCancelledOrder` | Written, **not deployed** | `functions/src/index.ts:499` |
-| Customer stock-write rule | **STILL OPEN** | `firestore.rules:186-190` |
-| Rules tests for the new world | **4 RED** | `tests/firestore.rules.test.ts:126,139,148,161` |
+| Layer                         | State                     | Where                                           |
+| ----------------------------- | ------------------------- | ----------------------------------------------- |
+| Client stock decrement        | **REMOVED**               | `src/app/core/services/order.service.ts:68-83`  |
+| `reconcileOrderStock`         | Written, **not deployed** | `functions/src/index.ts:260`                    |
+| `restockCancelledOrder`       | Written, **not deployed** | `functions/src/index.ts:499`                    |
+| Customer stock-write rule     | **STILL OPEN**            | `firestore.rules:186-190`                       |
+| Rules tests for the new world | **4 RED**                 | `tests/firestore.rules.test.ts:126,139,148,161` |
 
 ### Why stock is not decrementing today
 
 `order.service.ts` no longer writes stock — it delegates to a function that is not
-running. The rules still *permit* a customer to write stock, but nothing in the app
+running. The rules still _permit_ a customer to write stock, but nothing in the app
 does so any more. Net result: orders are created, money is (presumably) collected, and
 the shelf count never moves.
 
 ### Why you cannot simply delete the rule branch
 
-`firestore.rules:186-190` grants any signed-in user a stock write scoped only by *key
-name*:
+`firestore.rules:186-190` grants any signed-in user a stock write scoped only by _key
+name_:
 
 ```rules
 || (isSignedIn()
@@ -49,7 +49,7 @@ It is also, right now, the only thing that would have let a client decrement —
 client no longer tries. **The branch is pure attack surface with no remaining purpose.**
 
 Deleting it is correct and is the goal. It is only unsafe if the function is not yet
-live, because then nothing decrements at all *and* the cancellation restock path is
+live, because then nothing decrements at all _and_ the cancellation restock path is
 gone too.
 
 ## Prerequisites

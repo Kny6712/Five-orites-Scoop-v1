@@ -24,8 +24,19 @@ import { readCachedGeo, interpolate, distanceMetres } from '../src/app/core/logi
 import { productCategory, PRODUCT_CATEGORIES } from '../src/app/core/models/product.model';
 import * as voucherModel from '../src/app/core/models/voucher.model';
 import { toCsv, sanitiseCell, csvFilename, toIsoDate } from '../src/app/core/logic/csv';
-import { calendarBuckets, weeklyBuckets, bucketsFor, bucketize, runningTotal } from '../src/app/core/logic/series';
-import { parseCsvLine, parseProductCsv, slug, PRODUCT_CSV_TEMPLATE } from '../src/app/core/logic/csv-import';
+import {
+  calendarBuckets,
+  weeklyBuckets,
+  bucketsFor,
+  bucketize,
+  runningTotal,
+} from '../src/app/core/logic/series';
+import {
+  parseCsvLine,
+  parseProductCsv,
+  slug,
+  PRODUCT_CSV_TEMPLATE,
+} from '../src/app/core/logic/csv-import';
 import {
   ROLE_CAPABILITIES,
   ROLE_LABELS,
@@ -53,16 +64,33 @@ import * as fnConfig from '../functions/src/config';
 
 const ALL_ROLES: UserRole[] = ['customer', 'staff', 'manager', 'admin', 'owner'];
 const ALL_CAPABILITIES: Capability[] = [
-  'view_dashboard', 'manage_orders', 'manage_inventory',
-  'view_analytics', 'manage_vouchers', 'moderate_reviews',
-  'manage_users', 'manage_settings',
+  'view_dashboard',
+  'manage_orders',
+  'manage_inventory',
+  'view_analytics',
+  'manage_vouchers',
+  'moderate_reviews',
+  'manage_users',
+  'manage_settings',
 ];
 
 /** Every way a hand-entered role string can be wrong. All must fail closed. */
 const MALFORMED_ROLES = [
-  'owner\n', 'owner\n\n', 'owner ', ' owner', '\towner', 'owner\t',
-  'admin\n', 'staff ', 'Manager', 'OWNER', 'owner\r\n',
-  'superuser', 'adminx', '', '  ',
+  'owner\n',
+  'owner\n\n',
+  'owner ',
+  ' owner',
+  '\towner',
+  'owner\t',
+  'admin\n',
+  'staff ',
+  'Manager',
+  'OWNER',
+  'owner\r\n',
+  'superuser',
+  'adminx',
+  '',
+  '  ',
 ] as const;
 
 describe('role tiers: the capability map', () => {
@@ -80,7 +108,7 @@ describe('role tiers: the capability map', () => {
       for (const cap of ROLE_CAPABILITIES[chain[i - 1]]) {
         assert.ok(
           ROLE_CAPABILITIES[chain[i]].includes(cap),
-          `${chain[i]} must keep ${cap}, which ${chain[i - 1]} has`
+          `${chain[i]} must keep ${cap}, which ${chain[i - 1]} has`,
         );
       }
     }
@@ -126,7 +154,10 @@ describe('role tiers: the capability map', () => {
   });
 
   it('ranks the tiers ascending in privilege, as ROLE_CAPABILITIES declares them', () => {
-    assert.deepEqual([...ALL_ROLES].sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]), ALL_ROLES);
+    assert.deepEqual(
+      [...ALL_ROLES].sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b]),
+      ALL_ROLES,
+    );
   });
 });
 
@@ -202,23 +233,38 @@ describe('client ↔ firestore.rules drift lint', () => {
     if (!hasRules) return;
     const m = rules.match(/myRole\(\) in \[([^\]]+)\]/);
     assert.ok(m, 'isStaff() role list not found in firestore.rules');
-    const rulesSet = m![1].split(',').map((s) => s.trim().replace(/'/g, '')).sort();
+    const rulesSet = m![1]
+      .split(',')
+      .map((s) => s.trim().replace(/'/g, ''))
+      .sort();
     const clientStaff = ALL_ROLES.filter((r) => r !== 'customer').sort();
     assert.deepEqual(rulesSet, clientStaff, 'isStaff() set drifted from the client staff roles');
   });
 
   it('the rules canRunShop tier set matches the client manage_inventory grants', () => {
     if (!hasRules) return;
-    const m = rules.match(/function canRunShop\(\)\s*\{\s*return isStaff\(\) && myRole\(\) in \[([^\]]+)\]/);
+    const m = rules.match(
+      /function canRunShop\(\)\s*\{\s*return isStaff\(\) && myRole\(\) in \[([^\]]+)\]/,
+    );
     assert.ok(m, 'canRunShop() role list not found in firestore.rules');
-    const rulesSet = m![1].split(',').map((s) => s.trim().replace(/'/g, '')).sort();
+    const rulesSet = m![1]
+      .split(',')
+      .map((s) => s.trim().replace(/'/g, ''))
+      .sort();
     const clientShop = ALL_ROLES.filter((r) => can(r, 'manage_inventory')).sort();
-    assert.deepEqual(rulesSet, clientShop, 'canRunShop() set drifted from the client manage_inventory grants');
+    assert.deepEqual(
+      rulesSet,
+      clientShop,
+      'canRunShop() set drifted from the client manage_inventory grants',
+    );
   });
 
   it('the rules canManageUsers is owner-only, matching manage_users', () => {
     if (!hasRules) return;
-    assert.match(rules, /function canManageUsers\(\)\s*\{\s*return isStaff\(\) && myRole\(\) == 'owner'/);
+    assert.match(
+      rules,
+      /function canManageUsers\(\)\s*\{\s*return isStaff\(\) && myRole\(\) == 'owner'/,
+    );
     assert.equal(ALL_ROLES.filter((r) => can(r, 'manage_users')).length, 1);
   });
 
@@ -237,7 +283,11 @@ describe('client ↔ firestore.rules drift lint', () => {
     const orderCreate = rules.match(/match \/orders\/\{orderId\}[^]*?allow create: if([^;]*);/s);
     assert.ok(orderCreate, 'orders allow create not found');
     assert.match(orderCreate![1], /keys\(\)\.hasOnly\(/, 'orders create must restrict keys');
-    assert.match(orderCreate![1], /grandTotal\s*==?\s*request\.resource\.data\.totalAmount/, 'grandTotal identity check missing');
+    assert.match(
+      orderCreate![1],
+      /grandTotal\s*==?\s*request\.resource\.data\.totalAmount/,
+      'grandTotal identity check missing',
+    );
   });
 
   it('a role of "owner\\n" gets NOTHING — the client half of the incident', () => {
@@ -270,7 +320,7 @@ describe('delivery fee', () => {
       assert.equal(
         fnConfig.getDeliveryFee(subtotal),
         getDeliveryFee(subtotal),
-        `fee mismatch at subtotal ${subtotal}`
+        `fee mismatch at subtotal ${subtotal}`,
       );
     }
   });
@@ -304,7 +354,7 @@ describe('scripts/seed-admin.ts: the role vocabulary cannot drift', () => {
     assert.deepEqual(
       [...scriptRoles].sort(),
       [...ALL_ROLES].sort(),
-      'scripts/seed-admin.ts ROLES has drifted from UserRole — a role the script writes but the rules do not know is a silently powerless admin'
+      'scripts/seed-admin.ts ROLES has drifted from UserRole — a role the script writes but the rules do not know is a silently powerless admin',
     );
   });
 
@@ -315,7 +365,7 @@ describe('scripts/seed-admin.ts: the role vocabulary cannot drift', () => {
     // does not reintroduce it.
     assert.ok(
       !/\.trim\(\)/.test(scriptSource.match(/function parseRole[\s\S]*?\n}/)?.[0] ?? ''),
-      'parseRole must not trim — exact matching is the guard against "owner\\n"'
+      'parseRole must not trim — exact matching is the guard against "owner\\n"',
     );
   });
 });
@@ -347,7 +397,7 @@ describe('voucher discount: client and function copies agree', () => {
         assert.equal(
           fnConfig.calculateDiscount(subtotal, voucher),
           calculateDiscount(subtotal, voucher),
-          `discount mismatch for ${voucher.type} ${voucher.value} at subtotal ${subtotal}`
+          `discount mismatch for ${voucher.type} ${voucher.value} at subtotal ${subtotal}`,
         );
       }
     }
@@ -358,11 +408,11 @@ describe('voucher discount: client and function copies agree', () => {
       for (const subtotal of SUBTOTALS) {
         assert.ok(
           fnConfig.calculateDiscount(subtotal, voucher) >= 0,
-          `function copy went negative for ${voucher.type} ${voucher.value} at ${subtotal}`
+          `function copy went negative for ${voucher.type} ${voucher.value} at ${subtotal}`,
         );
         assert.ok(
           calculateDiscount(subtotal, voucher) >= 0,
-          `client copy went negative for ${voucher.type} ${voucher.value} at ${subtotal}`
+          `client copy went negative for ${voucher.type} ${voucher.value} at ${subtotal}`,
         );
       }
     }
@@ -375,11 +425,11 @@ describe('voucher discount: client and function copies agree', () => {
       for (const subtotal of SUBTOTALS) {
         assert.ok(
           fnConfig.calculateDiscount(subtotal, voucher) <= subtotal,
-          `function copy exceeded subtotal for ${voucher.type} ${voucher.value} at ${subtotal}`
+          `function copy exceeded subtotal for ${voucher.type} ${voucher.value} at ${subtotal}`,
         );
         assert.ok(
           calculateDiscount(subtotal, voucher) <= subtotal,
-          `client copy exceeded subtotal for ${voucher.type} ${voucher.value} at ${subtotal}`
+          `client copy exceeded subtotal for ${voucher.type} ${voucher.value} at ${subtotal}`,
         );
       }
     }
@@ -394,7 +444,7 @@ describe('cart stock cap', () => {
   it('rejects overselling', () => {
     assert.throws(
       () => assertCanAddToCart('Rocky Road (pint)', 8, 3, 10),
-      /Exceeds available|Only 10 x Rocky Road/
+      /Exceeds available|Only 10 x Rocky Road/,
     );
   });
 
@@ -422,7 +472,11 @@ describe('clampToStock', () => {
 });
 
 describe('normaliseStockLines', () => {
-  const line = (productId: string, size: string, quantity: number) => ({ productId, size, quantity });
+  const line = (productId: string, size: string, quantity: number) => ({
+    productId,
+    size,
+    quantity,
+  });
 
   it('passes through a single valid line unchanged', () => {
     const result = normaliseStockLines([line('p1', 'cup', 2)]);
@@ -466,7 +520,7 @@ describe('normaliseStockLines', () => {
     assert.equal(result.length, 2);
   });
 
-  it('does not mutate the caller\'s input objects', () => {
+  it("does not mutate the caller's input objects", () => {
     const input = [line('p1', 'cup', 1), line('p1', 'cup', 1)];
     normaliseStockLines(input);
     assert.equal(input[0].quantity, 1);
@@ -481,35 +535,29 @@ describe('vouchers', () => {
   it('applies a percentage above its minimum order', () => {
     assert.equal(
       calculateDiscount(1000, { type: 'percent', value: 10, minOrder: 200, isActive: true }),
-      100
+      100,
     );
   });
 
   it('ignores a percentage below its minimum order', () => {
     assert.equal(
       calculateDiscount(100, { type: 'percent', value: 10, minOrder: 200, isActive: true }),
-      0
+      0,
     );
   });
 
   it('caps a fixed discount at the subtotal', () => {
-    assert.equal(
-      calculateDiscount(30, { type: 'fixed', value: 50, isActive: true }),
-      30
-    );
+    assert.equal(calculateDiscount(30, { type: 'fixed', value: 50, isActive: true }), 30);
   });
 
   it('ignores inactive vouchers', () => {
-    assert.equal(
-      calculateDiscount(1000, { type: 'percent', value: 10, isActive: false }),
-      0
-    );
+    assert.equal(calculateDiscount(1000, { type: 'percent', value: 10, isActive: false }), 0);
   });
 
   it('never discounts more than the maximum percentage', () => {
     assert.equal(
       calculateDiscount(1000, { type: 'percent', value: 500, isActive: true }),
-      (1000 * MAX_PERCENT_DISCOUNT) / 100
+      (1000 * MAX_PERCENT_DISCOUNT) / 100,
     );
   });
 
@@ -522,7 +570,7 @@ describe('vouchers', () => {
     assert.equal(
       Object.keys(voucherModel).includes('BUILT_IN_VOUCHERS'),
       false,
-      'a built-in voucher list overrides admin control and must not return'
+      'a built-in voucher list overrides admin control and must not return',
     );
   });
 });
@@ -621,7 +669,9 @@ describe('cloudinary delivery url', () => {
   });
 
   it('keeps the public id and folder intact', () => {
-    assert.ok(buildCloudinaryUrl(STORED, 1000).endsWith('v1756200000/five-orites-scoop/products/a.jpg'));
+    assert.ok(
+      buildCloudinaryUrl(STORED, 1000).endsWith('v1756200000/five-orites-scoop/products/a.jpg'),
+    );
   });
 
   it('does not stack transforms when applied twice', () => {
@@ -641,7 +691,10 @@ describe('cloudinary delivery url', () => {
   });
 
   it('passes through anything that is not a cloudinary url', () => {
-    assert.equal(buildCloudinaryUrl('assets/placeholder-scoop.svg', 400), 'assets/placeholder-scoop.svg');
+    assert.equal(
+      buildCloudinaryUrl('assets/placeholder-scoop.svg', 400),
+      'assets/placeholder-scoop.svg',
+    );
     assert.equal(buildCloudinaryUrl('https://example.com/x.jpg', 400), 'https://example.com/x.jpg');
     assert.equal(buildCloudinaryUrl('', 400), '');
     assert.equal(buildCloudinaryUrl(null, 400), '');
@@ -691,7 +744,7 @@ describe('firestore error messages', () => {
   it('handles a transport-prefixed code', () => {
     assert.equal(
       describeFirestoreError('orders', { code: 'firestore/failed-precondition' }),
-      describeFirestoreError('orders', { code: 'failed-precondition' })
+      describeFirestoreError('orders', { code: 'failed-precondition' }),
     );
   });
 
@@ -778,7 +831,11 @@ describe('csv serialisation', () => {
   });
 
   it('emits a header plus one line per row', () => {
-    const csv = toCsv([['id', 'name'], ['1', 'Rocky Road'], ['2', 'Ube Halaya']]);
+    const csv = toCsv([
+      ['id', 'name'],
+      ['1', 'Rocky Road'],
+      ['2', 'Ube Halaya'],
+    ]);
     assert.equal(csv.split('\n').length, 3);
     assert.ok(csv.startsWith('"id","name"'));
   });
@@ -789,7 +846,10 @@ describe('csv serialisation', () => {
 
   it('builds a dated filename', () => {
     assert.match(csvFilename('orders'), /^five-orites-orders-\d{4}-\d{2}-\d{2}\.csv$/);
-    assert.match(csvFilename('delivered-sales', '30d'), /^five-orites-delivered-sales-30d-\d{4}-\d{2}-\d{2}\.csv$/);
+    assert.match(
+      csvFilename('delivered-sales', '30d'),
+      /^five-orites-delivered-sales-30d-\d{4}-\d{2}-\d{2}\.csv$/,
+    );
   });
 
   /**
@@ -838,19 +898,32 @@ describe('revenue trend bucketing', () => {
 
   it('sums each order into exactly one bucket', () => {
     const b = calendarBuckets(7, NOW);
-    const sums = bucketize(b, [at(2), at(2), at(1), sept(26)], (t) => t, () => 100);
+    const sums = bucketize(
+      b,
+      [at(2), at(2), at(1), sept(26)],
+      (t) => t,
+      () => 100,
+    );
     assert.equal(sums.length, 7);
     assert.equal(sums[6], 200, 'two orders today');
     assert.equal(sums[5], 100, 'one yesterday');
     assert.equal(sums[0], 100, 'one on the first day of the window');
-    assert.equal(sums.reduce((a, b2) => a + b2, 0), 400);
+    assert.equal(
+      sums.reduce((a, b2) => a + b2, 0),
+      400,
+    );
   });
 
   it('separates 11:59pm from 12:01am across a day boundary', () => {
     const b = calendarBuckets(2, NOW);
     const late = new Date(2026, 9, 1, 23, 59).getTime();
     const early = new Date(2026, 9, 2, 0, 1).getTime();
-    const sums = bucketize(b, [late, early], (t) => t, () => 1);
+    const sums = bucketize(
+      b,
+      [late, early],
+      (t) => t,
+      () => 1,
+    );
     assert.equal(sums[0], 1, '11:59pm belongs to yesterday');
     assert.equal(sums[1], 1, '12:01am belongs to today');
   });
@@ -864,22 +937,38 @@ describe('revenue trend bucketing', () => {
       b,
       [at(1), at(2), new Date(2026, 0, 1).getTime(), at(3)],
       (t) => t,
-      () => 10
+      () => 10,
     );
-    assert.equal(sums.reduce((a, b2) => a + b2, 0), 20);
+    assert.equal(
+      sums.reduce((a, b2) => a + b2, 0),
+      20,
+    );
   });
 
   it('emits empty buckets so the line has no gaps', () => {
     const b = calendarBuckets(5, NOW);
-    const sums = bucketize(b, [at(2)], (t) => t, () => 500);
+    const sums = bucketize(
+      b,
+      [at(2)],
+      (t) => t,
+      () => 500,
+    );
     assert.equal(sums.length, 5);
     assert.deepEqual(sums, [0, 0, 0, 0, 500]);
   });
 
   it('survives an unparseable timestamp instead of dropping the bucket', () => {
     const b = calendarBuckets(3, NOW);
-    const sums = bucketize(b, [Number.NaN, at(2)], (t) => t, () => 50);
-    assert.equal(sums.reduce((a, b2) => a + b2, 0), 50);
+    const sums = bucketize(
+      b,
+      [Number.NaN, at(2)],
+      (t) => t,
+      () => 50,
+    );
+    assert.equal(
+      sums.reduce((a, b2) => a + b2, 0),
+      50,
+    );
   });
 
   it('collapses a long window into weeks and keeps every order', () => {
@@ -887,14 +976,24 @@ describe('revenue trend bucketing', () => {
     // One order in each of the three weeks of the window, so a weekly bug that
     // dropped or double-counted a column would show up as a different total.
     const sample = [at(2), sept(20), sept(5)];
-    const dailySums = bucketize(daily, sample, (t) => t, () => 10);
+    const dailySums = bucketize(
+      daily,
+      sample,
+      (t) => t,
+      () => 10,
+    );
     const weekly = weeklyBuckets(30, NOW);
-    const weeklySums = bucketize(weekly, sample, (t) => t, () => 10);
+    const weeklySums = bucketize(
+      weekly,
+      sample,
+      (t) => t,
+      () => 10,
+    );
     assert.ok(weekly.length < daily.length, 'weeks must be fewer columns than days');
     assert.equal(
       dailySums.reduce((a, b) => a + b, 0),
       weeklySums.reduce((a, b) => a + b, 0),
-      'bucketing weekly must not drop or double-count any order'
+      'bucketing weekly must not drop or double-count any order',
     );
   });
 
@@ -926,7 +1025,10 @@ describe('csv line parsing', () => {
     // The same failure the CSV writer guards against, read backwards: a naive
     // split here would shift every column after the flavor name.
     assert.deepEqual(parseCsvLine('1,Chocolates,"Rocky Road, chunky",flavor'), [
-      '1', 'Chocolates', 'Rocky Road, chunky', 'flavor',
+      '1',
+      'Chocolates',
+      'Rocky Road, chunky',
+      'flavor',
     ]);
   });
 
@@ -945,11 +1047,12 @@ describe('csv line parsing', () => {
 });
 
 describe('product csv import', () => {
-  const HEADER = 'set_number,set_name,variant_name,description,category,cup_price,pint_price,half_gallon_price,gallon_price,cup_stock,pint_stock,half_gallon_stock,gallon_stock';
+  const HEADER =
+    'set_number,set_name,variant_name,description,category,cup_price,pint_price,half_gallon_price,gallon_price,cup_stock,pint_stock,half_gallon_stock,gallon_stock';
 
   it('parses a well-formed file', () => {
     const plan = parseProductCsv(
-      `${HEADER}\n1,Chocolates,Rocky Road,Nuts,flavor,65,200,500,950,3,2,1,0`
+      `${HEADER}\n1,Chocolates,Rocky Road,Nuts,flavor,65,200,500,950,3,2,1,0`,
     );
     assert.equal(plan.errors.length, 0);
     assert.equal(plan.valid.length, 1);
@@ -969,7 +1072,7 @@ describe('product csv import', () => {
     // and no way to tell which 40.
     const plan = parseProductCsv(
       `${HEADER}\n1,Chocolates,Rocky Road,,flavor,65,200,500,950,,,,` +
-      `\n1,Chocolates,Broken,,flavor,abc,200,500,950,,,,`
+        `\n1,Chocolates,Broken,,flavor,abc,200,500,950,,,,`,
     );
     assert.equal(plan.valid.length, 0, 'nothing may be accepted');
     assert.equal(plan.errors.length, 1);
@@ -979,7 +1082,7 @@ describe('product csv import', () => {
   it('reports the original line number, header included', () => {
     const plan = parseProductCsv(
       `${HEADER}\n1,Chocolates,Good,,flavor,65,200,500,950,,,,` +
-      `\n1,Chocolates,Bad,,flavor,-5,200,500,950,,,,`
+        `\n1,Chocolates,Bad,,flavor,-5,200,500,950,,,,`,
     );
     assert.equal(plan.errors[0].line, 3, 'line 1 is the header');
   });
@@ -1009,7 +1112,10 @@ describe('product csv import', () => {
 
   it('rejects a row missing a required name', () => {
     assert.equal(parseProductCsv(`${HEADER}\n1,,X,,flavor,65,200,500,950,,,,`).valid.length, 0);
-    assert.equal(parseProductCsv(`${HEADER}\n1,Chocolates,,,flavor,65,200,500,950,,,,`).valid.length, 0);
+    assert.equal(
+      parseProductCsv(`${HEADER}\n1,Chocolates,,,flavor,65,200,500,950,,,,`).valid.length,
+      0,
+    );
   });
 
   it('rejects a duplicate pair inside one file', () => {
@@ -1017,7 +1123,7 @@ describe('product csv import', () => {
     // overwrites the earlier row.
     const plan = parseProductCsv(
       `${HEADER}\n1,Chocolates,Rocky Road,,flavor,65,200,500,950,,,,` +
-      `\n1,Chocolates,Rocky Road,,flavor,99,200,500,950,,,,`
+        `\n1,Chocolates,Rocky Road,,flavor,99,200,500,950,,,,`,
     );
     assert.equal(plan.valid.length, 0);
     assert.match(plan.errors[0].message, /duplicate/);
@@ -1026,7 +1132,7 @@ describe('product csv import', () => {
   it('rejects a row that already exists in the catalog', () => {
     const plan = parseProductCsv(
       `${HEADER}\n1,Chocolates,Rocky Road,,flavor,65,200,500,950,,,,`,
-      new Set(['1_rocky_road'])
+      new Set(['1_rocky_road']),
     );
     assert.equal(plan.valid.length, 0);
     assert.match(plan.errors[0].message, /already exists/);
@@ -1046,10 +1152,10 @@ describe('product csv import', () => {
   });
 
   it('lists unknown columns so a typo is visible rather than silently ignored', () => {
-    const plan = parseProductCsv(`${HEADER}\n1,Chocolates,X,,flavor,65,200,500,950,,,,`, );
+    const plan = parseProductCsv(`${HEADER}\n1,Chocolates,X,,flavor,65,200,500,950,,,,`);
     assert.deepEqual(plan.unknownColumns, []);
     const typo = parseProductCsv(
-      'set_number,set_name,variant_name,category,cup_prce,pint_price,half_gallon_price,gallon_price\n1,C,X,flavor,65,200,500,950'
+      'set_number,set_name,variant_name,category,cup_prce,pint_price,half_gallon_price,gallon_price\n1,C,X,flavor,65,200,500,950',
     );
     assert.ok(typo.unknownColumns.includes('cup_prce'), 'the typo must be named');
   });
@@ -1068,7 +1174,7 @@ describe('product csv import', () => {
 
   it('skips blank lines and comments instead of failing on them', () => {
     const plan = parseProductCsv(
-      `${HEADER}\n\n# exported 2 Oct\n1,Chocolates,Rocky Road,,flavor,65,200,500,950,,,,\n\n`
+      `${HEADER}\n\n# exported 2 Oct\n1,Chocolates,Rocky Road,,flavor,65,200,500,950,,,,\n\n`,
     );
     assert.equal(plan.valid.length, 1);
     assert.equal(plan.errors.length, 0);
@@ -1082,7 +1188,7 @@ describe('product csv import', () => {
 
   it('handles a quoted comma inside a description', () => {
     const plan = parseProductCsv(
-      `${HEADER}\n1,Chocoletes,Rocky Road,"Rich, fudgy, nutty",flavor,65,200,500,950,,,,`
+      `${HEADER}\n1,Chocoletes,Rocky Road,"Rich, fudgy, nutty",flavor,65,200,500,950,,,,`,
     );
     assert.equal(plan.valid[0].description, 'Rich, fudgy, nutty');
   });

@@ -212,8 +212,13 @@
   border-radius: var(--radius-xs);
   cursor: pointer;
 }
-.user-link:hover, .user-link:active { background: var(--tile-powder); }
-.user-link.active-user-link { background: var(--color-brand-light); }
+.user-link:hover,
+.user-link:active {
+  background: var(--tile-powder);
+}
+.user-link.active-user-link {
+  background: var(--color-brand-light);
+}
 
 .user-avatar {
   width: 40px;

@@ -7,12 +7,7 @@ import { SizeVariant } from './product.model';
 import type { AppIcon } from '../icons/app-icons';
 
 export type OrderStatus =
-  | 'pending'
-  | 'confirmed'
-  | 'preparing'
-  | 'out_for_delivery'
-  | 'delivered'
-  | 'cancelled';
+  'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'cancelled';
 
 export interface OrderItem {
   productId: string;

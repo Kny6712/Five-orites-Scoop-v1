@@ -104,7 +104,7 @@ export function bucketize<T>(
   buckets: Bucket[],
   rows: readonly T[],
   toMs: (row: T) => number,
-  value: (row: T) => number
+  value: (row: T) => number,
 ): number[] {
   const sums = new Array<number>(buckets.length).fill(0);
   if (!buckets.length) return sums;

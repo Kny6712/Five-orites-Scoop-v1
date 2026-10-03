@@ -2,14 +2,26 @@
 // Fixed double-add bug with isAdding lock
 
 import {
-  Component, Input, Output, EventEmitter,
-  signal, computed, OnInit, inject,
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  signal,
+  computed,
+  OnInit,
+  inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import {
-  IonCard, IonCardContent, IonButton,
-  IonSkeletonText, IonChip, IonLabel, IonSegment, IonSegmentButton,
+  IonCard,
+  IonCardContent,
+  IonButton,
+  IonSkeletonText,
+  IonChip,
+  IonLabel,
+  IonSegment,
+  IonSegmentButton,
   ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../app-icon/app-icon.component';
@@ -25,11 +37,20 @@ import { ShopSettingsService } from '../../../core/services/shop-settings.servic
   selector: 'app-product-card',
   standalone: true,
   imports: [
-    CommonModule, RouterLink,
-    IonCard, IonCardContent, IonButton,
-    IonSkeletonText, IonChip, IonLabel, IonSegment, IonSegmentButton,
-    PesoPipe, CloudinaryPipe, AppIconComponent,
-    ],
+    CommonModule,
+    RouterLink,
+    IonCard,
+    IonCardContent,
+    IonButton,
+    IonSkeletonText,
+    IonChip,
+    IonLabel,
+    IonSegment,
+    IonSegmentButton,
+    PesoPipe,
+    CloudinaryPipe,
+    AppIconComponent,
+  ],
   templateUrl: './product-card.component.html',
   styleUrls: ['./product-card.component.scss'],
 })

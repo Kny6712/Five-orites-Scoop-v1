@@ -28,13 +28,13 @@ operating this ordering app. "We" means the shop.
 
 If you sign in, we store on your user record:
 
-| Field | Why |
-| --- | --- |
-| Email address | Your account identity. Required to sign in. |
-| Display name | Shown on your orders and your reviews. |
-| Photo URL | Only if you signed in with Google and it provided one. |
-| Phone number | **Only if you enter it** in your profile. Optional. |
-| Notification preference | Whether you want order-status notifications. |
+| Field                   | Why                                                    |
+| ----------------------- | ------------------------------------------------------ |
+| Email address           | Your account identity. Required to sign in.            |
+| Display name            | Shown on your orders and your reviews.                 |
+| Photo URL               | Only if you signed in with Google and it provided one. |
+| Phone number            | **Only if you enter it** in your profile. Optional.    |
+| Notification preference | Whether you want order-status notifications.           |
 
 We do not ask for a password — authentication is handled by Firebase Auth, and
 Google sign-in is handled by Google. We never see your Google password.
@@ -88,12 +88,12 @@ low-risk, and it is a known loose end we are tightening.
 
 ## Who else sees your data
 
-| Party | What | Why |
-| --- | --- | --- |
-| Google Firebase | Your account and all app data | The database and authentication live here. |
-| Google | Your identity, if you sign in with Google | Google handles that sign-in. |
-| Cloudinary | Product photos you upload | Image hosting. **Never your order data.** |
-| OpenStreetMap (Nominatim) | Delivery address text, when you open the tracking page | Turns it into a map point. |
+| Party                     | What                                                   | Why                                        |
+| ------------------------- | ------------------------------------------------------ | ------------------------------------------ |
+| Google Firebase           | Your account and all app data                          | The database and authentication live here. |
+| Google                    | Your identity, if you sign in with Google              | Google handles that sign-in.               |
+| Cloudinary                | Product photos you upload                              | Image hosting. **Never your order data.**  |
+| OpenStreetMap (Nominatim) | Delivery address text, when you open the tracking page | Turns it into a map point.                 |
 
 None of these are sold or used for their own advertising on our behalf.
 

@@ -1,9 +1,14 @@
 // src/app/admin/vouchers/admin-vouchers.page.scss
 // Five-orites Scoop — Admin voucher management
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
-.new-btn { --font-size: 13px; font-weight: 700; }
+.new-btn {
+  --font-size: 13px;
+  font-weight: 700;
+}
 
 // ── Editor ───────────────────────────────────────────────
 .editor {
@@ -15,7 +20,9 @@
   margin: var(--space-3) var(--space-4) 0;
 }
 
-.editor-head { margin-bottom: var(--space-3); }
+.editor-head {
+  margin-bottom: var(--space-3);
+}
 
 .editor-title {
   margin: 0;
@@ -32,7 +39,10 @@
   color: var(--ion-color-medium);
 }
 
-.field { display: block; margin-bottom: var(--space-3); }
+.field {
+  display: block;
+  margin-bottom: var(--space-3);
+}
 
 .field-label {
   display: block;
@@ -89,8 +99,13 @@
   background: var(--color-white);
 }
 
-.example-badge app-icon { --icon-size: 16px; color: var(--color-primary-ink); }
-.example--blocked .example-badge app-icon { color: var(--tone-warning-ink); }
+.example-badge app-icon {
+  --icon-size: 16px;
+  color: var(--color-primary-ink);
+}
+.example--blocked .example-badge app-icon {
+  color: var(--tone-warning-ink);
+}
 
 .example-text {
   margin: 0;
@@ -98,7 +113,10 @@
   line-height: 1.45;
   color: var(--color-ink);
 }
-.example-text strong { font-weight: 800; color: var(--color-primary-ink); }
+.example-text strong {
+  font-weight: 800;
+  color: var(--color-primary-ink);
+}
 
 .toggle-row {
   display: flex;
@@ -108,9 +126,20 @@
   padding: var(--space-2) 0;
 }
 
-.toggle-text { min-width: 0; }
-.toggle-title { display: block; font-size: 14px; font-weight: 700; color: var(--color-ink); }
-.toggle-sub { display: block; font-size: 12px; color: var(--ion-color-medium); }
+.toggle-text {
+  min-width: 0;
+}
+.toggle-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.toggle-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
 
 .editor-actions {
   display: flex;
@@ -128,7 +157,9 @@
 }
 
 // ── Tools ────────────────────────────────────────────────
-.tools { padding: var(--space-3) var(--space-4) 0; }
+.tools {
+  padding: var(--space-3) var(--space-4) 0;
+}
 
 .voucher-search {
   --border-radius: var(--radius-sm);
@@ -175,7 +206,9 @@
   color: var(--color-primary-ink);
   cursor: pointer;
 }
-.clear-btn app-icon { --icon-size: 13px; }
+.clear-btn app-icon {
+  --icon-size: 13px;
+}
 
 // ── Ticket list ──────────────────────────────────────────
 /* A voucher is a ticket, so it is drawn as one: code in mono at the top, the
@@ -203,14 +236,19 @@
   transition: opacity 0.15s ease;
 }
 
-.ticket--inactive { opacity: 0.66; }
+.ticket--inactive {
+  opacity: 0.66;
+}
 
 .ticket--skeleton {
   display: block;
   min-height: 78px;
 }
 
-.ticket-body { flex: 1; min-width: 0; }
+.ticket-body {
+  flex: 1;
+  min-width: 0;
+}
 
 .ticket-head {
   display: flex;
@@ -232,7 +270,9 @@
   white-space: nowrap;
 }
 
-.ticket--inactive .ticket-code { color: var(--ion-color-medium); }
+.ticket--inactive .ticket-code {
+  color: var(--ion-color-medium);
+}
 
 .copy-btn {
   display: flex;
@@ -248,8 +288,12 @@
   color: var(--color-primary-ink);
   cursor: pointer;
 }
-.copy-btn app-icon { --icon-size: 14px; }
-.copy-btn:hover { background: var(--tile-powder); }
+.copy-btn app-icon {
+  --icon-size: 14px;
+}
+.copy-btn:hover {
+  background: var(--tile-powder);
+}
 
 .ticket-chips {
   display: flex;
@@ -290,7 +334,9 @@
 }
 
 @media (max-width: 400px) {
-  .field-pair { grid-template-columns: 1fr; }
+  .field-pair {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* A native date input rather than ion-datetime: a datetime picker is the wrong
@@ -366,16 +412,33 @@
   cursor: pointer;
 }
 
-.icon-btn app-icon { --icon-size: 16px; }
-.icon-btn:hover { background: var(--tile-powder); border-color: var(--ion-color-light-shade); }
+.icon-btn app-icon {
+  --icon-size: 16px;
+}
+.icon-btn:hover {
+  background: var(--tile-powder);
+  border-color: var(--ion-color-light-shade);
+}
 
-.icon-btn--danger { color: var(--tone-danger-ink); }
-.icon-btn--danger:hover { background: var(--tone-danger-bg); border-color: var(--tone-danger-border); }
+.icon-btn--danger {
+  color: var(--tone-danger-ink);
+}
+.icon-btn--danger:hover {
+  background: var(--tone-danger-bg);
+  border-color: var(--tone-danger-border);
+}
 
 @media (max-width: 400px) {
   /* Below this the code, three chips and three controls cannot share a line, so
      the actions drop to their own row rather than being squeezed to nothing. */
-  .ticket { flex-wrap: wrap; }
-  .ticket-perf { display: none; }
-  .ticket-actions { width: 100%; justify-content: flex-end; }
+  .ticket {
+    flex-wrap: wrap;
+  }
+  .ticket-perf {
+    display: none;
+  }
+  .ticket-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }

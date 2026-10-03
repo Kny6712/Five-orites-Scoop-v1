@@ -19,8 +19,18 @@ import {
   RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
 import {
-  doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, collection,
-  query, where, orderBy, getDocs, Timestamp,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  addDoc,
+  deleteDoc,
+  collection,
+  query,
+  where,
+  orderBy,
+  getDocs,
+  Timestamp,
 } from 'firebase/firestore';
 
 /** Does this document still exist, read as an admin so reads are never the thing under test? */
@@ -65,7 +75,17 @@ function orderFor(customerId: string, status: string) {
   return {
     customerId,
     customerEmail: 'c@example.com',
-    items: [{ productId: 'p1', variantName: 'Rocky Road', setName: 'Chocolates', size: 'cup', quantity: 1, unitPrice: 65, subtotal: 65 }],
+    items: [
+      {
+        productId: 'p1',
+        variantName: 'Rocky Road',
+        setName: 'Chocolates',
+        size: 'cup',
+        quantity: 1,
+        unitPrice: 65,
+        subtotal: 65,
+      },
+    ],
     totalAmount: 65,
     deliveryFee: 50,
     discountAmount: 0,
@@ -132,7 +152,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 3,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -141,7 +161,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 6,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -154,7 +174,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 999999,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -162,9 +182,12 @@ describe('products: customer stock writes', () => {
     await seed('products/p2', { ...PRODUCT, variantName: 'Mint Chip' });
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
-        'stock.cup': 0, 'stock.pint': 0, 'stock.halfGallon': 0, 'stock.gallon': 0,
+        'stock.cup': 0,
+        'stock.pint': 0,
+        'stock.halfGallon': 0,
+        'stock.gallon': 0,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -173,7 +196,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': -1000,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -182,7 +205,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'pricing.cup': 1,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -195,7 +218,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p2'), {
         isActive: true,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -210,7 +233,7 @@ describe('products: customer stock writes', () => {
         'stock.cup': 0,
         isActive: false,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -219,7 +242,7 @@ describe('products: customer stock writes', () => {
       updateDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1'), {
         'stock.cup': 0,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -245,9 +268,7 @@ describe('products: customer stock writes', () => {
   });
 
   test('a signed-out visitor may NOT delete a product', async () => {
-    await assertFails(
-      deleteDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1'))
-    );
+    await assertFails(deleteDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1')));
   });
 });
 
@@ -263,7 +284,7 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'cancelled', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -278,11 +299,11 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'cancelled', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
-  test('a customer may NOT cancel somebody else\'s order', async () => {
+  test("a customer may NOT cancel somebody else's order", async () => {
     await seed('orders/o3', orderFor(OTHER_CUSTOMER, 'pending'));
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'orders/o3'), {
@@ -293,7 +314,7 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'cancelled', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -312,7 +333,7 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'cancelled', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -328,7 +349,7 @@ describe('orders: customer cancel', () => {
           { status: 'delivered', timestamp: Timestamp.now() },
           { status: 'cancelled', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -343,7 +364,7 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'cancelled', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -357,16 +378,20 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'delivered', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
   test('a customer may create their own order', async () => {
-    await assertSucceeds(addDoc(collection(asUser(CUSTOMER), 'orders'), orderFor(CUSTOMER, 'pending')));
+    await assertSucceeds(
+      addDoc(collection(asUser(CUSTOMER), 'orders'), orderFor(CUSTOMER, 'pending')),
+    );
   });
 
   test('a customer may NOT create an order for somebody else', async () => {
-    await assertFails(addDoc(collection(asUser(CUSTOMER), 'orders'), orderFor(OTHER_CUSTOMER, 'pending')));
+    await assertFails(
+      addDoc(collection(asUser(CUSTOMER), 'orders'), orderFor(OTHER_CUSTOMER, 'pending')),
+    );
   });
 
   test('an admin may advance any order status', async () => {
@@ -379,7 +404,7 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'out_for_delivery', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -397,7 +422,7 @@ describe('orders: customer cancel', () => {
           { status: 'pending', timestamp: Timestamp.now() },
           { status: 'delivred', timestamp: Timestamp.now() },
         ],
-      })
+      }),
     );
   });
 
@@ -421,7 +446,7 @@ describe('orders: customer cancel', () => {
       updateDoc(doc(asAdmin(), 'orders/o11'), {
         statusHistory: [{ status: 'confirmed', timestamp: Timestamp.now() }],
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -431,7 +456,7 @@ describe('orders: customer cancel', () => {
       updateDoc(doc(asAdmin(), 'orders/o11b'), {
         status: 'preparing',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -443,7 +468,7 @@ describe('orders: customer cancel', () => {
       updateDoc(doc(asAdmin(), 'orders/o11c'), {
         deliveryAddress: 'Corrected address',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -455,13 +480,13 @@ describe('orders: customer cancel', () => {
       updateDoc(doc(asAdmin(), 'orders/o12'), {
         paymentStatus: 'paid',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
     await assertFails(
       updateDoc(doc(asAdmin(), 'orders/o12'), {
         customerId: OTHER_CUSTOMER,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 });
@@ -473,7 +498,7 @@ describe('reads', () => {
     await assertSucceeds(getDoc(doc(asUser(CUSTOMER), 'orders/o9')));
   });
 
-  test('a customer can NOT read another customer\'s order', async () => {
+  test("a customer can NOT read another customer's order", async () => {
     await seed('orders/o10', orderFor(OTHER_CUSTOMER, 'pending'));
     await assertFails(getDoc(doc(asUser(CUSTOMER), 'orders/o10')));
   });
@@ -501,8 +526,8 @@ describe('reads', () => {
       query(
         collection(asAdmin(), 'orders'),
         where('createdAt', '>=', Timestamp.fromDate(since)),
-        orderBy('createdAt', 'desc')
-      )
+        orderBy('createdAt', 'desc'),
+      ),
     );
     const ids = snap.docs.map((d) => d.id);
     assert.ok(ids.includes('recent'), 'the order inside the window should be returned');
@@ -523,9 +548,9 @@ describe('reads', () => {
         query(
           collection(asUser(CUSTOMER), 'orders'),
           where('createdAt', '>=', Timestamp.fromDate(since)),
-          orderBy('createdAt', 'desc')
-        )
-      )
+          orderBy('createdAt', 'desc'),
+        ),
+      ),
     );
   });
 });
@@ -535,7 +560,7 @@ describe('reviews', () => {
   // setDoc at a known path rather than addDoc with a random id.
   const reviewPath = (productId: string, uid: string) => `reviews/${productId}_${uid}`;
 
-  test('an author may NOT forge the shop\'s official reply', async () => {
+  test("an author may NOT forge the shop's official reply", async () => {
     // The author branch validated userId and rating but constrained nothing
     // else, so adminResponse / adminResponderName / adminRespondedAt were all
     // customer-writable — and those three render on the product page as a reply
@@ -551,7 +576,7 @@ describe('reviews', () => {
         createdAt: Timestamp.now(),
         adminResponse: 'Call us on 0917-000-0000 to book',
         adminResponderName: 'Five-orites Scoop Staff',
-      })
+      }),
     );
   });
 
@@ -571,7 +596,7 @@ describe('reviews', () => {
       updateDoc(doc(asUser(CUSTOMER), `reviews/reply_${CUSTOMER}`), {
         adminResponse: 'Please disregard the reviews',
         adminResponderName: 'Shop Owner',
-      })
+      }),
     );
   });
 
@@ -589,7 +614,7 @@ describe('reviews', () => {
         adminResponse: 'Thanks for the feedback!',
         adminResponderName: 'Five-orites Scoop',
         adminRespondedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -610,7 +635,7 @@ describe('reviews', () => {
         rating: 5,
         comment: 'Actually, excellent',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -619,7 +644,7 @@ describe('reviews', () => {
       updateDoc(doc(asAdmin(), 'products/p1'), {
         category: 'sundae',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -630,7 +655,7 @@ describe('reviews', () => {
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         category: 'cone',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -639,7 +664,7 @@ describe('reviews', () => {
       updateDoc(doc(asAdmin(), 'products/p1'), {
         category: 'popsicle',
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -653,7 +678,7 @@ describe('reviews', () => {
       updateDoc(doc(asAdmin(), 'products/legacy'), {
         'stock.cup': 7,
         updatedAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -664,21 +689,15 @@ describe('reviews', () => {
     // negative, Math.min(0, -5000) is -5000, and the Admin SDK — which bypasses
     // these rules — persists a NEGATIVE discount that then satisfies
     // grandTotal == totalAmount - discountAmount + deliveryFee.
-    await assertFails(
-      updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.gallon': -5000 })
-    );
-    await assertFails(
-      updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.cup': -1 })
-    );
+    await assertFails(updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.gallon': -5000 }));
+    await assertFails(updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.cup': -1 }));
   });
 
   test('a price of exactly zero is still allowed', async () => {
     // The floor is >= 0, not > 0: a free sample or a giveaway flavour is a
     // legitimate merchandising decision, and a rule that refused it would just be
     // worked around in the data.
-    await assertSucceeds(
-      updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.cup': 0 })
-    );
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.cup': 0 }));
   });
 
   test('a signed-in user may post a review in range', async () => {
@@ -690,7 +709,7 @@ describe('reviews', () => {
         rating: 5,
         comment: 'Great',
         createdAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -702,7 +721,7 @@ describe('reviews', () => {
         rating: 9,
         comment: 'Great',
         createdAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -716,11 +735,11 @@ describe('reviews', () => {
         rating: 4.5,
         comment: 'Great',
         createdAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
-  test('a user may NOT file a review under somebody else\'s id', async () => {
+  test("a user may NOT file a review under somebody else's id", async () => {
     await assertFails(
       setDoc(doc(asUser(CUSTOMER), reviewPath('p1', OTHER_CUSTOMER)), {
         productId: 'p1',
@@ -728,7 +747,7 @@ describe('reviews', () => {
         rating: 5,
         comment: 'Great',
         createdAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -741,7 +760,7 @@ describe('reviews', () => {
         rating: 5,
         comment: 'Great',
         createdAt: Timestamp.now(),
-      })
+      }),
     );
   });
 
@@ -757,12 +776,12 @@ describe('reviews', () => {
       setDoc(
         doc(asUser(CUSTOMER), reviewPath('p1', CUSTOMER)),
         { rating: 3, comment: 'Changed my mind' },
-        { merge: true }
-      )
+        { merge: true },
+      ),
     );
   });
 
-  test('a user may NOT edit somebody else\'s review', async () => {
+  test("a user may NOT edit somebody else's review", async () => {
     await seed(reviewPath('p1', OTHER_CUSTOMER), {
       productId: 'p1',
       userId: OTHER_CUSTOMER,
@@ -774,8 +793,8 @@ describe('reviews', () => {
       setDoc(
         doc(asUser(CUSTOMER), reviewPath('p1', OTHER_CUSTOMER)),
         { rating: 1, comment: 'Sabotage' },
-        { merge: true }
-      )
+        { merge: true },
+      ),
     );
   });
 
@@ -790,7 +809,7 @@ describe('reviews', () => {
     await assertSucceeds(deleteDoc(doc(asUser(CUSTOMER), reviewPath('p1', CUSTOMER))));
   });
 
-  test('a user may NOT delete somebody else\'s review', async () => {
+  test("a user may NOT delete somebody else's review", async () => {
     await seed(reviewPath('p1', OTHER_CUSTOMER), {
       productId: 'p1',
       userId: OTHER_CUSTOMER,
@@ -823,13 +842,13 @@ describe('reviews', () => {
 describe('users: self-service profile', () => {
   test('a customer may set their own display name', async () => {
     await assertSucceeds(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { displayName: 'New Name' })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { displayName: 'New Name' }),
     );
   });
 
   test('a customer may set a phone number', async () => {
     await assertSucceeds(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { phone: '+639171234567' })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { phone: '+639171234567' }),
     );
   });
 
@@ -837,13 +856,13 @@ describe('users: self-service profile', () => {
     await assertSucceeds(
       updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), {
         photoURL: 'https://res.cloudinary.com/fhtucp4v/image/upload/avatars/a.jpg',
-      })
+      }),
     );
   });
 
   test('a customer may store their notification preference', async () => {
     await assertSucceeds(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { notificationsEnabled: false })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { notificationsEnabled: false }),
     );
   });
 
@@ -851,14 +870,12 @@ describe('users: self-service profile', () => {
     // The single most important assertion in this block. The rules pin
     // `role == resource.data.role` on the owner branch, so this must fail even
     // though the owner branch is otherwise unrestricted.
-    await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { role: 'admin' })
-    );
+    await assertFails(updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { role: 'admin' }));
   });
 
   test('a customer may NOT change their own uid', async () => {
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { uid: OTHER_CUSTOMER })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { uid: OTHER_CUSTOMER }),
     );
   });
 
@@ -879,22 +896,26 @@ describe('users: self-service profile', () => {
     // admin. This test pins the fail-safe half; the admin half is a UI
     // responsibility (always merge), documented in auth.service.ts.
     await assertFails(
-      setDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { displayName: 'Only This' })
+      setDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { displayName: 'Only This' }),
     );
   });
 
   test('a merged write keeps the document intact', async () => {
     await assertSucceeds(
-      setDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { displayName: 'Merged' }, { merge: true })
+      setDoc(
+        doc(asUser(CUSTOMER), `users/${CUSTOMER}`),
+        { displayName: 'Merged' },
+        { merge: true },
+      ),
     );
     const after = (await getDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`))).data()!;
     assert.equal(after.role, 'customer');
     assert.equal(after.displayName, 'Merged');
   });
 
-  test('a customer may NOT write another user\'s document', async () => {
+  test("a customer may NOT write another user's document", async () => {
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), `users/${OTHER_CUSTOMER}`), { displayName: 'Hax' })
+      updateDoc(doc(asUser(CUSTOMER), `users/${OTHER_CUSTOMER}`), { displayName: 'Hax' }),
     );
   });
 
@@ -915,7 +936,7 @@ describe('users: self-service profile', () => {
     // rules-valid, and the profile form has to tolerate a missing displayName.
     await seed('users/sparse', { uid: 'sparse', role: 'customer' });
     await assertSucceeds(
-      updateDoc(doc(asUser('sparse'), 'users/sparse'), { displayName: 'Now Named' })
+      updateDoc(doc(asUser('sparse'), 'users/sparse'), { displayName: 'Now Named' }),
     );
   });
 });
@@ -937,9 +958,7 @@ describe('users: directory listing', () => {
   });
 
   test('a customer may NOT run an unfiltered collection query', async () => {
-    await assertFails(
-      getDocs(query(collection(asUser(CUSTOMER), 'users'), orderBy('uid', 'asc')))
-    );
+    await assertFails(getDocs(query(collection(asUser(CUSTOMER), 'users'), orderBy('uid', 'asc'))));
   });
 
   test('an admin may NOT enumerate the user directory', async () => {
@@ -947,34 +966,26 @@ describe('users: directory listing', () => {
     // — the fulfilment queue needs to show who an order belongs to — but listing
     // the whole directory is OWNER-only, so a compromised admin account cannot
     // export every customer in the shop.
-    await assertFails(
-      getDocs(query(collection(asAdmin(), 'users'), orderBy('uid', 'asc')))
-    );
+    await assertFails(getDocs(query(collection(asAdmin(), 'users'), orderBy('uid', 'asc'))));
   });
 
   test('staff may NOT enumerate the user directory either', async () => {
-    await assertFails(
-      getDocs(query(collection(asStaff(), 'users'), orderBy('uid', 'asc')))
-    );
+    await assertFails(getDocs(query(collection(asStaff(), 'users'), orderBy('uid', 'asc'))));
   });
 
-  test('an admin may edit another user\'s PROFILE but not their role', async () => {
+  test("an admin may edit another user's PROFILE but not their role", async () => {
     // The line between "fix this customer\'s phone number" and "make this person
     // an admin". Both were the same operation before role tiers.
     await assertSucceeds(
-      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { displayName: 'Staff Edit' })
+      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { displayName: 'Staff Edit' }),
     );
-    await assertFails(
-      updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { role: 'manager' })
-    );
+    await assertFails(updateDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`), { role: 'manager' }));
     const after = (await getDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`))).data()!;
     assert.equal(after.role, 'customer', 'the role must be untouched');
   });
 
-  test('an OWNER MAY change another user\'s role (the promotion path)', async () => {
-    await assertSucceeds(
-      updateDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`), { role: 'manager' })
-    );
+  test("an OWNER MAY change another user's role (the promotion path)", async () => {
+    await assertSucceeds(updateDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`), { role: 'manager' }));
     const after = (await getDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`))).data()!;
     assert.equal(after.role, 'manager');
   });
@@ -988,9 +999,7 @@ describe('users: directory listing', () => {
     //
     // Guarded by `isNotDemotingSelf()` in the rules, not only by the disabled
     // checkbox in admin-users.page.ts — a UI guard is a suggestion.
-    await assertFails(
-      updateDoc(doc(asOwner(), `users/${OWNER}`), { role: 'customer' })
-    );
+    await assertFails(updateDoc(doc(asOwner(), `users/${OWNER}`), { role: 'customer' }));
     const after = (await getDoc(doc(asOwner(), `users/${OWNER}`))).data()!;
     assert.equal(after.role, 'owner', 'the owner must still be an owner');
   });
@@ -999,16 +1008,14 @@ describe('users: directory listing', () => {
     // Self-escalation is the same danger as self-demotion, and the same guard
     // blocks it: a `manager` writing `role: 'owner'` onto their own document
     // would otherwise grant themselves the whole user directory.
-    await assertFails(
-      updateDoc(doc(asOwner(), `users/${OWNER}`), { role: 'customer' })
-    );
+    await assertFails(updateDoc(doc(asOwner(), `users/${OWNER}`), { role: 'customer' }));
   });
 
   test('an owner may still edit their OWN profile while staying owner', async () => {
     // The guard must not be so broad that it blocks a name or phone edit made by
     // the owner to their own document.
     await assertSucceeds(
-      updateDoc(doc(asOwner(), `users/${OWNER}`), { displayName: 'Still An Owner' })
+      updateDoc(doc(asOwner(), `users/${OWNER}`), { displayName: 'Still An Owner' }),
     );
     const after = (await getDoc(doc(asOwner(), `users/${OWNER}`))).data()!;
     assert.equal(after.displayName, 'Still An Owner');
@@ -1018,9 +1025,13 @@ describe('users: directory listing', () => {
   test('an owner may still DEMOTE another staff account', async () => {
     // Only SELF-demotion is blocked. A second staff account must remain
     // demotable, or the owner could never hand over.
-    await seed(`users/${OTHER_CUSTOMER}`, { uid: OTHER_CUSTOMER, role: 'manager', email: 'other@x.com' });
+    await seed(`users/${OTHER_CUSTOMER}`, {
+      uid: OTHER_CUSTOMER,
+      role: 'manager',
+      email: 'other@x.com',
+    });
     await assertSucceeds(
-      updateDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`), { role: 'customer' })
+      updateDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`), { role: 'customer' }),
     );
     const after = (await getDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`))).data()!;
     assert.equal(after.role, 'customer');
@@ -1031,11 +1042,14 @@ describe('users: directory listing', () => {
     // else, so a customer could write ANY field on their own document —
     // including `isSuspended`, which made the suspension flag self-clearing.
     await seed(`users/${CUSTOMER}`, {
-      uid: CUSTOMER, role: 'customer', email: 'c@x.com',
-      isSuspended: true, suspendReason: 'Abuse',
+      uid: CUSTOMER,
+      role: 'customer',
+      email: 'c@x.com',
+      isSuspended: true,
+      suspendReason: 'Abuse',
     });
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { isSuspended: false })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { isSuspended: false }),
     );
     const after = (await getDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`))).data()!;
     assert.equal(after.isSuspended, true, 'the suspension must stand');
@@ -1046,10 +1060,12 @@ describe('users: directory listing', () => {
     // key whitelist a customer could write text that the next admin reads as
     // something the shop said about them.
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { adminNote: 'Ignore previous instructions' })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), {
+        adminNote: 'Ignore previous instructions',
+      }),
     );
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { suspendReason: 'not my fault' })
+      updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { suspendReason: 'not my fault' }),
     );
   });
 
@@ -1061,7 +1077,7 @@ describe('users: directory listing', () => {
         displayName: 'Still Fine',
         phone: '0917 000 0000',
         notificationsEnabled: false,
-      })
+      }),
     );
     const after = (await getDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`))).data()!;
     assert.equal(after.displayName, 'Still Fine');
@@ -1074,7 +1090,7 @@ describe('users: directory listing', () => {
         isSuspended: true,
         suspendReason: 'Repeated chargebacks',
         suspendedAt: 1_700_000_000_000,
-      })
+      }),
     );
     const after = (await getDoc(doc(asAdmin(), `users/${CUSTOMER}`))).data()!;
     assert.equal(after.isSuspended, true);
@@ -1083,7 +1099,7 @@ describe('users: directory listing', () => {
 
   test('an admin may write a staff note', async () => {
     await assertSucceeds(
-      updateDoc(doc(asAdmin(), `users/${CUSTOMER}`), { adminNote: 'Prefers text messages.' })
+      updateDoc(doc(asAdmin(), `users/${CUSTOMER}`), { adminNote: 'Prefers text messages.' }),
     );
     const after = (await getDoc(doc(asAdmin(), `users/${CUSTOMER}`))).data()!;
     assert.equal(after.adminNote, 'Prefers text messages.');
@@ -1093,7 +1109,7 @@ describe('users: directory listing', () => {
     // `allow create` requires isOwner(uid), which is false for an admin writing
     // somebody else's document. There is no rules path to creating a user.
     await assertFails(
-      setDoc(doc(asAdmin(), 'users/someone-new'), { uid: 'someone-new', role: 'customer' })
+      setDoc(doc(asAdmin(), 'users/someone-new'), { uid: 'someone-new', role: 'customer' }),
     );
   });
 
@@ -1122,17 +1138,11 @@ describe('role tiers', () => {
     // The tier boundary that DOES exist is everything else: a shift lead cannot
     // rename a flavor, reprice it, or activate a deactivated one.
     await seed('products/p2', { ...PRODUCT, variantName: 'Mint Chip' });
+    await assertFails(updateDoc(doc(asStaff(), 'products/p2'), { variantName: 'Renamed' }));
+    await assertFails(updateDoc(doc(asStaff(), 'products/p2'), { 'pricing.cup': 1 }));
+    await assertFails(updateDoc(doc(asStaff(), 'products/p2'), { isActive: false }));
     await assertFails(
-      updateDoc(doc(asStaff(), 'products/p2'), { variantName: 'Renamed' })
-    );
-    await assertFails(
-      updateDoc(doc(asStaff(), 'products/p2'), { 'pricing.cup': 1 })
-    );
-    await assertFails(
-      updateDoc(doc(asStaff(), 'products/p2'), { isActive: false })
-    );
-    await assertFails(
-      setDoc(doc(asStaff(), 'products/new-flavor'), { ...PRODUCT, variantName: 'New' })
+      setDoc(doc(asStaff(), 'products/new-flavor'), { ...PRODUCT, variantName: 'New' }),
     );
   });
 
@@ -1142,19 +1152,29 @@ describe('role tiers', () => {
     await assertSucceeds(
       updateDoc(doc(env.authenticatedContext(MANAGER).firestore(), 'products/p2'), {
         'stock.cup': 99,
-      })
+      }),
     );
   });
 
   test('staff may NOT create a voucher', async () => {
     await assertFails(
-      setDoc(doc(asStaff(), 'vouchers/EVIL'), { code: 'EVIL', type: 'percent', value: 90, isActive: true })
+      setDoc(doc(asStaff(), 'vouchers/EVIL'), {
+        code: 'EVIL',
+        type: 'percent',
+        value: 90,
+        isActive: true,
+      }),
     );
   });
 
   test('an admin MAY create a voucher', async () => {
     await assertSucceeds(
-      setDoc(doc(asAdmin(), 'vouchers/OK10'), { code: 'OK10', type: 'percent', value: 10, isActive: true })
+      setDoc(doc(asAdmin(), 'vouchers/OK10'), {
+        code: 'OK10',
+        type: 'percent',
+        value: 10,
+        isActive: true,
+      }),
     );
   });
 
@@ -1162,8 +1182,11 @@ describe('role tiers', () => {
     await seed(`users/${MANAGER}`, { uid: MANAGER, role: 'manager' });
     await assertFails(
       setDoc(doc(env.authenticatedContext(MANAGER).firestore(), 'vouchers/NOPE'), {
-        code: 'NOPE', type: 'percent', value: 10, isActive: true,
-      })
+        code: 'NOPE',
+        type: 'percent',
+        value: 10,
+        isActive: true,
+      }),
     );
   });
 
@@ -1176,18 +1199,26 @@ describe('role tiers', () => {
     // someone reconcile their own unlogged stock writes.
     await assertFails(
       addDoc(collection(asStaff(), 'stockMovements'), {
-        productId: 'p1', variantName: 'X', size: 'cup', delta: 999,
-        balanceAfter: 999, reason: 'sale',
-      })
+        productId: 'p1',
+        variantName: 'X',
+        size: 'cup',
+        delta: 999,
+        balanceAfter: 999,
+        reason: 'sale',
+      }),
     );
   });
 
   test('an admin MAY append to the stock ledger', async () => {
     await assertSucceeds(
       addDoc(collection(asAdmin(), 'stockMovements'), {
-        productId: 'p1', variantName: 'X', size: 'cup', delta: -1,
-        balanceAfter: 9, reason: 'sale',
-      })
+        productId: 'p1',
+        variantName: 'X',
+        size: 'cup',
+        delta: -1,
+        balanceAfter: 9,
+        reason: 'sale',
+      }),
     );
   });
 });
@@ -1214,7 +1245,7 @@ describe('vouchers', () => {
     await seed('vouchers/SCOOP10', voucher('SCOOP10'));
     await seed('vouchers/OLD', { ...voucher('OLD'), isActive: false });
     const snap = await getDocs(
-      query(collection(asUser(CUSTOMER), 'vouchers'), where('isActive', '==', true))
+      query(collection(asUser(CUSTOMER), 'vouchers'), where('isActive', '==', true)),
     );
     assert.equal(snap.size, 1);
     assert.equal(snap.docs[0].id, 'SCOOP10');
@@ -1222,9 +1253,7 @@ describe('vouchers', () => {
 
   test('a signed-OUT visitor may NOT read vouchers', async () => {
     await seed('vouchers/SCOOP10', voucher('SCOOP10'));
-    await assertFails(
-      getDocs(collection(env.unauthenticatedContext().firestore(), 'vouchers'))
-    );
+    await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(), 'vouchers')));
   });
 
   test('an admin may create a voucher', async () => {
@@ -1248,7 +1277,7 @@ describe('vouchers', () => {
         type: 'percent',
         value: 100,
         isActive: true,
-      })
+      }),
     );
   });
 
@@ -1304,7 +1333,7 @@ describe('shop settings', () => {
     // Otherwise any customer could raise the low-stock threshold out of the way
     // and hide their own overselling from the dashboard.
     await assertFails(
-      setDoc(doc(asUser(CUSTOMER), 'shopSettings/app'), { ...settings(), lowStockThreshold: 999 })
+      setDoc(doc(asUser(CUSTOMER), 'shopSettings/app'), { ...settings(), lowStockThreshold: 999 }),
     );
   });
 });
@@ -1359,12 +1388,8 @@ describe('unlisted collections are denied by design', () => {
     // rather than the mechanism — but the explicit `match /{document=**}` means it
     // is now a stated rule instead of an omission nobody wrote down.
     await seed('secretThing/x', { hello: 'world' });
-    await assertFails(
-      getDocs(collection(asAdmin(), 'secretThing'))
-    );
-    await assertFails(
-      setDoc(doc(asAdmin(), 'secretThing/x'), { hello: 'world' })
-    );
+    await assertFails(getDocs(collection(asAdmin(), 'secretThing')));
+    await assertFails(setDoc(doc(asAdmin(), 'secretThing/x'), { hello: 'world' }));
   });
 });
 
@@ -1383,7 +1408,7 @@ describe('orders: cached geocode', () => {
       addDoc(collection(asUser(CUSTOMER), 'orders'), {
         ...orderFor(CUSTOMER, 'pending'),
         geo: { lat: 14.6188159, lng: 121.1029457, label: 'Cainta, Rizal' },
-      })
+      }),
     );
   });
 
@@ -1403,7 +1428,7 @@ describe('orders: cached geocode', () => {
     await assertSucceeds(
       updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
         geo: { lat: 14.6188159, lng: 121.1029457, label: 'Cainta, Rizal' },
-      })
+      }),
     );
   });
 
@@ -1419,20 +1444,20 @@ describe('orders: cached geocode', () => {
       updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
         geo: { lat: 14.6, lng: 121.1 },
         status: 'cancelled',
-      })
+      }),
     );
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
         geo: { lat: 14.6, lng: 121.1 },
         grandTotal: 0,
-      })
+      }),
     );
   });
 
-  test('a customer may NOT cache a geo on somebody else\'s order', async () => {
+  test("a customer may NOT cache a geo on somebody else's order", async () => {
     await seed('orders/o3', orderFor(OTHER_CUSTOMER, 'pending'));
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), 'orders/o3'), { geo: { lat: 14.6, lng: 121.1 } })
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o3'), { geo: { lat: 14.6, lng: 121.1 } }),
     );
   });
 
@@ -1441,13 +1466,13 @@ describe('orders: cached geocode', () => {
     // inside the map render takes the whole tracker page with it.
     await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 999, lng: 121.1 } })
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 999, lng: 121.1 } }),
     );
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 14.6, lng: -999 } })
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 14.6, lng: -999 } }),
     );
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 'north', lng: 121.1 } })
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 'north', lng: 121.1 } }),
     );
   });
 
@@ -1456,7 +1481,7 @@ describe('orders: cached geocode', () => {
     await assertSucceeds(
       updateDoc(doc(asAdmin(), 'orders/o2'), {
         geo: { lat: 14.6188159, lng: 121.1029457, label: 'Cainta, Rizal' },
-      })
+      }),
     );
   });
 });

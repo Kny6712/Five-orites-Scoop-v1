@@ -199,7 +199,8 @@ class AlreadyCancelledError extends Error {}
  * the cap unenforceable in the first place.
  */
 /** Why a voucher was refused, as shown to the customer. */
-type VoucherRejection = 'unknown' | 'inactive' | 'not_started' | 'expired' | 'exhausted' | 'per_customer';
+type VoucherRejection =
+  'unknown' | 'inactive' | 'not_started' | 'expired' | 'exhausted' | 'per_customer';
 
 /**
  * The customer-facing text for each refusal, kept next to the check that
@@ -288,7 +289,7 @@ async function cancelOrder(
   orderRef: FirebaseFirestore.DocumentReference,
   reason: string,
   historyReason: string,
-  stockRestored: boolean
+  stockRestored: boolean,
 ): Promise<void> {
   await orderRef.update({
     status: 'cancelled',
@@ -340,7 +341,7 @@ async function resolveVoucher(
   claimedCode: unknown,
   customerId: string | undefined,
   orderId: string,
-  now: number
+  now: number,
 ): Promise<{ doc: FirebaseFirestore.DocumentReference; data: VoucherDoc; code: string }> {
   const code = normaliseVoucherCode(claimedCode);
   if (!code) throw new VoucherRejectedError('unknown');
@@ -366,7 +367,8 @@ async function resolveVoucher(
   // every voucher written before tracking existed, and treating absent as zero
   // is what "no data yet" means — treating it as a failure would refuse every
   // legacy code from its first use.
-  const used = typeof data.usageCount === 'number' && Number.isFinite(data.usageCount) ? data.usageCount : 0;
+  const used =
+    typeof data.usageCount === 'number' && Number.isFinite(data.usageCount) ? data.usageCount : 0;
   if (typeof data.maxRedemptions === 'number' && used >= data.maxRedemptions) {
     throw new VoucherRejectedError('exhausted');
   }
@@ -486,7 +488,11 @@ export const reconcileOrderStock = onDocumentCreated('orders/{orderId}', async (
   // depends on it. `voucherCode` came from a browser and is used only as a lookup
   // key — the amount comes from the voucher document.
   const claimedCode = normaliseVoucherCode(order.voucherCode);
-  let voucherClaim: { doc: FirebaseFirestore.DocumentReference; data: VoucherDoc; code: string } | null = null;
+  let voucherClaim: {
+    doc: FirebaseFirestore.DocumentReference;
+    data: VoucherDoc;
+    code: string;
+  } | null = null;
   if (claimedCode) {
     try {
       voucherClaim = await resolveVoucher(order.voucherCode, order.customerId, orderId, Date.now());
@@ -597,9 +603,12 @@ export const reconcileOrderStock = onDocumentCreated('orders/{orderId}', async (
       let voucherUsage: { ref: FirebaseFirestore.DocumentReference; next: number } | null = null;
       if (voucherClaim) {
         const voucherSnap = await tx.get(voucherClaim.doc);
-        const fresh = (voucherSnap.exists ? voucherSnap.data() : undefined) as VoucherDoc | undefined;
+        const fresh = (voucherSnap.exists ? voucherSnap.data() : undefined) as
+          VoucherDoc | undefined;
         const used =
-          typeof fresh?.usageCount === 'number' && Number.isFinite(fresh.usageCount) ? fresh.usageCount : 0;
+          typeof fresh?.usageCount === 'number' && Number.isFinite(fresh.usageCount)
+            ? fresh.usageCount
+            : 0;
         if (typeof fresh?.maxRedemptions === 'number' && used >= fresh.maxRedemptions) {
           throw new VoucherRejectedError('exhausted');
         }
@@ -757,7 +766,7 @@ export const restockCancelledOrder = onDocumentUpdated('orders/{orderId}', async
     if (!productId || !isSizeVariant(size) || !isSellableQuantity(quantity)) {
       console.error(
         `Order ${orderId}: skipping malformed restock line.`,
-        JSON.stringify(item ?? null)
+        JSON.stringify(item ?? null),
       );
       continue;
     }
@@ -785,7 +794,9 @@ export const restockCancelledOrder = onDocumentUpdated('orders/{orderId}', async
         // to. The client's restockItems skips it for the same reason; the loss
         // is recorded by the missing ledger row rather than hidden.
         if (!snap.exists) {
-          console.error(`Order ${orderId}: product ${line.productId} is gone; its stock cannot be returned.`);
+          console.error(
+            `Order ${orderId}: product ${line.productId} is gone; its stock cannot be returned.`,
+          );
           continue;
         }
         const product = snap.data() as ProductDoc;

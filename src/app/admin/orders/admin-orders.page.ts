@@ -5,12 +5,24 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonSegment, IonSegmentButton, IonLabel,
-  IonButton, IonSearchbar, IonSelect, IonSelectOption,
-  IonSkeletonText, IonRefresher, IonRefresherContent,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonSegment,
+  IonSegmentButton,
+  IonLabel,
+  IonButton,
+  IonSearchbar,
+  IonSelect,
+  IonSelectOption,
+  IonSkeletonText,
+  IonRefresher,
+  IonRefresherContent,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -46,7 +58,12 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
 
 /** Lifecycle order, for the free-form status picker. */
 const ALL_STATUSES: readonly OrderStatus[] = [
-  'pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled',
+  'pending',
+  'confirmed',
+  'preparing',
+  'out_for_delivery',
+  'delivered',
+  'cancelled',
 ];
 
 @Component({
@@ -54,14 +71,30 @@ const ALL_STATUSES: readonly OrderStatus[] = [
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonSegment, IonSegmentButton, IonLabel,
-    IonButton, IonSearchbar, IonSelect, IonSelectOption,
-    IonSkeletonText, IonRefresher, IonRefresherContent,
-    OrderStatusBadgeComponent, PesoPipe,
-    PaginationComponent, AppFooterComponent,
-    AppIconComponent, EmptyStateComponent, AlertBannerComponent],
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonSegment,
+    IonSegmentButton,
+    IonLabel,
+    IonButton,
+    IonSearchbar,
+    IonSelect,
+    IonSelectOption,
+    IonSkeletonText,
+    IonRefresher,
+    IonRefresherContent,
+    OrderStatusBadgeComponent,
+    PesoPipe,
+    PaginationComponent,
+    AppFooterComponent,
+    AppIconComponent,
+    EmptyStateComponent,
+    AlertBannerComponent,
+  ],
   templateUrl: './admin-orders.page.html',
   styleUrls: ['./admin-orders.page.scss'],
 })
@@ -96,7 +129,8 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     // Cancelled was missing from this list, so a cancelled order could only be
     // found under "All" — which is exactly the list that goes incomplete once
     // the shop passes the 100-order read cap.
-    { label: 'Cancelled', value: 'cancelled' }];
+    { label: 'Cancelled', value: 'cancelled' },
+  ];
 
   /**
    * Free-text search across id, customer, address and item names.
@@ -207,9 +241,12 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     this.expandedId.set(null);
   }
 
-
-  ngOnInit(): void { this.loadOrders(); }
-  ngOnDestroy(): void { this.sub?.unsubscribe(); }
+  ngOnInit(): void {
+    this.loadOrders();
+  }
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+  }
 
   loadOrders(): void {
     this.isLoading.set(true);
@@ -218,15 +255,18 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     // A dedicated cap, not the 100-order default: fulfillment is a working
     // queue, not a report, and an order the staff cannot see is one they never
     // prepare. The analytics page is the read that reports its own cap.
-    this.sub = this.orderService.getAllOrders(undefined, ORDERS_QUEUE_MAX)
-      .pipe(catchError((err) => {
-        // Previously collapsed to an empty list, so a permissions denial or a
-        // missing composite index rendered as "No orders" — indistinguishable
-        // from a genuinely empty fulfilment queue.
-        console.error('Failed to load orders.', err);
-        this.loadError.set(describeFirestoreError('orders', err));
-        return of([] as Order[]);
-      }))
+    this.sub = this.orderService
+      .getAllOrders(undefined, ORDERS_QUEUE_MAX)
+      .pipe(
+        catchError((err) => {
+          // Previously collapsed to an empty list, so a permissions denial or a
+          // missing composite index rendered as "No orders" — indistinguishable
+          // from a genuinely empty fulfilment queue.
+          console.error('Failed to load orders.', err);
+          this.loadError.set(describeFirestoreError('orders', err));
+          return of([] as Order[]);
+        }),
+      )
       .subscribe((orders) => {
         this.allOrders.set(orders);
         // Hitting the cap means older orders exist off-screen. Staff must be told,
@@ -244,8 +284,11 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    * inventory side effect differs from what the label implies.
    */
   canCancel(order: Order): boolean {
-    return order.status !== 'delivered' && order.status !== 'cancelled'
-      && order.status !== 'out_for_delivery';
+    return (
+      order.status !== 'delivered' &&
+      order.status !== 'cancelled' &&
+      order.status !== 'out_for_delivery'
+    );
   }
 
   onFilterChange(event: CustomEvent): void {
@@ -285,20 +328,25 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
               // watches their own orders.
               const toast = await this.toastCtrl.create({
                 message: `Order updated to "${ORDER_STATUS_META[next].label}"`,
-                color: 'success', duration: 2000, position: 'top',
+                color: 'success',
+                duration: 2000,
+                position: 'top',
               });
               await toast.present();
             } catch {
               const toast = await this.toastCtrl.create({
                 message: 'Failed to update order status.',
-                color: 'danger', duration: 3000, position: 'top',
+                color: 'danger',
+                duration: 3000,
+                position: 'top',
               });
               await toast.present();
             } finally {
               this.updatingId.set(null);
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -320,20 +368,25 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
               // Owner notified by OrderNotificationService, not from here.
               const toast = await this.toastCtrl.create({
                 message: 'Order cancelled and stock restored.',
-                color: 'warning', duration: 2500, position: 'top',
+                color: 'warning',
+                duration: 2500,
+                position: 'top',
               });
               await toast.present();
             } catch (err: unknown) {
               const toast = await this.toastCtrl.create({
                 message: err instanceof Error ? err.message : 'Failed to cancel order.',
-                color: 'danger', duration: 3000, position: 'top',
+                color: 'danger',
+                duration: 3000,
+                position: 'top',
               });
               await toast.present();
             } finally {
               this.updatingId.set(null);
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -349,12 +402,19 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
       const ts = timestamp as { toDate(): Date } | string;
       const date = typeof ts === 'string' ? new Date(ts) : ts.toDate();
       return date.toLocaleDateString('en-PH', {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       });
-    } catch { return '—'; }
+    } catch {
+      return '—';
+    }
   }
 
-  trackOrder(_: number, o: Order): string { return o.id; }
+  trackOrder(_: number, o: Order): string {
+    return o.id;
+  }
 
   /**
    * Every status an order can legally be moved to, for the free-form picker.
@@ -389,7 +449,9 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
       message:
         `Order #${order.id.slice(-6).toUpperCase()}: ` +
         `"${ORDER_STATUS_META[order.status].label}" → "${ORDER_STATUS_META[next].label}"?` +
-        (next === 'delivered' ? '\n\nSkipping straight to Delivered is fine for an order handed over in person.' : ''),
+        (next === 'delivered'
+          ? '\n\nSkipping straight to Delivered is fine for an order handed over in person.'
+          : ''),
       buttons: [
         { text: 'Back', role: 'cancel' },
         {
@@ -400,20 +462,25 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
               await this.orderService.updateOrderStatus(order.id, next);
               const t = await this.toastCtrl.create({
                 message: `Order set to "${ORDER_STATUS_META[next].label}"`,
-                color: 'success', duration: 2000, position: 'top',
+                color: 'success',
+                duration: 2000,
+                position: 'top',
               });
               await t.present();
             } catch (err: unknown) {
               const t = await this.toastCtrl.create({
                 message: err instanceof Error ? err.message : 'Failed to update status.',
-                color: 'danger', duration: 3000, position: 'top',
+                color: 'danger',
+                duration: 3000,
+                position: 'top',
               });
               await t.present();
             } finally {
               this.updatingId.set(null);
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -460,11 +527,13 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
                 ? `${ok} updated, ${failed.length} failed: ${failed.slice(0, 3).join(', ')}`
                 : `${ok} order${ok === 1 ? '' : 's'} marked "${ORDER_STATUS_META[target].label}".`,
               color: failed.length ? 'warning' : 'success',
-              duration: 3200, position: 'top',
+              duration: 3200,
+              position: 'top',
             });
             await t.present();
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -478,7 +547,19 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    */
   async exportCsv(): Promise<void> {
     const rows = [
-      ['order_id', 'date', 'status', 'customer', 'items', 'units', 'subtotal', 'discount', 'delivery', 'grand_total', 'address'],
+      [
+        'order_id',
+        'date',
+        'status',
+        'customer',
+        'items',
+        'units',
+        'subtotal',
+        'discount',
+        'delivery',
+        'grand_total',
+        'address',
+      ],
       ...this.filteredOrders().map((o) => [
         o.id,
         toIsoDate(o.createdAt),
@@ -498,13 +579,15 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     // that never happened.
     const result = await this.csvExport.export(toCsv(rows), csvFilename('orders'));
     const count = this.filteredOrders().length;
-    void this.toastCtrl.create({
-      message: result.ok
-        ? `Exported ${count} orders.`
-        : `Export failed${result.error ? `: ${result.error}` : ''}.`,
-      color: result.ok ? 'success' : 'danger',
-      duration: 3200,
-      position: 'top',
-    }).then((t) => t.present());
+    void this.toastCtrl
+      .create({
+        message: result.ok
+          ? `Exported ${count} orders.`
+          : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+        color: result.ok ? 'success' : 'danger',
+        duration: 3200,
+        position: 'top',
+      })
+      .then((t) => t.present());
   }
 }

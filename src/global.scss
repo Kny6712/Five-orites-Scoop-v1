@@ -1,14 +1,14 @@
 /* Five-orites Scoop — Global Styles */
-@import "@ionic/angular/css/core.css";
-@import "@ionic/angular/css/normalize.css";
-@import "@ionic/angular/css/structure.css";
-@import "@ionic/angular/css/typography.css";
-@import "@ionic/angular/css/display.css";
-@import "@ionic/angular/css/padding.css";
-@import "@ionic/angular/css/float-elements.css";
-@import "@ionic/angular/css/text-alignment.css";
-@import "@ionic/angular/css/text-transformation.css";
-@import "@ionic/angular/css/flex-utils.css";
+@import '@ionic/angular/css/core.css';
+@import '@ionic/angular/css/normalize.css';
+@import '@ionic/angular/css/structure.css';
+@import '@ionic/angular/css/typography.css';
+@import '@ionic/angular/css/display.css';
+@import '@ionic/angular/css/padding.css';
+@import '@ionic/angular/css/float-elements.css';
+@import '@ionic/angular/css/text-alignment.css';
+@import '@ionic/angular/css/text-transformation.css';
+@import '@ionic/angular/css/flex-utils.css';
 
 /* Large centered card modals (admin forms) — bigger and more presentable
    than the default small alert dialogs. */
@@ -42,7 +42,9 @@
 /* A narrower measure for long-form prose. `.story-text` on About had this inline
    as 68ch; it is a token now because it is a typographic decision, not a layout
    one. */
-.measure { max-width: var(--measure-max); }
+.measure {
+  max-width: var(--measure-max);
+}
 
 /* ── Breakpoint helpers ─────────────────────────────────────────────────
    CSS custom properties cannot be used in a media query condition, so these
@@ -52,24 +54,46 @@
    tablet up, which is the layout the tracking page and the admin split views
    both need. */
 @media (min-width: 480px) {
-  .bp-sm-up { display: revert; }
+  .bp-sm-up {
+    display: revert;
+  }
 }
 
 @media (min-width: 768px) {
-  .bp-md-up { display: revert; }
-  .stack-md { flex-direction: row; }
-  .stack-md > * { flex: 1 1 0; min-width: 0; }
+  .bp-md-up {
+    display: revert;
+  }
+  .stack-md {
+    flex-direction: row;
+  }
+  .stack-md > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 @media (min-width: 1024px) {
-  .bp-lg-up { display: revert; }
-  .stack-lg { flex-direction: row; }
-  .stack-lg > * { flex: 1 1 0; min-width: 0; }
+  .bp-lg-up {
+    display: revert;
+  }
+  .stack-lg {
+    flex-direction: row;
+  }
+  .stack-lg > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 
 /* Hidden by default, revealed from a breakpoint up. */
-.bp-only { display: none; }
-@media (min-width: 768px) { .bp-md-only { display: revert; } }
+.bp-only {
+  display: none;
+}
+@media (min-width: 768px) {
+  .bp-md-only {
+    display: revert;
+  }
+}
 
 /* ── Toggle switches ─────────────────────────────────────────────────────
    All six ion-toggles in this app previously rendered with stock Ionic
@@ -125,10 +149,18 @@ ion-toggle.toggle-checked::part(native) {
   box-shadow: 0 2px 6px rgba(61, 43, 69, 0.35);
 }
 
-.scoop-pin-dot.tone-primary { background: var(--color-brand-primary); }
-.scoop-pin-dot.tone-mint { background: var(--color-brand-light); }
-.scoop-pin-dot.tone-sunny { background: var(--color-brand-accent); }
-.scoop-pin-dot.tone-danger { background: var(--ion-color-danger); }
+.scoop-pin-dot.tone-primary {
+  background: var(--color-brand-primary);
+}
+.scoop-pin-dot.tone-mint {
+  background: var(--color-brand-light);
+}
+.scoop-pin-dot.tone-sunny {
+  background: var(--color-brand-accent);
+}
+.scoop-pin-dot.tone-danger {
+  background: var(--ion-color-danger);
+}
 
 /* Leaflet ships a light default popup chrome; matching it to the cream surface
    keeps the map from flashing a white box against the page. */

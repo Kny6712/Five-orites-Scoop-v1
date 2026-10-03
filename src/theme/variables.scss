@@ -49,11 +49,11 @@
 
 :root {
   // ── Brand Tokens ──────────────────────────────────────────
-  --color-brand-primary: #8ECAE6;   // powder blue — the lead hue
-  --color-brand-secondary: #5FD9B4; // mint green
-  --color-brand-accent: #FFC53D;    // sunny — highlights, stars, CTAs
+  --color-brand-primary: #8ecae6; // powder blue — the lead hue
+  --color-brand-secondary: #5fd9b4; // mint green
+  --color-brand-accent: #ffc53d; // sunny — highlights, stars, CTAs
   // Pink, demoted to a soft accent. Wishlists and promos only.
-  --color-brand-blush: #F8A9BE;
+  --color-brand-blush: #f8a9be;
 
   /* `--color-brand-light` is the historical name for the mint hue and is
      referenced by ~22 call sites that predate the primary/secondary split.
@@ -62,10 +62,10 @@
   --color-brand-light: var(--color-brand-secondary);
 
   // Text-safe variants of the brand hues (see header).
-  --color-primary-ink: #1B5E7E;
-  --color-mint-ink: #0F7358;
-  --color-sunny-ink: #8A5B00;
-  --color-blush-ink: #A63A5E;
+  --color-primary-ink: #1b5e7e;
+  --color-mint-ink: #0f7358;
+  --color-sunny-ink: #8a5b00;
+  --color-blush-ink: #a63a5e;
 
   // ── Gradients ────────────────────────────────────────────
   /* Defined once, here, because there used to be eight inline gradients whose
@@ -87,23 +87,23 @@
   --gradient-ink-brand: linear-gradient(135deg, #17566f 0%, #1b5e7e 100%);
 
   // Pastel tile backgrounds for icon wells and soft chips.
-  --tile-powder: #E4F1F8;
-  --tile-mint: #E4F6EA;
-  --tile-lemon: #FFF3D6;
-  --tile-blush: #FDE8EE;
-  --tile-periwinkle: #E8EEF9;
+  --tile-powder: #e4f1f8;
+  --tile-mint: #e4f6ea;
+  --tile-lemon: #fff3d6;
+  --tile-blush: #fde8ee;
+  --tile-periwinkle: #e8eef9;
 
   // The one ink colour for the whole app. Not pure black — a deep plum keeps
   // the warm cast and measures better than #000 on a cream background.
-  --color-ink: #3D2B45;
-  --color-ink-soft: #6B5875;
-  --color-cream: #FFF9F4;
-  --color-white: #FFFFFF;
+  --color-ink: #3d2b45;
+  --color-ink-soft: #6b5875;
+  --color-cream: #fff9f4;
+  --color-white: #ffffff;
 
   // ── Status ───────────────────────────────────────────────
-  --color-success: #17803F;
-  --color-warning: #B45309;
-  --color-danger: #C62828;
+  --color-success: #17803f;
+  --color-warning: #b45309;
+  --color-danger: #c62828;
 
   // ── Toned surfaces (banners, notices, soft chips) ─────────
   /* Each triple is a background you can put text on, a border that reads as an
@@ -115,78 +115,78 @@
 
      These replaced 17 hardcoded pastel triples that had been duplicated across
      eleven files, which is how the palette used to drift. */
-  --tone-success-bg: #DDF2E4;
-  --tone-success-border: #7FC49A;
-  --tone-success-ink: #14622F;
+  --tone-success-bg: #ddf2e4;
+  --tone-success-border: #7fc49a;
+  --tone-success-ink: #14622f;
 
-  --tone-warning-bg: #FCEBC4;
-  --tone-warning-border: #E0B85C;
-  --tone-warning-ink: #7A4B00;
+  --tone-warning-bg: #fcebc4;
+  --tone-warning-border: #e0b85c;
+  --tone-warning-ink: #7a4b00;
 
-  --tone-danger-bg: #FDE8EE;
-  --tone-danger-border: #F5B8C8;
-  --tone-danger-ink: #8F1F38;
+  --tone-danger-bg: #fde8ee;
+  --tone-danger-border: #f5b8c8;
+  --tone-danger-ink: #8f1f38;
 
-  --tone-info-bg: #E4F1F8;
-  --tone-info-border: #A8CBE8;
-  --tone-info-ink: #17456F;
+  --tone-info-bg: #e4f1f8;
+  --tone-info-border: #a8cbe8;
+  --tone-info-ink: #17456f;
 
   // ── Ionic Ion Color Overrides ─────────────────────────────
   // Contrast is PLUM for the three brand hues (see header). Ionic reads
   // -contrast for text and icon colour on a `color="…"` surface, so this is what
   // keeps a pastel button readable.
-  --ion-color-primary: #8ECAE6;
+  --ion-color-primary: #8ecae6;
   --ion-color-primary-rgb: 142, 202, 230;
-  --ion-color-primary-contrast: #3D2B45;
+  --ion-color-primary-contrast: #3d2b45;
   --ion-color-primary-contrast-rgb: 61, 43, 69;
-  --ion-color-primary-shade: #64B6DD;
-  --ion-color-primary-tint: #B8DEEF;
+  --ion-color-primary-shade: #64b6dd;
+  --ion-color-primary-tint: #b8deef;
 
-  --ion-color-secondary: #5FD9B4;
+  --ion-color-secondary: #5fd9b4;
   --ion-color-secondary-rgb: 95, 217, 180;
-  --ion-color-secondary-contrast: #3D2B45;
+  --ion-color-secondary-contrast: #3d2b45;
   --ion-color-secondary-contrast-rgb: 61, 43, 69;
-  --ion-color-secondary-shade: #36CFA1;
-  --ion-color-secondary-tint: #88E3C7;
+  --ion-color-secondary-shade: #36cfa1;
+  --ion-color-secondary-tint: #88e3c7;
 
   // Used by the "Out for Delivery" status badge and the team role chips.
-  --ion-color-tertiary: #FFC53D;
+  --ion-color-tertiary: #ffc53d;
   --ion-color-tertiary-rgb: 255, 197, 61;
-  --ion-color-tertiary-contrast: #3D2B45;
+  --ion-color-tertiary-contrast: #3d2b45;
   --ion-color-tertiary-contrast-rgb: 61, 43, 69;
-  --ion-color-tertiary-shade: #FFB60A;
-  --ion-color-tertiary-tint: #FFD470;
+  --ion-color-tertiary-shade: #ffb60a;
+  --ion-color-tertiary-tint: #ffd470;
 
   // These three stay dark, so they keep WHITE text.
-  --ion-color-success: #17803F;
+  --ion-color-success: #17803f;
   --ion-color-success-rgb: 23, 128, 63;
-  --ion-color-success-contrast: #FFFFFF;
+  --ion-color-success-contrast: #ffffff;
   --ion-color-success-contrast-rgb: 255, 255, 255;
   --ion-color-success-shade: #197742;
-  --ion-color-success-tint: #42A06A;
+  --ion-color-success-tint: #42a06a;
 
-  --ion-color-warning: #B45309;
+  --ion-color-warning: #b45309;
   --ion-color-warning-rgb: 180, 83, 9;
-  --ion-color-warning-contrast: #FFFFFF;
+  --ion-color-warning-contrast: #ffffff;
   --ion-color-warning-contrast-rgb: 255, 255, 255;
   --ion-color-warning-shade: #974608;
-  --ion-color-warning-tint: #C06F30;
+  --ion-color-warning-tint: #c06f30;
 
-  --ion-color-danger: #C62828;
+  --ion-color-danger: #c62828;
   --ion-color-danger-rgb: 198, 40, 40;
-  --ion-color-danger-contrast: #FFFFFF;
+  --ion-color-danger-contrast: #ffffff;
   --ion-color-danger-contrast-rgb: 255, 255, 255;
-  --ion-color-danger-shade: #A62222;
-  --ion-color-danger-tint: #CF4A4A;
+  --ion-color-danger-shade: #a62222;
+  --ion-color-danger-tint: #cf4a4a;
 
   // ── Neutral Palette ──────────────────────────────────────
-  --ion-color-light: #F2F7FA;
-  --ion-color-medium: #7A6B84;
-  --ion-color-dark: #3D2B45;
-  --ion-color-light-shade: #E4EDF3;
-  --ion-color-light-tint: #F6FAFC;
-  --ion-color-dark-shade: #33253A;
-  --ion-color-dark-tint: #55445D;
+  --ion-color-light: #f2f7fa;
+  --ion-color-medium: #7a6b84;
+  --ion-color-dark: #3d2b45;
+  --ion-color-light-shade: #e4edf3;
+  --ion-color-light-tint: #f6fafc;
+  --ion-color-dark-shade: #33253a;
+  --ion-color-dark-tint: #55445d;
 
   // ── Radius Scale ─────────────────────────────────────────
   // A SCALE, not one value. A single radius applied everywhere is the "SaaS card
@@ -213,7 +213,7 @@
   // were reading as flat — the audit found six surfaces that had given up on the
   // scale and hardcoded rgba(0,0,0,.05-.06) anyway, which is the same problem
   // with a worse value.
-  --shadow-card: 0 2px 12px rgba(61, 43, 69, 0.10);
+  --shadow-card: 0 2px 12px rgba(61, 43, 69, 0.1);
   --shadow-raised: 0 8px 24px rgba(61, 43, 69, 0.14);
   --shadow-float: 0 16px 40px rgba(61, 43, 69, 0.18);
   --shadow-inset: inset 0 2px 4px rgba(61, 43, 69, 0.12);
@@ -267,20 +267,39 @@
 
   // ── Footer ───────────────────────────────────────────────
   --footer-height: 62px;
-  --footer-bg: #FFFFFF;
+  --footer-bg: #ffffff;
 }
 
 // ── Typography Scale ─────────────────────────────────────────
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-family: var(--font-display);
   color: var(--color-ink);
 }
 // Bare element selectors carry no weight against component-scoped rules, so
 // headings inside cards were being overridden by `.card-title` etc. anyway.
-h1 { font-size: 28px; font-weight: 600; line-height: 1.2; }
-h2 { font-size: 22px; font-weight: 600; line-height: 1.25; }
-h3 { font-size: 18px; font-weight: 600; line-height: 1.3; }
-h4 { font-size: 15px; font-weight: 700; line-height: 1.35; }
+h1 {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+h2 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+h3 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+h4 {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
 
 // ── Global Component Defaults ─────────────────────────────────
 /* No `!important` here. The previous version had it, which silently killed six
@@ -314,7 +333,7 @@ ion-toolbar {
 ion-toolbar ion-button,
 ion-menu-button,
 ion-back-button {
-  --color: var(--ion-color-primary-contrast, #3D2B45);
+  --color: var(--ion-color-primary-contrast, #3d2b45);
 }
 
 // ── Focus visibility ─────────────────────────────────────────
@@ -374,18 +393,18 @@ html[data-motion='reduced'] *::after {
    still looks like the same product. */
 html[data-contrast='high'] {
   --color-ink: #241833;
-  --color-ink-soft: #4A3A54;
-  --ion-color-medium: #5B4C66;
-  --color-brand-light: #A8D9B8;
-  --tile-powder: #CFE4F2;
-  --tile-mint: #CDEAD9;
-  --tile-lemon: #FBE9BE;
-  --tile-blush: #F8D2DD;
-  --tile-periwinkle: #D3DDF7;
-  --tone-success-border: #4F9A6C;
-  --tone-warning-border: #A8791C;
-  --tone-danger-border: #C25C7C;
-  --tone-info-border: #4C82B0;
+  --color-ink-soft: #4a3a54;
+  --ion-color-medium: #5b4c66;
+  --color-brand-light: #a8d9b8;
+  --tile-powder: #cfe4f2;
+  --tile-mint: #cdead9;
+  --tile-lemon: #fbe9be;
+  --tile-blush: #f8d2dd;
+  --tile-periwinkle: #d3ddf7;
+  --tone-success-border: #4f9a6c;
+  --tone-warning-border: #a8791c;
+  --tone-danger-border: #c25c7c;
+  --tone-info-border: #4c82b0;
 }
 
 // ── Wave / Drip ─────────────────────────────────────────────

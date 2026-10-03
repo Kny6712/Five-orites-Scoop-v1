@@ -1,10 +1,14 @@
 // src/app/admin/inventory/inventory.page.scss
 // Five-orites Scoop — Admin Inventory Manager
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 // ── Header ─────────────────────────────────────────────
-.inv-header { padding: 10px 12px 6px; }
+.inv-header {
+  padding: 10px 12px 6px;
+}
 
 .inv-count {
   margin: 0 0 8px;
@@ -12,7 +16,10 @@
   color: var(--ion-color-medium);
 }
 
-.inv-actions { display: flex; gap: 8px; }
+.inv-actions {
+  display: flex;
+  gap: 8px;
+}
 
 .inv-list {
   padding: 4px 12px 12px;
@@ -33,9 +40,13 @@
    near-invisible was the old treatment, and it read as "this card is broken"
    rather than "this flavor is off sale" — especially for the stock numbers, which
    still matter because they are what you are here to restock. */
-.inv-card.inactive-card { opacity: 0.72; }
+.inv-card.inactive-card {
+  opacity: 0.72;
+}
 
-.inv-card.inactive-card .inv-thumb-img { filter: grayscale(0.7); }
+.inv-card.inactive-card .inv-thumb-img {
+  filter: grayscale(0.7);
+}
 
 .inv-card-main {
   display: flex;
@@ -44,7 +55,10 @@
   align-items: flex-start;
 }
 
-.inv-card-body { flex: 1; min-width: 0; }
+.inv-card-body {
+  flex: 1;
+  min-width: 0;
+}
 
 // ── Thumbnail ──────────────────────────────────────────
 .inv-thumb-btn {
@@ -57,7 +71,9 @@
   font: inherit;
 }
 
-.inv-thumb-btn:disabled { cursor: progress; }
+.inv-thumb-btn:disabled {
+  cursor: progress;
+}
 
 .inv-thumb-frame {
   position: relative;
@@ -110,13 +126,21 @@
   transition: opacity 0.15s ease;
 }
 
-.inv-thumb-badge app-icon { --icon-size: 13px; color: var(--color-primary-ink); }
+.inv-thumb-badge app-icon {
+  --icon-size: 13px;
+  color: var(--color-primary-ink);
+}
 
 .inv-thumb-btn:hover .inv-thumb-badge,
-.inv-thumb-btn:focus-visible .inv-thumb-badge { opacity: 1; }
+.inv-thumb-btn:focus-visible .inv-thumb-badge {
+  opacity: 1;
+}
 
 // ── Card header ────────────────────────────────────────
-.inv-card-header { padding: 0; margin: 0 0 8px; }
+.inv-card-header {
+  padding: 0;
+  margin: 0 0 8px;
+}
 
 .inv-card-title-row {
   display: flex;
@@ -126,7 +150,9 @@
   margin-bottom: 4px;
 }
 
-.inv-ident { min-width: 0; }
+.inv-ident {
+  min-width: 0;
+}
 
 .inv-set-name {
   margin: 3px 0 0;
@@ -202,12 +228,19 @@
   background: var(--color-white);
   color: var(--color-primary-ink);
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
-.tool-btn app-icon { --icon-size: 15px; }
+.tool-btn app-icon {
+  --icon-size: 15px;
+}
 
-.tool-btn:hover { background: var(--tile-powder); border-color: var(--color-primary-ink); }
+.tool-btn:hover {
+  background: var(--tile-powder);
+  border-color: var(--color-primary-ink);
+}
 
 .tool-btn--danger {
   color: var(--tone-danger-ink);
@@ -220,7 +253,9 @@
   border-color: var(--tone-danger-border);
 }
 
-.inv-card-content { padding: 0; }
+.inv-card-content {
+  padding: 0;
+}
 
 // ── Stock steppers ─────────────────────────────────────
 .stock-view-grid {
@@ -230,7 +265,9 @@
 }
 
 @media (min-width: 560px) {
-  .stock-view-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .stock-view-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .stock-view-cell {
@@ -279,9 +316,15 @@
   transition: background-color 0.12s ease;
 }
 
-.step-btn app-icon { --icon-size: 14px; }
-.step-btn:hover:not(:disabled) { background: var(--color-brand-primary); }
-.step-btn:active:not(:disabled) { background: var(--color-brand-primary-shade); }
+.step-btn app-icon {
+  --icon-size: 14px;
+}
+.step-btn:hover:not(:disabled) {
+  background: var(--color-brand-primary);
+}
+.step-btn:active:not(:disabled) {
+  background: var(--color-brand-primary-shade);
+}
 
 .step-btn:disabled {
   opacity: 0.32;
@@ -298,9 +341,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-.stock-in-stock { color: var(--color-ink); }
-.stock-low-stock { color: var(--tone-warning-ink); }
-.stock-out-of-stock { color: var(--tone-danger-ink); }
+.stock-in-stock {
+  color: var(--color-ink);
+}
+.stock-low-stock {
+  color: var(--tone-warning-ink);
+}
+.stock-out-of-stock {
+  color: var(--tone-danger-ink);
+}
 
 .stock-alert-icon {
   --icon-size: 13px;
@@ -309,8 +358,12 @@
   right: 4px;
 }
 
-.stock-alert-danger { color: var(--ion-color-danger); }
-.stock-alert-warning { color: var(--color-warning); }
+.stock-alert-danger {
+  color: var(--ion-color-danger);
+}
+.stock-alert-warning {
+  color: var(--color-warning);
+}
 
 // ── Empty / error ──────────────────────────────────────
 /* The catalog can legitimately be empty after a search, which is a different
@@ -320,8 +373,11 @@
   text-align: center;
 }
 
-.inv-empty p { margin: 0; font-size: 14px; color: var(--ion-color-medium); }
-
+.inv-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ion-color-medium);
+}
 
 /* -- Bulk CSV import ------------------------------------------ */
 .import-panel {
@@ -359,8 +415,13 @@
   min-width: 40px;
   min-height: 40px;
 }
-.import-close:hover { background: var(--tile-powder); color: var(--color-ink); }
-.import-close-icon { --icon-size: 18px; }
+.import-close:hover {
+  background: var(--tile-powder);
+  color: var(--color-ink);
+}
+.import-close-icon {
+  --icon-size: 18px;
+}
 
 .import-note {
   margin: 0 0 12px;
@@ -389,7 +450,10 @@
   display: flex;
   align-items: center;
 }
-.import-help p { margin: 8px 0 0; line-height: 1.6; }
+.import-help p {
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
 .import-help code {
   background: var(--tile-powder);
   padding: 1px 5px;
@@ -407,7 +471,9 @@
   line-height: 1.5;
   color: var(--color-ink);
 }
-.import-errors li { overflow-wrap: anywhere; }
+.import-errors li {
+  overflow-wrap: anywhere;
+}
 
 .import-summary {
   display: flex;

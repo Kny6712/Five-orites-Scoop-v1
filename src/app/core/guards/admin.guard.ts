@@ -33,7 +33,7 @@ function readyUser(auth: AuthService) {
   return auth.authReady$.pipe(
     filter((ready) => ready),
     take(1),
-    switchMap(() => auth.currentUser$.pipe(take(1)))
+    switchMap(() => auth.currentUser$.pipe(take(1))),
   );
 }
 
@@ -54,7 +54,7 @@ export const adminGuard: CanActivateFn = () => {
       if (isStaffRole(user?.role)) return true;
       router.navigate(['/dashboard']);
       return false;
-    })
+    }),
   );
 };
 
@@ -87,7 +87,7 @@ export function capabilityGuard(capability: Capability): CanActivateFn {
         // the page that still works for them.
         router.navigate(['/dashboard']);
         return false;
-      })
+      }),
     );
   };
 }

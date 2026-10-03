@@ -16,26 +16,20 @@
 
   @if (isLoading()) {
     <div class="analytics-body">
-      @for (s of [1,2,3,4]; track s) {
-        <ion-card><ion-skeleton-text animated style="height:80px;"></ion-skeleton-text></ion-card>
+      @for (s of [1, 2, 3, 4]; track s) {
+        <ion-card><ion-skeleton-text animated style="height: 80px"></ion-skeleton-text></ion-card>
       }
     </div>
   }
 
   @if (!isLoading() && loadError()) {
     <div class="analytics-body">
-      <app-alert-banner
-        tone="danger"
-        [message]="loadError()"
-        actionLabel="Try again"
-        (action)="loadData()"
-      />
+      <app-alert-banner tone="danger" [message]="loadError()" actionLabel="Try again" (action)="loadData()" />
     </div>
   }
 
   @if (!isLoading() && !loadError()) {
     <div class="analytics-body">
-
       <ion-segment [value]="dateRange()" (ionChange)="setDateRange($any($event).detail.value)">
         <ion-segment-button value="all"><ion-label>All</ion-label></ion-segment-button>
         <ion-segment-button value="today"><ion-label>Today</ion-label></ion-segment-button>
@@ -53,15 +47,15 @@
       -->
       <div class="toolbar-row">
         @if (exportError()) {
-        <!--
+          <!--
           An export that reports success but produced no file is worse than a
           visible failure: the admin walks away believing they have a report. On a
           device the old anchor-click path did exactly that.
         -->
-        <app-alert-banner tone="danger" title="Export failed" [message]="exportError()" />
-      }
+          <app-alert-banner tone="danger" title="Export failed" [message]="exportError()" />
+        }
 
-      <ion-button size="small" fill="outline" class="export-btn" (click)="exportCsv()">
+        <ion-button size="small" fill="outline" class="export-btn" (click)="exportCsv()">
           <app-icon name="download" slot="start" />
           Export CSV
         </ion-button>
@@ -82,7 +76,11 @@
         <app-alert-banner
           tone="warning"
           title="Figures are a lower bound"
-          [message]="'Counted ' + orders().length + ' orders and stopped there. Anything older was not included, so these totals understate real activity.'"
+          [message]="
+            'Counted ' +
+            orders().length +
+            ' orders and stopped there. Anything older was not included, so these totals understate real activity.'
+          "
         />
       }
 
@@ -114,8 +112,8 @@
            answer is here instead of being a mystery. -->
       @if (myOrderCount() > 0) {
         <p class="analytics-note">
-          Excludes your {{ myOrderCount() }} own order{{ myOrderCount() === 1 ? '' : 's' }}
-          in {{ rangeLabel() }} — an owner purchase isn't revenue. They still appear in Fulfillment.
+          Excludes your {{ myOrderCount() }} own order{{ myOrderCount() === 1 ? '' : 's' }} in {{ rangeLabel() }} — an
+          owner purchase isn't revenue. They still appear in Fulfillment.
         </p>
       }
 
@@ -160,8 +158,10 @@
               <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
               @if (topSize(); as top) {
                 <p class="chart-callout">
-                  <strong>{{ top.label }}</strong> leads with {{ top.count }}
-                  unit{{ top.count === 1 ? '' : 's' }} &middot; {{ top.revenue | peso }}
+                  <strong>{{ top.label }}</strong> leads with {{ top.count }} unit{{
+                    top.count === 1 ? '' : 's'
+                  }}
+                  &middot; {{ top.revenue | peso }}
                 </p>
               }
               <app-bar-chart
@@ -203,14 +203,17 @@
           <ion-card-content>
             <h3 class="section-title">Flavors ranked by units sold</h3>
             <p class="chart-sub">
-              All {{ topFlavors().length }} flavor{{ topFlavors().length === 1 ? '' : 's' }}
-              that sold, highest to lowest. Delivered orders only, in {{ rangeLabel() }}.
+              All {{ topFlavors().length }} flavor{{ topFlavors().length === 1 ? '' : 's' }} that sold, highest to
+              lowest. Delivered orders only, in {{ rangeLabel() }}.
             </p>
 
             <div class="table-wrap">
               <table class="flavor-table">
                 <caption class="visually-hidden">
-                  Every flavor that sold in {{ rangeLabel() }}, ranked by units sold
+                  Every flavor that sold in
+                  {{
+                    rangeLabel()
+                  }}, ranked by units sold
                 </caption>
                 <thead>
                   <tr>
@@ -257,14 +260,10 @@
         <ion-card-content>
           <h3 class="section-title">Revenue trend</h3>
           @if (rangeDays() === null) {
-            <p class="chart-sub">
-              Pick a date range to see the trend — "All time" has no window to
-              plot against.
-            </p>
+            <p class="chart-sub">Pick a date range to see the trend — "All time" has no window to plot against.</p>
           } @else {
             <p class="chart-sub">
-              Delivered orders only{{ rangeDays()! > 14 ? ', by week' : ', by day' }},
-              in {{ rangeLabel() }}.
+              Delivered orders only{{ rangeDays()! > 14 ? ', by week' : ', by day' }}, in {{ rangeLabel() }}.
             </p>
 
             <div class="trend-toggles" role="group" aria-label="Trend measure">
@@ -274,21 +273,27 @@
                 [class.is-on]="trendSeries() === 'daily'"
                 [attr.aria-pressed]="trendSeries() === 'daily'"
                 (click)="trendSeries.set('daily')"
-              >Per day</button>
+              >
+                Per day
+              </button>
               <button
                 type="button"
                 class="trend-toggle"
                 [class.is-on]="trendSeries() === 'cumulative'"
                 [attr.aria-pressed]="trendSeries() === 'cumulative'"
                 (click)="trendSeries.set('cumulative')"
-              >Running total</button>
+              >
+                Running total
+              </button>
               <button
                 type="button"
                 class="trend-toggle"
                 [class.is-on]="trendSeries() === 'orders'"
                 [attr.aria-pressed]="trendSeries() === 'orders'"
                 (click)="trendSeries.set('orders')"
-              >Orders</button>
+              >
+                Orders
+              </button>
             </div>
 
             <app-line-chart
@@ -315,7 +320,6 @@
           </ion-card-content>
         </ion-card>
       }
-
     </div>
   }
 </ion-content>

@@ -19,7 +19,15 @@ import {
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { shareReplay } from 'rxjs/operators';
-import { Product, FlavorSet, SizeVariant, StockLevel, ProductFilter, ProductCategory, productCategory } from '../models/product.model';
+import {
+  Product,
+  FlavorSet,
+  SizeVariant,
+  StockLevel,
+  ProductFilter,
+  ProductCategory,
+  productCategory,
+} from '../models/product.model';
 import { normaliseStockLines, SIZE_VARIANTS } from '../logic/stock';
 import { AuthService } from './auth.service';
 import { ShopSettingsService } from './shop-settings.service';
@@ -69,10 +77,12 @@ export class InventoryService {
    * it. Do not move filtering into the query — that would need a composite
    * index per filter combination and would undo the shareReplay.
    */
-  getProducts(filters?: ProductFilter, maxResults = 200, includeInactive = false): Observable<Product[]> {
-    return this.streamFor(maxResults, includeInactive).pipe(
-      applyProductFilters(filters)
-    );
+  getProducts(
+    filters?: ProductFilter,
+    maxResults = 200,
+    includeInactive = false,
+  ): Observable<Product[]> {
+    return this.streamFor(maxResults, includeInactive).pipe(applyProductFilters(filters));
   }
 
   /**
@@ -97,7 +107,7 @@ export class InventoryService {
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          let products = snapshot.docs.map((docSnap) => ({
+          const products = snapshot.docs.map((docSnap) => ({
             id: docSnap.id,
             ...docSnap.data(),
           })) as Product[];
@@ -113,7 +123,7 @@ export class InventoryService {
         (error) => {
           console.error('Inventory snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
 
       return () => unsubscribe();
@@ -160,7 +170,7 @@ export class InventoryService {
         (error) => {
           console.error('Product snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
 
       return () => unsubscribe();
@@ -192,7 +202,7 @@ export class InventoryService {
                 p.stock.cup < cutoff ||
                 p.stock.pint < cutoff ||
                 p.stock.halfGallon < cutoff ||
-                p.stock.gallon < cutoff
+                p.stock.gallon < cutoff,
             );
           observer.next(lowStock);
         },
@@ -203,7 +213,7 @@ export class InventoryService {
           // Log it so a failure is visible even if the caller swallows it.
           console.error('Low stock snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
 
       return () => unsubscribe();
@@ -330,7 +340,18 @@ export class InventoryService {
 
   async updateProductDetails(
     productId: string,
-    patch: Partial<Pick<Product, 'variantName' | 'description' | 'imageUrl' | 'pricing' | 'setName' | 'setNumber' | 'category'>>
+    patch: Partial<
+      Pick<
+        Product,
+        | 'variantName'
+        | 'description'
+        | 'imageUrl'
+        | 'pricing'
+        | 'setName'
+        | 'setNumber'
+        | 'category'
+      >
+    >,
   ): Promise<void> {
     const productRef = doc(this.firestore, `products/${productId}`);
     await updateDoc(productRef, { ...patch, updatedAt: serverTimestamp() });
@@ -338,7 +359,8 @@ export class InventoryService {
 
   // ── Bulk restock: add `amount` to EVERY size of EVERY active product ──────
   async bulkRestock(amount: number): Promise<number> {
-    if (!Number.isInteger(amount) || amount <= 0) throw new Error('Restock amount must be a positive whole number.');
+    if (!Number.isInteger(amount) || amount <= 0)
+      throw new Error('Restock amount must be a positive whole number.');
     const { getDocs } = await import('@angular/fire/firestore');
     const productsCol = collection(this.firestore, 'products');
     const snap = await getDocs(query(productsCol, where('isActive', '==', true), limit(200)));
@@ -383,7 +405,7 @@ export class InventoryService {
 
   // ── Restock (e.g. order cancelled) ──────────────────────────────────────────
   async restockItems(
-    items: { productId: string; size: SizeVariant; quantity: number }[]
+    items: { productId: string; size: SizeVariant; quantity: number }[],
   ): Promise<void> {
     if (items.length === 0) return;
     // Same guard as the decrement path: a negative quantity here would
@@ -444,7 +466,7 @@ function applyProductFilters(filters?: ProductFilter) {
             out = out.filter(
               (p) =>
                 p.variantName.toLowerCase().includes(search) ||
-                p.setName.toLowerCase().includes(search)
+                p.setName.toLowerCase().includes(search),
             );
           }
           if (filters.inStockOnly) {
@@ -469,7 +491,7 @@ function applyProductFilters(filters?: ProductFilter) {
         },
         error: (err) => observer.error(err),
         complete: () => observer.complete(),
-      })
+      }),
     );
 }
 
@@ -480,7 +502,7 @@ function priceFor(product: Product, size: SizeVariant): number {
 function sortProducts(
   products: Product[],
   sortBy: ProductFilter['sortBy'],
-  size?: SizeVariant
+  size?: SizeVariant,
 ): Product[] {
   if (!sortBy || sortBy === 'featured') return products;
   const sizeForPrice = size ?? 'cup';

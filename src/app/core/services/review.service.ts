@@ -47,12 +47,12 @@ export class ReviewService {
         col,
         where('productId', '==', productId),
         orderBy('createdAt', 'desc'),
-        limit(maxResults)
+        limit(maxResults),
       );
       const unsub = onSnapshot(
         q,
         (snap) => observer.next(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Review[]),
-        (err) => observer.error(err)
+        (err) => observer.error(err),
       );
       return () => unsub();
     });
@@ -92,7 +92,7 @@ export class ReviewService {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
-      { merge: true }
+      { merge: true },
     );
     return ref.id;
   }
@@ -126,12 +126,12 @@ export class ReviewService {
       const q = query(
         collection(this.firestore, 'reviews'),
         orderBy('createdAt', 'desc'),
-        limit(maxResults)
+        limit(maxResults),
       );
       const unsub = onSnapshot(
         q,
         (snap) => observer.next(snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Review[]),
-        (err) => observer.error(err)
+        (err) => observer.error(err),
       );
       return () => unsub();
     });
@@ -153,11 +153,7 @@ export class ReviewService {
    * rules change. The author-side branch of that same clause does NOT permit
    * writing this field, so a customer cannot forge a staff reply.
    */
-  async replyToReview(
-    reviewId: string,
-    response: string,
-    responderName: string
-  ): Promise<void> {
+  async replyToReview(reviewId: string, response: string, responderName: string): Promise<void> {
     const text = response.trim().slice(0, 500);
     if (!text) throw new Error('Write a reply first.');
     await updateDoc(doc(this.firestore, 'reviews', reviewId), {

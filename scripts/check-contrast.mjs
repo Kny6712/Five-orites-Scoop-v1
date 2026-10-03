@@ -50,10 +50,18 @@ const P = {
 // border must clear 1.4:1 against its own background — otherwise the banner has
 // no edge and the "surface" is invisible.
 const TONES = {
-  successBg: '#DDF2E4', successBorder: '#7FC49A', successInk: '#14622F',
-  warningBg: '#FCEBC4', warningBorder: '#E0B85C', warningInk: '#7A4B00',
-  dangerBg: '#FDE8EE', dangerBorder: '#F5B8C8', dangerInk: '#8F1F38',
-  infoBg: '#E4F1F8', infoBorder: '#A8CBE8', infoInk: '#17456F',
+  successBg: '#DDF2E4',
+  successBorder: '#7FC49A',
+  successInk: '#14622F',
+  warningBg: '#FCEBC4',
+  warningBorder: '#E0B85C',
+  warningInk: '#7A4B00',
+  dangerBg: '#FDE8EE',
+  dangerBorder: '#F5B8C8',
+  dangerInk: '#8F1F38',
+  infoBg: '#E4F1F8',
+  infoBorder: '#A8CBE8',
+  infoInk: '#17456F',
 };
 
 // [foreground, background, requirement, label]
@@ -105,7 +113,7 @@ for (const [fg, bg, req, label] of PAIRS) {
   const ok = r >= req;
   if (!ok) fails++;
   console.log(
-    `${r.toFixed(2).padStart(5)}  ${String(req).padStart(4)}  ${(ok ? 'PASS' : 'FAIL').padStart(7)}  ${label}`
+    `${r.toFixed(2).padStart(5)}  ${String(req).padStart(4)}  ${(ok ? 'PASS' : 'FAIL').padStart(7)}  ${label}`,
   );
 }
 
@@ -120,7 +128,7 @@ console.log(
   `\nnote: white on powder is ${whiteOnPowder.toFixed(2)}:1 — ` +
     (whiteOnPowder < 4.5
       ? 'plum stays the contrast colour. Expected, not a failure.'
-      : 'white is now viable as a contrast colour.')
+      : 'white is now viable as a contrast colour.'),
 );
 
 // 2. A pastel cannot be the ONLY thing marking a selected control. Powder on a
@@ -131,7 +139,7 @@ console.log(
 const powderOnCard = ratio(P.powder, P.white);
 console.log(
   `note: powder on a white card is ${powderOnCard.toFixed(2)}:1 — selected ` +
-    'state borders must use --color-primary-ink, not --color-brand-primary.'
+    'state borders must use --color-primary-ink, not --color-brand-primary.',
 );
 
 console.log(`\n${fails === 0 ? 'All pairs pass.' : `${fails} pair(s) FAIL.`}`);

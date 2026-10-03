@@ -6,11 +6,18 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonButton, IonText,
-  IonTextarea, IonSpinner,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonText,
+  IonTextarea,
+  IonSpinner,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { catchError, of } from 'rxjs';
@@ -19,7 +26,12 @@ import { OrderService } from '../../core/services/order.service';
 import { AddressService } from '../../core/services/address.service';
 import { VoucherService } from '../../core/services/voucher.service';
 import { InventoryService } from '../../core/services/inventory.service';
-import { Cart, CartItem, getDeliveryFee, FREE_DELIVERY_THRESHOLD } from '../../core/models/cart.model';
+import {
+  Cart,
+  CartItem,
+  getDeliveryFee,
+  FREE_DELIVERY_THRESHOLD,
+} from '../../core/models/cart.model';
 import { Product, SizeVariant } from '../../core/models/product.model';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
@@ -45,14 +57,27 @@ type CheckoutStep = 1 | 2 | 3;
   selector: 'app-cart',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, RouterLink,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonButton, IonText,
-    IonTextarea, IonSpinner,
-    PesoPipe, CloudinaryPipe,
-    AppIconComponent, QtyStepperComponent, EmptyStateComponent, AlertBannerComponent,
-    AppFooterComponent],
+    CommonModule,
+    FormsModule,
+    RouterLink,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonText,
+    IonTextarea,
+    IonSpinner,
+    PesoPipe,
+    CloudinaryPipe,
+    AppIconComponent,
+    QtyStepperComponent,
+    EmptyStateComponent,
+    AlertBannerComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './cart.page.html',
   styleUrls: ['./cart.page.scss'],
 })
@@ -96,27 +121,27 @@ export class CartPage implements OnInit {
   deliveryFee = computed(() => getDeliveryFee(this.cart().totalAmount));
   isFreeDelivery = computed(() => this.deliveryFee() === 0 && this.cart().items.length > 0);
   amountAwayFromFreeDelivery = computed(() =>
-    Math.max(this.freeDeliveryThreshold - this.cart().totalAmount, 0)
+    Math.max(this.freeDeliveryThreshold - this.cart().totalAmount, 0),
   );
-  grandTotal = computed(() => this.cart().totalAmount - this.voucherDiscount() + this.deliveryFee());
+  grandTotal = computed(
+    () => this.cart().totalAmount - this.voucherDiscount() + this.deliveryFee(),
+  );
 
   constructor() {
-
-    this.cartService.cart$
-      .pipe(takeUntilDestroyed())
-      .subscribe((c) => {
-        this.cart.set(c);
-        // Re-validate voucher when cart changes.
-        if (this.appliedVoucher()) {
-          this.voucherService.validateVoucher(this.appliedVoucher()!, c.totalAmount)
-            .then(({ discount }) => this.voucherDiscount.set(discount))
-            .catch(() => {
-              this.voucherDiscount.set(0);
-              this.appliedVoucher.set(null);
-              this.voucherMessage.set('Voucher no longer valid for this cart total.');
-            });
-        }
-      });
+    this.cartService.cart$.pipe(takeUntilDestroyed()).subscribe((c) => {
+      this.cart.set(c);
+      // Re-validate voucher when cart changes.
+      if (this.appliedVoucher()) {
+        this.voucherService
+          .validateVoucher(this.appliedVoucher()!, c.totalAmount)
+          .then(({ discount }) => this.voucherDiscount.set(discount))
+          .catch(() => {
+            this.voucherDiscount.set(0);
+            this.appliedVoucher.set(null);
+            this.voucherMessage.set('Voucher no longer valid for this cart total.');
+          });
+      }
+    });
     this.addressService.addresses$
       .pipe(takeUntilDestroyed())
       .subscribe((a) => this.savedAddresses.set(a));
@@ -144,7 +169,7 @@ export class CartPage implements OnInit {
           console.error('Failed to load stock levels.', err);
           this.stockUnavailable.set(true);
           return of([] as Product[]);
-        })
+        }),
       )
       .subscribe((products) => {
         const map = new Map<string, number>();
@@ -238,12 +263,7 @@ export class CartPage implements OnInit {
    */
   setQty(item: CartItem, quantity: number): void {
     if (quantity === item.quantity) return;
-    this.cartService.updateQuantity(
-      item.productId,
-      item.size,
-      quantity,
-      this.availableFor(item)
-    );
+    this.cartService.updateQuantity(item.productId, item.size, quantity, this.availableFor(item));
   }
 
   async clearCart(): Promise<void> {
@@ -252,7 +272,8 @@ export class CartPage implements OnInit {
       message: 'Remove all items from your cart?',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
-        { text: 'Clear', role: 'destructive', handler: () => this.cartService.clearCart() }],
+        { text: 'Clear', role: 'destructive', handler: () => this.cartService.clearCart() },
+      ],
     });
     await alert.present();
   }
@@ -276,7 +297,8 @@ export class CartPage implements OnInit {
     this.voucherMessage.set('');
     try {
       const { voucher, discount } = await this.voucherService.validateVoucher(
-        this.voucherCode, this.cart().totalAmount
+        this.voucherCode,
+        this.cart().totalAmount,
       );
       this.appliedVoucher.set(voucher.code);
       this.voucherDiscount.set(discount);
@@ -324,7 +346,8 @@ export class CartPage implements OnInit {
       this.checkoutStep.set(3);
       setTimeout(() => this.router.navigate(['/orders', orderId]), 4000);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+      const message =
+        err instanceof Error ? err.message : 'Failed to place order. Please try again.';
       this.errorMessage.set(message);
       const toast = await this.toastCtrl.create({
         message,

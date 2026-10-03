@@ -94,98 +94,108 @@ const TONE_FILL: Record<DonutSlice['tone'], string> = {
       <p class="no-data">{{ emptyMessage() }}</p>
     }
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .donut-wrap {
-      position: relative;
-      width: 190px;
-      height: 190px;
-      margin: 0 auto;
-    }
+      .donut-wrap {
+        position: relative;
+        width: 190px;
+        height: 190px;
+        margin: 0 auto;
+      }
 
-    .donut { width: 100%; height: 100%; transform: rotate(-90deg); }
+      .donut {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
 
-    .track { stroke: var(--ion-color-light); }
+      .track {
+        stroke: var(--ion-color-light);
+      }
 
-    /* Only the dash offset animates, and only from a full offset — animating
+      /* Only the dash offset animates, and only from a full offset — animating
        stroke-dasharray itself forces a layout on every frame. */
-    .seg {
-      transition: stroke-dashoffset 0.5s ease-out;
-    }
+      .seg {
+        transition: stroke-dashoffset 0.5s ease-out;
+      }
 
-    .centre {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-    }
+      .centre {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+      }
 
-    .centre-value {
-      font-family: var(--font-display);
-      font-size: 30px;
-      font-weight: 600;
-      color: var(--color-ink);
-      line-height: 1;
-    }
+      .centre-value {
+        font-family: var(--font-display);
+        font-size: 30px;
+        font-weight: 600;
+        color: var(--color-ink);
+        line-height: 1;
+      }
 
-    .centre-label {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      text-transform: uppercase;
-      color: var(--ion-color-medium);
-      margin-top: 3px;
-    }
+      .centre-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: var(--ion-color-medium);
+        margin-top: 3px;
+      }
 
-    .legend {
-      list-style: none;
-      margin: var(--space-4) 0 0;
-      padding: 0;
-      display: grid;
-      gap: var(--space-2);
-    }
+      .legend {
+        list-style: none;
+        margin: var(--space-4) 0 0;
+        padding: 0;
+        display: grid;
+        gap: var(--space-2);
+      }
 
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      font-size: 13px;
-    }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font-size: 13px;
+      }
 
-    .swatch {
-      width: 12px;
-      height: 12px;
-      border-radius: 4px;
-      flex: 0 0 auto;
-    }
+      .swatch {
+        width: 12px;
+        height: 12px;
+        border-radius: 4px;
+        flex: 0 0 auto;
+      }
 
-    .legend-label {
-      flex: 1;
-      min-width: 0;
-      color: var(--color-ink);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+      .legend-label {
+        flex: 1;
+        min-width: 0;
+        color: var(--color-ink);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
-    .legend-value {
-      font-weight: 700;
-      color: var(--ion-color-medium);
-      flex: 0 0 auto;
-    }
+      .legend-value {
+        font-weight: 700;
+        color: var(--ion-color-medium);
+        flex: 0 0 auto;
+      }
 
-    .no-data {
-      margin: 0;
-      padding: var(--space-5) 0;
-      text-align: center;
-      font-size: 14px;
-      color: var(--ion-color-medium);
-    }
-  `],
+      .no-data {
+        margin: 0;
+        padding: var(--space-5) 0;
+        text-align: center;
+        font-size: 14px;
+        color: var(--ion-color-medium);
+      }
+    `,
+  ],
 })
 export class DonutChartComponent {
   readonly slices = input.required<DonutSlice[]>();
@@ -200,7 +210,7 @@ export class DonutChartComponent {
   protected readonly thickness = 20;
 
   protected readonly total = computed(() =>
-    this.slices().reduce((sum, s) => sum + Math.max(0, s.value), 0)
+    this.slices().reduce((sum, s) => sum + Math.max(0, s.value), 0),
   );
 
   /**

@@ -90,8 +90,10 @@ export function parseCsvLine(line: string): string[] {
     const ch = line[i];
     if (inQuotes) {
       if (ch === '"') {
-        if (line[i + 1] === '"') { current += '"'; i++; }
-        else inQuotes = false;
+        if (line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else inQuotes = false;
       } else {
         current += ch;
       }
@@ -118,7 +120,7 @@ export function parseCsvLine(line: string): string[] {
  */
 export function parseProductCsv(text: string, existingIds: Set<string> = new Set()): ImportPlan {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  const plan: ImportPlan = { valid: [], errors: [], unknownColumns: [], skipped: 0, };
+  const plan: ImportPlan = { valid: [], errors: [], unknownColumns: [], skipped: 0 };
   if (!lines.length) {
     plan.errors.push({ line: 0, message: 'The file is empty.' });
     return plan;
@@ -160,11 +162,17 @@ export function parseProductCsv(text: string, existingIds: Set<string> = new Set
     const lineNo = i + 1;
 
     // A line starting with # is a comment, so an exported file can carry notes.
-    if ((cells[0] ?? '').startsWith('#')) { plan.skipped++; continue; }
+    if ((cells[0] ?? '').startsWith('#')) {
+      plan.skipped++;
+      continue;
+    }
 
     const variantName = get('variantName');
     const setName = get('setName');
-    if (!variantName && !setName) { plan.skipped++; continue; }
+    if (!variantName && !setName) {
+      plan.skipped++;
+      continue;
+    }
 
     const rowErrors: string[] = [];
     if (!setName) rowErrors.push('setName is required');
@@ -179,7 +187,9 @@ export function parseProductCsv(text: string, existingIds: Set<string> = new Set
     const categoryRaw = get('category').toLowerCase();
     let category: ProductCategory = 'flavor';
     if (categoryRaw && !VALID_CATEGORIES.includes(categoryRaw as ProductCategory)) {
-      rowErrors.push(`category must be one of ${VALID_CATEGORIES.join(', ')} (got "${categoryRaw}")`);
+      rowErrors.push(
+        `category must be one of ${VALID_CATEGORIES.join(', ')} (got "${categoryRaw}")`,
+      );
     } else if (categoryRaw) {
       category = categoryRaw as ProductCategory;
     }
@@ -257,7 +267,8 @@ export function parseProductCsv(text: string, existingIds: Set<string> = new Set
   if (plan.valid.length && !hasPrices) {
     plan.errors.push({
       line: 1,
-      message: 'No price column found. Add cup_price, pint_price, half_gallon_price and gallon_price.',
+      message:
+        'No price column found. Add cup_price, pint_price, half_gallon_price and gallon_price.',
     });
     plan.valid = [];
   }

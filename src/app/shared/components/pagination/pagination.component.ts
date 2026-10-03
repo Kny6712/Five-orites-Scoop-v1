@@ -72,14 +72,14 @@ const STRIP_LIMIT = 7;
                 <li class="pager-gap" aria-hidden="true">&hellip;</li>
               }
               <li>
-                <button type="button" class="pager-num" (click)="go(lastPage())">{{ lastPages() }}</button>
+                <button type="button" class="pager-num" (click)="go(lastPage())">
+                  {{ lastPages() }}
+                </button>
               </li>
             }
           </ol>
         } @else {
-          <p class="pager-readout">
-            Page {{ page() }} of {{ totalPages() }}
-          </p>
+          <p class="pager-readout">Page {{ page() }} of {{ totalPages() }}</p>
         }
 
         <div class="pager-side">
@@ -100,85 +100,98 @@ const STRIP_LIMIT = 7;
       <p class="pager-range">{{ rangeLabel() }}</p>
     }
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .pager {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
-      padding: var(--space-3) var(--space-4) 0;
-    }
+      .pager {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4) 0;
+      }
 
-    .pager-side { display: flex; }
+      .pager-side {
+        display: flex;
+      }
 
-    .pager-step {
-      --border-radius: var(--radius-pill);
-      --padding-start: 10px;
-      --padding-end: 10px;
-      min-height: 40px;
-      min-width: 40px;
-      color: var(--color-primary-ink);
-    }
-    .pager-step:disabled { opacity: 0.35; }
+      .pager-step {
+        --border-radius: var(--radius-pill);
+        --padding-start: 10px;
+        --padding-end: 10px;
+        min-height: 40px;
+        min-width: 40px;
+        color: var(--color-primary-ink);
+      }
+      .pager-step:disabled {
+        opacity: 0.35;
+      }
 
-    .pager-pages {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
+      .pager-pages {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
 
-    /* A real <button>, not a bare number, so each page is reachable by keyboard
+      /* A real <button>, not a bare number, so each page is reachable by keyboard
        and announces itself. The native list marker is removed by .pager-pages. */
-    .pager-num {
-      appearance: none;
-      background: none;
-      border: 1px solid transparent;
-      border-radius: var(--radius-xs);
-      color: var(--color-ink-soft);
-      font: inherit;
-      font-size: 14px;
-      font-weight: 700;
-      min-width: 38px;
-      min-height: 38px;
-      cursor: pointer;
-      transition: background-color 0.15s ease, color 0.15s ease;
-    }
-    .pager-num:hover { background: var(--tile-powder); color: var(--color-primary-ink); }
+      .pager-num {
+        appearance: none;
+        background: none;
+        border: 1px solid transparent;
+        border-radius: var(--radius-xs);
+        color: var(--color-ink-soft);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        min-width: 38px;
+        min-height: 38px;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          color 0.15s ease;
+      }
+      .pager-num:hover {
+        background: var(--tile-powder);
+        color: var(--color-primary-ink);
+      }
 
-    /* The current page is marked by a FILL, not by a pastel border. A pastel
+      /* The current page is marked by a FILL, not by a pastel border. A pastel
        stroke on a white page measures 1.79:1, which is not a state a user can
        see — the fill carries it instead. */
-    .pager-num.is-current {
-      background: var(--color-brand-primary);
-      border-color: var(--color-primary-ink);
-      color: var(--color-ink);
-    }
+      .pager-num.is-current {
+        background: var(--color-brand-primary);
+        border-color: var(--color-primary-ink);
+        color: var(--color-ink);
+      }
 
-    .pager-gap {
-      color: var(--ion-color-medium);
-      padding: 0 2px;
-      font-weight: 700;
-    }
+      .pager-gap {
+        color: var(--ion-color-medium);
+        padding: 0 2px;
+        font-weight: 700;
+      }
 
-    .pager-readout {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--ion-color-medium);
-    }
+      .pager-readout {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ion-color-medium);
+      }
 
-    .pager-range {
-      margin: var(--space-1) 0 0;
-      text-align: center;
-      font-size: 12px;
-      color: var(--ion-color-medium);
-    }
-  `],
+      .pager-range {
+        margin: var(--space-1) 0 0;
+        text-align: center;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+      }
+    `,
+  ],
 })
 export class PaginationComponent {
   /** 1-based current page. */
@@ -196,11 +209,11 @@ export class PaginationComponent {
   readonly pageChange = output<number>();
 
   readonly totalPages = computed(() =>
-    Math.max(1, Math.ceil(this.total() / Math.max(1, this.pageSize())))
+    Math.max(1, Math.ceil(this.total() / Math.max(1, this.pageSize()))),
   );
 
   readonly firstPage = computed(() =>
-    Math.max(1, Math.min(this.page() - WINDOW, this.totalPages() - WINDOW * 2))
+    Math.max(1, Math.min(this.page() - WINDOW, this.totalPages() - WINDOW * 2)),
   );
 
   readonly lastPage = computed(() => Math.min(this.totalPages(), this.firstPage() + WINDOW * 2));

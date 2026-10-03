@@ -18,7 +18,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
-  IonButtons, IonContent, IonHeader, IonMenuButton, IonTitle, IonToggle, IonToolbar,
+  IonButtons,
+  IonContent,
+  IonHeader,
+  IonMenuButton,
+  IonTitle,
+  IonToggle,
+  IonToolbar,
 } from '@ionic/angular/standalone';
 
 import { AppSettingsService } from '../../core/services/app-settings.service';
@@ -58,7 +64,7 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
 
     <ion-content fullscreen>
       <div class="settings-body">
-              <app-section-header title="Display" />
+        <app-section-header title="Display" />
 
         <section class="panel">
           <div class="row">
@@ -67,9 +73,7 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
             </span>
             <div class="row-text">
               <span class="row-title">Reduce motion</span>
-              <span class="row-sub">
-                Collapses animations and transitions across the app.
-              </span>
+              <span class="row-sub"> Collapses animations and transitions across the app. </span>
             </div>
             <ion-toggle
               [checked]="settings.effectiveReduceMotion()"
@@ -79,8 +83,7 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
           </div>
 
           <p class="row-note">
-            Already on because your device asks for it. Turning this off will not
-            override that.
+            Already on because your device asks for it. Turning this off will not override that.
           </p>
 
           <div class="row">
@@ -89,9 +92,7 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
             </span>
             <div class="row-text">
               <span class="row-title">Higher contrast</span>
-              <span class="row-sub">
-                Darker text and stronger borders on pale surfaces.
-              </span>
+              <span class="row-sub"> Darker text and stronger borders on pale surfaces. </span>
             </div>
             <ion-toggle
               [checked]="settings.highContrast()"
@@ -127,15 +128,15 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
               would silently do nothing.
             -->
             <p class="row-note row-note-warn">
-              Your browser is blocking notifications for this site. To turn them
-              back on, allow notifications for this site in your browser settings.
+              Your browser is blocking notifications for this site. To turn them back on, allow
+              notifications for this site in your browser settings.
             </p>
           }
 
           <p class="row-note">
             Also on your
-            <a routerLink="/profile" class="inline-link">profile page</a> &mdash; both
-            screens edit the same setting.
+            <a routerLink="/profile" class="inline-link">profile page</a> &mdash; both screens edit
+            the same setting.
           </p>
         </section>
 
@@ -176,91 +177,122 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
 
     <app-footer></app-footer>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .settings-body {
-      max-width: 640px;
-      margin: 0 auto;
-      padding: var(--space-4) var(--space-4) var(--space-6);
-      display: flex;
-      flex-direction: column;
-      gap: var(--space-2);
-    }
+      .settings-body {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: var(--space-4) var(--space-4) var(--space-6);
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-2);
+      }
 
-    .panel {
-      background: var(--color-white);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-card);
-      padding: var(--space-2) var(--space-4) var(--space-3);
-      margin-bottom: var(--space-3);
-    }
+      .panel {
+        background: var(--color-white);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-card);
+        padding: var(--space-2) var(--space-4) var(--space-3);
+        margin-bottom: var(--space-3);
+      }
 
-    .row {
-      display: flex;
-      align-items: center;
-      gap: var(--space-3);
-      padding: var(--space-3) 0;
-    }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-3) 0;
+      }
 
-    /* Rows are separated by a hairline rather than each being its own card, so
+      /* Rows are separated by a hairline rather than each being its own card, so
        the page reads as three groups instead of nine floating boxes. The last
        row has no rule, which is why the padding sits on .panel instead. */
-    .row + .row { border-top: 1px solid var(--ion-color-light-shade); }
+      .row + .row {
+        border-top: 1px solid var(--ion-color-light-shade);
+      }
 
-    .row-icon {
-      width: 36px;
-      height: 36px;
-      flex: 0 0 auto;
-      border-radius: var(--radius-sm);
-      background: var(--tile-powder);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .row-icon app-icon { --icon-size: 18px; color: var(--color-primary-ink); }
+      .row-icon {
+        width: 36px;
+        height: 36px;
+        flex: 0 0 auto;
+        border-radius: var(--radius-sm);
+        background: var(--tile-powder);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .row-icon app-icon {
+        --icon-size: 18px;
+        color: var(--color-primary-ink);
+      }
 
-    .row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+      .row-text {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
 
-    .row-title {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--color-ink);
-    }
+      .row-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--color-ink);
+      }
 
-    .row-sub {
-      font-size: 12px;
-      color: var(--ion-color-medium);
-      line-height: 1.4;
-      margin-top: 1px;
-    }
+      .row-sub {
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        line-height: 1.4;
+        margin-top: 1px;
+      }
 
-    .row-note {
-      margin: 0 0 var(--space-2);
-      padding-left: calc(36px + var(--space-3));
-      font-size: 12px;
-      line-height: 1.45;
-      color: var(--ion-color-medium);
-    }
+      .row-note {
+        margin: 0 0 var(--space-2);
+        padding-left: calc(36px + var(--space-3));
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--ion-color-medium);
+      }
 
-    .row-note-warn { color: var(--tone-warning-ink); }
+      .row-note-warn {
+        color: var(--tone-warning-ink);
+      }
 
-    .inline-link { color: var(--color-primary-ink); font-weight: 700; }
+      .inline-link {
+        color: var(--color-primary-ink);
+        font-weight: 700;
+      }
 
-    .row-spinner { width: 32px; height: 32px; flex: 0 0 auto; }
+      .row-spinner {
+        width: 32px;
+        height: 32px;
+        flex: 0 0 auto;
+      }
 
-    /* A routerLink row needs the whole row to look tappable, not just its text. */
-    .row-link { cursor: pointer; }
-    .row-link:hover .row-title { color: var(--color-primary-ink); }
-    .row-chevron { --icon-size: 18px; color: var(--ion-color-medium); flex: 0 0 auto; }
+      /* A routerLink row needs the whole row to look tappable, not just its text. */
+      .row-link {
+        cursor: pointer;
+      }
+      .row-link:hover .row-title {
+        color: var(--color-primary-ink);
+      }
+      .row-chevron {
+        --icon-size: 18px;
+        color: var(--ion-color-medium);
+        flex: 0 0 auto;
+      }
 
-    .version {
-      margin: var(--space-2) 0 0;
-      text-align: center;
-      font-size: 12px;
-      color: var(--ion-color-medium);
-    }
-  `],
+      .version {
+        margin: var(--space-2) 0 0;
+        text-align: center;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+      }
+    `,
+  ],
 })
 export class SettingsPage {
   protected readonly settings = inject(AppSettingsService);
@@ -277,7 +309,7 @@ export class SettingsPage {
    * disagree about the state.
    */
   protected readonly notificationState = computed<NotificationPermissionState>(() =>
-    this.notifications.permissionState(this.auth.currentUserSnapshot?.notificationsEnabled)
+    this.notifications.permissionState(this.auth.currentUserSnapshot?.notificationsEnabled),
   );
 
   protected readonly updatesOn = computed(() => this.notificationState() !== 'off');

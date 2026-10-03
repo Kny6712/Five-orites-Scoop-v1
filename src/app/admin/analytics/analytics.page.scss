@@ -1,10 +1,21 @@
 // src/app/admin/analytics/analytics.page.scss
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
-.analytics-body { padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 12px; }
+.analytics-body {
+  padding: 16px 16px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
-.kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
 
 .kpi-tile {
   border-radius: 16px;
@@ -19,16 +30,48 @@
    contrast-verified ink: 6.35:1, 8.61:1, 5.17:1 and 5.32:1 respectively, so the
    figure is still comfortably readable at 22px/800. The ink is set per tile
    rather than once on `.kpi-tile`, because each pastel has its own dark ink. */
-.kpi-revenue { background: var(--tone-success-bg); --kpi-ink: var(--tone-success-ink); }
-.kpi-orders { background: var(--tone-info-bg); --kpi-ink: var(--tone-info-ink); }
-.kpi-delivered { background: var(--tile-mint); --kpi-ink: var(--color-mint-ink); }
-.kpi-avg { background: var(--tile-lemon); --kpi-ink: var(--color-sunny-ink); }
+.kpi-revenue {
+  background: var(--tone-success-bg);
+  --kpi-ink: var(--tone-success-ink);
+}
+.kpi-orders {
+  background: var(--tone-info-bg);
+  --kpi-ink: var(--tone-info-ink);
+}
+.kpi-delivered {
+  background: var(--tile-mint);
+  --kpi-ink: var(--color-mint-ink);
+}
+.kpi-avg {
+  background: var(--tile-lemon);
+  --kpi-ink: var(--color-sunny-ink);
+}
 
-.kpi-icon { --icon-size: 22px; color: var(--kpi-ink); opacity: 0.75; }
-.kpi-label { font-size: 11px; font-weight: 600; color: var(--kpi-ink); opacity: 0.8; margin: 0; }
-.kpi-val { font-size: 22px; font-weight: 800; color: var(--kpi-ink); margin: 0; }
+.kpi-icon {
+  --icon-size: 22px;
+  color: var(--kpi-ink);
+  opacity: 0.75;
+}
+.kpi-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--kpi-ink);
+  opacity: 0.8;
+  margin: 0;
+}
+.kpi-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--kpi-ink);
+  margin: 0;
+}
 
-.section-title { font-size: 18px; font-weight: 700; margin: 4px 0 8px; color: var(--ion-color-dark); }
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 4px 0 8px;
+  color: var(--ion-color-dark);
+}
 
 // Chart panels. The section title used to float directly on the page background;
 // a card per chart gives each one a boundary so three of them do not blur into a
@@ -60,9 +103,14 @@
   color: var(--color-ink-soft);
   cursor: pointer;
   min-height: 36px;
-  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
 }
-.trend-toggle:hover { background: var(--tile-powder); }
+.trend-toggle:hover {
+  background: var(--tile-powder);
+}
 .trend-toggle.is-on {
   background: var(--color-brand-primary);
   border-color: var(--color-primary-ink);
@@ -75,7 +123,10 @@
   line-height: 1.45;
   color: var(--ion-color-medium);
 }
-.no-data { font-size: 14px; color: var(--ion-color-medium); }
+.no-data {
+  font-size: 14px;
+  color: var(--ion-color-medium);
+}
 
 // Discloses that the admin's own orders are filtered out of the KPIs, so the
 // figures are never quietly wrong.
@@ -110,7 +161,9 @@
   --padding-end: 12px;
 }
 
-.export-btn app-icon { --icon-size: 15px; }
+.export-btn app-icon {
+  --icon-size: 15px;
+}
 
 // ── Chart pair ──────────────────────────────────────────
 // Two charts side by side from tablet up. A donut is square and a bar chart is
@@ -124,8 +177,13 @@
 }
 
 @media (min-width: 720px) {
-  .chart-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3); }
-  .chart-row .chart-card { margin: var(--space-3) 0; }
+  .chart-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+  .chart-row .chart-card {
+    margin: var(--space-3) 0;
+  }
 }
 
 /* The donut is capped so it cannot grow to fill a wide column. The SVG sizes
@@ -146,7 +204,10 @@
   line-height: 1.4;
   color: var(--color-ink);
 }
-.chart-callout strong { font-weight: 800; color: var(--color-primary-ink); }
+.chart-callout strong {
+  font-weight: 800;
+  color: var(--color-primary-ink);
+}
 
 // ── Ranked flavors table ────────────────────────────────
 .table-wrap {
@@ -186,20 +247,40 @@
   color: var(--color-ink);
 }
 
-.flavor-table tbody tr:last-child td { border-bottom: none; }
+.flavor-table tbody tr:last-child td {
+  border-bottom: none;
+}
 
 /* The top three get a tinted row: on a list this long, "which are my best
    sellers" is answered by position, and position is hard to see in 40 identical
    rows. */
-.flavor-table tbody tr:nth-child(-n+3) { background: var(--tile-powder); }
+.flavor-table tbody tr:nth-child(-n + 3) {
+  background: var(--tile-powder);
+}
 
-.num { text-align: right; width: 1%; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.num {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 
-.rank { color: var(--ion-color-medium); font-weight: 700; }
+.rank {
+  color: var(--ion-color-medium);
+  font-weight: 700;
+}
 
-.flavor-name { font-weight: 700; }
-.flavor-set { color: var(--ion-color-medium); font-size: 12px; }
-.revenue { font-weight: 700; color: var(--color-primary-ink); }
+.flavor-name {
+  font-weight: 700;
+}
+.flavor-set {
+  color: var(--ion-color-medium);
+  font-size: 12px;
+}
+.revenue {
+  font-weight: 700;
+  color: var(--color-primary-ink);
+}
 
 // Available to assistive tech, invisible on screen.
 .visually-hidden {

@@ -2,7 +2,7 @@
 
 **Premium Ice Cream E-Commerce + Real-Time Inventory Management System**
 
-> *"Premium ice cream, scooped to your door"*
+> _"Premium ice cream, scooped to your door"_
 
 ---
 
@@ -14,21 +14,22 @@ Five-orites Scoop is a production-grade cross-platform mobile/web application bu
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
+| Layer     | Technology                                   |
+| --------- | -------------------------------------------- |
 | Framework | Ionic 7 + Angular 17 (Standalone Components) |
-| Native | Capacitor 5 (iOS + Android) |
-| Backend | Firebase Firestore + Firebase Auth |
-| State | RxJS BehaviorSubject + Angular Signals |
-| Styling | SCSS + Ionic CSS Variables |
-| Language | TypeScript 5 (strict mode) |
-| Currency | Philippine Peso (₱) |
+| Native    | Capacitor 5 (iOS + Android)                  |
+| Backend   | Firebase Firestore + Firebase Auth           |
+| State     | RxJS BehaviorSubject + Angular Signals       |
+| Styling   | SCSS + Ionic CSS Variables                   |
+| Language  | TypeScript 5 (strict mode)                   |
+| Currency  | Philippine Peso (₱)                          |
 
 ---
 
 ## Features
 
 ### Customer
+
 - Browse **64 premium ice cream products** across 8 flavor sets, filterable by
   **type** (flavor / sundae / cone), flavor set, size and max price; search by
   name; toggle in-stock only;
@@ -47,6 +48,7 @@ Five-orites Scoop is a production-grade cross-platform mobile/web application bu
   login form cannot be used to discover which addresses are registered
 
 ### Admin
+
 - **Inventory Manager**: Live stock view per product/size; inline edit with atomic Firestore updates
 - **Order Fulfillment**: Filter orders by status, expand detail panel, advance order stages
 - **Sales Analytics**: Revenue KPIs, delivered order count, top flavors by units sold, CSV export
@@ -65,7 +67,7 @@ above are not mistaken for more than they are.
 - **Notifications are in-app only.** `OrderNotificationService` watches the
   signed-in user's own orders and shows a toast (plus a browser notification,
   where that API is available and permitted) on a real status transition. The
-  earlier version fired from whichever client *performed* the change, so the
+  earlier version fired from whichever client _performed_ the change, so the
   toast appeared on the admin's device and the customer saw nothing. That is
   fixed. What remains: a customer with the app closed still receives nothing.
   Real background push needs FCM tokens plus a deployed Cloud Function. The
@@ -75,7 +77,7 @@ above are not mistaken for more than they are.
   Cloud Function would have to do that fan-out, so this is downstream of the
   Blaze upgrade described above.
 - **No payment gateway.** Every order is written with `paymentStatus: 'pending'`
-  and stays that way. Revenue figures count *delivered* orders, not paid ones.
+  and stays that way. Revenue figures count _delivered_ orders, not paid ones.
 - **Reports page properly; the fulfilment queue does not.** Analytics walks
   pages (`OrderService.getOrdersPage`) until Firestore runs out, and reports the
   true order count from `getCountFromServer`, so revenue reflects every matching
@@ -101,7 +103,7 @@ above are not mistaken for more than they are.
   The customer branch of the `products` rule is **still open**, so any signed-in
   user can currently write any stock level — `stock.cup: 999999` or zeroing the
   catalog. Four tests in `tests/firestore.rules.test.ts` assert that branch is
-  *closed* and therefore **fail right now**; `npm run verify` is red because of
+  _closed_ and therefore **fail right now**; `npm run verify` is red because of
   it, and that is correct: the tests describe the intended state and the rules do
   not implement it yet.
   The two halves must be changed together. Removing the rule branch before the
@@ -109,7 +111,7 @@ above are not mistaken for more than they are.
   deploy rules or functions without reading it.
 - **Voucher limits are enforced server-side, in the same transaction as the
   stock.** `maxRedemptions` and `perCustomerLimit` used to be decoration: the
-  counter was incremented by the *client*, against a `vouchers` write the rules
+  counter was incremented by the _client_, against a `vouchers` write the rules
   reserve for admins, so every attempt was refused and silently swallowed into a
   `console.error`. One code was redeemable without limit, forever. The counter now
   moves in `reconcileOrderStock`, checked and spent atomically, and the discount
@@ -163,26 +165,32 @@ scripts/
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js 20+ (see `.nvmrc`)
 - npm 9+
 - Firebase project with Firestore + Authentication enabled
 
 ### 1. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 2. Configure Firebase
+
 Copy `src/environments/environment.example.ts` over
 `src/environments/environment.ts` and fill in your Firebase project credentials.
 `environment.prod.ts` is substituted automatically for production builds via
 `fileReplacements` in `angular.json` — you do not need to edit it by hand.
 
 ### 3. Seed the Product Catalog
+
 Place your Firebase service account key at `scripts/serviceAccountKey.json`, then:
+
 ```bash
 npm run seed
 ```
+
 This writes all **64 product documents** to Firestore with default stock levels.
 Use `npm run seed:preserve-stock` to keep existing stock counts.
 
@@ -200,16 +208,19 @@ slug, or upload to Cloudinary with
 `npm run upload:images -- --dir=<folder> --upload --write`.
 
 ### 4. Deploy Firestore Security Rules + Indexes
+
 ```bash
 firebase deploy --only firestore
 ```
 
 ### 5. Run in Browser
+
 ```bash
 npm start
 ```
 
 ### 6. Verify the Build
+
 ```bash
 npm run verify        # typecheck + typecheck:scripts + test:logic + test:rules
                       # + check:contrast + build
@@ -221,9 +232,10 @@ npm run verify        # typecheck + typecheck:scripts + test:logic + test:rules
 > state of the build: the tests are correct and the rules are not finished. It is
 > also what CI reports, so a red build here is expected until the cutover lands.
 >
-> To check everything that *is* green today:
+> To check everything that _is_ green today:
 > `npm run typecheck && npm run typecheck:scripts && npm run test:logic && npm run check:contrast && npm run build`
-```
+
+````
 
 Or individually:
 ```bash
@@ -231,12 +243,13 @@ npm run typecheck     # tsc --noEmit against the app tsconfig
 npm run test:logic    # business-logic unit tests (node:test via tsx)
 npm run test:rules    # Firestore security rules tests, via the emulator
 npm run build         # production bundle -> www/browser
-```
+````
 
 Note: the build output is `www/browser`, which is what both `firebase.json`
 and `capacitor.config.ts` point at.
 
 ### 7. Deploy
+
 ```bash
 npm run deploy          # rules + indexes, then build + hosting
 ```
@@ -247,6 +260,7 @@ in the `deploy` script. Skipping the rules is how a checkout that writes
 products stops working.
 
 ### 8. Build for Android / iOS
+
 ```bash
 npm run build:android
 npm run build:ios
@@ -256,20 +270,20 @@ npm run build:ios
 
 ## Project Commands
 
-| Command | What it does |
-|---|---|
-| `npm start` | Dev server |
-| `npm run build` | Production bundle to `www/browser` |
-| `npm run typecheck` | `tsc --noEmit` against the app tsconfig |
-| `npm run test:logic` | Unit tests for pricing, delivery, vouchers, stock, ratings |
-| `npm run test:rules` | Security rules tests against the Firestore emulator (Java required) |
-| `npm run test` | Both suites in sequence |
-| `npm run verify` | `typecheck` + `test:logic` + `build` — run this before any deploy |
-| `npm run emulators` | Start the emulator UI to inspect rules interactively |
-| `npm run seed` | Seed 64 products (add `seed:preserve-stock` to keep stock) |
-| `npm run images:generate` | Generate one placeholder SVG per flavor |
-| `npm run images:seed` | Re-seed with those images, so products are not imageless |
-| `npm run deploy` | Deploy rules + indexes, then build + hosting |
+| Command                   | What it does                                                        |
+| ------------------------- | ------------------------------------------------------------------- |
+| `npm start`               | Dev server                                                          |
+| `npm run build`           | Production bundle to `www/browser`                                  |
+| `npm run typecheck`       | `tsc --noEmit` against the app tsconfig                             |
+| `npm run test:logic`      | Unit tests for pricing, delivery, vouchers, stock, ratings          |
+| `npm run test:rules`      | Security rules tests against the Firestore emulator (Java required) |
+| `npm run test`            | Both suites in sequence                                             |
+| `npm run verify`          | `typecheck` + `test:logic` + `build` — run this before any deploy   |
+| `npm run emulators`       | Start the emulator UI to inspect rules interactively                |
+| `npm run seed`            | Seed 64 products (add `seed:preserve-stock` to keep stock)          |
+| `npm run images:generate` | Generate one placeholder SVG per flavor                             |
+| `npm run images:seed`     | Re-seed with those images, so products are not imageless            |
+| `npm run deploy`          | Deploy rules + indexes, then build + hosting                        |
 
 There is no `lint` script: `angular.json` defines no lint target, so `ng lint`
 would fail.
@@ -278,16 +292,16 @@ would fail.
 
 ## Product Catalog (64 SKUs)
 
-| Set | Name | Count |
-|---|---|---|
-| 1 | Chocolates | 8 varieties |
-| 2 | Vanilla | 8 varieties |
-| 3 | Strawberry | 8 varieties |
-| 4 | Mango | 8 varieties |
-| 5 | Ube | 8 varieties |
-| 6 | Mint | 8 varieties |
-| 7 | Coffee | 8 varieties |
-| 8 | Cookies & Cream | 8 varieties |
+| Set | Name            | Count       |
+| --- | --------------- | ----------- |
+| 1   | Chocolates      | 8 varieties |
+| 2   | Vanilla         | 8 varieties |
+| 3   | Strawberry      | 8 varieties |
+| 4   | Mango           | 8 varieties |
+| 5   | Ube             | 8 varieties |
+| 6   | Mint            | 8 varieties |
+| 7   | Coffee          | 8 varieties |
+| 8   | Cookies & Cream | 8 varieties |
 
 ### Product types
 
@@ -295,11 +309,11 @@ The plan asked for "flavors, tubs, cones, sundaes". Tubs are covered by the pint
 and half-gallon sizes, so they needed no separate type. The model carries a
 `category` of `flavor` | `sundae` | `cone`, and the storefront filters on it.
 
-| Type | Seeded | Which |
-|---|---|---|
-| Flavor | 56 | everything not listed below |
-| Sundae | 6 | Mango Graham, Ube Halo-Halo Style, Ube Leche Flan, Strawberry Cheesecake, Mango Cheesecake, Mint Cheesecake |
-| Cone | 2 | Classic Mango Sorbet, Mango Tango Twist |
+| Type   | Seeded | Which                                                                                                       |
+| ------ | ------ | ----------------------------------------------------------------------------------------------------------- |
+| Flavor | 56     | everything not listed below                                                                                 |
+| Sundae | 6      | Mango Graham, Ube Halo-Halo Style, Ube Leche Flan, Strawberry Cheesecake, Mango Cheesecake, Mint Cheesecake |
+| Cone   | 2      | Classic Mango Sorbet, Mango Tango Twist                                                                     |
 
 The cones are the two sorbets — dairy-free single scoops, the closest honest
 candidates without inventing products the shop does not sell. Assigning types
@@ -315,28 +329,28 @@ this field existed keep appearing in the catalog.
 
 ## Pricing Matrix
 
-| Set | Cup | Pint | Half Gallon | Gallon |
-|---|---|---|---|---|
-| Chocolates (1) | ₱65 | ₱200 | ₱500 | ₱950 |
-| Vanilla (2) | ₱60 | ₱190 | ₱480 | ₱900 |
-| Strawberry (3) | ₱65 | ₱200 | ₱500 | ₱950 |
-| Mango (4) | ₱65 | ₱200 | ₱500 | ₱950 |
-| Ube (5) | ₱70 | ₱210 | ₱520 | ₱980 |
-| Mint (6) | ₱65 | ₱200 | ₱500 | ₱950 |
-| Coffee (7) | ₱70 | ₱210 | ₱520 | ₱980 |
-| Cookies & Cream (8) | ₱65 | ₱200 | ₱500 | ₱950 |
+| Set                 | Cup | Pint | Half Gallon | Gallon |
+| ------------------- | --- | ---- | ----------- | ------ |
+| Chocolates (1)      | ₱65 | ₱200 | ₱500        | ₱950   |
+| Vanilla (2)         | ₱60 | ₱190 | ₱480        | ₱900   |
+| Strawberry (3)      | ₱65 | ₱200 | ₱500        | ₱950   |
+| Mango (4)           | ₱65 | ₱200 | ₱500        | ₱950   |
+| Ube (5)             | ₱70 | ₱210 | ₱520        | ₱980   |
+| Mint (6)            | ₱65 | ₱200 | ₱500        | ₱950   |
+| Coffee (7)          | ₱70 | ₱210 | ₱520        | ₱980   |
+| Cookies & Cream (8) | ₱65 | ₱200 | ₱500        | ₱950   |
 
 ---
 
 ## The Team
 
-| Name | Roles |
-|---|---|
-| **Kenn Karlo Umadhay** | Main Project Lead · Full Stack Dev · UI/UX Designer Lead · QA · Documentation |
-| **Heaven Alvior** | QA · Documentation |
-| **Justin Curby P. Esguerra** | Full Stack Dev · UI/UX Designer · QA · Documentation |
-| **Renz Gabriel De la Cruz** | QA · Documentation |
-| **Antonio Miguel Villanueva** | Full Stack Dev · UI/UX Designer · QA · Documentation |
+| Name                          | Roles                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| **Kenn Karlo Umadhay**        | Main Project Lead · Full Stack Dev · UI/UX Designer Lead · QA · Documentation |
+| **Heaven Alvior**             | QA · Documentation                                                            |
+| **Justin Curby P. Esguerra**  | Full Stack Dev · UI/UX Designer · QA · Documentation                          |
+| **Renz Gabriel De la Cruz**   | QA · Documentation                                                            |
+| **Antonio Miguel Villanueva** | Full Stack Dev · UI/UX Designer · QA · Documentation                          |
 
 ---
 
@@ -393,13 +407,13 @@ app's own implementation were deleted — it proved nothing.
 
 ## Documentation
 
-| File | Purpose |
-|---|---|
-| `README.md` | Setup, features, commands, and honest limitations |
-| `SETUP_GUIDE.txt` | Step-by-step first-run checklist |
-| `Docs/five-orites-scoop-corrected-gap-analysis.md` | Defect-level audit: what is broken, what was fixed, what remains |
-| `Docs/five-orites-scoop-feature-alignment.md` | Feature-level audit: which planned features exist, and which do not |
-| `REFACTOR_PLAN.md` | The earlier refactor pass (executed) |
+| File                                               | Purpose                                                             |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| `README.md`                                        | Setup, features, commands, and honest limitations                   |
+| `SETUP_GUIDE.txt`                                  | Step-by-step first-run checklist                                    |
+| `Docs/five-orites-scoop-corrected-gap-analysis.md` | Defect-level audit: what is broken, what was fixed, what remains    |
+| `Docs/five-orites-scoop-feature-alignment.md`      | Feature-level audit: which planned features exist, and which do not |
+| `REFACTOR_PLAN.md`                                 | The earlier refactor pass (executed)                                |
 
 > **Known gap in the documentation set:** the "Group 5 planned-features document"
 > referenced by the analyses in `Docs/` is not present in this repository. The
@@ -409,4 +423,4 @@ app's own implementation were deleted — it proved nothing.
 
 ---
 
-*Five-orites Scoop © 2025 — Built with Ionic · Angular · Firebase*
+_Five-orites Scoop © 2025 — Built with Ionic · Angular · Firebase_

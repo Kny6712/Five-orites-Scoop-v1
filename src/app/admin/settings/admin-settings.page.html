@@ -12,7 +12,6 @@
 
 <ion-content fullscreen>
   <div class="settings-body">
-
     <!-- ═══ Low stock ══════════════════════════════════════════════ -->
     <section class="panel">
       <h2 class="panel-title">
@@ -20,9 +19,8 @@
         Low stock
       </h2>
       <p class="panel-note">
-        A flavor is flagged as low when any size drops to this number or below.
-        It drives the low-stock panel on the dashboard and the "Low stock" pill
-        on every product card.
+        A flavor is flagged as low when any size drops to this number or below. It drives the low-stock panel on the
+        dashboard and the "Low stock" pill on every product card.
       </p>
       <ion-input
         label="Threshold (units)"
@@ -41,9 +39,7 @@
         <app-icon name="zap" class="panel-icon" />
         Announcement banner
       </h2>
-      <p class="panel-note">
-        Shows on the customer dashboard. Leave the title empty to show nothing.
-      </p>
+      <p class="panel-note">Shows on the customer dashboard. Leave the title empty to show nothing.</p>
       <div class="row">
         <div class="row-text">
           <span class="row-title">Banner visible</span>
@@ -111,17 +107,11 @@
         Stock integrity
       </h2>
       <p class="panel-note">
-        Compares every flavor's stored stock against the sum of its logged
-        movements. A mismatch means the number was changed outside the inventory
-        screen — most often by a signed-in customer using the raw SDK, which the
-        security rules cannot prevent.
+        Compares every flavor's stored stock against the sum of its logged movements. A mismatch means the number was
+        changed outside the inventory screen — most often by a signed-in customer using the raw SDK, which the security
+        rules cannot prevent.
       </p>
-      <ion-button
-        expand="block"
-        fill="outline"
-        (click)="reconcile()"
-        [disabled]="checking()"
-      >
+      <ion-button expand="block" fill="outline" (click)="reconcile()" [disabled]="checking()">
         {{ checking() ? 'Checking…' : 'Run reconciliation check' }}
       </ion-button>
 
@@ -137,11 +127,18 @@
         <app-alert-banner
           tone="danger"
           title="Stock does not match the ledger"
-          [message]="drift().length + ' ' + (drift().length === 1 ? 'value differs' : 'values differ') + ' from the recorded movements. Set the correct quantity from the inventory screen; the ledger is the record of what should have happened.'"
+          [message]="
+            drift().length +
+            ' ' +
+            (drift().length === 1 ? 'value differs' : 'values differ') +
+            ' from the recorded movements. Set the correct quantity from the inventory screen; the ledger is the record of what should have happened.'
+          "
         />
         <div class="table-wrap">
           <table class="drift-table">
-            <caption class="visually-hidden">Stock values that disagree with the ledger</caption>
+            <caption class="visually-hidden">
+              Stock values that disagree with the ledger
+            </caption>
             <thead>
               <tr>
                 <th scope="col">Flavor</th>
@@ -178,8 +175,8 @@
         Recent stock movements
       </h2>
       <p class="panel-note">
-        Every change made from the inventory screen, newest first. Sales and
-        cancellation restocks are NOT recorded here — only admin adjustments are.
+        Every change made from the inventory screen, newest first. Sales and cancellation restocks are NOT recorded here
+        — only admin adjustments are.
       </p>
 
       @if (movementsLoading()) {
@@ -202,9 +199,7 @@
               </span>
               <div class="movement-text">
                 <span class="movement-flavor">{{ m.variantName }} · {{ m.size }}</span>
-                <span class="movement-when">
-                  {{ reasonLabels[m.reason] }} · {{ formatWhen(m.createdAt) }}
-                </span>
+                <span class="movement-when"> {{ reasonLabels[m.reason] }} · {{ formatWhen(m.createdAt) }} </span>
               </div>
               <span class="movement-balance">{{ m.balanceAfter }} left</span>
             </div>
@@ -217,7 +212,7 @@
       }
     </section>
 
-  <!-- ═══ Cancelled-order restock repair ═════════════════════════ -->
+    <!-- ═══ Cancelled-order restock repair ═════════════════════════ -->
     <!--
       `corrected-gap-analysis.md:299` recorded that a restock failure after a
       cancellation "has no self-healing path. Needs staff repair." This is that
@@ -234,9 +229,8 @@
         Cancelled-order restock repair
       </h2>
       <p class="panel-note">
-        When an order is cancelled, its stock should go back on the shelf. If
-        that write failed the order is marked, and the items are still missing
-        from inventory until they are put back here.
+        When an order is cancelled, its stock should go back on the shelf. If that write failed the order is marked, and
+        the items are still missing from inventory until they are put back here.
       </p>
 
       @if (repairLoading()) {
@@ -246,7 +240,9 @@
           @if (unrestoredOrders().length === 0) {
             No cancelled orders are missing stock. 🎉
           } @else {
-            <strong>{{ unrestoredOrders().length }}</strong> order{{ unrestoredOrders().length === 1 ? '' : 's' }}
+            <strong>{{ unrestoredOrders().length }}</strong> order{{
+              unrestoredOrders().length === 1 ? '' : 's'
+            }}
             need{{ unrestoredOrders().length === 1 ? 's' : '' }} stock putting back.
           }
         </p>
@@ -254,17 +250,15 @@
         @if (unknownRestockCount() > 0) {
           <p class="field-hint">
             {{ unknownRestockCount() }} older cancelled order{{ unknownRestockCount() === 1 ? '' : 's' }}
-            {{ unknownRestockCount() === 1 ? 'has' : 'have' }} no stock marker at all
-            (they predate this tracking), so nothing is claimed about them.
+            {{ unknownRestockCount() === 1 ? 'has' : 'have' }} no stock marker at all (they predate this tracking), so
+            nothing is claimed about them.
           </p>
         }
 
         @for (order of unrestoredOrders(); track order.id) {
           <div class="repair-row">
             <div class="repair-text">
-              <span class="repair-id">
-                #{{ order.id.slice(-6).toUpperCase() }}
-              </span>
+              <span class="repair-id"> #{{ order.id.slice(-6).toUpperCase() }} </span>
               <span class="repair-meta">
                 {{ order.items.length }} line{{ order.items.length === 1 ? '' : 's' }} ·
                 {{ order.customerEmail || 'no email' }}
@@ -273,19 +267,13 @@
                 <span class="repair-reason">Cancelled: {{ order.cancelReason }}</span>
               }
             </div>
-            <ion-button
-              size="small"
-              fill="outline"
-              [disabled]="repairingId() === order.id"
-              (click)="repair(order)"
-            >
+            <ion-button size="small" fill="outline" [disabled]="repairingId() === order.id" (click)="repair(order)">
               {{ repairingId() === order.id ? 'Putting back…' : 'Return stock' }}
             </ion-button>
           </div>
         }
       }
     </section>
-
   </div>
   <app-footer></app-footer>
 </ion-content>

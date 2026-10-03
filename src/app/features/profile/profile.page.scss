@@ -4,7 +4,9 @@
 // Sizes icons via the --icon-size custom property rather than font-size, because
 // app-icon is inline SVG and is not affected by font-size.
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 /* 720px rather than 640px. The email and password fields were the narrowest
    thing on a desktop screen at 640px, and the extra 80px costs nothing on a
@@ -57,7 +59,9 @@
   background: var(--color-white);
   /* A 3px ring rather than the old 4px+8px double ring: at 72px the double ring
      ate a third of the diameter. */
-  box-shadow: 0 0 0 3px var(--color-white), 0 0 0 5px var(--color-primary-ink);
+  box-shadow:
+    0 0 0 3px var(--color-white),
+    0 0 0 5px var(--color-primary-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -142,9 +146,16 @@
   white-space: nowrap;
   transition: background-color 0.15s ease;
 }
-.file-label:hover { background: var(--color-brand-primary); }
-.file-label.disabled { opacity: 0.6; cursor: default; }
-.file-label app-icon { --icon-size: 15px; }
+.file-label:hover {
+  background: var(--color-brand-primary);
+}
+.file-label.disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.file-label app-icon {
+  --icon-size: 15px;
+}
 
 .file-input {
   position: absolute;
@@ -204,7 +215,9 @@
   line-height: 1.4;
 }
 
-.standalone-hint { margin-top: var(--space-2); }
+.standalone-hint {
+  margin-top: var(--space-2);
+}
 
 .save-btn {
   --background: var(--color-brand-primary);
@@ -280,7 +293,9 @@
   gap: var(--space-4);
 }
 
-.toggle-text { min-width: 0; }
+.toggle-text {
+  min-width: 0;
+}
 
 .toggle-title {
   margin: 0;

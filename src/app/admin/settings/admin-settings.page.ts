@@ -21,17 +21,33 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton,
-  IonInput, IonTextarea, IonToggle, IonSelect, IonSelectOption,
-  IonSkeletonText, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonInput,
+  IonTextarea,
+  IonToggle,
+  IonSelect,
+  IonSelectOption,
+  IonSkeletonText,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
-import { StockLedgerService, STOCK_REASON_LABELS, type StockMovement, type StockReason, type UnloggedChange } from '../../core/services/stock-ledger.service';
+import {
+  StockLedgerService,
+  STOCK_REASON_LABELS,
+  type StockMovement,
+  type StockReason,
+  type UnloggedChange,
+} from '../../core/services/stock-ledger.service';
 import { InventoryService } from '../../core/services/inventory.service';
 import { OrderService } from '../../core/services/order.service';
 import { Order } from '../../core/models/order.model';
@@ -44,13 +60,25 @@ import { firstValueFrom } from 'rxjs';
   selector: 'app-admin-settings',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton,
-    IonInput, IonTextarea, IonToggle, IonSelect, IonSelectOption,
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonInput,
+    IonTextarea,
+    IonToggle,
+    IonSelect,
+    IonSelectOption,
     IonSkeletonText,
-    AppIconComponent, AlertBannerComponent,
-    EmptyStateComponent, AppFooterComponent,
+    AppIconComponent,
+    AlertBannerComponent,
+    EmptyStateComponent,
+    AppFooterComponent,
   ],
   templateUrl: './admin-settings.page.html',
   styleUrls: ['./admin-settings.page.scss'],
@@ -157,7 +185,7 @@ export class AdminSettingsPage implements OnInit {
         found.length
           ? `${found.length} stock ${found.length === 1 ? 'value does' : 'values do'} not match the ledger.`
           : 'All stock values match the ledger.',
-        found.length ? 'warning' : 'success'
+        found.length ? 'warning' : 'success',
       );
     } catch (err: unknown) {
       await this.toast(describeFirestoreError('the stock ledger', err), 'danger');
@@ -175,7 +203,10 @@ export class AdminSettingsPage implements OnInit {
     const iso = toIsoDate(value);
     if (!iso) return '—';
     return new Date(iso).toLocaleString(undefined, {
-      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   }
 
@@ -183,8 +214,13 @@ export class AdminSettingsPage implements OnInit {
     const rows = [
       ['when', 'flavor', 'size', 'delta', 'balance_after', 'reason', 'order_id'],
       ...this.movements().map((m) => [
-        toIsoDate(m.createdAt), m.variantName, m.size, m.delta, m.balanceAfter,
-        m.reason, m.orderId ?? '',
+        toIsoDate(m.createdAt),
+        m.variantName,
+        m.size,
+        m.delta,
+        m.balanceAfter,
+        m.reason,
+        m.orderId ?? '',
       ]),
     ];
     await this.csvExport.export(toCsv(rows), csvFilename('stock-movements'));

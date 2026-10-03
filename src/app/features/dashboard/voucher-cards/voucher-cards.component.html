@@ -8,8 +8,8 @@
   <div class="voucher-grid">
     @for (s of [1, 2]; track s) {
       <div class="voucher-card skeleton-card">
-        <ion-skeleton-text animated style="height: 18px; width: 60%;"></ion-skeleton-text>
-        <ion-skeleton-text animated style="height: 14px; margin-top: 10px;"></ion-skeleton-text>
+        <ion-skeleton-text animated style="height: 18px; width: 60%"></ion-skeleton-text>
+        <ion-skeleton-text animated style="height: 14px; margin-top: 10px"></ion-skeleton-text>
       </div>
     }
   </div>
@@ -56,9 +56,7 @@
             }
           </ion-button>
 
-          <ion-button size="small" fill="outline" class="use-btn" (click)="useCode(voucher)">
-            Use in cart
-          </ion-button>
+          <ion-button size="small" fill="outline" class="use-btn" (click)="useCode(voucher)"> Use in cart </ion-button>
         </div>
 
         @if (manualCopyCode() === voucher.code) {
@@ -66,9 +64,7 @@
             No usable clipboard API (insecure origin, older WebView, or permission
             denied). Selecting the code beats a button that appears to do nothing.
           -->
-          <p class="manual-hint" role="status">
-            Couldn't copy automatically — the code is selected, copy it manually.
-          </p>
+          <p class="manual-hint" role="status">Couldn't copy automatically — the code is selected, copy it manually.</p>
         }
       </article>
     }

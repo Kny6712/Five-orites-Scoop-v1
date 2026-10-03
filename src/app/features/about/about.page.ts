@@ -9,30 +9,55 @@ import { Component, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonButton, IonChip, IonLabel,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonChip,
+  IonLabel,
 } from '@ionic/angular/standalone';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { ScoopMapComponent, type MapMarker } from '../../shared/components/scoop-map/scoop-map.component';
+import {
+  ScoopMapComponent,
+  type MapMarker,
+} from '../../shared/components/scoop-map/scoop-map.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { SHOP_LOCATION, SHOP_HOURS } from '../../core/config/shop.config';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
 import {
-  HERO, STORY, MISSION, VISION,
-  CUSTOMER_FEATURES, TEAM_FEATURES, HOW_IT_WORKS, TECH_STACK,
+  HERO,
+  STORY,
+  MISSION,
+  VISION,
+  CUSTOMER_FEATURES,
+  TEAM_FEATURES,
+  HOW_IT_WORKS,
+  TECH_STACK,
 } from '../../core/about-content';
 
 @Component({
   selector: 'app-about',
   standalone: true,
   imports: [
-    CommonModule, RouterLink,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonButton, IonChip, IonLabel,
-    CartButtonComponent, AppIconComponent, ScoopMapComponent, AppFooterComponent,
+    CommonModule,
+    RouterLink,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonChip,
+    IonLabel,
+    CartButtonComponent,
+    AppIconComponent,
+    ScoopMapComponent,
+    AppFooterComponent,
   ],
   templateUrl: './about.page.html',
   styleUrls: ['./about.page.scss'],
@@ -68,7 +93,7 @@ export class AboutPage {
    * without ever rendering nothing.
    */
   readonly contactPhone = computed(
-    () => this.shopSettings.settings().contactPhone.trim() || SHOP_HOURS.phone
+    () => this.shopSettings.settings().contactPhone.trim() || SHOP_HOURS.phone,
   );
 
   /**

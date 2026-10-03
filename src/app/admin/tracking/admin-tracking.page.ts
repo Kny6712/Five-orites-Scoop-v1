@@ -21,13 +21,25 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton, IonRefresher, IonRefresherContent,
-  IonSearchbar, IonSkeletonText,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonRefresher,
+  IonRefresherContent,
+  IonSearchbar,
+  IonSkeletonText,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { ScoopMapComponent, type MapMarker } from '../../shared/components/scoop-map/scoop-map.component';
+import {
+  ScoopMapComponent,
+  type MapMarker,
+} from '../../shared/components/scoop-map/scoop-map.component';
 import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -41,7 +53,10 @@ import { SHOP_LOCATION } from '../../core/config/shop.config';
 import { Order, OrderStatus } from '../../core/models/order.model';
 import { Subscription, catchError, of } from 'rxjs';
 
-type ActiveStatus = Extract<OrderStatus, 'pending' | 'confirmed' | 'preparing' | 'out_for_delivery'>;
+type ActiveStatus = Extract<
+  OrderStatus,
+  'pending' | 'confirmed' | 'preparing' | 'out_for_delivery'
+>;
 
 const ACTIVE_STATUSES: ActiveStatus[] = ['pending', 'confirmed', 'preparing', 'out_for_delivery'];
 
@@ -58,11 +73,25 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton, IonRefresher, IonRefresherContent,
-    IonSearchbar, IonSkeletonText,
-    AppIconComponent, ScoopMapComponent, OrderStatusBadgeComponent, AlertBannerComponent,
-    EmptyStateComponent, PaginationComponent, AppFooterComponent, PesoPipe,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonRefresher,
+    IonRefresherContent,
+    IonSearchbar,
+    IonSkeletonText,
+    AppIconComponent,
+    ScoopMapComponent,
+    OrderStatusBadgeComponent,
+    AlertBannerComponent,
+    EmptyStateComponent,
+    PaginationComponent,
+    AppFooterComponent,
+    PesoPipe,
   ],
   templateUrl: './admin-tracking.page.html',
   styleUrls: ['./admin-tracking.page.scss'],
@@ -83,14 +112,14 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
 
   /** Every order still in the shop or on the road. */
   readonly activeOrders = computed(() =>
-    this.orders().filter((o) => ACTIVE_STATUSES.includes(o.status as ActiveStatus))
+    this.orders().filter((o) => ACTIVE_STATUSES.includes(o.status as ActiveStatus)),
   );
 
   /** Active orders whose address has already been resolved to a point. */
   readonly mappedOrders = computed(() =>
     this.activeOrders()
       .map((order) => ({ order, geo: readCachedGeo((order as unknown as { geo?: unknown }).geo) }))
-      .filter((entry): entry is { order: Order; geo: GeoPoint } => entry.geo !== null)
+      .filter((entry): entry is { order: Order; geo: GeoPoint } => entry.geo !== null),
   );
 
   /**
@@ -103,7 +132,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
     this.activeOrders()
       .map((order) => ({ order, geo: readCachedGeo((order as unknown as { geo?: unknown }).geo) }))
       .filter((entry) => entry.geo === null)
-      .map((entry) => entry.order)
+      .map((entry) => entry.order),
   );
 
   readonly mapMarkers = computed<MapMarker[]>(() => {
@@ -132,7 +161,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
   });
 
   readonly selectedOrder = computed(
-    () => this.orders().find((o) => o.id === this.selectedId()) ?? null
+    () => this.orders().find((o) => o.id === this.selectedId()) ?? null,
   );
 
   // ── Search & status filter ────────────────────────────────────────────────
@@ -181,7 +210,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
 
   /** True when a filter is active, so the panel can offer a way back. */
   readonly hasFilter = computed(
-    () => this.query().trim().length > 0 || this.statusFilter() !== 'all'
+    () => this.query().trim().length > 0 || this.statusFilter() !== 'all',
   );
 
   onQuery(event: CustomEvent): void {
@@ -230,9 +259,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
   }
 
   /** Orders that are in the queue but hidden by the current filter. */
-  readonly hiddenCount = computed(
-    () => this.activeOrders().length - this.visibleOrders().length
-  );
+  readonly hiddenCount = computed(() => this.activeOrders().length - this.visibleOrders().length);
 
   /**
    * Whether the order read hit its cap, so staff know the list is incomplete.
@@ -251,7 +278,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
         catchError((err: unknown) => {
           this.errorMessage.set(describeFirestoreError('orders', err));
           return of<Order[]>([]);
-        })
+        }),
       )
       .subscribe((orders) => {
         this.orders.set(orders);
@@ -296,7 +323,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
         catchError((err: unknown) => {
           this.errorMessage.set(describeFirestoreError('orders', err));
           return of<Order[]>([]);
-        })
+        }),
       )
       .subscribe((orders) => {
         this.orders.set(orders);
@@ -345,19 +372,23 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
             this.busyId.set(order.id);
             try {
               await this.orderService.updateOrderStatus(order.id, next);
-              await this.toast.create({
-                message: `Order updated to "${STATUS_LABEL[next]}"`,
-                color: 'success',
-                duration: 2000,
-                position: 'top',
-              }).then((t) => t.present());
+              await this.toast
+                .create({
+                  message: `Order updated to "${STATUS_LABEL[next]}"`,
+                  color: 'success',
+                  duration: 2000,
+                  position: 'top',
+                })
+                .then((t) => t.present());
             } catch (err) {
-              await this.toast.create({
-                message: err instanceof Error ? err.message : 'Could not update the order.',
-                color: 'danger',
-                duration: 3000,
-                position: 'top',
-              }).then((t) => t.present());
+              await this.toast
+                .create({
+                  message: err instanceof Error ? err.message : 'Could not update the order.',
+                  color: 'danger',
+                  duration: 3000,
+                  position: 'top',
+                })
+                .then((t) => t.present());
             } finally {
               this.busyId.set(null);
             }

@@ -1,11 +1,21 @@
 // src/app/admin/orders/admin-orders.page.scss
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
-.filter-scroll { padding: 8px 12px 0; overflow-x: auto; }
-.status-segment { --background: var(--ion-color-light); border-radius: 12px; }
+.filter-scroll {
+  padding: 8px 12px 0;
+  overflow-x: auto;
+}
+.status-segment {
+  --background: var(--ion-color-light);
+  border-radius: 12px;
+}
 
-.order-search { padding: 4px 4px 0; }
+.order-search {
+  padding: 4px 4px 0;
+}
 
 /* ── Bulk actions ───────────────────────────────────────── */
 /* Only present when something is selected, so the common case stays uncluttered. */
@@ -29,12 +39,18 @@
   font-variant-numeric: tabular-nums;
 }
 
-.bulk-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.bulk-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
 
 /* ── Row selection ──────────────────────────────────────── */
 /* The pick column is 1% wide: it must not compete for space with the columns an
    admin actually reads. Same trick as `.col-actions` on the users table. */
-.col-pick { width: 1%; }
+.col-pick {
+  width: 1%;
+}
 
 .pick-btn {
   appearance: none;
@@ -48,15 +64,22 @@
   background: var(--color-white);
   color: transparent;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
 }
-.pick-btn:hover { border-color: var(--color-primary-ink); }
+.pick-btn:hover {
+  border-color: var(--color-primary-ink);
+}
 .pick-btn.is-on {
   background: var(--color-brand-primary);
   border-color: var(--color-primary-ink);
   color: var(--color-ink);
 }
-.pick-icon { --icon-size: 17px; }
+.pick-icon {
+  --icon-size: 17px;
+}
 
 .pick-all {
   appearance: none;
@@ -71,7 +94,9 @@
   cursor: pointer;
 }
 
-.order-row.is-selected { background: var(--tile-powder); }
+.order-row.is-selected {
+  background: var(--tile-powder);
+}
 
 /* The free-form status picker. Compact and quiet: the primary "next step"
    button stays the thing the eye lands on. */
@@ -83,7 +108,9 @@
   font-size: 12px;
   color: var(--color-ink-soft);
 }
-.row-status-pick::part(placeholder) { color: var(--ion-color-medium); }
+.row-status-pick::part(placeholder) {
+  color: var(--ion-color-medium);
+}
 
 // ── Table ───────────────────────────────────────────────
 // A real <table>, not a grid of divs. It is a queue of comparable records and
@@ -130,19 +157,41 @@
   vertical-align: middle;
 }
 
-.orders-table tbody tr:last-child td { border-bottom: none; }
+.orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
 
-.order-row:hover { background: var(--tile-powder); }
-.order-row.is-expanded { background: var(--tile-powder); }
+.order-row:hover {
+  background: var(--tile-powder);
+}
+.order-row.is-expanded {
+  background: var(--tile-powder);
+}
 
 /* Column widths. Items, Total and Status are the three things being compared
    down the page, so they get fixed widths and the flexible space goes to
    Customer, which is the only one that genuinely varies in length. */
-.col-order { width: 1%; white-space: nowrap; }
-.col-items { width: 1%; text-align: center; }
-.col-total { width: 1%; text-align: right; white-space: nowrap; }
-.col-status { width: 1%; }
-.col-action { width: 1%; text-align: right; white-space: nowrap; }
+.col-order {
+  width: 1%;
+  white-space: nowrap;
+}
+.col-items {
+  width: 1%;
+  text-align: center;
+}
+.col-total {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+.col-status {
+  width: 1%;
+}
+.col-action {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
 
 /* ── Disclosure ──────────────────────────────────────────
    An explicit button, not a click handler on the <tr>. Nesting a clickable
@@ -169,7 +218,9 @@
   flex: 0 0 auto;
   transition: transform 0.15s ease;
 }
-.order-chevron.is-open { transform: rotate(90deg); }
+.order-chevron.is-open {
+  transform: rotate(90deg);
+}
 
 .order-id-label {
   font-family: var(--font-mono);
@@ -226,7 +277,10 @@
 }
 
 // ── Detail row ──────────────────────────────────────────
-.detail-row > td { padding: 0 !important; background: var(--tile-powder); }
+.detail-row > td {
+  padding: 0 !important;
+  background: var(--tile-powder);
+}
 
 .order-detail-panel {
   padding: 4px 14px 16px;
@@ -250,13 +304,33 @@
   border-bottom: 1px solid var(--color-white);
   align-items: center;
 }
-.detail-item-name { flex: 1; color: var(--color-ink); }
-.detail-item-qty { color: var(--ion-color-medium); }
-.detail-item-price { font-weight: 700; color: var(--color-primary-ink); font-variant-numeric: tabular-nums; }
+.detail-item-name {
+  flex: 1;
+  color: var(--color-ink);
+}
+.detail-item-qty {
+  color: var(--ion-color-medium);
+}
+.detail-item-price {
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  font-variant-numeric: tabular-nums;
+}
 
-.detail-address { margin-top: 4px; }
-.detail-address-value { font-size: 14px; color: var(--color-ink); margin: 0; }
-.detail-notes { font-size: 13px; color: var(--ion-color-medium); margin: 4px 0 0; font-style: italic; }
+.detail-address {
+  margin-top: 4px;
+}
+.detail-address-value {
+  font-size: 14px;
+  color: var(--color-ink);
+  margin: 0;
+}
+.detail-notes {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin: 4px 0 0;
+  font-style: italic;
+}
 
 .detail-totals {
   margin-top: 8px;
@@ -281,9 +355,21 @@
   font-variant-numeric: tabular-nums;
 }
 
-.detail-actions { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
-.advance-btn { --background: var(--color-brand-primary); --color: var(--color-ink); --border-radius: 10px; font-weight: 700; }
-.cancel-btn { --border-radius: 10px; }
+.detail-actions {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.advance-btn {
+  --background: var(--color-brand-primary);
+  --color: var(--color-ink);
+  --border-radius: 10px;
+  font-weight: 700;
+}
+.cancel-btn {
+  --border-radius: 10px;
+}
 
 // ── Skeleton ─────────────────────────────────────────────
 .skeleton-row {
@@ -295,8 +381,13 @@
   background: var(--color-white);
   border-bottom: 1px solid var(--ion-color-light);
 }
-.skeleton-row:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
-.skeleton-row:last-child { border-bottom: none; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.skeleton-row:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.skeleton-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
 
 // Available to assistive tech, invisible on screen. Used for the table caption
 // and the empty header cells.

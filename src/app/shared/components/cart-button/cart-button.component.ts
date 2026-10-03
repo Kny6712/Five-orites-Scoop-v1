@@ -63,12 +63,15 @@ import { CartService } from '../../../core/services/cart.service';
       </span>
     </ion-button>
   `,
-  styles: [`
-    /* Safe here (unlike in the toolbar itself) because the parent ion-buttons
+  styles: [
+    `
+      /* Safe here (unlike in the toolbar itself) because the parent ion-buttons
        is a flex container — see the note above. */
-    :host { display: contents; }
+      :host {
+        display: contents;
+      }
 
-    /* ── The redesign, and why ─────────────────────────────────────────────
+      /* ── The redesign, and why ─────────────────────────────────────────────
        The old button was a bare 29px wireframe trolley glyph with a red number
        wedged into its top-right corner, hanging 4px outside the button box. It
        read as two overlapping things rather than one icon, and the number was
@@ -84,60 +87,67 @@ import { CartService } from '../../../core/services/cart.service';
             overlapping the stroke. Nothing overlaps anything now, and the pill
             takes the brand ink instead of the danger red — a cart with two
             things in it is not an error state. */
-    .cart-btn {
-      --padding-start: 4px;
-      --padding-end: 4px;
-      --border-radius: var(--radius-sm);
-      --background: transparent;
-    }
+      .cart-btn {
+        --padding-start: 4px;
+        --padding-end: 4px;
+        --border-radius: var(--radius-sm);
+        --background: transparent;
+      }
 
-    .cart-icon-wrap {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 38px;
-      height: 38px;
-      border-radius: var(--radius-sm);
-      background: rgb(255 255 255 / 0.55);
-      transition: background-color 0.15s ease;
-    }
+      .cart-icon-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        border-radius: var(--radius-sm);
+        background: rgb(255 255 255 / 0.55);
+        transition: background-color 0.15s ease;
+      }
 
-    .cart-btn:hover .cart-icon-wrap { background: rgb(255 255 255 / 0.8); }
-    .cart-btn.has-items .cart-icon-wrap { background: var(--color-white); }
+      .cart-btn:hover .cart-icon-wrap {
+        background: rgb(255 255 255 / 0.8);
+      }
+      .cart-btn.has-items .cart-icon-wrap {
+        background: var(--color-white);
+      }
 
-    .cart-icon { --icon-size: 21px; color: var(--color-primary-ink); }
+      .cart-icon {
+        --icon-size: 21px;
+        color: var(--color-primary-ink);
+      }
 
-    .cart-count {
-      position: absolute;
-      top: -5px;
-      right: -5px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-sizing: border-box;
-      min-width: 19px;
-      height: 19px;
-      padding: 0 5px;
-      font-size: 11px;
-      font-weight: 800;
-      line-height: 1;
-      /* Zeroed because ion-button's .button-native sets letter-spacing, and that
+      .cart-count {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        min-width: 19px;
+        height: 19px;
+        padding: 0 5px;
+        font-size: 11px;
+        font-weight: 800;
+        line-height: 1;
+        /* Zeroed because ion-button's .button-native sets letter-spacing, and that
          trailing track lands after the glyph and pushes a flex-centred digit
          left of the pill's true middle. */
-      letter-spacing: 0;
-      color: var(--color-ink);
-      background: var(--color-brand-accent);
-      border-radius: 999px;
-      /* A ring in the toolbar's own colour so the pill reads as sitting on the
+        letter-spacing: 0;
+        color: var(--color-ink);
+        background: var(--color-brand-accent);
+        border-radius: 999px;
+        /* A ring in the toolbar's own colour so the pill reads as sitting on the
          tile rather than merging into it. */
-      box-shadow: 0 0 0 2px var(--color-brand-primary);
-      /* Decoration on top of the button — clicks belong to the button, not to
+        box-shadow: 0 0 0 2px var(--color-brand-primary);
+        /* Decoration on top of the button — clicks belong to the button, not to
          the number sitting in its corner. */
-      pointer-events: none;
-    }
-
-  `],
+        pointer-events: none;
+      }
+    `,
+  ],
 })
 export class CartButtonComponent {
   private cartService = inject(CartService);

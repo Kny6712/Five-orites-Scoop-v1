@@ -72,7 +72,7 @@ function parseRole(raw: string | undefined): Role {
         `  Valid roles: ${ROLES.join(', ')}\n` +
         `  Roles are matched EXACTLY. A trailing space or newline is rejected on ` +
         `purpose -- "owner\\n" matches no tier in firestore.rules and silently ` +
-        `hides every admin page.`
+        `hides every admin page.`,
     );
   }
   return raw as Role;
@@ -87,7 +87,7 @@ async function promote(uid: string, role: Role): Promise<void> {
     console.error(`\nNo user document at users/${uid}.`);
     console.error(
       'Sign in through the app once first — that is what creates the document.\n' +
-        'Check the uid in the Firebase console: Authentication -> your user -> UID.'
+        'Check the uid in the Firebase console: Authentication -> your user -> UID.',
     );
     process.exitCode = 1;
     return;
@@ -113,7 +113,7 @@ async function main(): Promise<void> {
     console.error(
       'Usage: npm run seed:admin -- <uid> [role]\n' +
         `  uid   the Firebase Auth UID of an EXISTING account\n` +
-        `  role  one of: ${ROLES.join(', ')} (default: ${DEFAULT_ROLE})`
+        `  role  one of: ${ROLES.join(', ')} (default: ${DEFAULT_ROLE})`,
     );
     process.exitCode = 1;
     return;

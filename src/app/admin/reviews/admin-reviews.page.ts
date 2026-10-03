@@ -17,10 +17,20 @@ import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton,
-  IonSearchbar, IonTextarea, IonChip, IonLabel, IonSkeletonText,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonSearchbar,
+  IonTextarea,
+  IonChip,
+  IonLabel,
+  IonSkeletonText,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -44,12 +54,25 @@ const STARS = ['★', '★', '★', '★', '★'] as const;
   selector: 'app-admin-reviews',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton,
-    IonSearchbar, IonTextarea, IonChip, IonLabel, IonSkeletonText,
-    AppIconComponent, AlertBannerComponent,
-    EmptyStateComponent, PaginationComponent, AppFooterComponent,
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonSearchbar,
+    IonTextarea,
+    IonChip,
+    IonLabel,
+    IonSkeletonText,
+    AppIconComponent,
+    AlertBannerComponent,
+    EmptyStateComponent,
+    PaginationComponent,
+    AppFooterComponent,
   ],
   templateUrl: './admin-reviews.page.html',
   styleUrls: ['./admin-reviews.page.scss'],
@@ -147,7 +170,9 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
     const iso = toIsoDate(value);
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString(undefined, {
-      year: 'numeric', month: 'short', day: 'numeric',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
     });
   }
 
@@ -156,15 +181,22 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
     const rows = [
       ['review_id', 'product_id', 'author', 'rating', 'comment', 'staff_reply', 'posted'],
       ...this.filtered().map((r) => [
-        r.id, r.productId, r.displayName, r.rating, r.comment,
-        r.adminResponse ?? '', toIsoDate(r.createdAt),
+        r.id,
+        r.productId,
+        r.displayName,
+        r.rating,
+        r.comment,
+        r.adminResponse ?? '',
+        toIsoDate(r.createdAt),
       ]),
     ];
     const result = await this.csvExport.export(toCsv(rows), csvFilename('reviews'));
     const count = this.filtered().length;
     void this.toast(
-      result.ok ? `Exported ${count} reviews.` : `Export failed${result.error ? `: ${result.error}` : ''}.`,
-      result.ok ? 'success' : 'danger'
+      result.ok
+        ? `Exported ${count} reviews.`
+        : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+      result.ok ? 'success' : 'danger',
     );
   }
 
@@ -217,7 +249,7 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
       await this.reviews.replyToReview(
         review.id,
         text,
-        this.auth.currentUserSnapshot?.displayName ?? 'Five-orites Scoop'
+        this.auth.currentUserSnapshot?.displayName ?? 'Five-orites Scoop',
       );
       this.cancelReply();
       await this.toast('Reply published.', 'success');

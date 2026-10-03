@@ -3,11 +3,7 @@
 
 // The discount calculation lives in core/logic/voucher.ts so the unit tests can
 // import it without pulling in Firestore. Re-exported here.
-export {
-  calculateDiscount,
-  MAX_PERCENT_DISCOUNT,
-  type VoucherType,
-} from '../logic/voucher';
+export { calculateDiscount, MAX_PERCENT_DISCOUNT, type VoucherType } from '../logic/voucher';
 
 import type { VoucherType } from '../logic/voucher';
 

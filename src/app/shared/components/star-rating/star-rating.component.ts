@@ -48,24 +48,46 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
       }
     </div>
   `,
-  styles: [`
-    :host { display: inline-block; }
-    .stars-wrap { display: flex; align-items: center; gap: 2px; }
-    .star {
-      --icon-size: 18px;
-      --icon-stroke: 2;
-      color: #d0d0d0;
-      transition: color 0.1s ease;
-    }
-    /* Lucide has one star glyph, outline-style, for both states. Filling it with
+  styles: [
+    `
+      :host {
+        display: inline-block;
+      }
+      .stars-wrap {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+      .star {
+        --icon-size: 18px;
+        --icon-stroke: 2;
+        color: #d0d0d0;
+        transition: color 0.1s ease;
+      }
+      /* Lucide has one star glyph, outline-style, for both states. Filling it with
        currentColor is what produces a solid star, and it inherits the active
        colour from .star.active -- so no second icon is needed. */
-    .star.active { color: var(--color-brand-accent); }
-    .star.active svg { fill: currentColor; }
-    .star.interactive { cursor: pointer; }
-    .star.interactive:focus-visible { outline: 2px solid var(--color-brand-accent); outline-offset: 2px; border-radius: 4px; }
-    .review-count { font-size: 13px; color: var(--ion-color-medium); margin-left: 4px; }
-  `],
+      .star.active {
+        color: var(--color-brand-accent);
+      }
+      .star.active svg {
+        fill: currentColor;
+      }
+      .star.interactive {
+        cursor: pointer;
+      }
+      .star.interactive:focus-visible {
+        outline: 2px solid var(--color-brand-accent);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+      .review-count {
+        font-size: 13px;
+        color: var(--ion-color-medium);
+        margin-left: 4px;
+      }
+    `,
+  ],
 })
 export class StarRatingComponent {
   @Input() rating: number = 0;

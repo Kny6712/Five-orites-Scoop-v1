@@ -23,15 +23,15 @@
         a regular customer's spend is zero would be the one outcome worse than
         showing a partial figure.
       -->
-      @if (statsTruncated()) {
-        <app-alert-banner
-          tone="warning"
-          title="Spend column is a lower bound"
-          message="'Based on the ' + ORDERS_FOR_STATS_MAX_LABEL + ' most recent orders. Older orders were not included, so a customer's lifetime spend may be higher than shown.'"
-        />
-      }
+  @if (statsTruncated()) {
+    <app-alert-banner
+      tone="warning"
+      title="Spend column is a lower bound"
+      message="'Based on the ' + ORDERS_FOR_STATS_MAX_LABEL + ' most recent orders. Older orders were not included, so a customer's lifetime spend may be higher than shown.'"
+    />
+  }
 
-      @if (truncated()) {
+  @if (truncated()) {
     <!-- Said out loud rather than quietly trimmed: a directory that silently
          stops at 300 rows looks complete when it is not. -->
     <app-alert-banner
@@ -57,12 +57,7 @@
     </div>
 
     <div class="role-chips" role="group" aria-label="Filter by role">
-      <button
-        type="button"
-        class="role-chip"
-        [class.active]="roleFilter() === 'all'"
-        (click)="onRoleFilter('all')"
-      >
+      <button type="button" class="role-chip" [class.active]="roleFilter() === 'all'" (click)="onRoleFilter('all')">
         All ({{ users().length }})
       </button>
       <button
@@ -73,12 +68,7 @@
       >
         Managers ({{ managerCount() }})
       </button>
-      <button
-        type="button"
-        class="role-chip"
-        [class.active]="roleFilter() === 'staff'"
-        (click)="onRoleFilter('staff')"
-      >
+      <button type="button" class="role-chip" [class.active]="roleFilter() === 'staff'" (click)="onRoleFilter('staff')">
         Staff ({{ staffCount() }})
       </button>
       <button
@@ -169,14 +159,9 @@
         <div class="suspend-toggle">
           <div class="suspend-text">
             <span class="field-label">Account suspended</span>
-            <span class="field-hint">
-              Blocks sign-in. Their orders are kept.
-            </span>
+            <span class="field-hint"> Blocks sign-in. Their orders are kept. </span>
           </div>
-          <ion-toggle
-            [(ngModel)]="isSuspended"
-            aria-label="Suspend this account"
-          ></ion-toggle>
+          <ion-toggle [(ngModel)]="isSuspended" aria-label="Suspend this account"></ion-toggle>
         </div>
       </div>
 
@@ -188,9 +173,7 @@
             maxlength="200"
             placeholder="Shown to the customer at sign-in"
           ></ion-input>
-          <span class="field-hint">
-            Left empty, the customer is told to contact the shop instead.
-          </span>
+          <span class="field-hint"> Left empty, the customer is told to contact the shop instead. </span>
         </label>
       }
 
@@ -209,9 +192,7 @@
             that looks enabled and is rejected on save is worse than one that says
             plainly why it is off.
           -->
-          <p class="field-hint">
-            {{ editRole | titlecase }} — only an Owner can change a role.
-          </p>
+          <p class="field-hint">{{ editRole | titlecase }} — only an Owner can change a role.</p>
         }
       </div>
 
@@ -220,23 +201,14 @@
           Not merely disabled: the reason is shown. A silently inert control
           reads as a bug, and the reason (self-lockout) is not obvious.
         -->
-        <p class="field-hint warn">
-          This is your own account — you cannot change your own role.
-        </p>
+        <p class="field-hint warn">This is your own account — you cannot change your own role.</p>
       }
 
-      <p class="field-hint">
-        Email is not editable here. It is the address the person signs in with.
-      </p>
+      <p class="field-hint">Email is not editable here. It is the address the person signs in with.</p>
 
       <div class="editor-actions">
         <ion-button fill="clear" (click)="cancelEdit()">Cancel</ion-button>
-        <ion-button
-          expand="block"
-          class="save-btn"
-          [disabled]="busyUid() !== null"
-          (click)="save()"
-        >
+        <ion-button expand="block" class="save-btn" [disabled]="busyUid() !== null" (click)="save()">
           Save changes
         </ion-button>
       </div>
@@ -248,11 +220,11 @@
     <div class="table-wrap">
       @for (s of [1, 2, 3, 4, 5]; track s) {
         <div class="skeleton-row">
-          <ion-skeleton-text animated style="width:24%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:28%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:14%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:12%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:14%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 24%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 28%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 14%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 12%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 14%; height: 14px"></ion-skeleton-text>
         </div>
       }
     </div>
@@ -260,9 +232,11 @@
     <app-empty-state
       icon="users"
       [title]="users().length === 0 ? 'No users yet' : 'No matching users'"
-      [message]="users().length === 0
-        ? 'Accounts appear here as soon as they sign up.'
-        : 'Try a different name, email or role filter.'"
+      [message]="
+        users().length === 0
+          ? 'Accounts appear here as soon as they sign up.'
+          : 'Try a different name, email or role filter.'
+      "
       [compact]="true"
     />
   } @else {
@@ -283,7 +257,11 @@
     <div class="table-wrap">
       <table class="users-table">
         <caption class="visually-hidden">
-          Registered users, {{ filteredUsers().length }} shown
+          Registered users,
+          {{
+            filteredUsers().length
+          }}
+          shown
         </caption>
         <thead>
           <tr>
@@ -296,13 +274,12 @@
                 type="button"
                 class="sort-btn"
                 (click)="sortBySpend(spendSort() === -1)"
-                [attr.aria-label]="'Sort by lifetime spend, currently ' + (spendSort() === -1 ? 'highest first' : 'lowest first')"
+                [attr.aria-label]="
+                  'Sort by lifetime spend, currently ' + (spendSort() === -1 ? 'highest first' : 'lowest first')
+                "
               >
                 Spent
-                <app-icon
-                  [name]="spendSort() === -1 ? 'chevron-down' : 'chevron-right'"
-                  class="sort-icon"
-                />
+                <app-icon [name]="spendSort() === -1 ? 'chevron-down' : 'chevron-right'" class="sort-icon" />
               </button>
             </th>
             <th scope="col">Role</th>
@@ -316,7 +293,10 @@
                 <div class="user-cell">
                   <ion-avatar class="user-avatar">
                     @if (user.photoURL) {
-                      <img [src]="user.photoURL | cloudinary: 64" [alt]="'Photo of ' + (user.displayName || user.email)" />
+                      <img
+                        [src]="user.photoURL | cloudinary: 64"
+                        [alt]="'Photo of ' + (user.displayName || user.email)"
+                      />
                     } @else {
                       <div class="avatar-initials" aria-hidden="true">{{ initials(user) }}</div>
                     }
@@ -353,14 +333,12 @@
               -->
               <td class="num col-spent" data-label="Spent">
                 @if (statsFor(user.uid).delivered > 0) {
-                  <span class="spent-amount">₱{{ statsFor(user.uid).spent | number:'1.0-0' }}</span>
-                  <span class="spent-orders">
-                    {{ statsFor(user.uid).delivered }} delivered
-                  </span>
+                  <span class="spent-amount">₱{{ statsFor(user.uid).spent | number: '1.0-0' }}</span>
+                  <span class="spent-orders"> {{ statsFor(user.uid).delivered }} delivered </span>
                 } @else if (statsFor(user.uid).orders > 0) {
                   <span class="spent-none">
-                    {{ statsFor(user.uid).orders }} order{{ statsFor(user.uid).orders === 1 ? '' : 's' }},
-                    none delivered
+                    {{ statsFor(user.uid).orders }} order{{ statsFor(user.uid).orders === 1 ? '' : 's' }}, none
+                    delivered
                   </span>
                 } @else {
                   <span class="is-empty">&mdash;</span>
@@ -368,7 +346,8 @@
               </td>
 
               <td class="col-role" data-label="Role">
-                <span class="role-badge"
+                <span
+                  class="role-badge"
                   [class.role-badge--staff]="user.role === 'staff'"
                   [class.role-badge--manager]="user.role === 'manager'"
                   [class.role-badge--admin]="user.role === 'admin'"
@@ -398,7 +377,10 @@
                       [class.icon-btn--danger]="user.role === 'admin'"
                       [disabled]="busyUid() === user.uid"
                       (click)="changeRole(user, user.role === 'admin' ? 'customer' : 'admin')"
-                      [attr.aria-label]="(user.role === 'admin' ? 'Remove admin access from ' : 'Make admin: ') + (user.displayName || user.email)"
+                      [attr.aria-label]="
+                        (user.role === 'admin' ? 'Remove admin access from ' : 'Make admin: ') +
+                        (user.displayName || user.email)
+                      "
                     >
                       <app-icon [name]="user.role === 'admin' ? 'shield-check' : 'sparkles'" />
                     </button>

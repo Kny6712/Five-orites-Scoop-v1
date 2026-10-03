@@ -1,7 +1,9 @@
 // src/app/admin/tracking/admin-tracking.page.scss
 // Five-orites Scoop — Admin Delivery Map
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 /* ── Split: map left, controls right ─────────────────────────
    The map and the search panel are used together — you look at where the
@@ -23,7 +25,9 @@
   }
 }
 
-.map-col { min-width: 0; }
+.map-col {
+  min-width: 0;
+}
 
 .map-caption {
   display: flex;
@@ -35,7 +39,12 @@
   color: var(--ion-color-medium);
 }
 
-.map-caption app-icon { --icon-size: 14px; flex: 0 0 auto; margin-top: 1px; color: var(--color-primary-ink); }
+.map-caption app-icon {
+  --icon-size: 14px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--color-primary-ink);
+}
 
 .panel-col {
   min-width: 0;
@@ -78,7 +87,9 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .status-chip.is-on {
@@ -89,7 +100,9 @@
   color: var(--color-ink);
 }
 
-.status-chip:hover:not(.is-on) { background: var(--tile-powder); }
+.status-chip:hover:not(.is-on) {
+  background: var(--tile-powder);
+}
 
 .result-count {
   margin: var(--space-2) 0 0;
@@ -112,7 +125,9 @@
   color: var(--color-primary-ink);
   cursor: pointer;
 }
-.clear-btn app-icon { --icon-size: 13px; }
+.clear-btn app-icon {
+  --icon-size: 13px;
+}
 
 // ── Selected order ────────────────────────────────────────
 .selected-card {
@@ -158,7 +173,9 @@
   color: var(--ion-color-medium);
   cursor: pointer;
 }
-.selected-close app-icon { --icon-size: 14px; }
+.selected-close app-icon {
+  --icon-size: 14px;
+}
 
 .selected-address {
   margin: var(--space-2) 0 0;
@@ -222,14 +239,28 @@
   vertical-align: middle;
 }
 
-.track-table tbody tr:last-child td { border-bottom: none; }
+.track-table tbody tr:last-child td {
+  border-bottom: none;
+}
 
-.track-row:hover { background: var(--tile-powder); }
-.track-row.is-selected { background: var(--tile-powder); }
+.track-row:hover {
+  background: var(--tile-powder);
+}
+.track-row.is-selected {
+  background: var(--tile-powder);
+}
 
-.num { text-align: right; width: 1%; white-space: nowrap; }
+.num {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
 
-.action-cell { text-align: right; width: 1%; white-space: nowrap; }
+.action-cell {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
 
 /* Select. The row itself has no click handler at all, so this button is the
    only way to select — which is what stops a tap on "Advance" from also
@@ -247,9 +278,17 @@
   color: inherit;
 }
 
-.pick-icon { --icon-size: 15px; flex: 0 0 auto; color: var(--color-primary-ink); }
+.pick-icon {
+  --icon-size: 15px;
+  flex: 0 0 auto;
+  color: var(--color-primary-ink);
+}
 
-.pick-text { display: flex; flex-direction: column; min-width: 0; }
+.pick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 
 .row-id {
   font-family: var(--font-mono);
@@ -317,8 +356,13 @@
   background: var(--color-white);
   border-bottom: 1px solid var(--ion-color-light);
 }
-.skeleton-row:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
-.skeleton-row:last-child { border-bottom: none; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.skeleton-row:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.skeleton-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
 
 // ── Unmapped orders ───────────────────────────────────────
 .unmapped {
@@ -339,7 +383,9 @@
   font-weight: 600;
   color: var(--tone-warning-ink);
 }
-.unmapped-title app-icon { --icon-size: 15px; }
+.unmapped-title app-icon {
+  --icon-size: 15px;
+}
 
 .unmapped-note {
   margin: 5px 0 var(--space-2);
@@ -349,7 +395,14 @@
   opacity: 0.9;
 }
 
-.unmapped-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.unmapped-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 
 .unmapped-item {
   display: flex;

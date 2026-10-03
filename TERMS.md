@@ -3,6 +3,7 @@
 **Last updated: 3 October 2026**
 
 > ### ⚠ BEFORE PUBLISHING
+>
 > Replace `[CONTACT_EMAIL]` with an address you monitor, and put your real
 > business address and business hours in the "Our shop" section below.
 

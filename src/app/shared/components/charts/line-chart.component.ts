@@ -25,8 +25,7 @@ export interface LinePoint {
     @if (hasData()) {
       <figure class="chart">
         <figcaption class="sr-only">
-          {{ seriesLabel() }} over time, {{ points().length }} points,
-          highest {{ peakText() }}
+          {{ seriesLabel() }} over time, {{ points().length }} points, highest {{ peakText() }}
         </figcaption>
 
         <svg
@@ -77,84 +76,112 @@ export interface LinePoint {
       <p class="no-data">{{ emptyMessage() }}</p>
     }
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .chart { margin: 0; }
+      .chart {
+        margin: 0;
+      }
 
-    .plot {
-      display: block;
-      width: 100%;
-      height: 180px;
-      overflow: visible;
-    }
+      .plot {
+        display: block;
+        width: 100%;
+        height: 180px;
+        overflow: visible;
+      }
 
-    .grid {
-      stroke: var(--ion-color-light);
-      stroke-width: 1;
-      vector-effect: non-scaling-stroke;
-    }
+      .grid {
+        stroke: var(--ion-color-light);
+        stroke-width: 1;
+        vector-effect: non-scaling-stroke;
+      }
 
-    .line {
-      fill: none;
-      stroke: var(--color-brand-primary);
-      stroke-width: 2.5;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-      vector-effect: non-scaling-stroke;
-    }
+      .line {
+        fill: none;
+        stroke: var(--color-brand-primary);
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        vector-effect: non-scaling-stroke;
+      }
 
-    .area { fill: var(--color-brand-primary); opacity: 0.16; }
+      .area {
+        fill: var(--color-brand-primary);
+        opacity: 0.16;
+      }
 
-    .line.animated, .area.animated { animation: fade 0.5s ease-out both; }
+      .line.animated,
+      .area.animated {
+        animation: fade 0.5s ease-out both;
+      }
 
-    @keyframes fade {
-      from { opacity: 0; }
-    }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+      }
 
-    .dot { fill: var(--color-brand-primary); stroke: var(--color-white); stroke-width: 1.5; }
-    /* The peak is the one point worth looking for first, so it gets a filled
+      .dot {
+        fill: var(--color-brand-primary);
+        stroke: var(--color-white);
+        stroke-width: 1.5;
+      }
+      /* The peak is the one point worth looking for first, so it gets a filled
        ring rather than relying on colour alone. */
-    .dot.is-peak { fill: var(--color-brand-accent); stroke: var(--color-ink); }
+      .dot.is-peak {
+        fill: var(--color-brand-accent);
+        stroke: var(--color-ink);
+      }
 
-    .axis {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 4px;
-      font-size: 11px;
-      color: var(--ion-color-medium);
-    }
+      .axis {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--ion-color-medium);
+      }
 
-    .peak {
-      margin: 8px 0 0;
-      font-size: 12px;
-      color: var(--ion-color-medium);
-      text-align: center;
-    }
-    .peak strong { color: var(--color-ink); }
+      .peak {
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        text-align: center;
+      }
+      .peak strong {
+        color: var(--color-ink);
+      }
 
-    .no-data {
-      margin: 0;
-      padding: var(--space-5) 0;
-      text-align: center;
-      font-size: 14px;
-      color: var(--ion-color-medium);
-    }
+      .no-data {
+        margin: 0;
+        padding: var(--space-5) 0;
+        text-align: center;
+        font-size: 14px;
+        color: var(--ion-color-medium);
+      }
 
-    .sr-only {
-      position: absolute;
-      width: 1px; height: 1px;
-      margin: -1px; padding: 0;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-      border: 0;
-    }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+      }
 
-    @media (prefers-reduced-motion: reduce) {
-      .line.animated, .area.animated { animation: none; }
-    }
-  `],
+      @media (prefers-reduced-motion: reduce) {
+        .line.animated,
+        .area.animated {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class LineChartComponent {
   readonly points = input.required<LinePoint[]>();
@@ -170,19 +197,22 @@ export class LineChartComponent {
   protected readonly H = 100;
 
   protected readonly hasData = computed(
-    () => this.points().length > 0 && this.points().some((p) => Number.isFinite(p.value) && p.value > 0)
+    () =>
+      this.points().length > 0 &&
+      this.points().some((p) => Number.isFinite(p.value) && p.value > 0),
   );
 
-  protected readonly peak = computed(() =>
-    this.points().reduce((m, p) => Math.max(m, p.value), 0)
-  );
+  protected readonly peak = computed(() => this.points().reduce((m, p) => Math.max(m, p.value), 0));
 
   protected readonly peakIndex = computed(() => {
     const pts = this.points();
     let best = -1;
     let bestValue = -Infinity;
     pts.forEach((p, i) => {
-      if (p.value > bestValue) { bestValue = p.value; best = i; }
+      if (p.value > bestValue) {
+        bestValue = p.value;
+        best = i;
+      }
     });
     return best;
   });
@@ -209,7 +239,7 @@ export class LineChartComponent {
   protected readonly linePath = computed(() =>
     this.plotted()
       .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(2)},${p.y.toFixed(2)}`)
-      .join(' ')
+      .join(' '),
   );
 
   /** The same path closed down to the baseline, so the area sits on the axis. */
@@ -222,16 +252,14 @@ export class LineChartComponent {
   });
 
   protected readonly gridLines = computed(() =>
-    [0, 0.25, 0.5, 0.75, 1].map((f) => this.H - f * this.H)
+    [0, 0.25, 0.5, 0.75, 1].map((f) => this.H - f * this.H),
   );
 
   protected readonly firstLabel = computed(() => this.points()[0]?.label ?? '');
   protected readonly lastLabel = computed(
-    () => this.points()[this.points().length - 1]?.label ?? ''
+    () => this.points()[this.points().length - 1]?.label ?? '',
   );
-  protected readonly peakLabel = computed(
-    () => this.points()[this.peakIndex()]?.label ?? ''
-  );
+  protected readonly peakLabel = computed(() => this.points()[this.peakIndex()]?.label ?? '');
   protected readonly peakText = computed(() => {
     const i = this.peakIndex();
     return i >= 0 ? this.format()(this.points()[i].value) : '';

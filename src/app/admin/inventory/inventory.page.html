@@ -15,7 +15,6 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
@@ -37,32 +36,32 @@
       [compact]="true"
     />
   } @else {
-  <div class="inv-header">
-    <ion-searchbar
-      placeholder="Search products..."
-      debounce="300"
-      (ionInput)="onSearch($event)"
-      class="inv-search"
-      aria-label="Search inventory"
-    ></ion-searchbar>
-    <p class="inv-count">
-      @if (totalCount() === 0) {
-        No products
-      } @else if (page() > 1 || totalPages() > 1) {
-        {{ totalCount() }} products &middot; page {{ page() }} of {{ totalPages() }}
-      } @else {
-        {{ totalCount() }} products
-      }
-    </p>
-    <div class="inv-actions">
-      <ion-button size="small" (click)="addProduct()">+ Add Product</ion-button>
-      <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
-      <ion-button size="small" fill="clear" (click)="toggleImport()">
-        <app-icon name="upload" slot="start" />
-        Import CSV
-      </ion-button>
+    <div class="inv-header">
+      <ion-searchbar
+        placeholder="Search products..."
+        debounce="300"
+        (ionInput)="onSearch($event)"
+        class="inv-search"
+        aria-label="Search inventory"
+      ></ion-searchbar>
+      <p class="inv-count">
+        @if (totalCount() === 0) {
+          No products
+        } @else if (page() > 1 || totalPages() > 1) {
+          {{ totalCount() }} products &middot; page {{ page() }} of {{ totalPages() }}
+        } @else {
+          {{ totalCount() }} products
+        }
+      </p>
+      <div class="inv-actions">
+        <ion-button size="small" (click)="addProduct()">+ Add Product</ion-button>
+        <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
+        <ion-button size="small" fill="clear" (click)="toggleImport()">
+          <app-icon name="upload" slot="start" />
+          Import CSV
+        </ion-button>
+      </div>
     </div>
-  </div>
   }
 
   <!-- Loading -->
@@ -70,7 +69,7 @@
     <div class="inv-list">
       @for (s of skeletonItems; track $index) {
         <ion-card class="inv-card">
-          <ion-skeleton-text animated style="height:80px;"></ion-skeleton-text>
+          <ion-skeleton-text animated style="height: 80px"></ion-skeleton-text>
         </ion-card>
       }
     </div>
@@ -81,7 +80,6 @@
     <div class="inv-list">
       @for (product of pagedProducts(); track product.id) {
         <ion-card class="inv-card" [class.inactive-card]="!product.isActive">
-
           <div class="inv-card-main">
             <!--
               The product image, and the way to replace it. One tap opens the
@@ -256,7 +254,7 @@
     }
   }
 
-<!-- Bulk CSV import. All-or-nothing by construction: parseProductCsv returns
+  <!-- Bulk CSV import. All-or-nothing by construction: parseProductCsv returns
        zero valid rows if any row fails, so there is no partial-import state. -->
   @if (importOpen()) {
     <div class="import-panel" role="region" aria-label="Bulk product import">
@@ -269,8 +267,8 @@
 
       @if (!importPlan()) {
         <p class="import-note">
-          Upload a CSV of flavors. Every row is checked before anything is written
-          &mdash; if one row is wrong, nothing is imported.
+          Upload a CSV of flavors. Every row is checked before anything is written &mdash; if one row is wrong, nothing
+          is imported.
         </p>
         <input #csvInput type="file" accept=".csv,text/csv" hidden (change)="onCsvPicked($event)" />
         <div class="import-actions">
@@ -283,11 +281,10 @@
         <details class="import-help">
           <summary>Which columns?</summary>
           <p>
-            <code>set_number, set_name, variant_name</code> are required.
-            <code>description</code>, <code>category</code> (flavor / sundae / cone)
-            and the four price and stock columns are optional. Names are matched
-            loosely, so <code>Price (Half Gallon)</code> works as well as
-            <code>half_gallon_price</code>. Lines starting with <code>#</code> are ignored.
+            <code>set_number, set_name, variant_name</code> are required. <code>description</code>,
+            <code>category</code> (flavor / sundae / cone) and the four price and stock columns are optional. Names are
+            matched loosely, so <code>Price (Half Gallon)</code> works as well as <code>half_gallon_price</code>. Lines
+            starting with <code>#</code> are ignored.
           </p>
         </details>
       } @else {
@@ -295,11 +292,18 @@
           <app-alert-banner
             tone="danger"
             title="Nothing was imported"
-            [message]="importErrors().length + ' problem' + (importErrors().length === 1 ? '' : 's') + ' found. Fix the file and try again.'"
+            [message]="
+              importErrors().length +
+              ' problem' +
+              (importErrors().length === 1 ? '' : 's') +
+              ' found. Fix the file and try again.'
+            "
           />
           <ul class="import-errors">
             @for (e of importErrors(); track e.line) {
-              <li><strong>Line {{ e.line }}:</strong> {{ e.message }}</li>
+              <li>
+                <strong>Line {{ e.line }}:</strong> {{ e.message }}
+              </li>
             }
           </ul>
           <div class="import-actions">
@@ -335,7 +339,6 @@
       }
     </div>
   }
-
 </ion-content>
 
 <app-footer></app-footer>

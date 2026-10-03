@@ -53,7 +53,7 @@ export const ROLE_SUMMARY: Record<UserRole, string> = {
   customer: 'No admin pages at all.',
   staff: 'They can work the fulfilment queue and the delivery map. Nothing else.',
   manager: 'They can run the shop: orders, inventory, analytics and reviews.',
-  admin: 'Everything a manager can, plus vouchers. They cannot change anyone\'s role.',
+  admin: "Everything a manager can, plus vouchers. They cannot change anyone's role.",
   owner: 'Full access, including this user directory and the shop settings.',
 };
 
@@ -88,22 +88,33 @@ export const ROLE_CAPABILITIES: Record<UserRole, readonly Capability[]> = {
   // Everything staff can do, plus the catalog, the money and review moderation.
   // Matches firestore.rules `canRunShop()`.
   manager: [
-    'view_dashboard', 'manage_orders',
-    'manage_inventory', 'view_analytics', 'moderate_reviews',
+    'view_dashboard',
+    'manage_orders',
+    'manage_inventory',
+    'view_analytics',
+    'moderate_reviews',
   ],
   // Everything except the user directory and the shop settings — the rows a
   // part-timer and a shift lead must not be able to reach.
   admin: [
-    'view_dashboard', 'manage_orders',
-    'manage_inventory', 'view_analytics', 'manage_vouchers',
+    'view_dashboard',
+    'manage_orders',
+    'manage_inventory',
+    'view_analytics',
+    'manage_vouchers',
     'moderate_reviews',
   ],
   // The only role that can change roles or the shop settings. This is what the
   // app's original single `admin` role maps to.
   owner: [
-    'view_dashboard', 'manage_orders',
-    'manage_inventory', 'view_analytics', 'manage_vouchers',
-    'moderate_reviews', 'manage_users', 'manage_settings',
+    'view_dashboard',
+    'manage_orders',
+    'manage_inventory',
+    'view_analytics',
+    'manage_vouchers',
+    'moderate_reviews',
+    'manage_users',
+    'manage_settings',
   ],
 };
 

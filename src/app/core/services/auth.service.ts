@@ -18,13 +18,7 @@ import {
   EmailAuthProvider,
   User,
 } from '@angular/fire/auth';
-import {
-  Firestore,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-} from '@angular/fire/firestore';
+import { Firestore, doc, getDoc, setDoc, serverTimestamp } from '@angular/fire/firestore';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { AppUser } from '../models/user.model';
 
@@ -34,8 +28,7 @@ export class AuthService {
   private firestore = inject(Firestore);
 
   private currentUserSubject = new BehaviorSubject<AppUser | null>(null);
-  readonly currentUser$: Observable<AppUser | null> =
-    this.currentUserSubject.asObservable();
+  readonly currentUser$: Observable<AppUser | null> = this.currentUserSubject.asObservable();
 
   private authReadySubject = new BehaviorSubject<boolean>(false);
   readonly authReady$ = this.authReadySubject.asObservable();
@@ -91,7 +84,7 @@ export class AuthService {
           email: firebaseUser.email ?? '',
           displayName: firebaseUser.displayName ?? 'Scoop Lover',
           photoURL: firebaseUser.photoURL ?? undefined,
-          role: 'customer',   // default role, never trust client input
+          role: 'customer', // default role, never trust client input
           createdAt: serverTimestamp() as never,
         };
 
@@ -110,7 +103,7 @@ export class AuthService {
             role: 'customer',
             createdAt: serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
 
         return newUser;
@@ -156,7 +149,8 @@ export class AuthService {
     let suspended = false;
     try {
       const snap = await getDoc(doc(this.firestore, `users/${uid}`));
-      const data = snap.data() as { isSuspended?: boolean; suspendReason?: string | null } | undefined;
+      const data = snap.data() as
+        { isSuspended?: boolean; suspendReason?: string | null } | undefined;
       suspended = data?.isSuspended === true;
       reason = data?.suspendReason?.trim() ?? '';
     } catch {
@@ -170,7 +164,7 @@ export class AuthService {
     throw new Error(
       reason
         ? `This account has been suspended: ${reason}`
-        : 'This account has been suspended. Contact the shop if you think this is a mistake.'
+        : 'This account has been suspended. Contact the shop if you think this is a mistake.',
     );
   }
 
@@ -188,14 +182,8 @@ export class AuthService {
     await sendPasswordResetEmail(this.auth, email.trim());
   }
 
-  async registerWithEmail(
-    email: string,
-    password: string,
-    displayName: string
-  ): Promise<void> {
-    const credential = await createUserWithEmailAndPassword(
-      this.auth, email, password
-    );
+  async registerWithEmail(email: string, password: string, displayName: string): Promise<void> {
+    const credential = await createUserWithEmailAndPassword(this.auth, email, password);
     await updateProfile(credential.user, { displayName });
 
     // createUserWithEmailAndPassword fires onAuthStateChanged before this
@@ -234,7 +222,7 @@ export class AuthService {
           role: 'customer',
           createdAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
     }
   }
@@ -385,9 +373,7 @@ export class AuthService {
     if (!firebaseUser) throw new Error('You must be signed in to change your email.');
 
     if (this.isEmailManagedByProvider()) {
-      throw new Error(
-        'Your email is managed by your Google account and cannot be changed here.'
-      );
+      throw new Error('Your email is managed by your Google account and cannot be changed here.');
     }
 
     const trimmed = newEmail.trim().toLowerCase();
@@ -406,9 +392,13 @@ export class AuthService {
 
     // Keep the Firestore copy in step. This is safe precisely BECAUSE it comes
     // from Auth, not from user input: the value was just verified.
-    await setDoc(doc(this.firestore, `users/${firebaseUser.uid}`), { email: trimmed }, {
-      merge: true,
-    });
+    await setDoc(
+      doc(this.firestore, `users/${firebaseUser.uid}`),
+      { email: trimmed },
+      {
+        merge: true,
+      },
+    );
     await this.refreshProfile();
   }
 

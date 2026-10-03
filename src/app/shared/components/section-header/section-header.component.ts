@@ -22,45 +22,44 @@ import { IonButton } from '@ionic/angular/standalone';
     <div class="section-header">
       <h3 class="section-title">{{ title() }}</h3>
       @if (actionLabel()) {
-        <ion-button
-          fill="clear"
-          size="small"
-          class="see-all"
-          [routerLink]="actionLink()"
-        >
+        <ion-button fill="clear" size="small" class="see-all" [routerLink]="actionLink()">
           {{ actionLabel() }}
         </ion-button>
       }
     </div>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .section-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--space-3);
-      padding: var(--space-4) var(--space-4) var(--space-1);
-    }
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: var(--space-3);
+        padding: var(--space-4) var(--space-4) var(--space-1);
+      }
 
-    .section-title {
-      font-family: var(--font-display);
-      font-size: 17px;
-      font-weight: 600;
-      color: var(--color-ink);
-      margin: 0;
-      min-width: 0;
-    }
+      .section-title {
+        font-family: var(--font-display);
+        font-size: 17px;
+        font-weight: 600;
+        color: var(--color-ink);
+        margin: 0;
+        min-width: 0;
+      }
 
-    .see-all {
-      --color: var(--color-primary-ink);
-      --border-radius: var(--radius-pill);
-      font-weight: 800;
-      font-size: 13px;
-      flex: 0 0 auto;
-    }
-  `],
+      .see-all {
+        --color: var(--color-primary-ink);
+        --border-radius: var(--radius-pill);
+        font-weight: 800;
+        font-size: 13px;
+        flex: 0 0 auto;
+      }
+    `,
+  ],
 })
 export class SectionHeaderComponent {
   readonly title = input.required<string>();

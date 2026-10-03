@@ -1,4 +1,6 @@
-:host { display: block; }
+:host {
+  display: block;
+}
 
 // ── Filters ─────────────────────────────────────────────
 .filters {
@@ -42,7 +44,9 @@
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .role-chip.active {
@@ -154,10 +158,19 @@
   color: var(--color-ink);
 }
 
-.users-table tbody tr:last-child td { border-bottom: none; }
-.user-row:hover { background: var(--tile-powder); }
+.users-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.user-row:hover {
+  background: var(--tile-powder);
+}
 
-.user-cell { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
 
 /* 32px rather than 46px. A face is still recognisable at this size, and the row
    drops from ~62px to ~46px, which is the difference between 14 and 19 users on
@@ -228,7 +241,9 @@
 }
 
 /* ── Spend column ────────────────────────────────────────── */
-.col-spent { white-space: nowrap; }
+.col-spent {
+  white-space: nowrap;
+}
 
 .spent-amount {
   display: block;
@@ -269,8 +284,12 @@
   align-items: center;
   gap: 2px;
 }
-.sort-btn:hover { color: var(--color-primary-ink); }
-.sort-icon { --icon-size: 13px; }
+.sort-btn:hover {
+  color: var(--color-primary-ink);
+}
+.sort-icon {
+  --icon-size: 13px;
+}
 
 /* ── Suspension ──────────────────────────────────────────── */
 /* A danger treatment that is still a BADGE, not a banner: it sits beside the
@@ -289,14 +308,23 @@
   border-color: var(--color-danger);
   color: #fff;
 }
-.chip-icon { --icon-size: 13px; vertical-align: -2px; margin-right: 2px; }
+.chip-icon {
+  --icon-size: 13px;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
 
 .suspend-toggle {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-.suspend-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.suspend-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
 
 .field-hint {
   font-size: 11px;
@@ -339,9 +367,15 @@
   max-width: 24ch;
 }
 
-.is-empty { color: var(--ion-color-light-shade); }
+.is-empty {
+  color: var(--ion-color-light-shade);
+}
 
-.col-actions { text-align: right; width: 1%; white-space: nowrap; }
+.col-actions {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
 
 .user-actions {
   display: flex;
@@ -370,13 +404,25 @@
   transition: background-color 0.15s ease;
 }
 
-.icon-btn app-icon { --icon-size: 16px; }
-.icon-btn:hover:not(:disabled) { background: var(--tile-powder); border-color: var(--ion-color-light-shade); }
+.icon-btn app-icon {
+  --icon-size: 16px;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--tile-powder);
+  border-color: var(--ion-color-light-shade);
+}
 
-.icon-btn--danger { color: var(--tone-warning-ink); }
-.icon-btn--danger:hover:not(:disabled) { background: var(--tile-lemon); }
+.icon-btn--danger {
+  color: var(--tone-warning-ink);
+}
+.icon-btn--danger:hover:not(:disabled) {
+  background: var(--tile-lemon);
+}
 
-.icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
 
 // ── Skeleton ─────────────────────────────────────────────
 .skeleton-row {
@@ -388,8 +434,13 @@
   background: var(--color-white);
   border-bottom: 1px solid var(--ion-color-light);
 }
-.skeleton-row:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
-.skeleton-row:last-child { border-bottom: none; border-radius: 0 0 var(--radius-md) var(--radius-md); }
+.skeleton-row:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.skeleton-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
 
 // Available to assistive tech, invisible on screen.
 .visually-hidden {

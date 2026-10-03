@@ -18,11 +18,22 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton,
-  IonInput, IonAvatar, IonToggle,
-  IonSelect, IonSelectOption, IonSkeletonText, IonTextarea,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonInput,
+  IonAvatar,
+  IonToggle,
+  IonSelect,
+  IonSelectOption,
+  IonSkeletonText,
+  IonTextarea,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -32,9 +43,23 @@ import { AlertBannerComponent } from '../../shared/components/alert-banner/alert
 import { AuthService } from '../../core/services/auth.service';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
-import { AppUser, UserRole, ROLE_LABELS, ROLE_RANK, ROLE_SUMMARY, asRole } from '../../core/models/user.model';
 import {
-  Firestore, collection, getDocs, doc, setDoc, query, orderBy, limit,
+  AppUser,
+  UserRole,
+  ROLE_LABELS,
+  ROLE_RANK,
+  ROLE_SUMMARY,
+  asRole,
+} from '../../core/models/user.model';
+import {
+  Firestore,
+  collection,
+  getDocs,
+  doc,
+  setDoc,
+  query,
+  orderBy,
+  limit,
 } from '@angular/fire/firestore';
 
 /**
@@ -62,13 +87,28 @@ const ORDERS_FOR_STATS_MAX = 300;
   selector: 'app-admin-users',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton,
-    IonInput, IonAvatar, IonToggle,
-    IonSelect, IonSelectOption, IonSkeletonText, IonTextarea,
-    AppIconComponent, AlertBannerComponent, CloudinaryPipe,
-    EmptyStateComponent, PaginationComponent, AppFooterComponent,
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonInput,
+    IonAvatar,
+    IonToggle,
+    IonSelect,
+    IonSelectOption,
+    IonSkeletonText,
+    IonTextarea,
+    AppIconComponent,
+    AlertBannerComponent,
+    CloudinaryPipe,
+    EmptyStateComponent,
+    PaginationComponent,
+    AppFooterComponent,
   ],
   templateUrl: './admin-users.page.html',
   styleUrls: ['./admin-users.page.scss'],
@@ -137,20 +177,20 @@ export class AdminUsersPage implements OnInit {
   readonly isSelf = computed(() => (uid: string) => uid === this.myUid);
 
   /**
- * Suspended accounts, as a filter rather than a column.
- *
- * `allow delete: if false` means an abusive account could never be removed at
- * all, while its order history stayed intact. Suspension is the flag that makes
- * "block this person" possible without destroying the orders other customers
- * appear in.
- */
-statusFilter = signal<'all' | 'suspended'>('all');
+   * Suspended accounts, as a filter rather than a column.
+   *
+   * `allow delete: if false` means an abusive account could never be removed at
+   * all, while its order history stayed intact. Suspension is the flag that makes
+   * "block this person" possible without destroying the orders other customers
+   * appear in.
+   */
+  statusFilter = signal<'all' | 'suspended'>('all');
 
-readonly suspendedCount = computed(
-  () => this.users().filter((u) => u.isSuspended === true).length
-);
+  readonly suspendedCount = computed(
+    () => this.users().filter((u) => u.isSuspended === true).length,
+  );
 
-readonly filteredUsers = computed(() => {
+  readonly filteredUsers = computed(() => {
     const term = this.search().trim().toLowerCase();
     const role = this.roleFilter();
     const status = this.statusFilter();
@@ -167,13 +207,13 @@ readonly filteredUsers = computed(() => {
   });
 
   readonly managerCount = computed(
-    () => this.users().filter((u) => asRole(u.role) === 'manager').length
+    () => this.users().filter((u) => asRole(u.role) === 'manager').length,
   );
   readonly staffCount = computed(
-    () => this.users().filter((u) => asRole(u.role) === 'staff').length
+    () => this.users().filter((u) => asRole(u.role) === 'staff').length,
   );
   readonly customerCount = computed(
-    () => this.users().filter((u) => asRole(u.role) === 'customer').length
+    () => this.users().filter((u) => asRole(u.role) === 'customer').length,
   );
 
   /**
@@ -219,11 +259,13 @@ readonly filteredUsers = computed(() => {
   private async loadStats(): Promise<void> {
     this.statsLoading.set(true);
     try {
-      const snap = await getDocs(query(
-        collection(this.firestore, 'orders'),
-        limit(ORDERS_FOR_STATS_MAX)
-      ));
-      const out: Record<string, { orders: number; delivered: number; spent: number; lastAt: number | null }> = {};
+      const snap = await getDocs(
+        query(collection(this.firestore, 'orders'), limit(ORDERS_FOR_STATS_MAX)),
+      );
+      const out: Record<
+        string,
+        { orders: number; delivered: number; spent: number; lastAt: number | null }
+      > = {};
       snap.forEach((d) => {
         const data = d.data() as Record<string, unknown>;
         const uid = data['customerId'] as string | undefined;
@@ -238,7 +280,9 @@ readonly filteredUsers = computed(() => {
           const created = data['createdAt'] as { toDate(): Date };
           const ms = created.toDate().getTime();
           if (Number.isFinite(ms) && (row.lastAt === null || ms > row.lastAt)) row.lastAt = ms;
-        } catch { /* a legacy order with no resolvable timestamp */ }
+        } catch {
+          /* a legacy order with no resolvable timestamp */
+        }
         out[uid] = row;
       });
       this.customerStats.set(out);
@@ -254,7 +298,12 @@ readonly filteredUsers = computed(() => {
     }
   }
 
-  statsFor(uid: string): { orders: number; delivered: number; spent: number; lastAt: number | null } {
+  statsFor(uid: string): {
+    orders: number;
+    delivered: number;
+    spent: number;
+    lastAt: number | null;
+  } {
     return this.customerStats()[uid] ?? { orders: 0, delivered: 0, spent: 0, lastAt: null };
   }
 
@@ -270,13 +319,13 @@ readonly filteredUsers = computed(() => {
 
   readonly spendSort = signal<-1 | 1>(-1);
 
-/** Exposed for the truncation banner, which must not repeat a bare number. */
-readonly ORDERS_FOR_STATS_MAX_LABEL = ORDERS_FOR_STATS_MAX;
+  /** Exposed for the truncation banner, which must not repeat a bare number. */
+  readonly ORDERS_FOR_STATS_MAX_LABEL = ORDERS_FOR_STATS_MAX;
 
   readonly spendSorted = computed(() => {
     const dir = this.spendSort();
     return [...this.filteredUsers()].sort(
-      (a, b) => dir * (this.statsFor(a.uid).spent - this.statsFor(b.uid).spent)
+      (a, b) => dir * (this.statsFor(a.uid).spent - this.statsFor(b.uid).spent),
     );
   });
 
@@ -381,7 +430,7 @@ readonly ORDERS_FOR_STATS_MAX_LABEL = ORDERS_FOR_STATS_MAX;
     this.loadFailed.set(false);
     try {
       const snap = await getDocs(
-        query(collection(this.firestore, 'users'), orderBy('uid', 'asc'), limit(USERS_MAX))
+        query(collection(this.firestore, 'users'), orderBy('uid', 'asc'), limit(USERS_MAX)),
       );
       this.users.set(snap.docs.map((d) => ({ ...d.data(), uid: d.id }) as AppUser));
       this.truncated.set(snap.size >= USERS_MAX);
@@ -442,7 +491,7 @@ readonly ORDERS_FOR_STATS_MAX_LABEL = ORDERS_FOR_STATS_MAX;
     }
     if (uid === this.myUid && this.editRole !== this.myRole) {
       this.errorMessage.set(
-        'You cannot change your own role — that would lock you out of the admin pages you can reach.'
+        'You cannot change your own role — that would lock you out of the admin pages you can reach.',
       );
       return;
     }
@@ -469,19 +518,24 @@ readonly ORDERS_FOR_STATS_MAX_LABEL = ORDERS_FOR_STATS_MAX;
           // blocked someone, and the customer gets told nothing at sign-in.
           isSuspended: this.isSuspended,
           ...(this.isSuspended
-            ? { suspendReason: this.suspendReason.trim() || 'No reason given', suspendedAt: Date.now() }
+            ? {
+                suspendReason: this.suspendReason.trim() || 'No reason given',
+                suspendedAt: Date.now(),
+              }
             : { suspendReason: null, suspendedAt: null }),
         },
-        { merge: true }
+        { merge: true },
       );
       this.cancelEdit();
       await this.load();
-      await this.toast.create({
-        message: 'User updated.',
-        color: 'success',
-        duration: 2000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'User updated.',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.errorMessage.set(describeFirestoreError('that user', err));
     } finally {

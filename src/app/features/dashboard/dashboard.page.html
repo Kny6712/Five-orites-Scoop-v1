@@ -11,7 +11,6 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
@@ -26,19 +25,13 @@
     device — so a deploy problem no longer presents to the user as a wifi fault.
   -->
   @if (loadError()) {
-    <app-alert-banner
-      tone="danger"
-      [message]="loadError()"
-      actionLabel="Try again"
-      (action)="loadDashboard()"
-    />
+    <app-alert-banner tone="danger" [message]="loadError()" actionLabel="Try again" (action)="loadDashboard()" />
   }
 
   <!-- ═══════════════════════════════════════
        CUSTOMER DASHBOARD
   ═══════════════════════════════════════ -->
   @if (!isAdmin()) {
-
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-text">
@@ -89,9 +82,15 @@
         <span class="promo-title">Track your orders live</span>
         <span class="promo-sub">
           @switch (notificationState()) {
-            @case ('blocked') { Your browser is blocking notifications for this site. }
-            @case ('granted') { You'll get an alert when your order's status changes. }
-            @default { Turn on alerts for status changes. }
+            @case ('blocked') {
+              Your browser is blocking notifications for this site.
+            }
+            @case ('granted') {
+              You'll get an alert when your order's status changes.
+            }
+            @default {
+              Turn on alerts for status changes.
+            }
           }
         </span>
       </div>
@@ -111,21 +110,19 @@
     <!-- Featured Flavors -->
     <div class="section-header">
       <h3 class="section-title">Featured Flavors</h3>
-      <ion-button fill="clear" size="small" [routerLink]="'/products'" class="see-all-btn">
-        See All
-      </ion-button>
+      <ion-button fill="clear" size="small" [routerLink]="'/products'" class="see-all-btn"> See All </ion-button>
     </div>
 
     @if (isLoading()) {
       <ion-grid>
         <ion-row>
-          @for (s of [1,2,3,4]; track s) {
+          @for (s of [1, 2, 3, 4]; track s) {
             <ion-col size="6">
               <ion-card class="skeleton-card">
-                <ion-skeleton-text animated style="height:120px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="height: 120px"></ion-skeleton-text>
                 <ion-card-content>
-                  <ion-skeleton-text animated style="height:14px; margin-bottom:8px;"></ion-skeleton-text>
-                  <ion-skeleton-text animated style="height:36px;"></ion-skeleton-text>
+                  <ion-skeleton-text animated style="height: 14px; margin-bottom: 8px"></ion-skeleton-text>
+                  <ion-skeleton-text animated style="height: 36px"></ion-skeleton-text>
                 </ion-card-content>
               </ion-card>
             </ion-col>
@@ -148,9 +145,7 @@
     @if (recentOrders().length > 0) {
       <div class="section-header">
         <h3 class="section-title">Recent Orders</h3>
-        <ion-button fill="clear" size="small" [routerLink]="'/orders'" class="see-all-btn">
-          View All
-        </ion-button>
+        <ion-button fill="clear" size="small" [routerLink]="'/orders'" class="see-all-btn"> View All </ion-button>
       </div>
       <div class="recent-orders">
         @for (order of recentOrders(); track trackOrder($index, order)) {
@@ -170,7 +165,6 @@
        ADMIN DASHBOARD
   ═══════════════════════════════════════ -->
   @if (isAdmin()) {
-
     <div class="admin-welcome">
       <h2 class="admin-title">Admin Dashboard</h2>
       <p class="admin-sub">{{ formatDate(null) || 'Today' }}</p>
@@ -182,9 +176,11 @@
     @if (isLoading()) {
       <ion-grid>
         <ion-row>
-          @for (s of [1,2,3,4]; track s) {
+          @for (s of [1, 2, 3, 4]; track s) {
             <ion-col size="6">
-              <ion-card class="kpi-skeleton"><ion-skeleton-text animated style="height:80px;"></ion-skeleton-text></ion-card>
+              <ion-card class="kpi-skeleton"
+                ><ion-skeleton-text animated style="height: 80px"></ion-skeleton-text
+              ></ion-card>
             </ion-col>
           }
         </ion-row>
@@ -260,8 +256,7 @@
           <div class="low-stock-head-text">
             <h3 class="low-stock-title">Low Stock Alerts</h3>
             <p class="low-stock-count">
-              {{ lowStockCount() }} flavor{{ lowStockCount() === 1 ? '' : 's' }} below
-              {{ lowStockThreshold() }} units
+              {{ lowStockCount() }} flavor{{ lowStockCount() === 1 ? '' : 's' }} below {{ lowStockThreshold() }} units
             </p>
           </div>
         </header>
@@ -327,7 +322,6 @@
       />
     }
   }
-
 </ion-content>
 
 <app-footer></app-footer>

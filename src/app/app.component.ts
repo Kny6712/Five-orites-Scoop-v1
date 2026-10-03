@@ -2,7 +2,7 @@
 // Five-orites Scoop — Root App Shell with ion-split-pane + ion-menu
 // Author: Five-orites Scoop team (see README)
 
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import {
@@ -74,11 +74,11 @@ interface NavItem {
     IonButton,
     IonRouterOutlet,
     AppIconComponent,
-    ],
+  ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
-export class AppComponent implements OnInit {
+export class AppComponent {
   private authService = inject(AuthService);
   private cartService = inject(CartService);
   private router = inject(Router);
@@ -91,7 +91,14 @@ export class AppComponent implements OnInit {
   readonly customerNavItems: NavItem[] = [
     { title: 'Dashboard', url: '/dashboard', icon: 'home', role: 'all' },
     { title: 'Our Flavors', url: '/products', icon: 'ice-cream', role: 'all' },
-    { title: 'My Cart', url: '/cart', icon: 'cart', role: 'customer', badge: true, hideForStaff: true },
+    {
+      title: 'My Cart',
+      url: '/cart',
+      icon: 'cart',
+      role: 'customer',
+      badge: true,
+      hideForStaff: true,
+    },
     { title: 'My Orders', url: '/orders', icon: 'receipt', role: 'customer' },
     // 'all', not 'customer': an admin is a signed-in user with a profile, and the
     // profile page is role-agnostic by design. Gating it to customers would hide
@@ -99,17 +106,66 @@ export class AppComponent implements OnInit {
     { title: 'My Profile', url: '/profile', icon: 'user', role: 'all' },
     { title: 'About', url: '/about', icon: 'info', role: 'all' },
     { title: 'Developers', url: '/developers', icon: 'users', role: 'all' },
-    { title: 'Settings', url: '/settings', icon: 'settings', role: 'all' }];
+    { title: 'Settings', url: '/settings', icon: 'settings', role: 'all' },
+  ];
 
   readonly adminNavItems: NavItem[] = [
-    { title: 'Inventory', url: '/admin/inventory', icon: 'layers', role: 'admin', capability: 'manage_inventory' },
-    { title: 'Fulfillment', url: '/admin/orders', icon: 'clipboard', role: 'admin', capability: 'manage_orders' },
-    { title: 'Tracking', url: '/admin/tracking', icon: 'map', role: 'admin', capability: 'manage_orders' },
-    { title: 'Reviews', url: '/admin/reviews', icon: 'star', role: 'admin', capability: 'moderate_reviews' },
-    { title: 'Analytics', url: '/admin/analytics', icon: 'chart', role: 'admin', capability: 'view_analytics' },
-    { title: 'Vouchers', url: '/admin/vouchers', icon: 'ticket', role: 'admin', capability: 'manage_vouchers' },
-    { title: 'Users', url: '/admin/users', icon: 'users', role: 'admin', capability: 'manage_users' },
-    { title: 'Settings', url: '/admin/settings', icon: 'settings', role: 'admin', capability: 'manage_settings' },
+    {
+      title: 'Inventory',
+      url: '/admin/inventory',
+      icon: 'layers',
+      role: 'admin',
+      capability: 'manage_inventory',
+    },
+    {
+      title: 'Fulfillment',
+      url: '/admin/orders',
+      icon: 'clipboard',
+      role: 'admin',
+      capability: 'manage_orders',
+    },
+    {
+      title: 'Tracking',
+      url: '/admin/tracking',
+      icon: 'map',
+      role: 'admin',
+      capability: 'manage_orders',
+    },
+    {
+      title: 'Reviews',
+      url: '/admin/reviews',
+      icon: 'star',
+      role: 'admin',
+      capability: 'moderate_reviews',
+    },
+    {
+      title: 'Analytics',
+      url: '/admin/analytics',
+      icon: 'chart',
+      role: 'admin',
+      capability: 'view_analytics',
+    },
+    {
+      title: 'Vouchers',
+      url: '/admin/vouchers',
+      icon: 'ticket',
+      role: 'admin',
+      capability: 'manage_vouchers',
+    },
+    {
+      title: 'Users',
+      url: '/admin/users',
+      icon: 'users',
+      role: 'admin',
+      capability: 'manage_users',
+    },
+    {
+      title: 'Settings',
+      url: '/admin/settings',
+      icon: 'settings',
+      role: 'admin',
+      capability: 'manage_settings',
+    },
   ];
 
   /**
@@ -134,7 +190,7 @@ export class AppComponent implements OnInit {
    * anyway is about not offering an action that cannot work.
    */
   readonly visibleAdminNavItems = computed(() =>
-    this.adminNavItems.filter((item) => !item.capability || this.can(item.capability))
+    this.adminNavItems.filter((item) => !item.capability || this.can(item.capability)),
   );
 
   /**
@@ -170,29 +226,23 @@ export class AppComponent implements OnInit {
     return this.customerNavItems.filter(
       (item) =>
         !(staff && item.hideForStaff) &&
-        (item.role === 'all' ||
-          item.role === role ||
-          (staff && item.role === 'customer'))
+        (item.role === 'all' || item.role === role || (staff && item.role === 'customer')),
     );
   });
 
   constructor() {
-    this.authService.currentUser$
-      .pipe(takeUntilDestroyed())
-      .subscribe((user) => {
-        this.currentUser.set(user);
-        // Point the status watcher at whoever is signed in, so a status change
-        // notifies the order's owner on THEIR device instead of the device that
-        // performed the change.
-        this.orderNotifications.watch(user?.uid ?? null);
-      });
+    this.authService.currentUser$.pipe(takeUntilDestroyed()).subscribe((user) => {
+      this.currentUser.set(user);
+      // Point the status watcher at whoever is signed in, so a status change
+      // notifies the order's owner on THEIR device instead of the device that
+      // performed the change.
+      this.orderNotifications.watch(user?.uid ?? null);
+    });
 
     this.cartService.cart$
       .pipe(takeUntilDestroyed())
       .subscribe((cart) => this.cartItemCount.set(cart.itemCount));
   }
-
-  ngOnInit(): void {}
 
   /**
    * Closes the side drawer after navigating from the profile panel.

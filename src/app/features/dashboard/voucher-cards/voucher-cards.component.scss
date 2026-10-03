@@ -1,7 +1,9 @@
 // src/app/features/dashboard/voucher-cards/voucher-cards.component.scss
 // Sizes icons via --icon-size: app-icon is inline SVG, not a font glyph.
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 .voucher-grid {
   display: grid;
@@ -22,7 +24,10 @@
   box-shadow: var(--shadow-card);
 }
 
-.skeleton-card { display: flex; flex-direction: column; }
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+}
 
 .voucher-head {
   display: flex;
@@ -120,7 +125,9 @@
   color: var(--color-brand-primary);
 }
 
-.voucher-empty p { margin: 0; }
+.voucher-empty p {
+  margin: 0;
+}
 
 .voucher-error {
   margin: 0 var(--space-4) var(--space-3);

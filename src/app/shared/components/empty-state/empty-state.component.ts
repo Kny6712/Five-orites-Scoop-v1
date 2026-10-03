@@ -36,70 +36,81 @@ import type { AppIcon } from '../../../core/icons/app-icons';
       }
     </div>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .empty {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: var(--space-2);
-      padding: var(--space-7) var(--space-4);
-      text-align: center;
-    }
+      .empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-7) var(--space-4);
+        text-align: center;
+      }
 
-    /* The cart's variant was a genuinely tight space (below the fold on a phone),
+      /* The cart's variant was a genuinely tight space (below the fold on a phone),
        so a compact mode exists rather than the size being guessed per page. */
-    .empty.compact { padding: var(--space-6) var(--space-4); }
+      .empty.compact {
+        padding: var(--space-6) var(--space-4);
+      }
 
-    .empty-glyph {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 92px;
-      height: 92px;
-      border-radius: var(--radius-lg);
-      background: var(--tile-powder);
-      margin-bottom: var(--space-2);
-    }
-    .empty.compact .empty-glyph { width: 68px; height: 68px; }
+      .empty-glyph {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 92px;
+        height: 92px;
+        border-radius: var(--radius-lg);
+        background: var(--tile-powder);
+        margin-bottom: var(--space-2);
+      }
+      .empty.compact .empty-glyph {
+        width: 68px;
+        height: 68px;
+      }
 
-    /* The icon sits in a pastel tile rather than being tinted directly: a pastel
+      /* The icon sits in a pastel tile rather than being tinted directly: a pastel
        glyph on a cream page measures 1.71:1, which is decoration pretending to be
        an affordance. The tile gives it an edge, and the ink inside is legible. */
-    .empty-icon {
-      --icon-size: 56px;
-      color: var(--color-primary-ink);
-    }
+      .empty-icon {
+        --icon-size: 56px;
+        color: var(--color-primary-ink);
+      }
 
-    .compact .empty-icon { --icon-size: 40px; }
+      .compact .empty-icon {
+        --icon-size: 40px;
+      }
 
-    .empty-title {
-      font-family: var(--font-display);
-      font-size: 19px;
-      font-weight: 600;
-      color: var(--color-ink);
-      margin: var(--space-2) 0 0;
-    }
+      .empty-title {
+        font-family: var(--font-display);
+        font-size: 19px;
+        font-weight: 600;
+        color: var(--color-ink);
+        margin: var(--space-2) 0 0;
+      }
 
-    .empty-text {
-      margin: 0;
-      font-size: 14px;
-      line-height: 1.55;
-      color: var(--ion-color-medium);
-      /* Keeps a long sentence from stretching the full width of a phone. */
-      max-width: 40ch;
-    }
+      .empty-text {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.55;
+        color: var(--ion-color-medium);
+        /* Keeps a long sentence from stretching the full width of a phone. */
+        max-width: 40ch;
+      }
 
-    .empty-action {
-      --background: var(--color-brand-primary);
-      --color: var(--color-ink);
-      --border-radius: var(--radius-pill);
-      font-weight: 800;
-      margin-top: var(--space-3);
-      min-height: 46px;
-    }
-  `],
+      .empty-action {
+        --background: var(--color-brand-primary);
+        --color: var(--color-ink);
+        --border-radius: var(--radius-pill);
+        font-weight: 800;
+        margin-top: var(--space-3);
+        min-height: 46px;
+      }
+    `,
+  ],
 })
 export class EmptyStateComponent {
   readonly icon = input.required<AppIcon>();

@@ -9,12 +9,8 @@
 
 <ion-content fullscreen>
   <div class="profile-wrap">
-
     @if (errorMessage()) {
-      <app-alert-banner
-        tone="danger"
-        [message]="errorMessage()"
-      />
+      <app-alert-banner tone="danger" [message]="errorMessage()" />
     }
 
     <!--
@@ -38,16 +34,11 @@
       it clear which button belongs to which group.
     -->
     <section class="profile-card">
-
       <!-- ── Avatar ────────────────────────────────────────────────────── -->
       <header class="avatar-section">
         <div class="avatar-frame">
           @if (user()?.photoURL) {
-            <img
-              [src]="user()!.photoURL | cloudinary: 256"
-              alt="Your profile photo"
-              class="avatar-img"
-            />
+            <img [src]="user()!.photoURL | cloudinary: 256" alt="Your profile photo" class="avatar-img" />
           } @else {
             <div class="avatar-initials" aria-hidden="true">{{ initials() }}</div>
           }
@@ -82,9 +73,7 @@
           </label>
 
           @if (user()?.photoURL) {
-            <button type="button" class="link-btn" (click)="removePhoto()">
-              Remove
-            </button>
+            <button type="button" class="link-btn" (click)="removePhoto()">Remove</button>
           }
         </div>
       </header>
@@ -176,12 +165,7 @@
             <span class="field-hint">Needed to confirm the change.</span>
           </label>
 
-          <ion-button
-            fill="outline"
-            class="change-email-btn"
-            [disabled]="isChangingEmail"
-            (click)="changeEmail()"
-          >
+          <ion-button fill="outline" class="change-email-btn" [disabled]="isChangingEmail" (click)="changeEmail()">
             @if (isChangingEmail) {
               <ion-spinner name="crescent" slot="start"></ion-spinner>
             }
@@ -220,8 +204,8 @@
             <div>
               <p class="locked-title">Notifications are blocked</p>
               <p class="locked-text">
-                Your browser is blocking notifications for this site. Allow them in
-                your browser's site settings, then switch this back on.
+                Your browser is blocking notifications for this site. Allow them in your browser's site settings, then
+                switch this back on.
               </p>
             </div>
           </div>
@@ -232,7 +216,6 @@
         <p class="saved-note" role="status">Your profile has been updated.</p>
       }
     </section>
-
   </div>
 </ion-content>
 

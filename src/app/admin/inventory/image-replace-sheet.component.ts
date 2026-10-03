@@ -54,7 +54,7 @@ import type { Product } from '../../core/models/product.model';
         -->
         <span class="drop-frame">
           <img
-            [src]="(preview || product?.imageUrl || 'assets/placeholder-scoop.svg')"
+            [src]="preview || product?.imageUrl || 'assets/placeholder-scoop.svg'"
             alt=""
             class="drop-img"
           />
@@ -69,13 +69,7 @@ import type { Product } from '../../core/models/product.model';
         </span>
       </button>
 
-      <input
-        #fileInput
-        type="file"
-        accept="image/*"
-        hidden
-        (change)="onPicked($event)"
-      />
+      <input #fileInput type="file" accept="image/*" hidden (change)="onPicked($event)" />
 
       <p class="sheet-note">
         Landscape photos work best. The image is cropped to fill, never stretched.
@@ -86,91 +80,112 @@ import type { Product } from '../../core/models/product.model';
       }
     </div>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .sheet { padding: var(--space-5) var(--space-4) var(--space-4); }
+      .sheet {
+        padding: var(--space-5) var(--space-4) var(--space-4);
+      }
 
-    .sheet-head { margin-bottom: var(--space-4); }
-    .sheet-title {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: 19px;
-      font-weight: 600;
-      color: var(--color-ink);
-    }
-    .sheet-sub { margin: 2px 0 0; font-size: 13px; color: var(--ion-color-medium); }
+      .sheet-head {
+        margin-bottom: var(--space-4);
+      }
+      .sheet-title {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 19px;
+        font-weight: 600;
+        color: var(--color-ink);
+      }
+      .sheet-sub {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: var(--ion-color-medium);
+      }
 
-    .drop {
-      display: block;
-      width: 100%;
-      padding: 0;
-      background: none;
-      border: 0;
-      cursor: pointer;
-      font: inherit;
-    }
-    .drop:disabled { cursor: progress; }
+      .drop {
+        display: block;
+        width: 100%;
+        padding: 0;
+        background: none;
+        border: 0;
+        cursor: pointer;
+        font: inherit;
+      }
+      .drop:disabled {
+        cursor: progress;
+      }
 
-    .drop-frame {
-      position: relative;
-      display: block;
-      aspect-ratio: 4 / 3;
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      background: var(--tile-powder);
-      border: 2px dashed var(--color-primary-ink);
-    }
+      .drop-frame {
+        position: relative;
+        display: block;
+        aspect-ratio: 4 / 3;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--tile-powder);
+        border: 2px dashed var(--color-primary-ink);
+      }
 
-    .drop-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .drop-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
 
-    .drop-cta {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
-      /* A scrim rather than nothing, so the label stays readable over an
+      .drop-cta {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        /* A scrim rather than nothing, so the label stays readable over an
          arbitrary photo — a white label on a pale ice-cream shot is not. */
-      background: rgb(36 24 51 / 0.55);
-      color: var(--color-white);
-      font-size: 14px;
-      font-weight: 700;
-    }
-    .drop-cta app-icon { --icon-size: 26px; }
+        background: rgb(36 24 51 / 0.55);
+        color: var(--color-white);
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .drop-cta app-icon {
+        --icon-size: 26px;
+      }
 
-    .drop-veil {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: rgb(36 24 51 / 0.55);
-      color: var(--color-white);
-      font-size: 14px;
-      font-weight: 700;
-    }
+      .drop-veil {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgb(36 24 51 / 0.55);
+        color: var(--color-white);
+        font-size: 14px;
+        font-weight: 700;
+      }
 
-    .sheet-note {
-      margin: var(--space-3) 0 0;
-      font-size: 12px;
-      line-height: 1.45;
-      color: var(--ion-color-medium);
-    }
+      .sheet-note {
+        margin: var(--space-3) 0 0;
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--ion-color-medium);
+      }
 
-    .sheet-error {
-      margin: var(--space-3) 0 0;
-      padding: var(--space-2) var(--space-3);
-      border-radius: var(--radius-xs);
-      background: var(--tone-danger-bg);
-      border: 1px solid var(--tone-danger-border);
-      color: var(--tone-danger-ink);
-      font-size: 12px;
-      line-height: 1.45;
-    }
-  `],
+      .sheet-error {
+        margin: var(--space-3) 0 0;
+        padding: var(--space-2) var(--space-3);
+        border-radius: var(--radius-xs);
+        background: var(--tone-danger-bg);
+        border: 1px solid var(--tone-danger-border);
+        color: var(--tone-danger-ink);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+    `,
+  ],
 })
 export class ImageReplaceSheetComponent {
   private readonly modalCtrl = inject(ModalController);
@@ -210,7 +225,7 @@ export class ImageReplaceSheetComponent {
       await this.modalCtrl.dismiss(true);
     } catch (err: unknown) {
       this.error.set(
-        err instanceof Error ? err.message : 'Could not upload that photo. Try again.'
+        err instanceof Error ? err.message : 'Could not upload that photo. Try again.',
       );
       this.preview.set('');
     } finally {

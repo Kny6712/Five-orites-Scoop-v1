@@ -1,6 +1,8 @@
 // src/app/features/orders/orders.page.scss
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 /* The ion-list only exists to give each row ion-item's tap handling and ripple.
    A plain container is enough now, since the pager — not the list — controls
@@ -28,9 +30,14 @@
   margin: 6px 12px;
 }
 
-.skeleton-wrap { flex: 1; }
+.skeleton-wrap {
+  flex: 1;
+}
 
-.order-info { flex: 1; padding: 4px 0; }
+.order-info {
+  flex: 1;
+  padding: 4px 0;
+}
 
 .order-top-row {
   display: flex;

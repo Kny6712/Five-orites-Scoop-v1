@@ -17,7 +17,6 @@
 
 <ion-content fullscreen>
   <div class="reviews-body">
-
     @if (errorMessage()) {
       <app-alert-banner
         type="danger"
@@ -101,14 +100,13 @@
       />
     } @else {
       <p class="queue-note">
-        {{ filtered().length }} review{{ filtered().length === 1 ? '' : 's' }},
-        newest first. Replying is public — the customer sees it on their product page.
+        {{ filtered().length }} review{{ filtered().length === 1 ? '' : 's' }}, newest first. Replying is public — the
+        customer sees it on their product page.
       </p>
 
       <div class="review-list">
         @for (review of paged(); track review.id) {
           <article class="review-row" [class.is-busy]="busyId() === review.id">
-
             <header class="review-head">
               <span class="stars" [attr.aria-label]="review.rating + ' out of 5 stars'">
                 {{ starsFor(review.rating) }}
@@ -126,9 +124,7 @@
 
             @if (review.adminResponse) {
               <div class="staff-reply">
-                <span class="reply-tag">
-                  {{ review.adminResponderName || 'Five-orites Scoop' }} replied
-                </span>
+                <span class="reply-tag"> {{ review.adminResponderName || 'Five-orites Scoop' }} replied </span>
                 <p class="reply-text">{{ review.adminResponse }}</p>
                 <button
                   type="button"
@@ -143,11 +139,7 @@
 
             <div class="review-actions">
               @if (replyingTo() !== review.id) {
-                <button
-                  type="button"
-                  class="act-btn"
-                  (click)="openReply(review)"
-                >
+                <button type="button" class="act-btn" (click)="openReply(review)">
                   <app-icon name="mail" class="act-icon" />
                   {{ review.adminResponse ? 'Edit reply' : 'Reply' }}
                 </button>
@@ -176,17 +168,12 @@
                 ></ion-textarea>
                 <div class="reply-actions">
                   <ion-button size="small" fill="clear" (click)="cancelReply()">Cancel</ion-button>
-                  <ion-button
-                    size="small"
-                    [disabled]="busyId() === review.id"
-                    (click)="saveReply(review)"
-                  >
+                  <ion-button size="small" [disabled]="busyId() === review.id" (click)="saveReply(review)">
                     Publish
                   </ion-button>
                 </div>
               </div>
             }
-
           </article>
         }
       </div>
@@ -199,7 +186,6 @@
         (pageChange)="page.set($event)"
       />
     }
-
   </div>
   <app-footer></app-footer>
 </ion-content>

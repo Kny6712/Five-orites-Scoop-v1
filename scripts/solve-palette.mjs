@@ -10,7 +10,15 @@ const hex = (h) => {
   return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16));
 };
 const toHex = (rgb) =>
-  '#' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+  '#' +
+  rgb
+    .map((v) =>
+      Math.max(0, Math.min(255, Math.round(v)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')
+    .toUpperCase();
 
 const lum = (rgb) => {
   const [r, g, b] = rgb.map((v) => {
@@ -56,13 +64,17 @@ for (const [label, start, against, target] of TARGETS) {
     continue;
   }
   console.log(
-    `${label.padEnd(32)}  ${start}  ${r.hex}  ${r.ratio.toFixed(2).padStart(5)}  ${String(r.steps).padStart(13)}`
+    `${label.padEnd(32)}  ${start}  ${r.hex}  ${r.ratio.toFixed(2).padStart(5)}  ${String(r.steps).padStart(13)}`,
   );
 }
 
 // Also report the full bright ramp so we know what the decorative surfaces give.
 console.log('\nBright decorative surfaces (carry PLUM text, ratio in brackets):');
 const PLUM = hex('#3D2B45');
-for (const [name, c] of [['strawberry', '#FF6B8A'], ['mint', '#5FD9B4'], ['sunny', '#FFC53D']]) {
+for (const [name, c] of [
+  ['strawberry', '#FF6B8A'],
+  ['mint', '#5FD9B4'],
+  ['sunny', '#FFC53D'],
+]) {
   console.log(`  ${name.padEnd(10)} ${c}  [${ratio(PLUM, hex(c)).toFixed(2)}:1]`);
 }

@@ -29,7 +29,11 @@
     <app-alert-banner
       tone="warning"
       title="List truncated"
-      [message]="'Showing the ' + orders().length + ' most recent orders. Older active orders may not appear here. Check Fulfillment for the full queue.'"
+      [message]="
+        'Showing the ' +
+        orders().length +
+        ' most recent orders. Older active orders may not appear here. Check Fulfillment for the full queue.'
+      "
     />
   }
 
@@ -52,7 +56,10 @@
       />
       <p class="map-caption">
         <app-icon name="map-pin" />
-        <span>The shop plus {{ mappedOrders().length }} active order{{ mappedOrders().length === 1 ? '' : 's' }} with a resolved address. Tap a pin to select it.</span>
+        <span
+          >The shop plus {{ mappedOrders().length }} active order{{ mappedOrders().length === 1 ? '' : 's' }} with a
+          resolved address. Tap a pin to select it.</span
+        >
       </p>
     </div>
 
@@ -111,19 +118,15 @@
               <span class="selected-id">#{{ sel.id.slice(-6).toUpperCase() }}</span>
               <app-order-status-badge [status]="sel.status"></app-order-status-badge>
             </div>
-            <button
-              type="button"
-              class="selected-close"
-              (click)="selectedId.set(null)"
-              aria-label="Clear selection"
-            >
+            <button type="button" class="selected-close" (click)="selectedId.set(null)" aria-label="Clear selection">
               <app-icon name="x" />
             </button>
           </header>
 
           <p class="selected-address">{{ sel.deliveryAddress }}</p>
           <p class="selected-meta">
-            {{ sel.customerEmail }} &middot; {{ itemCount(sel) }} item{{ itemCount(sel) === 1 ? '' : 's' }} &middot; {{ distanceFor(sel) }} away
+            {{ sel.customerEmail }} &middot; {{ itemCount(sel) }} item{{ itemCount(sel) === 1 ? '' : 's' }} &middot;
+            {{ distanceFor(sel) }} away
           </p>
 
           @if (canAdvance(sel)) {
@@ -144,12 +147,12 @@
   <!-- Order list, as a table -->
   @if (isLoading()) {
     <div class="table-wrap">
-      @for (s of [1,2,3,4]; track s) {
+      @for (s of [1, 2, 3, 4]; track s) {
         <div class="skeleton-row">
-          <ion-skeleton-text animated style="width:26%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:34%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:12%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:18%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 26%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 34%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 12%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 18%; height: 14px"></ion-skeleton-text>
         </div>
       }
     </div>
@@ -173,7 +176,11 @@
     <div class="table-wrap">
       <table class="track-table">
         <caption class="visually-hidden">
-          Active delivery orders, {{ visibleOrders().length }} shown
+          Active delivery orders,
+          {{
+            visibleOrders().length
+          }}
+          shown
         </caption>
         <thead>
           <tr>
@@ -270,8 +277,8 @@
         {{ unmappedOrders().length }} order{{ unmappedOrders().length === 1 ? '' : 's' }} not on the map
       </h3>
       <p class="unmapped-note">
-        These have an address but no coordinates yet. They are not hidden — open one
-        on the customer's tracker once to resolve its location.
+        These have an address but no coordinates yet. They are not hidden — open one on the customer's tracker once to
+        resolve its location.
       </p>
       <ul class="unmapped-list">
         @for (order of unmappedOrders().slice(0, 6); track order.id) {
@@ -283,7 +290,6 @@
       </ul>
     </section>
   }
-
 </ion-content>
 
 <app-footer></app-footer>

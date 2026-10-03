@@ -5,11 +5,21 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonAvatar,
-  IonChip, IonLabel, } from '@ionic/angular/standalone';
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonCard,
+  IonCardContent,
+  IonAvatar,
+  IonChip,
+  IonLabel,
+} from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
@@ -26,12 +36,24 @@ interface Developer {
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonGrid, IonRow, IonCol,
-    IonCard, IonCardContent, IonAvatar,
-    IonChip, IonLabel, CartButtonComponent,
-    AppIconComponent, AppFooterComponent],
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonCard,
+    IonCardContent,
+    IonAvatar,
+    IonChip,
+    IonLabel,
+    CartButtonComponent,
+    AppIconComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './developers.page.html',
   styleUrls: ['./developers.page.scss'],
 })
@@ -78,7 +100,8 @@ export class DevelopersPage {
       initials: 'AV',
       roles: ['Full Stack Dev', 'UI/UX Designer', 'QA', 'Documentation'],
       accent: '#D3DDF7', // tile-periwinkle
-    }];
+    },
+  ];
 
   getRoleColor(role: string): string {
     if (role.includes('Lead')) return 'primary';
@@ -89,5 +112,4 @@ export class DevelopersPage {
   }
 
   readonly currentYear = new Date().getFullYear();
-
 }

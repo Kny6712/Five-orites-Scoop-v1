@@ -6,13 +6,27 @@ import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute } from '@angular/router';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonBackButton, IonText,
-  IonSkeletonText, IonChip, IonLabel, IonCard, IonCardContent,
-  IonButton, AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonBackButton,
+  IonText,
+  IonSkeletonText,
+  IonChip,
+  IonLabel,
+  IonCard,
+  IonCardContent,
+  IonButton,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../../shared/components/app-icon/app-icon.component';
-import { ScoopMapComponent, type MapMarker } from '../../../shared/components/scoop-map/scoop-map.component';
+import {
+  ScoopMapComponent,
+  type MapMarker,
+} from '../../../shared/components/scoop-map/scoop-map.component';
 import { Subscription, catchError, of } from 'rxjs';
 import { Firestore, doc, setDoc } from '@angular/fire/firestore';
 import { OrderService } from '../../../core/services/order.service';
@@ -24,22 +38,46 @@ import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
 import { SHOP_LOCATION } from '../../../core/config/shop.config';
 import {
-  geocodeAddress, readCachedGeo, interpolate, distanceMetres, type GeoPoint,
+  geocodeAddress,
+  readCachedGeo,
+  interpolate,
+  distanceMetres,
+  type GeoPoint,
 } from '../../../core/logic/geo';
 
 const STATUS_SEQUENCE: OrderStatus[] = [
-  'pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered'];
+  'pending',
+  'confirmed',
+  'preparing',
+  'out_for_delivery',
+  'delivered',
+];
 
 @Component({
   selector: 'app-order-tracker',
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonBackButton, IonText, IonSkeletonText,
-    IonChip, IonLabel, IonCard, IonCardContent, IonButton,
-    OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
-    AppIconComponent, ScoopMapComponent, AppFooterComponent],
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonBackButton,
+    IonText,
+    IonSkeletonText,
+    IonChip,
+    IonLabel,
+    IonCard,
+    IonCardContent,
+    IonButton,
+    OrderStatusBadgeComponent,
+    PesoPipe,
+    CartButtonComponent,
+    AppIconComponent,
+    ScoopMapComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './order-tracker.page.html',
   styleUrls: ['./order-tracker.page.scss'],
 })
@@ -147,9 +185,7 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
     const dest = this.destination();
     if (!dest) return '';
     const metres = distanceMetres(SHOP_LOCATION, { lat: dest.lat, lng: dest.lng });
-    return metres < 1000
-      ? `${Math.round(metres)} m`
-      : `${(metres / 1000).toFixed(1)} km`;
+    return metres < 1000 ? `${Math.round(metres)} m` : `${(metres / 1000).toFixed(1)} km`;
   });
 
   /**
@@ -182,7 +218,7 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
       await setDoc(
         doc(this.firestore, `orders/${order.id}`),
         { geo: { lat: point.lat, lng: point.lng, label: point.label, at: point.at } },
-        { merge: true }
+        { merge: true },
       );
     } catch (err) {
       // The map works from memory either way; failing to cache only means the
@@ -190,7 +226,6 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
       console.warn('Could not cache the geocode on the order', err);
     }
   }
-
 
   ngOnInit(): void {
     const orderId = this.route.snapshot.paramMap.get('id');
@@ -202,10 +237,12 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
 
     this.sub = this.orderService
       .trackOrder(orderId)
-      .pipe(catchError(() => {
-        this.errorMessage.set('Could not load order. Please try again.');
-        return of(null);
-      }))
+      .pipe(
+        catchError(() => {
+          this.errorMessage.set('Could not load order. Please try again.');
+          return of(null);
+        }),
+      )
       .subscribe((order) => {
         if (order) {
           // Status toasts are NOT fired here. OrderNotificationService already
@@ -251,20 +288,25 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
               await this.orderService.cancelOrder(order.id, data?.reason);
               const toast = await this.toastCtrl.create({
                 message: 'Order cancelled. Stock restored.',
-                color: 'warning', duration: 2500, position: 'top',
+                color: 'warning',
+                duration: 2500,
+                position: 'top',
               });
               await toast.present();
             } catch (err) {
               const toast = await this.toastCtrl.create({
                 message: err instanceof Error ? err.message : 'Failed to cancel order.',
-                color: 'danger', duration: 3000, position: 'top',
+                color: 'danger',
+                duration: 3000,
+                position: 'top',
               });
               await toast.present();
             } finally {
               this.isCancelling.set(false);
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -287,7 +329,8 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
       const ts = entry.timestamp as unknown as { toDate(): Date } | string;
       const date = typeof ts === 'string' ? new Date(ts) : ts.toDate();
       return date.toLocaleTimeString('en-PH', {
-        hour: '2-digit', minute: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
       });
     } catch {
       return '';
@@ -300,8 +343,11 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
       const ts = timestamp as { toDate(): Date } | string;
       const date = typeof ts === 'string' ? new Date(ts) : ts.toDate();
       return date.toLocaleDateString('en-PH', {
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       });
     } catch {
       return '—';

@@ -19,10 +19,23 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton, IonItem, IonLabel,
-  IonInput, IonToggle, IonSelect, IonSelectOption, IonSearchbar, IonSkeletonText,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonItem,
+  IonLabel,
+  IonInput,
+  IonToggle,
+  IonSelect,
+  IonSelectOption,
+  IonSearchbar,
+  IonSkeletonText,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
@@ -30,12 +43,27 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
-import { Voucher, VoucherType, voucherUsability, type RedemptionStats } from '../../core/models/voucher.model';
+import {
+  Voucher,
+  VoucherType,
+  voucherUsability,
+  type RedemptionStats,
+} from '../../core/models/voucher.model';
 import { MAX_PERCENT_DISCOUNT } from '../../core/models/voucher.model';
 import { toCsv, csvFilename } from '../../core/logic/csv';
 import { CsvExportService } from '../../core/services/csv-export.service';
 import {
-  Firestore, collection, getDocs, setDoc, doc, updateDoc, deleteDoc, query, where, limit, deleteField,
+  Firestore,
+  collection,
+  getDocs,
+  setDoc,
+  doc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  limit,
+  deleteField,
 } from '@angular/fire/firestore';
 
 /** `YYYY-MM-DD` for a stored epoch ms, or '' when there is no date. */
@@ -50,12 +78,29 @@ function toDateInput(ms?: number): string {
   selector: 'app-admin-vouchers',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton, IonItem, IonLabel,
-    IonInput, IonToggle, IonSelect, IonSelectOption, IonSearchbar, IonSkeletonText, DatePipe,
-    AppIconComponent, AlertBannerComponent, EmptyStateComponent,
-    PaginationComponent, AppFooterComponent,
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonItem,
+    IonLabel,
+    IonInput,
+    IonToggle,
+    IonSelect,
+    IonSelectOption,
+    IonSearchbar,
+    IonSkeletonText,
+    DatePipe,
+    AppIconComponent,
+    AlertBannerComponent,
+    EmptyStateComponent,
+    PaginationComponent,
+    AppFooterComponent,
   ],
   templateUrl: './admin-vouchers.page.html',
   styleUrls: ['./admin-vouchers.page.scss'],
@@ -101,7 +146,9 @@ export class AdminVouchersPage implements OnInit {
    * analytics page: a cancelled or in-progress order is not revenue, and
    * counting one would make a discount look more effective than it was.
    */
-  readonly stats = signal<Record<string, { orders: number; discount: number; revenue: number }>>({});
+  readonly stats = signal<Record<string, { orders: number; discount: number; revenue: number }>>(
+    {},
+  );
   readonly metricsLoading = signal(false);
 
   /** Mirrors MAX_PERCENT_DISCOUNT, which the cart service enforces server-side. */
@@ -182,21 +229,25 @@ export class AdminVouchersPage implements OnInit {
   async copyCode(voucher: Voucher): Promise<void> {
     try {
       await navigator.clipboard.writeText(voucher.code);
-      await this.toast.create({
-        message: `${voucher.code} copied.`,
-        color: 'success',
-        duration: 1600,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: `${voucher.code} copied.`,
+          color: 'success',
+          duration: 1600,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch {
       // Clipboard access is denied in some embedded browsers and over plain HTTP.
       // A toast saying so is better than a button that appears to do nothing.
-      await this.toast.create({
-        message: 'Could not copy — select the code and copy it manually.',
-        color: 'warning',
-        duration: 2500,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Could not copy — select the code and copy it manually.',
+          color: 'warning',
+          duration: 2500,
+          position: 'top',
+        })
+        .then((t) => t.present());
     }
   }
 
@@ -234,8 +285,8 @@ export class AdminVouchersPage implements OnInit {
       const snap = await getDocs(collection(this.firestore, 'vouchers'));
       this.vouchers.set(
         snap.docs
-          .map((d) => ({ id: d.id, ...d.data() } as Voucher))
-          .sort((a, b) => a.code.localeCompare(b.code))
+          .map((d) => ({ id: d.id, ...d.data() }) as Voucher)
+          .sort((a, b) => a.code.localeCompare(b.code)),
       );
     } catch (err) {
       this.errorMessage.set(describeFirestoreError('vouchers', err));
@@ -295,11 +346,9 @@ export class AdminVouchersPage implements OnInit {
   async loadMetrics(): Promise<void> {
     this.metricsLoading.set(true);
     try {
-      const snap = await getDocs(query(
-        collection(this.firestore, 'orders'),
-        where('status', '==', 'delivered'),
-        limit(500)
-      ));
+      const snap = await getDocs(
+        query(collection(this.firestore, 'orders'), where('status', '==', 'delivered'), limit(500)),
+      );
       const out: Record<string, { orders: number; discount: number; revenue: number }> = {};
       for (const d of snap.docs) {
         const data = d.data() as Record<string, unknown>;
@@ -358,7 +407,7 @@ export class AdminVouchersPage implements OnInit {
         // code with no data above one that demonstrably sold 40 times.
         if (a.untracked !== b.untracked) return a.untracked ? 1 : -1;
         return (b.discountGiven || b.revenue) - (a.discountGiven || a.revenue);
-      })
+      }),
   );
 
   async exportReport(): Promise<void> {
@@ -367,21 +416,23 @@ export class AdminVouchersPage implements OnInit {
       ...this.ranked().map((s) => [
         s.voucher.code,
         s.state,
-        s.untracked ? 'not tracked' : s.uses ?? 0,
+        s.untracked ? 'not tracked' : (s.uses ?? 0),
         s.orders,
         s.discountGiven,
         s.revenue,
       ]),
     ];
     const result = await this.csvExport.export(toCsv(rows), csvFilename('voucher-performance'));
-    void this.toast.create({
-      message: result.ok
-        ? 'Exported voucher performance.'
-        : `Export failed${result.error ? `: ${result.error}` : ''}.`,
-      color: result.ok ? 'success' : 'danger',
-      duration: result.ok ? 2200 : 3200,
-      position: 'top',
-    }).then((t) => t.present());
+    void this.toast
+      .create({
+        message: result.ok
+          ? 'Exported voucher performance.'
+          : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+        color: result.ok ? 'success' : 'danger',
+        duration: result.ok ? 2200 : 3200,
+        position: 'top',
+      })
+      .then((t) => t.present());
   }
 
   /**
@@ -408,10 +459,17 @@ export class AdminVouchersPage implements OnInit {
     if (this.minOrder < 0) return 'Minimum order cannot be negative.';
     // A window that ends before it starts can never apply, and it is always a
     // typo rather than an intention.
-    if (this.startsAtDate && this.expiresAtDate && this.fromDateInput(this.expiresAtDate) <= this.fromDateInput(this.startsAtDate)) {
+    if (
+      this.startsAtDate &&
+      this.expiresAtDate &&
+      this.fromDateInput(this.expiresAtDate) <= this.fromDateInput(this.startsAtDate)
+    ) {
       return 'The expiry date must be after the start date.';
     }
-    for (const [label, raw] of [['Max redemptions', this.maxRedemptions], ['Per-customer limit', this.perCustomerLimit]] as const) {
+    for (const [label, raw] of [
+      ['Max redemptions', this.maxRedemptions],
+      ['Per-customer limit', this.perCustomerLimit],
+    ] as const) {
       if (raw === '') continue;
       const n = Number(raw);
       if (!Number.isInteger(n) || n < 0) return `${label} must be a whole number of 0 or more.`;
@@ -478,10 +536,18 @@ export class AdminVouchersPage implements OnInit {
         // `deleteField` on an emptied limit, NOT a stored 0. A voucher with no
         // `maxRedemptions` is uncapped; one stored as 0 is spent out and would
         // silently stop working the first time an admin cleared the field.
-        ...(this.maxRedemptions === '' ? { maxRedemptions: deleteField() } : { maxRedemptions: this.toCount(this.maxRedemptions) }),
-        ...(this.perCustomerLimit === '' ? { perCustomerLimit: deleteField() } : { perCustomerLimit: this.toCount(this.perCustomerLimit) }),
-        ...(this.startsAtDate ? { startsAt: this.fromDateInput(this.startsAtDate) } : { startsAt: deleteField() }),
-        ...(this.expiresAtDate ? { expiresAt: this.fromDateInput(this.expiresAtDate) } : { expiresAt: deleteField() }),
+        ...(this.maxRedemptions === ''
+          ? { maxRedemptions: deleteField() }
+          : { maxRedemptions: this.toCount(this.maxRedemptions) }),
+        ...(this.perCustomerLimit === ''
+          ? { perCustomerLimit: deleteField() }
+          : { perCustomerLimit: this.toCount(this.perCustomerLimit) }),
+        ...(this.startsAtDate
+          ? { startsAt: this.fromDateInput(this.startsAtDate) }
+          : { startsAt: deleteField() }),
+        ...(this.expiresAtDate
+          ? { expiresAt: this.fromDateInput(this.expiresAtDate) }
+          : { expiresAt: deleteField() }),
       };
       // A code change means a different document: keyed by code, so editing
       // SCOOP10 to SCOOP20 must remove the old one. Otherwise the old code would
@@ -502,12 +568,14 @@ export class AdminVouchersPage implements OnInit {
 
       this.cancelEdit();
       await this.load();
-      await this.toast.create({
-        message: `${normalized} saved.`,
-        color: 'success',
-        duration: 2000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: `${normalized} saved.`,
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.errorMessage.set(describeFirestoreError('the voucher', err));
     } finally {
@@ -573,8 +641,6 @@ export class AdminVouchersPage implements OnInit {
   }
 
   describe(voucher: Voucher): string {
-    return voucher.type === 'percent'
-      ? `${voucher.value}% off`
-      : `₱${voucher.value} off`;
+    return voucher.type === 'percent' ? `${voucher.value}% off` : `₱${voucher.value} off`;
   }
 }

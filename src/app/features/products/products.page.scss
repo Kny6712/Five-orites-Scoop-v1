@@ -36,7 +36,9 @@
   padding: 4px 12px 8px;
   scrollbar-width: none;
 
-  &::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 .set-chip {
@@ -82,7 +84,11 @@
   min-width: 0;
 }
 
-.switch-icon { --icon-size: 15px; color: var(--color-primary-ink); flex: 0 0 auto; }
+.switch-icon {
+  --icon-size: 15px;
+  color: var(--color-primary-ink);
+  flex: 0 0 auto;
+}
 
 .switch-label {
   font-size: 12px;
@@ -148,7 +154,9 @@
 @media (max-width: 420px) {
   /* Below this the two-up select grid squeezes "Max price" and its value into
      unreadable widths, so it drops to one column. */
-  .select-panel { grid-template-columns: 1fr; }
+  .select-panel {
+    grid-template-columns: 1fr;
+  }
 }
 
 // ── Sort ──────────────────────────────────────────────
@@ -185,7 +193,9 @@
   font-size: 12px;
   font-weight: 700;
 }
-.clear-btn app-icon { --icon-size: 14px; }
+.clear-btn app-icon {
+  --icon-size: 14px;
+}
 
 // ── Product Grid ─────────────────────────────────────────
 .products-grid {

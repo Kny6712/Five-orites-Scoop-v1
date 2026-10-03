@@ -16,9 +16,19 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton, IonSpinner,
-  IonInput, IonItem, IonLabel, IonAvatar, IonToggle,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonSpinner,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonAvatar,
+  IonToggle,
   ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
@@ -27,7 +37,10 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import { NotificationService, type NotificationPermissionState } from '../../core/services/notification.service';
+import {
+  NotificationService,
+  type NotificationPermissionState,
+} from '../../core/services/notification.service';
 import type { AppUser } from '../../core/models/user.model';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
@@ -36,11 +49,25 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
   selector: 'app-profile',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton, IonSpinner,
-    IonInput, IonItem, IonLabel, IonAvatar, IonToggle,
-    AppIconComponent, AlertBannerComponent, CloudinaryPipe, AppFooterComponent,
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonSpinner,
+    IonInput,
+    IonItem,
+    IonLabel,
+    IonAvatar,
+    IonToggle,
+    AppIconComponent,
+    AlertBannerComponent,
+    CloudinaryPipe,
+    AppFooterComponent,
   ],
   templateUrl: './profile.page.html',
   styleUrls: ['./profile.page.scss'],
@@ -80,17 +107,14 @@ export class ProfilePage implements OnInit {
    * so is the difference between a setting and a broken button.
    */
   readonly notificationState = computed<NotificationPermissionState>(() =>
-    this.notifications.permissionState(this.user()?.notificationsEnabled)
+    this.notifications.permissionState(this.user()?.notificationsEnabled),
   );
 
   /** True when the user has changed something worth saving. */
   readonly isDirty = computed(() => {
     const u = this.user();
     if (!u) return false;
-    return (
-      this.displayName !== (u.displayName ?? '') ||
-      this.phone !== (u.phone ?? '')
-    );
+    return this.displayName !== (u.displayName ?? '') || this.phone !== (u.phone ?? '');
   });
 
   readonly initials = computed(() => {
@@ -144,12 +168,14 @@ export class ProfilePage implements OnInit {
       });
       this.applyUser(updated);
       this.saveState.set('saved');
-      await this.toast.create({
-        message: 'Profile updated!',
-        color: 'success',
-        duration: 2000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Profile updated!',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not save your profile.');
     }
@@ -170,12 +196,14 @@ export class ProfilePage implements OnInit {
       const photoURL = await this.uploads.uploadAvatar(file);
       const updated = await this.auth.updateProfile({ photoURL });
       this.applyUser(updated);
-      await this.toast.create({
-        message: 'Photo updated!',
-        color: 'success',
-        duration: 2000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Photo updated!',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not upload that photo.');
     } finally {
@@ -210,12 +238,14 @@ export class ProfilePage implements OnInit {
       const fresh = await this.auth.refreshProfile();
       this.applyUser(fresh);
       this.emailPassword = '';
-      await this.toast.create({
-        message: 'Check your new email for a confirmation link.',
-        color: 'success',
-        duration: 4000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Check your new email for a confirmation link.',
+          color: 'success',
+          duration: 4000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not change your email.');
     } finally {
@@ -243,7 +273,7 @@ export class ProfilePage implements OnInit {
           const fresh = await this.auth.refreshProfile();
           this.applyUser(fresh);
           this.fail(
-            'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.'
+            'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.',
           );
           return;
         }

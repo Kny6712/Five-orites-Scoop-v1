@@ -22,10 +22,7 @@ import {
   updateDoc,
   runTransaction,
 } from '@angular/fire/firestore';
-import type {
-  QueryConstraint,
-  QueryDocumentSnapshot,
-} from '@angular/fire/firestore';
+import type { QueryConstraint, QueryDocumentSnapshot } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { getDeliveryFee } from '../models/cart.model';
 
@@ -80,7 +77,7 @@ export class OrderService {
   async placeOrder(
     deliveryAddress: string,
     notes?: string,
-    voucherCode?: string | null
+    voucherCode?: string | null,
   ): Promise<string> {
     const user = this.authService.currentUserSnapshot;
     if (!user) throw new Error('User must be signed in to place an order.');
@@ -111,7 +108,12 @@ export class OrderService {
       for (const item of cart.items) {
         const snap = await getDoc(doc(this.firestore, `products/${item.productId}`));
         if (!snap.exists()) throw new Error(`Product ${item.variantName} no longer exists.`);
-        const data = snap.data() as { pricing?: Record<string, number>; setName?: string; variantName?: string; setNumber?: number };
+        const data = snap.data() as {
+          pricing?: Record<string, number>;
+          setName?: string;
+          variantName?: string;
+          setNumber?: number;
+        };
         // NO FALLBACK to PRICING_MATRIX here.
         //
         // This used to read `getPricingForSet(setNumber)?.[size]` when
@@ -130,7 +132,7 @@ export class OrderService {
         const unitPrice = data.pricing?.[item.size];
         if (unitPrice == null) {
           throw new Error(
-            `${data.variantName ?? item.variantName} has no price set for this size.`
+            `${data.variantName ?? item.variantName} has no price set for this size.`,
           );
         }
         authoritativeItems.push({
@@ -156,7 +158,7 @@ export class OrderService {
       if (normalizedCode) {
         const { voucher, discount } = await this.voucherService.validateVoucher(
           normalizedCode,
-          totalAmount
+          totalAmount,
         );
         appliedCode = voucher.code;
         discountAmount = Math.min(Math.max(discount, 0), totalAmount);
@@ -165,7 +167,7 @@ export class OrderService {
 
       // ── FIX: never pass undefined to Firestore ──────────────
       // notes undefined → use null instead
-      const safeNotes = (notes && notes.trim().length > 0) ? notes.trim() : null;
+      const safeNotes = notes && notes.trim().length > 0 ? notes.trim() : null;
 
       const orderData = {
         customerId: user.uid,
@@ -179,15 +181,13 @@ export class OrderService {
         status: 'pending',
         paymentStatus: 'pending',
         deliveryAddress: deliveryAddress.trim(),
-        notes: safeNotes,           // ← null instead of undefined
+        notes: safeNotes, // ← null instead of undefined
         cancelReason: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         // NOTE: serverTimestamp() is banned inside arrays by Firestore,
         // so history entries use client Timestamp.now().
-        statusHistory: [
-          { status: 'pending', timestamp: Timestamp.now() },
-        ],
+        statusHistory: [{ status: 'pending', timestamp: Timestamp.now() }],
       };
 
       // Step 3: Create order document
@@ -228,7 +228,7 @@ export class OrderService {
         ordersCol,
         where('customerId', '==', uid),
         orderBy('createdAt', 'desc'),
-        limit(maxResults)
+        limit(maxResults),
       );
       const unsubscribe = onSnapshot(
         q,
@@ -239,7 +239,7 @@ export class OrderService {
         (error) => {
           console.error('Customer orders snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
       return () => unsubscribe();
     });
@@ -260,7 +260,7 @@ export class OrderService {
         (error) => {
           console.error('Order tracker snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
       return () => unsubscribe();
     });
@@ -270,7 +270,12 @@ export class OrderService {
     return new Observable<Order[]>((observer) => {
       const ordersCol = collection(this.firestore, 'orders');
       const q = statusFilter
-        ? query(ordersCol, where('status', '==', statusFilter), orderBy('createdAt', 'desc'), limit(maxResults))
+        ? query(
+            ordersCol,
+            where('status', '==', statusFilter),
+            orderBy('createdAt', 'desc'),
+            limit(maxResults),
+          )
         : query(ordersCol, orderBy('createdAt', 'desc'), limit(maxResults));
 
       const unsubscribe = onSnapshot(
@@ -285,7 +290,7 @@ export class OrderService {
           // console even though the admin page now shows an error state.
           console.error('Failed to load orders.', error);
           observer.error(error);
-        }
+        },
       );
       return () => unsubscribe();
     });
@@ -312,7 +317,7 @@ export class OrderService {
         ordersCol,
         where('createdAt', '>=', Timestamp.fromDate(since)),
         orderBy('createdAt', 'desc'),
-        limit(maxResults)
+        limit(maxResults),
       );
 
       const unsubscribe = onSnapshot(
@@ -324,40 +329,40 @@ export class OrderService {
         (error) => {
           console.error('Failed to load orders for the selected range.', error);
           observer.error(error);
-        }
+        },
       );
       return () => unsubscribe();
     });
   }
 
   /**
- * One page of orders for reporting, plus whether more exist.
- *
- * THE CAP THIS REPLACES
- * `getAllOrders(undefined, 500)` returned an array that stopped at 500, and the
- * analytics page derived revenue, order counts and the flavor ranking from it. So
- * once a shop passed 500 orders, every figure on that page silently described the
- * NEWEST 500 orders while the header said "All Time". Revenue under-reported and
- * nothing on screen said so.
- *
- * A larger limit would not fix that — it moves the cliff, it does not remove it,
- * and it costs more Firestore reads to hide it. So this pages properly.
- *
- * WHY A COUNT IS INCLUDED
- * `hasMore` is derived from the page coming back full, which is one query. But the
- * caller also needs to know the TRUE total to page through and to say "page 2 of
- * 9" — and `getCountFromServer` is a single aggregate read regardless of how many
- * orders exist, where counting by fetching would be O(n).
- *
- * `total` comes from the server rather than being inferred, so a shop with 12
- * orders is not told it has 12 pages, and one with 5,000 is not told 500.
- *
- * NOT LIVE. This is a `getDocs` read, not `onSnapshot`, unlike the rest of this
- * service. Paging a live query while the underlying set mutates means a document
- * can be skipped or repeated across page boundaries — the cursor points at a
- * position, and inserting above it shifts everything. Reporting wants a consistent
- * snapshot; the page re-reads on refresh and on range change.
- */
+   * One page of orders for reporting, plus whether more exist.
+   *
+   * THE CAP THIS REPLACES
+   * `getAllOrders(undefined, 500)` returned an array that stopped at 500, and the
+   * analytics page derived revenue, order counts and the flavor ranking from it. So
+   * once a shop passed 500 orders, every figure on that page silently described the
+   * NEWEST 500 orders while the header said "All Time". Revenue under-reported and
+   * nothing on screen said so.
+   *
+   * A larger limit would not fix that — it moves the cliff, it does not remove it,
+   * and it costs more Firestore reads to hide it. So this pages properly.
+   *
+   * WHY A COUNT IS INCLUDED
+   * `hasMore` is derived from the page coming back full, which is one query. But the
+   * caller also needs to know the TRUE total to page through and to say "page 2 of
+   * 9" — and `getCountFromServer` is a single aggregate read regardless of how many
+   * orders exist, where counting by fetching would be O(n).
+   *
+   * `total` comes from the server rather than being inferred, so a shop with 12
+   * orders is not told it has 12 pages, and one with 5,000 is not told 500.
+   *
+   * NOT LIVE. This is a `getDocs` read, not `onSnapshot`, unlike the rest of this
+   * service. Paging a live query while the underlying set mutates means a document
+   * can be skipped or repeated across page boundaries — the cursor points at a
+   * position, and inserting above it shifts everything. Reporting wants a consistent
+   * snapshot; the page re-reads on refresh and on range change.
+   */
   async getOrdersPage(options: {
     status?: OrderStatus;
     since?: Date;
@@ -376,7 +381,7 @@ export class OrderService {
       ...filters,
       orderBy('createdAt', 'desc'),
       ...(options.cursor ? [startAfter(options.cursor as QueryDocumentSnapshot)] : []),
-      limit(pageSize)
+      limit(pageSize),
     );
 
     const snapshot = await getDocs(q);
@@ -409,7 +414,7 @@ export class OrderService {
     if (order.status === 'cancelled') return;
     if (order.status === 'delivered') throw new Error('Delivered orders cannot be cancelled.');
 
-    const safeReason = (reason && reason.trim().length > 0) ? reason.trim().slice(0, 300) : null;
+    const safeReason = reason && reason.trim().length > 0 ? reason.trim().slice(0, 300) : null;
 
     // ── The restock is the FUNCTION's job ─────────────────────────────────────
     //
@@ -470,11 +475,11 @@ export class OrderService {
 
     try {
       await this.inventoryService.restockItems(
-        order.items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity }))
+        order.items.map((i) => ({ productId: i.productId, size: i.size, quantity: i.quantity })),
       );
     } catch (err) {
       throw new Error(
-        err instanceof Error ? err.message : 'Restocking failed. Check the product still exists.'
+        err instanceof Error ? err.message : 'Restocking failed. Check the product still exists.',
       );
     }
 

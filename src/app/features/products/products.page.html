@@ -14,7 +14,6 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   <!-- Pull to refresh -->
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
@@ -196,12 +195,12 @@
         @for (s of skeletonItems; track $index) {
           <ion-col size="6" size-md="4" size-lg="3">
             <ion-card class="skeleton-card">
-              <ion-skeleton-text animated style="height: 140px; margin: 0;"></ion-skeleton-text>
-              <div style="padding: 12px;">
-                <ion-skeleton-text animated style="height: 16px; width: 80%; margin-bottom: 8px;"></ion-skeleton-text>
-                <ion-skeleton-text animated style="height: 32px; margin-bottom: 8px;"></ion-skeleton-text>
-                <ion-skeleton-text animated style="height: 20px; width: 60%; margin-bottom: 8px;"></ion-skeleton-text>
-                <ion-skeleton-text animated style="height: 40px;"></ion-skeleton-text>
+              <ion-skeleton-text animated style="height: 140px; margin: 0"></ion-skeleton-text>
+              <div style="padding: 12px">
+                <ion-skeleton-text animated style="height: 16px; width: 80%; margin-bottom: 8px"></ion-skeleton-text>
+                <ion-skeleton-text animated style="height: 32px; margin-bottom: 8px"></ion-skeleton-text>
+                <ion-skeleton-text animated style="height: 20px; width: 60%; margin-bottom: 8px"></ion-skeleton-text>
+                <ion-skeleton-text animated style="height: 40px"></ion-skeleton-text>
               </div>
             </ion-card>
           </ion-col>
@@ -223,11 +222,7 @@
 
   <!-- Empty State -->
   @if (!isLoading() && !errorMessage() && filteredProducts().length === 0) {
-    <app-empty-state
-      icon="ice-cream"
-      title="No flavors found"
-      message="Try a different search or filter."
-    />
+    <app-empty-state icon="ice-cream" title="No flavors found" message="Try a different search or filter." />
   }
 
   <!-- Product Grid -->
@@ -244,16 +239,12 @@
   }
 
   <!-- Infinite Scroll -->
-  <ion-infinite-scroll
-    [disabled]="displayedCount() >= filteredProducts().length"
-    (ionInfinite)="loadMore($event)"
-  >
+  <ion-infinite-scroll [disabled]="displayedCount() >= filteredProducts().length" (ionInfinite)="loadMore($event)">
     <ion-infinite-scroll-content
       loadingSpinner="crescent"
       loadingText="Loading more flavors..."
     ></ion-infinite-scroll-content>
   </ion-infinite-scroll>
-
 </ion-content>
 
 <app-footer></app-footer>

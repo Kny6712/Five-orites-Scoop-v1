@@ -53,13 +53,31 @@ interface SizeOption {
   selector: 'app-product-detail',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonBackButton,
-    IonButton, IonSkeletonText, IonBadge,
-    IonChip, IonLabel, IonText, IonItem, IonNote, IonTextarea,
-    PesoPipe, StarRatingComponent, CloudinaryPipe, CartButtonComponent,
-    AppIconComponent, QtyStepperComponent, AppFooterComponent],
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonBackButton,
+    IonButton,
+    IonSkeletonText,
+    IonBadge,
+    IonChip,
+    IonLabel,
+    IonText,
+    IonItem,
+    IonNote,
+    IonTextarea,
+    PesoPipe,
+    StarRatingComponent,
+    CloudinaryPipe,
+    CartButtonComponent,
+    AppIconComponent,
+    QtyStepperComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './product-detail.page.html',
   styleUrls: ['./product-detail.page.scss'],
 })
@@ -102,7 +120,8 @@ export class ProductDetailPage implements OnInit, OnDestroy {
     { key: 'cup', label: SIZE_DISPLAY_LABELS.cup },
     { key: 'pint', label: SIZE_DISPLAY_LABELS.pint },
     { key: 'halfGallon', label: SIZE_DISPLAY_LABELS.halfGallon },
-    { key: 'gallon', label: SIZE_DISPLAY_LABELS.gallon }];
+    { key: 'gallon', label: SIZE_DISPLAY_LABELS.gallon },
+  ];
 
   /**
    * True when the loaded review set hit the query's cap, so the count and
@@ -139,7 +158,6 @@ export class ProductDetailPage implements OnInit, OnDestroy {
   canPurchase = computed(() => !!this.product() && !this.isUnavailable() && !this.isOutOfStock());
   lineTotal = computed(() => this.currentPrice() * this.quantity());
 
-
   ngOnInit(): void {
     const productId = this.route.snapshot.paramMap.get('id');
     if (!productId) {
@@ -150,10 +168,17 @@ export class ProductDetailPage implements OnInit, OnDestroy {
 
     this.sub = this.inventoryService
       .getProductById(productId)
-      .pipe(catchError((err) => {
-        this.errorMessage.set('Could not load product. Please go back and try again.');
-        return of(null);
-      }))
+      .pipe(
+        catchError(() => {
+          // The error is deliberately not surfaced verbatim. Anything thrown here is
+          // either a permissions failure or a missing document, and a customer can
+          // act on neither — they need to know the page failed to load.
+          // describeFirestoreError() exists for the admin surfaces, where the
+          // message is actionable and the operator can do something about it.
+          this.errorMessage.set('Could not load product. Please go back and try again.');
+          return of(null);
+        }),
+      )
       .subscribe((product) => {
         if (product) {
           this.product.set(product);
@@ -205,7 +230,9 @@ export class ProductDetailPage implements OnInit, OnDestroy {
     } catch (err) {
       const toast = await this.toastCtrl.create({
         message: err instanceof Error ? err.message : 'Sign in to use wishlist.',
-        duration: 2500, color: 'warning', position: 'bottom',
+        duration: 2500,
+        color: 'warning',
+        position: 'bottom',
       });
       await toast.present();
     }
@@ -242,20 +269,26 @@ export class ProductDetailPage implements OnInit, OnDestroy {
             try {
               await this.reviewService.deleteMyReview(product.id);
               const toast = await this.toastCtrl.create({
-                message: 'Review withdrawn.', duration: 2000, color: 'success', position: 'bottom',
+                message: 'Review withdrawn.',
+                duration: 2000,
+                color: 'success',
+                position: 'bottom',
               });
               await toast.present();
             } catch (err) {
               const toast = await this.toastCtrl.create({
                 message: err instanceof Error ? err.message : 'Could not withdraw review.',
-                duration: 3000, color: 'warning', position: 'bottom',
+                duration: 3000,
+                color: 'warning',
+                position: 'bottom',
               });
               await toast.present();
             } finally {
               this.isSubmittingReview.set(false);
             }
           },
-        }],
+        },
+      ],
     });
     await confirm.present();
   }
@@ -271,13 +304,17 @@ export class ProductDetailPage implements OnInit, OnDestroy {
       this.newRating.set(5);
       const toast = await this.toastCtrl.create({
         message: editing ? 'Review updated. Thanks!' : 'Thanks for your review! 💖',
-        duration: 2000, color: 'success', position: 'bottom',
+        duration: 2000,
+        color: 'success',
+        position: 'bottom',
       });
       await toast.present();
     } catch (err) {
       const toast = await this.toastCtrl.create({
         message: err instanceof Error ? err.message : 'Could not submit review.',
-        duration: 3000, color: 'warning', position: 'bottom',
+        duration: 3000,
+        color: 'warning',
+        position: 'bottom',
       });
       await toast.present();
     } finally {
@@ -309,7 +346,9 @@ export class ProductDetailPage implements OnInit, OnDestroy {
       if (product && this.isUnavailable() && !this.isAdding()) {
         const toast = await this.toastCtrl.create({
           message: `${product.variantName} is no longer available.`,
-          duration: 3000, color: 'warning', position: 'bottom',
+          duration: 3000,
+          color: 'warning',
+          position: 'bottom',
         });
         await toast.present();
       }

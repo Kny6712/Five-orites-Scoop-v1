@@ -3,11 +3,23 @@
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonCard, IonCardContent, IonText,
-  IonSkeletonText, IonRefresher, IonRefresherContent,
-  IonChip, IonLabel, IonButton, IonSegment, IonSegmentButton,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonCard,
+  IonCardContent,
+  IonText,
+  IonSkeletonText,
+  IonRefresher,
+  IonRefresherContent,
+  IonChip,
+  IonLabel,
+  IonButton,
+  IonSegment,
+  IonSegmentButton,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 
@@ -19,9 +31,18 @@ import { toCsv, csvFilename, toIsoDate } from '../../core/logic/csv';
 import { CsvExportService } from '../../core/services/csv-export.service';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import type { SizeVariant } from '../../core/models/product.model';
-import { DonutChartComponent, type DonutSlice } from '../../shared/components/charts/donut-chart.component';
-import { BarChartComponent, type BarDatum } from '../../shared/components/charts/bar-chart.component';
-import { LineChartComponent, type LinePoint } from '../../shared/components/charts/line-chart.component';
+import {
+  DonutChartComponent,
+  type DonutSlice,
+} from '../../shared/components/charts/donut-chart.component';
+import {
+  BarChartComponent,
+  type BarDatum,
+} from '../../shared/components/charts/bar-chart.component';
+import {
+  LineChartComponent,
+  type LinePoint,
+} from '../../shared/components/charts/line-chart.component';
 import { bucketsFor, bucketize, runningTotal } from '../../core/logic/series';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -30,7 +51,12 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 
 /** One row of the ranked flavors table. setName is carried so the table can
  *  group by set without a second lookup at render time. */
-interface TopFlavor { name: string; setName: string; count: number; revenue: number; }
+interface TopFlavor {
+  name: string;
+  setName: string;
+  count: number;
+  revenue: number;
+}
 
 /**
  * Orders per page read. Bounded because Firestore bills per document read, and a
@@ -59,17 +85,35 @@ const ANALYTICS_MAX_ORDERS = 5000;
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonCard, IonCardContent, IonText,
-    IonSkeletonText, IonRefresher, IonRefresherContent,
-    IonChip, IonLabel, IonButton, IonSegment, IonSegmentButton, PesoPipe,
-    AppIconComponent, DonutChartComponent, BarChartComponent, LineChartComponent, AlertBannerComponent, PaginationComponent,
-    AppFooterComponent],
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonCard,
+    IonCardContent,
+    IonText,
+    IonSkeletonText,
+    IonRefresher,
+    IonRefresherContent,
+    IonChip,
+    IonLabel,
+    IonButton,
+    IonSegment,
+    IonSegmentButton,
+    PesoPipe,
+    AppIconComponent,
+    DonutChartComponent,
+    BarChartComponent,
+    LineChartComponent,
+    AlertBannerComponent,
+    PaginationComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './analytics.page.html',
   styleUrls: ['./analytics.page.scss'],
 })
-
 export class AnalyticsPage implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
   private authService = inject(AuthService);
@@ -137,10 +181,14 @@ export class AnalyticsPage implements OnInit, OnDestroy {
   /** Human name for the active segment, so labels can say what they count. */
   rangeLabel = computed(() => {
     switch (this.dateRange()) {
-      case 'today': return 'Today';
-      case '7d': return 'Last 7 Days';
-      case '30d': return 'Last 30 Days';
-      default: return 'All Time';
+      case 'today':
+        return 'Today';
+      case '7d':
+        return 'Last 7 Days';
+      case '30d':
+        return 'Last 30 Days';
+      default:
+        return 'All Time';
     }
   });
 
@@ -154,7 +202,12 @@ export class AnalyticsPage implements OnInit, OnDestroy {
     const range = this.dateRange();
     if (range === 'all') return true;
     const now = Date.now();
-    const ms = range === 'today' ? 24 * 3600 * 1000 : range === '7d' ? 7 * 24 * 3600 * 1000 : 30 * 24 * 3600 * 1000;
+    const ms =
+      range === 'today'
+        ? 24 * 3600 * 1000
+        : range === '7d'
+          ? 7 * 24 * 3600 * 1000
+          : 30 * 24 * 3600 * 1000;
     try {
       const ts = order.createdAt as unknown as { toDate(): Date } | string;
       const d = typeof ts === 'string' ? new Date(ts).getTime() : ts.toDate().getTime();
@@ -166,12 +219,10 @@ export class AnalyticsPage implements OnInit, OnDestroy {
 
   rangedOrders = computed(() => this.businessOrders().filter((o) => this.inRange(o)));
 
-  deliveredOnly = computed(() =>
-    this.rangedOrders().filter((o) => o.status === 'delivered')
-  );
+  deliveredOnly = computed(() => this.rangedOrders().filter((o) => o.status === 'delivered'));
 
   totalRevenue = computed(() =>
-    this.deliveredOnly().reduce((sum, o) => sum + (o.grandTotal ?? 0), 0)
+    this.deliveredOnly().reduce((sum, o) => sum + (o.grandTotal ?? 0), 0),
   );
 
   /**
@@ -204,10 +255,14 @@ export class AnalyticsPage implements OnInit, OnDestroy {
    */
   readonly rangeDays = computed<number | null>(() => {
     switch (this.dateRange()) {
-      case 'today': return 1;
-      case '7d': return 7;
-      case '30d': return 30;
-      default: return null;
+      case 'today':
+        return 1;
+      case '7d':
+        return 7;
+      case '30d':
+        return 30;
+      default:
+        return null;
     }
   });
 
@@ -231,7 +286,7 @@ export class AnalyticsPage implements OnInit, OnDestroy {
           return Number.NaN;
         }
       },
-      (o) => o.grandTotal ?? 0
+      (o) => o.grandTotal ?? 0,
     );
     return buckets.map((b, i) => ({ label: b.label, value: sums[i] }));
   });
@@ -239,7 +294,10 @@ export class AnalyticsPage implements OnInit, OnDestroy {
   readonly cumulativeRevenue = computed<LinePoint[]>(() => {
     const trend = this.revenueTrend();
     if (!trend.length) return [];
-    return trend.map((p, i) => ({ label: p.label, value: runningTotal(trend.slice(0, i + 1).map((x) => x.value))[i] }));
+    return trend.map((p, i) => ({
+      label: p.label,
+      value: runningTotal(trend.slice(0, i + 1).map((x) => x.value))[i],
+    }));
   });
 
   readonly trendSeries = signal<'daily' | 'cumulative' | 'orders'>('daily');
@@ -250,9 +308,12 @@ export class AnalyticsPage implements OnInit, OnDestroy {
   /** The series the chart should render, chosen by the toggle. */
   readonly activeTrend = computed(() => {
     switch (this.trendSeries()) {
-      case 'cumulative': return this.cumulativeRevenue();
-      case 'orders': return this.ordersTrend();
-      default: return this.revenueTrend();
+      case 'cumulative':
+        return this.cumulativeRevenue();
+      case 'orders':
+        return this.ordersTrend();
+      default:
+        return this.revenueTrend();
     }
   });
 
@@ -276,15 +337,13 @@ export class AnalyticsPage implements OnInit, OnDestroy {
           return Number.NaN;
         }
       },
-      () => 1
+      () => 1,
     );
     return buckets.map((b, i) => ({ label: b.label, value: counts[i] }));
   });
 
   avgOrderValue = computed(() =>
-    this.deliveredOnly().length > 0
-      ? this.totalRevenue() / this.deliveredOnly().length
-      : 0
+    this.deliveredOnly().length > 0 ? this.totalRevenue() / this.deliveredOnly().length : 0,
   );
 
   /**
@@ -301,7 +360,12 @@ export class AnalyticsPage implements OnInit, OnDestroy {
     this.deliveredOnly().forEach((o) =>
       o.items?.forEach((item) => {
         const key = item.variantName;
-        const existing = map.get(key) ?? { name: key, count: 0, revenue: 0, setName: item.setName || '—' };
+        const existing = map.get(key) ?? {
+          name: key,
+          count: 0,
+          revenue: 0,
+          setName: item.setName || '—',
+        };
         // `?? 0` on both accumulators, matching how grandTotal is summed
         // elsewhere in this file.
         //
@@ -313,15 +377,17 @@ export class AnalyticsPage implements OnInit, OnDestroy {
         // propagates: the top-flavors table renders "NaN", the sort comparator
         // returns NaN (which is not a valid ordering, so the table order becomes
         // arbitrary), and the CSV export writes NaN into the report.
-        const quantity = typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 0;
-        const subtotal = typeof item.subtotal === 'number' && Number.isFinite(item.subtotal) ? item.subtotal : 0;
+        const quantity =
+          typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 0;
+        const subtotal =
+          typeof item.subtotal === 'number' && Number.isFinite(item.subtotal) ? item.subtotal : 0;
         map.set(key, {
           name: key,
           setName: item.setName || '—',
           count: existing.count + quantity,
           revenue: existing.revenue + subtotal,
         });
-      })
+      }),
     );
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   });
@@ -385,8 +451,12 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       o.items?.forEach((item) => {
         const key = item.setName || 'Unknown';
         const e = map.get(key) ?? { name: key, count: 0, revenue: 0 };
-        map.set(key, { name: key, count: e.count + item.quantity, revenue: e.revenue + item.subtotal });
-      })
+        map.set(key, {
+          name: key,
+          count: e.count + item.quantity,
+          revenue: e.revenue + item.subtotal,
+        });
+      }),
     );
     return [...map.values()].sort((a, b) => b.revenue - a.revenue);
   });
@@ -397,8 +467,12 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       o.items?.forEach((item) => {
         const key = item.size;
         const e = map.get(key) ?? { name: key, count: 0, revenue: 0 };
-        map.set(key, { name: key, count: e.count + item.quantity, revenue: e.revenue + item.subtotal });
-      })
+        map.set(key, {
+          name: key,
+          count: e.count + item.quantity,
+          revenue: e.revenue + item.subtotal,
+        });
+      }),
     );
     return [...map.values()].sort((a, b) => b.count - a.count);
   });
@@ -437,7 +511,7 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       value: f.count,
       annotation: this.formatPesoValue(f.revenue),
       tone: 'primary' as const,
-    }))
+    })),
   );
 
   readonly setBars = computed<BarDatum[]>(() =>
@@ -446,7 +520,7 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       value: s.revenue,
       annotation: `${s.count} units`,
       tone: 'mint' as const,
-    }))
+    })),
   );
 
   readonly sizeBars = computed<BarDatum[]>(() =>
@@ -461,7 +535,7 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       // should we push?" — a gallon sells one unit and earns four pints.
       annotation: this.formatPesoValue(s.revenue),
       tone: 'sunny' as const,
-    }))
+    })),
   );
 
   /**
@@ -527,7 +601,9 @@ export class AnalyticsPage implements OnInit, OnDestroy {
         o.totalAmount ?? 0,
         o.discountAmount ?? 0,
         o.deliveryFee ?? 0,
-        o.grandTotal ?? 0])];
+        o.grandTotal ?? 0,
+      ]),
+    ];
     await this.exportReport(toCsv(rows), csvFilename('delivered-sales', this.dateRange()));
   }
 
@@ -544,11 +620,13 @@ export class AnalyticsPage implements OnInit, OnDestroy {
     const result = await this.csvExport.export(csv, filename);
     if (result.ok) return;
     this.exportError.set(
-      `Export failed${result.error ? `: ${result.error}` : ''}. On a phone, save the file from the share sheet instead.`
+      `Export failed${result.error ? `: ${result.error}` : ''}. On a phone, save the file from the share sheet instead.`,
     );
   }
 
-  ngOnInit(): void { this.loadData(); }
+  ngOnInit(): void {
+    this.loadData();
+  }
   ngOnDestroy(): void {
     // Bump the token so an in-flight page walk cannot resolve into a destroyed
     // view. The walk has no subscription to cancel -- it is a plain async loop --
@@ -637,7 +715,11 @@ export class AnalyticsPage implements OnInit, OnDestroy {
   /** Inclusive lower bound for a rolling range, as a Date. */
   private rangeStart(range: 'today' | '7d' | '30d'): Date {
     const ms =
-      range === 'today' ? 24 * 3600 * 1000 : range === '7d' ? 7 * 24 * 3600 * 1000 : 30 * 24 * 3600 * 1000;
+      range === 'today'
+        ? 24 * 3600 * 1000
+        : range === '7d'
+          ? 7 * 24 * 3600 * 1000
+          : 30 * 24 * 3600 * 1000;
     return new Date(Date.now() - ms);
   }
 

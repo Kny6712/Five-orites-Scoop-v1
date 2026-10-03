@@ -2,12 +2,7 @@
 // Five-orites Scoop — Angular Application Configuration
 
 import { ApplicationConfig, inject, Injectable } from '@angular/core';
-import {
-  provideRouter,
-  withPreloading,
-  PreloadingStrategy,
-  Route,
-} from '@angular/router';
+import { provideRouter, withPreloading, PreloadingStrategy, Route } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideIonicAngular } from '@ionic/angular/standalone';
 import { getApp, initializeApp, provideFirebaseApp } from '@angular/fire/app';
@@ -133,7 +128,7 @@ export const appConfig: ApplicationConfig = {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
-      })
+      }),
     ),
     provideAuth(() => getAuth()),
   ],

@@ -6,12 +6,24 @@ import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonList, IonItem, IonLabel, IonText,
-  IonSkeletonText, IonRefresher, IonRefresherContent,
-  IonNote, IonBadge, IonButton,
-  AlertController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonList,
+  IonItem,
+  IonLabel,
+  IonText,
+  IonSkeletonText,
+  IonRefresher,
+  IonRefresherContent,
+  IonNote,
+  IonBadge,
+  IonButton,
+  AlertController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
@@ -29,15 +41,32 @@ import { PesoPipe } from '../../shared/pipes/peso.pipe';
   selector: 'app-orders',
   standalone: true,
   imports: [
-    CommonModule, RouterLink,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonList, IonItem, IonLabel, IonText,
-    IonSkeletonText, IonRefresher, IonRefresherContent,
-    IonNote, IonBadge, IonButton,
-    OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
-    PaginationComponent, AppFooterComponent,
-    AppIconComponent, EmptyStateComponent],
+    CommonModule,
+    RouterLink,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonList,
+    IonItem,
+    IonLabel,
+    IonText,
+    IonSkeletonText,
+    IonRefresher,
+    IonRefresherContent,
+    IonNote,
+    IonBadge,
+    IonButton,
+    OrderStatusBadgeComponent,
+    PesoPipe,
+    CartButtonComponent,
+    PaginationComponent,
+    AppFooterComponent,
+    AppIconComponent,
+    EmptyStateComponent,
+  ],
   templateUrl: './orders.page.html',
   styleUrls: ['./orders.page.scss'],
 })
@@ -54,7 +83,6 @@ export class OrdersPage implements OnInit, OnDestroy {
   errorMessage = signal('');
   cancellingId = signal<string | null>(null);
   skeletonItems = Array(5).fill(0);
-
 
   ngOnInit(): void {
     this.loadOrders();
@@ -77,10 +105,12 @@ export class OrdersPage implements OnInit, OnDestroy {
 
     this.sub = this.orderService
       .getCustomerOrders(uid)
-      .pipe(catchError(() => {
-        this.errorMessage.set('Failed to load orders. Pull to refresh.');
-        return of([]);
-      }))
+      .pipe(
+        catchError(() => {
+          this.errorMessage.set('Failed to load orders. Pull to refresh.');
+          return of([]);
+        }),
+      )
       .subscribe((orders) => {
         this.orders.set(orders);
         this.page.set(1);
@@ -146,20 +176,25 @@ export class OrdersPage implements OnInit, OnDestroy {
               await this.orderService.cancelOrder(order.id, data?.reason);
               const toast = await this.toastCtrl.create({
                 message: 'Order cancelled. Stock restored.',
-                color: 'warning', duration: 2500, position: 'top',
+                color: 'warning',
+                duration: 2500,
+                position: 'top',
               });
               await toast.present();
             } catch (err) {
               const toast = await this.toastCtrl.create({
                 message: err instanceof Error ? err.message : 'Failed to cancel order.',
-                color: 'danger', duration: 3000, position: 'top',
+                color: 'danger',
+                duration: 3000,
+                position: 'top',
               });
               await toast.present();
             } finally {
               this.cancellingId.set(null);
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }
@@ -169,8 +204,11 @@ export class OrdersPage implements OnInit, OnDestroy {
       const ts = timestamp as { toDate(): Date };
       const date = ts?.toDate ? ts.toDate() : new Date(timestamp as string);
       return date.toLocaleDateString('en-PH', {
-        month: 'short', day: 'numeric', year: 'numeric',
-        hour: '2-digit', minute: '2-digit',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
       });
     } catch {
       return '—';

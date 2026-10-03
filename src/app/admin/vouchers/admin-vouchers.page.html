@@ -25,7 +25,6 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   @if (errorMessage()) {
     <app-alert-banner tone="danger" [message]="errorMessage()" actionLabel="Try again" (action)="load()" />
   }
@@ -41,7 +40,11 @@
       <header class="editor-head">
         <h2 class="editor-title">{{ originalId() ? 'Edit voucher' : 'New voucher' }}</h2>
         <p class="editor-sub">
-          {{ originalId() ? 'Changing the code creates a new voucher and removes the old one.' : 'Codes are case-insensitive for customers and stored uppercase.' }}
+          {{
+            originalId()
+              ? 'Changing the code creates a new voucher and removes the old one.'
+              : 'Codes are case-insensitive for customers and stored uppercase.'
+          }}
         </p>
       </header>
 
@@ -131,23 +134,13 @@
       <div class="field-pair">
         <label class="field">
           <span class="field-label">Starts on</span>
-          <input
-            type="date"
-            class="date-input"
-            [(ngModel)]="startsAtDate"
-            aria-label="Start date"
-          />
+          <input type="date" class="date-input" [(ngModel)]="startsAtDate" aria-label="Start date" />
           <span class="field-hint">Blank starts immediately.</span>
         </label>
 
         <label class="field">
           <span class="field-label">Expires on</span>
-          <input
-            type="date"
-            class="date-input"
-            [(ngModel)]="expiresAtDate"
-            aria-label="Expiry date"
-          />
+          <input type="date" class="date-input" [(ngModel)]="expiresAtDate" aria-label="Expiry date" />
           <span class="field-hint">Blank never expires.</span>
         </label>
       </div>
@@ -158,9 +151,7 @@
         measurement that was never taken.
       -->
       @if (originalId() && usageOf() !== null) {
-        <p class="field-hint">
-          This code has been used {{ usageOf() }} time{{ usageOf() === 1 ? '' : 's' }}.
-        </p>
+        <p class="field-hint">This code has been used {{ usageOf() }} time{{ usageOf() === 1 ? '' : 's' }}.</p>
       }
 
       <!--
@@ -176,13 +167,12 @@
           <span class="example-badge"><app-icon name="percent" /></span>
           @if (ex.belowMinimum) {
             <p class="example-text">
-              A ₱{{ ex.basket }} order is below the ₱{{ ex.minOrder }} minimum, so this
-              voucher takes nothing off it. The first saving starts at ₱{{ ex.minOrder }}.
+              A ₱{{ ex.basket }} order is below the ₱{{ ex.minOrder }} minimum, so this voucher takes nothing off it.
+              The first saving starts at ₱{{ ex.minOrder }}.
             </p>
           } @else {
             <p class="example-text">
-              A ₱{{ ex.basket }} order pays
-              <strong>₱{{ ex.total }}</strong> &mdash; ₱{{ ex.saved }} off.
+              A ₱{{ ex.basket }} order pays <strong>₱{{ ex.total }}</strong> &mdash; ₱{{ ex.saved }} off.
             </p>
           }
         </div>
@@ -198,12 +188,7 @@
 
       <div class="editor-actions">
         <ion-button fill="clear" color="medium" (click)="cancelEdit()">Cancel</ion-button>
-        <ion-button
-          expand="block"
-          [disabled]="busyCode() !== null"
-          (click)="save()"
-          class="save-btn"
-        >
+        <ion-button expand="block" [disabled]="busyCode() !== null" (click)="save()" class="save-btn">
           <app-icon name="save" slot="start" />
           {{ busyCode() ? 'Saving…' : originalId() ? 'Save changes' : 'Create voucher' }}
         </ion-button>
@@ -264,8 +249,8 @@
     <div class="list">
       @for (s of [1, 2, 3, 4]; track s) {
         <div class="ticket ticket--skeleton">
-          <ion-skeleton-text animated style="width:40%; height:18px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:65%; height:12px; margin-top:8px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 40%; height: 18px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 65%; height: 12px; margin-top: 8px"></ion-skeleton-text>
         </div>
       }
     </div>
@@ -318,7 +303,7 @@
                 had already honoured it past that.
               -->
               @if (statsFor(voucher).state === 'scheduled') {
-                <span class="v-chip v-chip--warn">Starts {{ voucher.startsAt | date:'shortDate' }}</span>
+                <span class="v-chip v-chip--warn">Starts {{ voucher.startsAt | date: 'shortDate' }}</span>
               }
               @if (statsFor(voucher).state === 'expired') {
                 <span class="v-chip v-chip--off">Expired</span>
@@ -327,9 +312,7 @@
                 <span class="v-chip v-chip--warn">Limit reached</span>
               }
               @if (voucher.maxRedemptions !== undefined && voucher.maxRedemptions !== null) {
-                <span class="v-chip">
-                  {{ voucher.usageCount ?? 0 }} / {{ voucher.maxRedemptions }} used
-                </span>
+                <span class="v-chip"> {{ voucher.usageCount ?? 0 }} / {{ voucher.maxRedemptions }} used </span>
               }
 
               <!--
@@ -341,8 +324,10 @@
                 <span class="v-chip v-chip--muted">Usage not tracked</span>
               } @else if (statsFor(voucher).orders > 0) {
                 <span class="v-chip v-chip--good">
-                  {{ statsFor(voucher).orders }} order{{ statsFor(voucher).orders === 1 ? '' : 's' }}
-                  &middot; ₱{{ statsFor(voucher).discountGiven }} off
+                  {{ statsFor(voucher).orders }} order{{ statsFor(voucher).orders === 1 ? '' : 's' }} &middot; ₱{{
+                    statsFor(voucher).discountGiven
+                  }}
+                  off
                 </span>
               }
             </div>
@@ -391,7 +376,6 @@
       (pageChange)="onPageChange($event)"
     />
   }
-
 </ion-content>
 
 <app-footer></app-footer>

@@ -24,9 +24,7 @@
 // defaults", not "show an error".
 
 import { Injectable, inject, signal, computed } from '@angular/core';
-import {
-  Firestore, doc, getDoc, setDoc, onSnapshot,
-} from '@angular/fire/firestore';
+import { Firestore, doc, getDoc, setDoc, onSnapshot } from '@angular/fire/firestore';
 import { environment } from '../../../environments/environment';
 
 export interface ShopSettings {
@@ -112,7 +110,7 @@ export class ShopSettingsService {
         },
         // A missing document is the normal case, not an error: swallow it and
         // let the defaults stand.
-        () => this.stored.set(null)
+        () => this.stored.set(null),
       );
     } catch {
       this.stored.set(null);

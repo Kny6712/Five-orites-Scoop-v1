@@ -62,7 +62,7 @@ export class OrderNotificationService {
           console.error('Order notifications: could not watch orders', err);
           return of<Order[]>([]);
         }),
-        takeUntilDestroyed(this.destroyRef)
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((orders) => this.report(orders));
   }

@@ -2,14 +2,7 @@
 // Five-orites Scoop — Voucher lookup
 
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  collection,
-  query,
-  where,
-  limit,
-  getDocs,
-} from '@angular/fire/firestore';
+import { Firestore, collection, query, where, limit, getDocs } from '@angular/fire/firestore';
 import { Voucher, calculateDiscount, voucherUsability } from '../models/voucher.model';
 
 @Injectable({ providedIn: 'root' })
@@ -45,11 +38,14 @@ export class VoucherService {
     }
 
     return snap.docs
-      .map((d) => ({ id: d.id, ...d.data() } as Voucher))
+      .map((d) => ({ id: d.id, ...d.data() }) as Voucher)
       .sort((a, b) => a.code.localeCompare(b.code));
   }
 
-  async validateVoucher(code: string, subtotal: number): Promise<{ voucher: Voucher; discount: number }> {
+  async validateVoucher(
+    code: string,
+    subtotal: number,
+  ): Promise<{ voucher: Voucher; discount: number }> {
     const normalized = code.trim().toUpperCase();
     if (!normalized) throw new Error('Enter a voucher code.');
 
@@ -76,7 +72,8 @@ export class VoucherService {
     // off. The message says so rather than guessing, and it had a stray period
     // mid-sentence ("not found. or is no longer active.") that made the two cases
     // look like one badly punctuated sentence.
-    if (snap.empty) throw new Error(`Voucher "${normalized}" was not found, or is no longer active.`);
+    if (snap.empty)
+      throw new Error(`Voucher "${normalized}" was not found, or is no longer active.`);
 
     const voucher = { id: snap.docs[0].id, ...snap.docs[0].data() } as Voucher;
 
@@ -108,7 +105,8 @@ export class VoucherService {
     // calculateDiscount returns 0 for two reasons — inactive, or below minOrder.
     // The `inactive` case is already excluded by the query and the switch above,
     // so below-minimum is the only one left, and this message is accurate.
-    if (discount <= 0) throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
+    if (discount <= 0)
+      throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
     return { voucher, discount };
   }
 }

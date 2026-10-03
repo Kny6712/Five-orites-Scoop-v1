@@ -1,8 +1,13 @@
 // src/app/features/products/product-detail/product-detail.page.scss
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
-.hero-skeleton { display: block; height: 260px; }
+.hero-skeleton {
+  display: block;
+  height: 260px;
+}
 
 .hero-wrap {
   position: relative;
@@ -107,9 +112,15 @@
 .tile-stock {
   font-size: 11px;
   font-weight: 500;
-  &.stock-in-stock { color: var(--color-success); }
-  &.stock-low-stock { color: var(--color-warning); }
-  &.stock-out-of-stock { color: var(--color-danger); }
+  &.stock-in-stock {
+    color: var(--color-success);
+  }
+  &.stock-low-stock {
+    color: var(--color-warning);
+  }
+  &.stock-out-of-stock {
+    color: var(--color-danger);
+  }
 }
 
 // ── Quantity Row ─────────────────────────────────────────
@@ -126,7 +137,6 @@
   color: var(--ion-color-dark);
 }
 
-
 /* One Lucide heart serves both states: .wished fills it with currentColor and
    switches the colour, replacing the ionicons heart / heart-outline pair that
    used to be swapped in via a template ternary. */
@@ -140,8 +150,6 @@
 .wishlist-icon.wished svg {
   fill: currentColor;
 }
-
-
 
 .line-total {
   margin-left: auto;

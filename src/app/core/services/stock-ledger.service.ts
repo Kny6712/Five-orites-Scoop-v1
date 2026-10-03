@@ -28,7 +28,13 @@
 
 import { Injectable, inject } from '@angular/core';
 import {
-  Firestore, collection, getDocs, query, where, orderBy, limit,
+  Firestore,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  limit,
 } from '@angular/fire/firestore';
 
 /**
@@ -40,11 +46,7 @@ import {
  * ledger can tell a real sale apart from a staff member's manual restock — the
  * two used to be indistinguishable, which is the whole reason the ledger exists.
  */
-export type StockReason =
-  | 'manual_adjust'
-  | 'admin_restock'
-  | 'sale'
-  | 'cancel_restock';
+export type StockReason = 'manual_adjust' | 'admin_restock' | 'sale' | 'cancel_restock';
 
 export const STOCK_REASON_LABELS: Record<StockReason, string> = {
   manual_adjust: 'Adjusted in inventory',
@@ -102,7 +104,7 @@ export class StockLedgerService {
     const q = query(
       collection(this.firestore, 'stockMovements'),
       orderBy('createdAt', 'desc'),
-      limit(limitRows)
+      limit(limitRows),
     );
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as StockMovement[];
@@ -116,7 +118,7 @@ export class StockLedgerService {
       collection(this.firestore, 'stockMovements'),
       where('productId', '==', productId),
       orderBy('createdAt', 'desc'),
-      limit(limitRows)
+      limit(limitRows),
     );
     const snap = await getDocs(q);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as StockMovement[];
@@ -136,9 +138,14 @@ export class StockLedgerService {
    * rather than assumed, so a truncated history does not report every product as
    * drifted.
    */
-  async findUnloggedChanges(products: {
-    id: string; variantName: string; pricing?: unknown; stock?: Record<string, number>;
-  }[]): Promise<UnloggedChange[]> {
+  async findUnloggedChanges(
+    products: {
+      id: string;
+      variantName: string;
+      pricing?: unknown;
+      stock?: Record<string, number>;
+    }[],
+  ): Promise<UnloggedChange[]> {
     const sizes = ['cup', 'pint', 'halfGallon', 'gallon'] as const;
     const out: UnloggedChange[] = [];
 

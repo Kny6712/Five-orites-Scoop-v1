@@ -64,7 +64,7 @@ export class VoucherCardsComponent implements OnInit {
     } catch (err) {
       console.error('Could not load vouchers', err);
       this.errorMessage.set(
-        err instanceof Error ? err.message : 'Could not load the latest promos.'
+        err instanceof Error ? err.message : 'Could not load the latest promos.',
       );
     } finally {
       this.isLoading.set(false);

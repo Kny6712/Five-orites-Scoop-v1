@@ -16,19 +16,13 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
   <!-- Status Filter Tabs -->
   <div class="filter-scroll">
-    <ion-segment
-      [value]="selectedFilter()"
-      (ionChange)="onFilterChange($event)"
-      scrollable
-      class="status-segment"
-    >
+    <ion-segment [value]="selectedFilter()" (ionChange)="onFilterChange($event)" scrollable class="status-segment">
       @for (opt of filterOptions; track opt.value) {
         <ion-segment-button [value]="opt.value">
           <ion-label>{{ opt.label }}</ion-label>
@@ -59,11 +53,11 @@
     <div class="table-wrap">
       @for (s of skeletonItems; track $index) {
         <div class="skeleton-row">
-          <ion-skeleton-text animated style="width:34%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:22%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:10%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:12%; height:14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width:16%; height:14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 34%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 22%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 10%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 12%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 16%; height: 14px"></ion-skeleton-text>
         </div>
       }
     </div>
@@ -74,7 +68,11 @@
     <app-alert-banner
       tone="warning"
       title="Queue truncated"
-      [message]="'Showing the ' + allOrders().length + ' most recent orders. Older orders exist and are not listed here — check Analytics for totals, or clear finished orders from Firestore to free up the queue.'"
+      [message]="
+        'Showing the ' +
+        allOrders().length +
+        ' most recent orders. Older orders exist and are not listed here — check Analytics for totals, or clear finished orders from Firestore to free up the queue.'
+      "
     />
   }
 
@@ -85,11 +83,7 @@
 
   <!-- Empty -->
   @if (!isLoading() && !loadError() && filteredOrders().length === 0) {
-    <app-empty-state
-      icon="receipt"
-      title="No orders"
-      message="No orders matching this filter."
-    />
+    <app-empty-state icon="receipt" title="No orders" message="No orders matching this filter." />
   }
 
   <!-- Orders -->
@@ -115,12 +109,8 @@
       <div class="bulk-bar" role="group" aria-label="Bulk actions">
         <span class="bulk-count">{{ selectedCount() }} selected</span>
         <div class="bulk-actions">
-          <ion-button size="small" fill="outline" (click)="bulkAdvance('confirmed')">
-            Confirm
-          </ion-button>
-          <ion-button size="small" fill="outline" (click)="bulkAdvance('preparing')">
-            Preparing
-          </ion-button>
+          <ion-button size="small" fill="outline" (click)="bulkAdvance('confirmed')"> Confirm </ion-button>
+          <ion-button size="small" fill="outline" (click)="bulkAdvance('preparing')"> Preparing </ion-button>
           <ion-button size="small" fill="clear" (click)="clearSelection()">Clear</ion-button>
         </div>
       </div>
@@ -129,7 +119,11 @@
     <div class="table-wrap">
       <table class="orders-table">
         <caption class="visually-hidden">
-          Orders awaiting fulfilment, {{ filteredOrders().length }} total
+          Orders awaiting fulfilment,
+          {{
+            filteredOrders().length
+          }}
+          total
         </caption>
         <thead>
           <tr>
@@ -139,7 +133,9 @@
                 class="pick-all"
                 (click)="selectAllOnPage()"
                 aria-label="Select every order on this page"
-              >All</button>
+              >
+                All
+              </button>
             </th>
             <th scope="col" class="col-order">Order</th>
             <th scope="col" class="col-customer">Customer</th>
@@ -179,14 +175,16 @@
                   type="button"
                   class="order-disclosure"
                   [attr.aria-expanded]="expandedId() === order.id"
-                  [attr.aria-label]="'Order #' + order.id.slice(-6).toUpperCase() + '. ' + (expandedId() === order.id ? 'Hide' : 'Show') + ' details'"
+                  [attr.aria-label]="
+                    'Order #' +
+                    order.id.slice(-6).toUpperCase() +
+                    '. ' +
+                    (expandedId() === order.id ? 'Hide' : 'Show') +
+                    ' details'
+                  "
                   (click)="toggleExpand(order.id)"
                 >
-                  <app-icon
-                    name="chevron-right"
-                    class="order-chevron"
-                    [class.is-open]="expandedId() === order.id"
-                  />
+                  <app-icon name="chevron-right" class="order-chevron" [class.is-open]="expandedId() === order.id" />
                   <span class="order-id-label">#{{ order.id.slice(-6).toUpperCase() }}</span>
                 </button>
                 <span class="order-date">{{ formatDate(order.createdAt) }}</span>
@@ -215,7 +213,9 @@
                     class="row-advance"
                     (click)="advanceStatus(order)"
                     [disabled]="updatingId() === order.id"
-                    [attr.aria-label]="'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + getNextStatusLabel(order.status)"
+                    [attr.aria-label]="
+                      'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + getNextStatusLabel(order.status)
+                    "
                   >
                     {{ updatingId() === order.id ? 'Updating...' : getNextStatusLabel(order.status) }}
                   </ion-button>
@@ -247,70 +247,70 @@
               <tr class="detail-row">
                 <td [attr.colspan]="7">
                   <div class="order-detail-panel">
+                    <!-- Items -->
+                    <p class="detail-section-label">Items</p>
+                    @for (item of order.items; track item.productId + item.size) {
+                      <div class="detail-item-row">
+                        <span class="detail-item-name">{{ item.variantName }} ({{ sizeLabels[item.size] }})</span>
+                        <span class="detail-item-qty">×{{ item.quantity }}</span>
+                        <span class="detail-item-price">{{ item.subtotal | peso }}</span>
+                      </div>
+                    }
 
-              <!-- Items -->
-              <p class="detail-section-label">Items</p>
-              @for (item of order.items; track item.productId + item.size) {
-                <div class="detail-item-row">
-                  <span class="detail-item-name">{{ item.variantName }} ({{ sizeLabels[item.size] }})</span>
-                  <span class="detail-item-qty">×{{ item.quantity }}</span>
-                  <span class="detail-item-price">{{ item.subtotal | peso }}</span>
-                </div>
-              }
+                    <!-- Address -->
+                    <div class="detail-address">
+                      <p class="detail-section-label">Delivery Address</p>
+                      <p class="detail-address-value">{{ order.deliveryAddress }}</p>
+                      @if (order.notes) {
+                        <p class="detail-notes">Note: {{ order.notes }}</p>
+                      }
+                    </div>
 
-              <!-- Address -->
-              <div class="detail-address">
-                <p class="detail-section-label">Delivery Address</p>
-                <p class="detail-address-value">{{ order.deliveryAddress }}</p>
-                @if (order.notes) {
-                  <p class="detail-notes">Note: {{ order.notes }}</p>
-                }
-              </div>
+                    <!-- Totals -->
+                    <div class="detail-totals">
+                      <div class="detail-total-row">
+                        <span>Subtotal</span>
+                        <span>{{ order.totalAmount | peso }}</span>
+                      </div>
+                      <div class="detail-total-row">
+                        <span>Delivery</span>
+                        <span>{{ order.deliveryFee | peso }}</span>
+                      </div>
+                      <div class="detail-total-row grand">
+                        <span>Total</span>
+                        <span>{{ order.grandTotal | peso }}</span>
+                      </div>
+                    </div>
 
-              <!-- Totals -->
-              <div class="detail-totals">
-                <div class="detail-total-row">
-                  <span>Subtotal</span>
-                  <span>{{ order.totalAmount | peso }}</span>
-                </div>
-                <div class="detail-total-row">
-                  <span>Delivery</span>
-                  <span>{{ order.deliveryFee | peso }}</span>
-                </div>
-                <div class="detail-total-row grand">
-                  <span>Total</span>
-                  <span>{{ order.grandTotal | peso }}</span>
-                </div>
-              </div>
-
-              <!-- Action Buttons -->
-              <div class="detail-actions">
-                @if (nextStatus[order.status]) {
-                  <ion-button
-                    expand="block"
-                    class="advance-btn"
-                    (click)="advanceStatus(order)"
-                    [disabled]="updatingId() === order.id"
-                  >
-                    <app-icon name="arrow-right" slot="start" />
-                    {{ updatingId() === order.id ? 'Updating...' : 'Mark as ' + getNextStatusLabel(order.status) }}
-                  </ion-button>
-                }
-                @if (canCancel(order)) {
-                  <ion-button
-                    expand="block"
-                    fill="outline"
-                    color="danger"
-                    class="cancel-btn"
-                    (click)="cancelOrder(order)"
-                    [disabled]="updatingId() === order.id"
-                  >
-                    <app-icon name="x" slot="start" />
-                    Cancel Order
-                  </ion-button>
-                }
-              </div>
-
+                    <!-- Action Buttons -->
+                    <div class="detail-actions">
+                      @if (nextStatus[order.status]) {
+                        <ion-button
+                          expand="block"
+                          class="advance-btn"
+                          (click)="advanceStatus(order)"
+                          [disabled]="updatingId() === order.id"
+                        >
+                          <app-icon name="arrow-right" slot="start" />
+                          {{
+                            updatingId() === order.id ? 'Updating...' : 'Mark as ' + getNextStatusLabel(order.status)
+                          }}
+                        </ion-button>
+                      }
+                      @if (canCancel(order)) {
+                        <ion-button
+                          expand="block"
+                          fill="outline"
+                          color="danger"
+                          class="cancel-btn"
+                          (click)="cancelOrder(order)"
+                          [disabled]="updatingId() === order.id"
+                        >
+                          <app-icon name="x" slot="start" />
+                          Cancel Order
+                        </ion-button>
+                      }
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -328,7 +328,6 @@
       (pageChange)="onPageChange($event)"
     />
   }
-
 </ion-content>
 
 <app-footer></app-footer>

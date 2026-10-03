@@ -48,8 +48,7 @@ import { Platform } from '@ionic/angular/standalone';
 
 /** Outcome of one export, so callers can tell success from a silent no-op. */
 export type CsvExportResult =
-  | { ok: true; via: 'download' | 'share' }
-  | { ok: false; via: 'download' | 'share'; error: string };
+  { ok: true; via: 'download' | 'share' } | { ok: false; via: 'download' | 'share'; error: string };
 
 @Injectable({ providedIn: 'root' })
 export class CsvExportService {
@@ -130,7 +129,9 @@ export class CsvExportService {
         // in the cache is how a long-running admin session fills the device.
         // Best-effort: a failed cleanup is not worth failing the export over,
         // since the admin already has their file.
-        await Filesystem.deleteFile({ path: filename, directory: Directory.Cache }).catch(() => undefined);
+        await Filesystem.deleteFile({ path: filename, directory: Directory.Cache }).catch(
+          () => undefined,
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

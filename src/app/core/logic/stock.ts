@@ -18,13 +18,13 @@ export function assertCanAddToCart(
   label: string,
   existingQty: number,
   addQty: number,
-  available: number
+  available: number,
 ): void {
   if (addQty <= 0) throw new Error('Quantity must be at least 1.');
   if (available <= 0) throw new Error(`${label} is out of stock.`);
   if (existingQty + addQty > available) {
     throw new Error(
-      `Only ${available} x ${label} available. You already have ${existingQty} in cart.`
+      `Only ${available} x ${label} available. You already have ${existingQty} in cart.`,
     );
   }
 }
@@ -59,9 +59,9 @@ export const SIZE_VARIANTS = ['cup', 'pint', 'halfGallon', 'gallon'] as const;
  *    document once, so two separate lines for the same size were charged
  *    twice while only one decrement was applied.
  */
-export function normaliseStockLines<T extends { productId: string; size: string; quantity: number }>(
-  lines: readonly T[]
-): T[] {
+export function normaliseStockLines<
+  T extends { productId: string; size: string; quantity: number },
+>(lines: readonly T[]): T[] {
   const merged = new Map<string, T>();
   for (const line of lines) {
     const quantity = line.quantity;

@@ -1,6 +1,8 @@
 // src/app/features/dashboard/dashboard.page.scss
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 // ── Customer Welcome ─────────────────────────────────────
 .welcome-banner {
@@ -13,11 +15,33 @@
   gap: 12px;
   color: var(--color-ink);
 }
-.welcome-text { flex: 1; }
-.welcome-title { font-size: 22px; font-weight: 800; margin: 0 0 4px; letter-spacing: -0.3px; }
-.welcome-sub { font-size: 14px; margin: 0; opacity: 0.85; }
-.welcome-image-wrap { width: 72px; height: 72px; flex-shrink: 0; border-radius: 14px; overflow: hidden; background: rgba(255,255,255,0.15); }
-.welcome-image { width: 100%; height: 100%; object-fit: cover; }
+.welcome-text {
+  flex: 1;
+}
+.welcome-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  letter-spacing: -0.3px;
+}
+.welcome-sub {
+  font-size: 14px;
+  margin: 0;
+  opacity: 0.85;
+}
+.welcome-image-wrap {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.15);
+}
+.welcome-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
 // ── Promo Banner ─────────────────────────────────────────
 /* Notification control. Was a div with role="button" and a click handler that
@@ -60,7 +84,9 @@
   font-weight: 600;
   cursor: pointer;
   border: 1.5px dashed var(--color-primary-ink);
-  app-icon { font-size: 20px; }
+  app-icon {
+    font-size: 20px;
+  }
 }
 
 /* The admin-written announcement. Same tinted card language as the notification
@@ -76,10 +102,19 @@
   padding: 12px 16px;
   border-radius: 12px;
   border: 1.5px solid var(--color-brand-accent);
-  app-icon { font-size: 20px; color: var(--color-sunny-ink); flex: 0 0 auto; }
+  app-icon {
+    font-size: 20px;
+    color: var(--color-sunny-ink);
+    flex: 0 0 auto;
+  }
 }
-.announce-banner .promo-title { color: var(--color-sunny-ink); }
-.announce-banner .promo-sub { color: var(--color-ink-soft); font-weight: 500; }
+.announce-banner .promo-title {
+  color: var(--color-sunny-ink);
+}
+.announce-banner .promo-sub {
+  color: var(--color-ink-soft);
+  font-weight: 500;
+}
 
 // ── Section Headers ──────────────────────────────────────
 .section-header {
@@ -88,12 +123,28 @@
   justify-content: space-between;
   padding: 16px 16px 4px;
 }
-.section-title { font-size: 18px; font-weight: 700; margin: 0; color: var(--ion-color-dark); }
-.alert-title { color: var(--color-warning); }
-.see-all-btn { --color: var(--color-brand-primary); font-weight: 600; font-size: 13px; }
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ion-color-dark);
+}
+.alert-title {
+  color: var(--color-warning);
+}
+.see-all-btn {
+  --color: var(--color-brand-primary);
+  font-weight: 600;
+  font-size: 13px;
+}
 
 // ── Recent Orders (Customer) ──────────────────────────────
-.recent-orders { padding: 4px 12px 24px; display: flex; flex-direction: column; gap: 8px; }
+.recent-orders {
+  padding: 4px 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .recent-order-card {
   display: flex;
   align-items: center;
@@ -105,14 +156,37 @@
   cursor: pointer;
   gap: 8px;
 }
-.recent-order-info { display: flex; flex-direction: column; gap: 2px; }
-.recent-order-id { font-size: 14px; font-weight: 700; font-family: monospace; color: var(--ion-color-dark); }
-.recent-order-date { font-size: 12px; color: var(--ion-color-medium); }
+.recent-order-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.recent-order-id {
+  font-size: 14px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--ion-color-dark);
+}
+.recent-order-date {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
 
 // ── Admin Welcome ─────────────────────────────────────────
-.admin-welcome { padding: 16px 16px 0; }
-.admin-title { font-size: 24px; font-weight: 800; margin: 0 0 4px; color: var(--ion-color-dark); }
-.admin-sub { font-size: 14px; color: var(--ion-color-medium); margin: 0; }
+.admin-welcome {
+  padding: 16px 16px 0;
+}
+.admin-title {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  color: var(--ion-color-dark);
+}
+.admin-sub {
+  font-size: 14px;
+  color: var(--ion-color-medium);
+  margin: 0;
+}
 
 // ── KPI Cards ─────────────────────────────────────────────
 /* Centred throughout. The icon used to be a bare glyph pinned to the top-left of
@@ -136,12 +210,28 @@
    white text. Each pair is an existing `--tone-*` triple whose ink is already
    contrast-verified: 6.35:1, 6.29:1, 7.42:1 and 8.61:1. The ink is carried on
    each tile because each pastel needs its own. */
-.kpi-revenue { background: var(--tone-success-bg); --kpi-ink: var(--tone-success-ink); }
-.kpi-pending { background: var(--tone-warning-bg); --kpi-ink: var(--tone-warning-ink); }
-.kpi-lowstock { background: var(--tone-danger-bg); --kpi-ink: var(--tone-danger-ink); }
-.kpi-total { background: var(--tone-info-bg); --kpi-ink: var(--tone-info-ink); }
+.kpi-revenue {
+  background: var(--tone-success-bg);
+  --kpi-ink: var(--tone-success-ink);
+}
+.kpi-pending {
+  background: var(--tone-warning-bg);
+  --kpi-ink: var(--tone-warning-ink);
+}
+.kpi-lowstock {
+  background: var(--tone-danger-bg);
+  --kpi-ink: var(--tone-danger-ink);
+}
+.kpi-total {
+  background: var(--tone-info-bg);
+  --kpi-ink: var(--tone-info-ink);
+}
 
-.kpi-skeleton { border-radius: var(--radius-md); overflow: hidden; margin: 0; }
+.kpi-skeleton {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 0;
+}
 
 /* A translucent disc behind the glyph. Without it the icon floats on the
    gradient with nothing to align it, which is why it read as an afterthought
@@ -162,7 +252,10 @@
   margin-bottom: 2px;
 }
 
-.kpi-icon { --icon-size: 20px; color: var(--kpi-ink); }
+.kpi-icon {
+  --icon-size: 20px;
+  color: var(--kpi-ink);
+}
 .kpi-label {
   font-size: 11px;
   color: var(--kpi-ink);
@@ -213,7 +306,9 @@
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-card);
   text-decoration: none;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .action-tile:hover {
@@ -231,7 +326,10 @@
   background: var(--tile-powder);
 }
 
-.action-icon app-icon { --icon-size: 17px; color: var(--color-primary-ink); }
+.action-icon app-icon {
+  --icon-size: 17px;
+  color: var(--color-primary-ink);
+}
 
 .action-label {
   font-size: 11px;
@@ -271,9 +369,14 @@
   background: rgb(255 255 255 / 0.7);
 }
 
-.low-stock-badge app-icon { --icon-size: 17px; color: var(--tone-warning-ink); }
+.low-stock-badge app-icon {
+  --icon-size: 17px;
+  color: var(--tone-warning-ink);
+}
 
-.low-stock-head-text { min-width: 0; }
+.low-stock-head-text {
+  min-width: 0;
+}
 
 .low-stock-title {
   margin: 0;
@@ -309,7 +412,12 @@
   gap: var(--space-2);
 }
 
-.low-stock-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.low-stock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
 .low-stock-name {
   font-size: 13px;
   font-weight: 700;
@@ -327,8 +435,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.low-stock-levels { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-.stock-chip-sm { font-size: 11px; height: 22px; margin: 0; }
+.low-stock-levels {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.stock-chip-sm {
+  font-size: 11px;
+  height: 22px;
+  margin: 0;
+}
 
 .low-stock-cta {
   display: flex;
@@ -342,7 +459,9 @@
   font-weight: 700;
   text-decoration: none;
 }
-.low-stock-cta app-icon { --icon-size: 14px; }
+.low-stock-cta app-icon {
+  --icon-size: 14px;
+}
 
 // ── Admin Orders List ─────────────────────────────────────
 .admin-orders-list {
@@ -362,7 +481,12 @@
   cursor: pointer;
   gap: 8px;
 }
-.admin-order-left { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.admin-order-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 .admin-order-id {
   font-size: 13px;
   font-weight: 700;
@@ -376,7 +500,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.admin-order-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: 0 0 auto; }
+.admin-order-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex: 0 0 auto;
+}
 .admin-order-total {
   font-size: 14px;
   font-weight: 700;
@@ -384,4 +514,8 @@
   font-variant-numeric: tabular-nums;
 }
 
-.skeleton-card { border-radius: var(--radius-md); overflow: hidden; margin: 0; }
+.skeleton-card {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin: 0;
+}

@@ -1,7 +1,9 @@
 // src/app/admin/settings/admin-settings.page.scss
 // Five-orites Scoop — Admin shop settings
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 .settings-body {
   padding: 16px 16px 8px;
@@ -29,7 +31,11 @@
   font-weight: 700;
   color: var(--color-ink);
 }
-.panel-icon { --icon-size: 18px; color: var(--color-primary-ink); flex: 0 0 auto; }
+.panel-icon {
+  --icon-size: 18px;
+  color: var(--color-primary-ink);
+  flex: 0 0 auto;
+}
 
 .panel-note {
   margin: 0 0 12px;
@@ -45,12 +51,27 @@
   gap: 10px;
   margin-bottom: 12px;
 }
-.row-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.row-title { font-size: 14px; font-weight: 600; color: var(--color-ink); }
-.row-sub { font-size: 12px; color: var(--ion-color-medium); }
+.row-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.row-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.row-sub {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
 
 /* ── Drift table ────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; margin: 12px 0; }
+.table-wrap {
+  overflow-x: auto;
+  margin: 12px 0;
+}
 
 .drift-table {
   width: 100%;
@@ -80,8 +101,14 @@
   color: var(--color-ink);
 }
 
-.num { text-align: right; font-variant-numeric: tabular-nums; }
-.drift-num { font-weight: 700; color: var(--color-danger); }
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.drift-num {
+  font-weight: 700;
+  color: var(--color-danger);
+}
 
 /* ── Movement history ───────────────────────────────────────── */
 .movement-list {
@@ -98,7 +125,9 @@
   padding: 9px 0;
   border-bottom: 1px solid var(--ion-color-light);
 }
-.movement-row:last-child { border-bottom: none; }
+.movement-row:last-child {
+  border-bottom: none;
+}
 
 /* The signed delta is the thing an eye lands on first — a restock and a sale
    must not look alike. */
@@ -110,9 +139,16 @@
   font-variant-numeric: tabular-nums;
   color: var(--color-danger);
 }
-.movement-delta.is-plus { color: var(--color-success); }
+.movement-delta.is-plus {
+  color: var(--color-success);
+}
 
-.movement-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.movement-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
 .movement-flavor {
   font-size: 13px;
   font-weight: 600;
@@ -121,7 +157,10 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.movement-when { font-size: 11px; color: var(--ion-color-medium); }
+.movement-when {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
 
 .movement-balance {
   font-size: 12px;
@@ -177,12 +216,17 @@
   white-space: nowrap;
 }
 
-.sk-line { height: 14px; margin-bottom: 8px; }
+.sk-line {
+  height: 14px;
+  margin-bottom: 8px;
+}
 
 .visually-hidden {
   position: absolute;
-  width: 1px; height: 1px;
-  margin: -1px; padding: 0;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;

@@ -102,9 +102,7 @@ export class NotificationService {
     if (this.platform.is('capacitor')) {
       try {
         // Dynamic import to avoid SSR issues
-        const { PushNotifications } = await import(
-          '@capacitor/push-notifications'
-        );
+        const { PushNotifications } = await import('@capacitor/push-notifications');
         const result = await PushNotifications.requestPermissions();
         // Record the answer before branching, so a DENIAL is remembered too.
         // Without this the next render falls back to 'default' -> 'granted' and
@@ -136,7 +134,7 @@ export class NotificationService {
   async showToast(
     message: string,
     color: 'success' | 'warning' | 'danger' | 'primary' = 'primary',
-    duration = 3000
+    duration = 3000,
   ): Promise<void> {
     const toast = await this.toastCtrl.create({
       message,
@@ -158,12 +156,9 @@ export class NotificationService {
     await toast.present();
   }
 
-  async notifyOrderStatusChange(
-    orderId: string,
-    newStatus: OrderStatus
-  ): Promise<void> {
+  async notifyOrderStatusChange(orderId: string, newStatus: OrderStatus): Promise<void> {
     const statusMessages: Record<OrderStatus, string> = {
-      pending: '🍦 Order received! We\'re reviewing it now.',
+      pending: "🍦 Order received! We're reviewing it now.",
       confirmed: '✅ Your order has been confirmed!',
       preparing: '👨‍🍳 Our scoop artists are preparing your order!',
       out_for_delivery: '🛵 Your scoops are on the way!',
@@ -173,11 +168,11 @@ export class NotificationService {
 
     const message = statusMessages[newStatus];
     if (message) {
-      await this.showToast(
-        message,
-        newStatus === 'cancelled' ? 'danger' : 'success'
+      await this.showToast(message, newStatus === 'cancelled' ? 'danger' : 'success');
+      this.showBrowserNotification(
+        'Five-orites Scoop',
+        `${message} (#${orderId.slice(-6).toUpperCase()})`,
       );
-      this.showBrowserNotification('Five-orites Scoop', `${message} (#${orderId.slice(-6).toUpperCase()})`);
     }
   }
 

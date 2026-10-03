@@ -27,7 +27,15 @@
 // Waiting for the view to be visible means the container has real dimensions.
 
 import {
-  Component, ElementRef, OnDestroy, AfterViewInit, ViewChild, effect, input, output, signal,
+  Component,
+  ElementRef,
+  OnDestroy,
+  AfterViewInit,
+  ViewChild,
+  effect,
+  input,
+  output,
+  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonSpinner } from '@ionic/angular/standalone';
@@ -71,7 +79,10 @@ interface LeafletLike {
   tileLayer(url: string, opts: Record<string, unknown>): { addTo(map: unknown): unknown };
   marker(latlng: [number, number], opts?: Record<string, unknown>): LeafletMarker;
   latLngBounds(points: [number, number][]): LeafletBounds;
-  polyline(points: [number, number][], opts: Record<string, unknown>): {
+  polyline(
+    points: [number, number][],
+    opts: Record<string, unknown>,
+  ): {
     addTo(map: unknown): { remove(): void };
     remove(): void;
   };
@@ -117,12 +128,15 @@ interface LeafletLike {
       }
     </div>
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .map-shell {
-      position: relative;
-      /* A hard height is required: Leaflet reads the container's box, and an
+      .map-shell {
+        position: relative;
+        /* A hard height is required: Leaflet reads the container's box, and an
          auto-height parent collapses to 0 and renders nothing.
 
          The height input is applied as an inline style on the element in the
@@ -130,13 +144,13 @@ interface LeafletLike {
          cannot carry a binding. It was previously declared and never read: both
          call sites passed a height ("340px" on admin tracking, "240px" on the
          customer tracker) and both maps rendered at the 260px fallback instead. */
-      height: var(--map-height, 260px);
-      border-radius: var(--radius-md);
-      overflow: hidden;
-      background: var(--tile-powder);
-    }
+        height: var(--map-height, 260px);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--tile-powder);
+      }
 
-    /* The square variant, for the admin map. A delivery map next to a tall
+      /* The square variant, for the admin map. A delivery map next to a tall
        search panel needs to be square rather than a wide letterbox, or the two
        columns read as unrelated.
 
@@ -151,40 +165,46 @@ interface LeafletLike {
        query, and the cap stops it becoming a full-screen square on a large
        monitor. Leaflet still gets a resolved pixel box, because the height is
        computed from the width before paint rather than after layout. */
-    .map-shell.square {
-      width: min(100%, 58vh, 520px);
-      height: auto;
-      aspect-ratio: 1 / 1;
-      margin-inline: auto;
-    }
+      .map-shell.square {
+        width: min(100%, 58vh, 520px);
+        height: auto;
+        aspect-ratio: 1 / 1;
+        margin-inline: auto;
+      }
 
-    @media (min-width: 1024px) {
-      .map-shell.square { width: min(100%, 52vh, 560px); }
-    }
+      @media (min-width: 1024px) {
+        .map-shell.square {
+          width: min(100%, 52vh, 560px);
+        }
+      }
 
-    .map-canvas { position: absolute; inset: 0; }
+      .map-canvas {
+        position: absolute;
+        inset: 0;
+      }
 
-    .map-overlay {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: var(--space-2);
-      padding: var(--space-4);
-      text-align: center;
-      background: var(--tile-powder);
-      color: var(--color-ink-soft);
-      font-size: 13px;
-      font-weight: 600;
-    }
+      .map-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: var(--space-2);
+        padding: var(--space-4);
+        text-align: center;
+        background: var(--tile-powder);
+        color: var(--color-ink-soft);
+        font-size: 13px;
+        font-weight: 600;
+      }
 
-    .map-overlay.error app-icon {
-      --icon-size: 30px;
-      color: var(--color-sunny-ink);
-    }
-  `],
+      .map-overlay.error app-icon {
+        --icon-size: 30px;
+        color: var(--color-sunny-ink);
+      }
+    `,
+  ],
 })
 export class ScoopMapComponent implements AfterViewInit, OnDestroy {
   @ViewChild('mapEl') private mapEl?: ElementRef<HTMLElement>;
@@ -311,9 +331,10 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
         // blues — a powder-blue route on that background would disappear. The
         // ink at 7.12:1 on white stays visible over any of it. Read from the
         // computed token rather than hardcoded, so it follows a palette change.
-        color: getComputedStyle(document.documentElement)
-          .getPropertyValue('--color-primary-ink')
-          .trim() || '#1B5E7E',
+        color:
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--color-primary-ink')
+            .trim() || '#1B5E7E',
         weight: 4,
         opacity: 0.85,
         dashArray: '8 8',
@@ -335,7 +356,7 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
       if (marker.tappable) {
         m.bindPopup(
           `<strong>${escapeHtml(marker.label)}</strong>` +
-            (marker.detail ? `<br>${escapeHtml(marker.detail)}` : '')
+            (marker.detail ? `<br>${escapeHtml(marker.detail)}` : ''),
         );
         m.on('click', () => this.markerTapped.emit(marker));
       }

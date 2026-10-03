@@ -63,7 +63,7 @@ export class AppSettingsService {
    * CSS while both of these read false. Showing "Off" there would be a lie.
    */
   readonly effectiveReduceMotion = computed(
-    () => this.motionOn() || this.systemPrefersReducedMotion()
+    () => this.motionOn() || this.systemPrefersReducedMotion(),
   );
 
   private readonly mql =
