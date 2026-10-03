@@ -75,6 +75,19 @@ jobs:
       - name: Typecheck cloud functions
         run: npm --prefix functions ci && npm --prefix functions run build
 
+      # Added after the linter landed, and it immediately found real things:
+      # a `let` that was never reassigned, an unused catch parameter, and two
+      # empty lifecycle methods still declared as `implements OnInit`.
+      - name: Lint
+        run: npm run lint
+
+      # Formatting only, and non-blocking. A formatting disagreement should never
+      # be the reason a change cannot merge; `npm run format` fixes it and the
+      # pre-commit hook formats what it touches.
+      - name: Format check
+        continue-on-error: true
+        run: npm run format:check
+
       - name: Business logic tests
         run: npm run test:logic
 

@@ -1,0 +1,34 @@
+# Five-orites Scoop — EditorConfig
+#
+# Absent until now, which meant "tabs or spaces" and "final newline" were decided
+# per-editor. Worth adding for the two lines that actually caused churn here:
+# LF in the repository and a final newline, so git does not report a whole file
+# as modified purely because one editor wrote CRLF and another did not.
+#
+# The real fix for line endings is `git config core.autocrlf`, not this file,
+# but stating it here means a new contributor's editor produces the right thing
+# without knowing that.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Two trailing spaces is a hard line break in Markdown. Trimming them silently
+# changes how the document renders.
+trim_trailing_whitespace = false
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+# The repository uses CRLF in the working tree on Windows but stores LF, which
+# is what core.autocrlf=true produces. Keep this at lf so a file committed from
+# WSL or a container is not rewritten wholesale.
+[Makefile]
+indent_style = tab

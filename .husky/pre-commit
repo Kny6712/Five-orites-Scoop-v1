@@ -1,0 +1,13 @@
+#!/usr/bin/env sh
+# Five-orites Scoop — pre-commit hook
+#
+# Runs lint-staged over STAGED files only, so the hook costs about a second on
+# a small commit instead of re-linting the whole tree on every save.
+#
+# lint-staged stashes unstaged changes before running and restores them after,
+# so it operates on staged CONTENT. That has a consequence worth knowing: a file
+# that is broken in your working tree but not part of this commit will not block
+# the commit. That is deliberate — a half-finished edit on an unrelated page
+# should not stop you committing an unrelated fix. Full-tree enforcement is
+# CI's job, not this hook's.
+npx lint-staged

@@ -1,0 +1,46 @@
+# .prettierignore
+# Build output and generated files. Formatting these is pointless at best and
+# destructive at worst — www/browser is the compiled app, and prettier-plugin-
+# organize-imports would rewrite imports inside bundled output.
+
+www/
+dist/
+android/
+ios/
+.angular/
+node_modules/
+functions/lib/
+functions/node_modules/
+
+# package-lock.json is generated and must not be reformatted; npm owns it.
+package-lock.json
+functions/package-lock.json
+
+# Firestore rules: hand-written with deliberate alignment in the comment blocks.
+# Prettier has no parser for the rules language and would either fail or mangle it.
+firestore.rules
+
+# The audit documents in Docs/ are historical records. Reformatting them would
+# make them differ from the state they describe, for no benefit.
+Docs/
+
+# Gap-analysis artefacts checked in as input to past reviews.
+repomix-output.xml
+
+# Prettier has no parser for .editorconfig and fails the whole run on it with
+# "Invalid or unexpected token". It is not a format prettier can express anyway.
+.editorconfig
+
+# The linter and formatter configs are CommonJS with block comments, because the
+# reasoning behind each setting is worth more than the setting. Prettier's own
+# parser for .js does not accept a comment-free-required module the way it
+# expects for a config file, so these are excluded and formatted by hand. There
+# are two files; hand-formatting them is not a burden.
+.eslintrc.js
+.prettierrc.js
+.lintstagedrc.js
+
+# Dotfiles with no file extension. Prettier has no parser for them and guesses
+# the babel parser, which fails on JSON and plain text alike. They are all
+# config: .firebaserc, .nvmrc, .npmrc, .firebaserc.alias.*
+.*
