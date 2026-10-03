@@ -1,0 +1,33 @@
+{
+  "//": "Five-orites Scoop — Cloud Functions TypeScript config",
+  "compilerOptions": {
+    // CommonJS with an explicit outDir, because `firebase deploy --only
+    // functions` runs `npm run build` and then requires lib/index.js as the
+    // entrypoint. There is no bundler in this package by design: three
+    // dependencies, no build step beyond tsc, nothing to break.
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "lib",
+    "target": "es2022",
+    "lib": ["es2022"],
+
+    "strict": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "forceConsistentCasingInFileNames": true,
+
+    // The handlers read untrusted, client-written documents, so most values
+    // arrive as `unknown`-shaped `DocumentData` and are narrowed by hand. This
+    // is the same strictness the Angular app builds under (tsconfig.json), on
+    // purpose: the two halves of this shop should disagree about a type as
+    // rarely as they disagree about a price.
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declaration": false
+  },
+  "include": ["src"],
+  "exclude": ["lib", "node_modules"]
+}

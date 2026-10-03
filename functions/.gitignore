@@ -1,0 +1,14 @@
+# Five-orites Scoop — Cloud Functions .gitignore
+#
+# The root .gitignore has `dist/` and `www/` for the Angular build but nothing
+# for the Functions build, so `functions/lib/` would otherwise be committed —
+# generated JavaScript that duplicates src/ line for line and goes stale
+# between edits and builds.
+
+# tsc output (functions/package.json main -> lib/index.js)
+lib/
+
+# Dependencies: firebase-admin, firebase-functions, typescript.
+# The root .gitignore already covers the app's node_modules; this is the
+# functions package's own.
+node_modules/

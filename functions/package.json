@@ -1,0 +1,23 @@
+{
+  "name": "functions",
+  "description": "Five-orites Scoop — server-authoritative stock decrement and order pricing",
+  "//": "Deployed as its own unit: Firebase builds and runs this package separately from the Angular app, so it carries its own package.json, its own node_modules and its own copy of every business rule it has to enforce. Nothing in src/ is importable at runtime from here.",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "deploy": "npm run build && firebase deploy --only functions"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^5.1.1"
+  },
+  "devDependencies": {
+    "typescript": "~5.2.0"
+  }
+}
