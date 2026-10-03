@@ -95,8 +95,18 @@ export function voucherUsability(v: Voucher, now = Date.now()): VoucherUsability
   return { usable: true };
 }
 
-// Built-in fallback so demos work even when Firestore `vouchers` is empty.
-export const BUILT_IN_VOUCHERS: Voucher[] = [
-  { id: 'builtin-scoop10', code: 'SCOOP10', type: 'percent', value: 10, minOrder: 200, isActive: true },
-  { id: 'builtin-free50', code: 'FREE50', type: 'fixed', value: 50, minOrder: 500, isActive: true },
-];
+// There is deliberately NO built-in voucher list.
+//
+// One used to live here (`SCOOP10`, `FREE50`) as a fallback when the Firestore
+// lookup came back empty — which meant deactivating a code in the admin UI had no
+// effect, because the hardcoded copy answered anyway. That fallback is gone, and
+// the list went with it.
+//
+// What made removing it necessary rather than tidy: the cart page labelled its
+// input "Promo code (try SCOOP10)", and because nothing has ever seeded those
+// codes into `vouchers/`, following the hint produced
+// `Voucher "SCOOP10" not found.` on every attempt. A hint that cannot work is
+// worse than no hint.
+//
+// Real codes are created in Admin -> Vouchers, which has full CRUD and now
+// enforces maxRedemptions and perCustomerLimit server-side.

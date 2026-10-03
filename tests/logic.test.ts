@@ -22,7 +22,7 @@ import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
 import { describeFirestoreError, isMissingIndexError } from '../src/app/core/logic/firestore-error';
 import { readCachedGeo, interpolate, distanceMetres } from '../src/app/core/logic/geo';
 import { productCategory, PRODUCT_CATEGORIES } from '../src/app/core/models/product.model';
-import { BUILT_IN_VOUCHERS } from '../src/app/core/models/voucher.model';
+import * as voucherModel from '../src/app/core/models/voucher.model';
 import { toCsv, sanitiseCell, csvFilename, toIsoDate } from '../src/app/core/logic/csv';
 import { calendarBuckets, weeklyBuckets, bucketsFor, bucketize, runningTotal } from '../src/app/core/logic/series';
 import { parseCsvLine, parseProductCsv, slug, PRODUCT_CSV_TEMPLATE } from '../src/app/core/logic/csv-import';
@@ -479,17 +479,17 @@ describe('vouchers', () => {
     );
   });
 
-  it('keeps the built-in codes well-formed', () => {
-    // These are reference data, NOT a fallback. VoucherService validates
-    // against the `vouchers` collection only — the built-in list used to be
-    // consulted whenever the Firestore lookup came back empty or threw, which
-    // meant deactivating a voucher in the admin UI had no effect. It is kept
-    // for seeding and for asserting sensible sample values, so this test
-    // guards the data rather than implying the app honours it.
-    for (const v of BUILT_IN_VOUCHERS) {
-      assert.ok(v.isActive, `${v.code} should be active`);
-      assert.ok(calculateDiscount(1000, v) > 0, `${v.code} should discount ₱1000`);
-    }
+  it('has no built-in voucher list to fall back to', () => {
+    // The built-in list (SCOOP10 / FREE50) is gone, and this pins why it must not
+    // come back. It used to be consulted whenever the Firestore lookup came back
+    // empty OR THREW, which meant switching a voucher off in the admin UI did
+    // nothing — the hardcoded copy answered anyway. It was also never seeded, so
+    // the cart page's "try SCOOP10" hint produced "Voucher not found" every time.
+    assert.equal(
+      Object.keys(voucherModel).includes('BUILT_IN_VOUCHERS'),
+      false,
+      'a built-in voucher list overrides admin control and must not return'
+    );
   });
 });
 

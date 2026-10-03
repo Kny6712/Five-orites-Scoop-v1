@@ -10,8 +10,13 @@ import {
 } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideIonicAngular } from '@ionic/angular/standalone';
-import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
-import { getFirestore, provideFirestore } from '@angular/fire/firestore';
+import { getApp, initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  provideFirestore,
+} from '@angular/fire/firestore';
 import { getAuth, provideAuth } from '@angular/fire/auth';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -107,7 +112,29 @@ export const appConfig: ApplicationConfig = {
       backButtonText: '',
     }),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
-    provideFirestore(() => getFirestore()),
+    // initializeFirestore, NOT getFirestore.
+    //
+    // `getFirestore()` always comes up in memory-only mode, so every product,
+    // price and stock read needed the network. Offline, the storefront was empty
+    // and the cart could not show what it already held in localStorage — while
+    // CartService and WishlistService both advertise that they work offline.
+    //
+    // `persistentLocalCache` is the modern form: it uses IndexedDB where
+    // available and falls back to memory automatically, and it does not throw on
+    // a private-mode browser the way `enableIndexedDbPersistence()` does.
+    // `persistentMultipleTabManager` is included so two open tabs share one cache
+    // over BroadcastChannel rather than each holding a stale copy that overwrites
+    // the other's writes.
+    //
+    // It MUST be initializeFirestore: persistence cannot be attached after the
+    // instance exists, so getFirestore() here would silently do nothing.
+    provideFirestore(() =>
+      initializeFirestore(getApp(), {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      })
+    ),
     provideAuth(() => getAuth()),
   ],
 };

@@ -275,11 +275,24 @@ export class AnalyticsPage implements OnInit, OnDestroy {
       o.items?.forEach((item) => {
         const key = item.variantName;
         const existing = map.get(key) ?? { name: key, count: 0, revenue: 0, setName: item.setName || '—' };
+        // `?? 0` on both accumulators, matching how grandTotal is summed
+        // elsewhere in this file.
+        //
+        // `item.quantity` and `item.subtotal` come off a Firestore document, and
+        // the order-create rule validates the ORDER's shape but cannot validate
+        // the CONTENTS of items[] — rules have no loop. So a document written by
+        // a raw-SDK client (or one that predates a field) can carry a missing or
+        // non-numeric quantity. Without the guard, `0 + undefined` is NaN, and NaN
+        // propagates: the top-flavors table renders "NaN", the sort comparator
+        // returns NaN (which is not a valid ordering, so the table order becomes
+        // arbitrary), and the CSV export writes NaN into the report.
+        const quantity = typeof item.quantity === 'number' && Number.isFinite(item.quantity) ? item.quantity : 0;
+        const subtotal = typeof item.subtotal === 'number' && Number.isFinite(item.subtotal) ? item.subtotal : 0;
         map.set(key, {
           name: key,
           setName: item.setName || '—',
-          count: existing.count + item.quantity,
-          revenue: existing.revenue + item.subtotal,
+          count: existing.count + quantity,
+          revenue: existing.revenue + subtotal,
         });
       })
     );

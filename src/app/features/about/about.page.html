@@ -146,6 +146,15 @@
             <app-icon name="clock" />
             <span>Weekdays {{ hours.weekdays }} &middot; Weekends {{ hours.weekends }}</span>
           </p>
+          <!-- Whole row hidden while empty: `SHOP_HOURS.phone` is '' and an admin
+               may never have filled the setting in, and printing an empty line
+               reads as a bug rather than as absent information. -->
+          @if (contactPhone()) {
+            <p class="store-hours">
+              <app-icon name="phone" />
+              <a [href]="'tel:' + contactPhone()">{{ contactPhone() }}</a>
+            </p>
+          }
         </div>
       </div>
 

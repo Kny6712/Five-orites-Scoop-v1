@@ -21,7 +21,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { getDeliveryFee } from '../models/cart.model';
-import { getPricingForSet } from '../config/pricing.config';
+
 import { Order, OrderItem, OrderStatus } from '../models/order.model';
 import { AuthService } from './auth.service';
 import { CartService } from './cart.service';
@@ -88,16 +88,22 @@ export class OrderService {
         const snap = await getDoc(doc(this.firestore, `products/${item.productId}`));
         if (!snap.exists()) throw new Error(`Product ${item.variantName} no longer exists.`);
         const data = snap.data() as { pricing?: Record<string, number>; setName?: string; variantName?: string; setNumber?: number };
-        const firestorePrice = data.pricing?.[item.size];
-        const matrixPrice = data.setNumber != null
-          ? getPricingForSet(data.setNumber)?.[item.size]
-          : undefined;
-        // Never fall back to the cart's stored price. The cart is rehydrated
-        // from localStorage, so that number is attacker-controlled, and this
-        // function exists precisely so the client cannot dictate the price. A
-        // product with no resolvable price is a data problem to fix in the
-        // admin UI, not something to paper over with a client value.
-        const unitPrice = firestorePrice ?? matrixPrice;
+        // NO FALLBACK to PRICING_MATRIX here.
+        //
+        // This used to read `getPricingForSet(setNumber)?.[size]` when
+        // `pricing[size]` was missing, and the comment two lines down claimed the
+        // whole pass was "a DISPLAY value only". It was not: the number went into
+        // the order document, and the customer was quoted it.
+        //
+        // `reconcileOrderStock` has no such fallback — it cancels the order with
+        // `no_price`. So the two layers disagreed in exactly the case the comment
+        // called impossible: the cart showed a price from the build-time matrix,
+        // checkout accepted it, and a second later the order was cancelled. The
+        // fail-closed behaviour is the function's, so the client now matches it.
+        //
+        // PRICING_MATRIX stays as a DISPLAY default for the admin's add-product
+        // form. It is never a source of truth for a price actually charged.
+        const unitPrice = data.pricing?.[item.size];
         if (unitPrice == null) {
           throw new Error(
             `${data.variantName ?? item.variantName} has no price set for this size.`

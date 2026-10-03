@@ -2,7 +2,7 @@
 // Five-orites Scoop — Push Notification Service (Capacitor + PWA fallback)
 // Author: Five-orites Scoop team (see README)
 
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { ToastController, Platform } from '@ionic/angular/standalone';
 import { OrderStatus } from '../models/order.model';
 
@@ -30,6 +30,14 @@ export class NotificationService {
   private platform = inject(Platform);
 
   /**
+   * What the native permission prompt last answered, for this session.
+   *
+   * Null until `requestPermission()` has run on a device. See
+   * `browserPermission()` for why this has to exist at all.
+   */
+  private readonly nativePermission = signal<'granted' | 'denied' | 'default' | null>(null);
+
+  /**
    * What has the BROWSER actually allowed?
    *
    * `Notification.permission` is readable without prompting, which is what lets
@@ -38,10 +46,19 @@ export class NotificationService {
    */
   browserPermission(): 'granted' | 'denied' | 'default' {
     if (this.platform.is('capacitor')) {
-      // Native push has no equivalent synchronous query; the Capacitor plugin
-      // exposes no such getter. Treat native as "ask me" rather than guessing,
-      // so the user is prompted once and the answer is remembered in the profile.
-      return 'default';
+      // Native push has no synchronous equivalent of Notification.permission — the
+      // Capacitor plugin exposes no getter. Returning a hard-coded 'default'
+      // (which is what this used to do) meant `permissionState` below could only
+      // ever return 'granted' on a device, so BOTH the Settings and Profile
+      // toggles read "on" even after the user tapped Deny. There was no way to
+      // reflect a real native refusal.
+      //
+      // So the answer is remembered instead of guessed: `nativePermission` is set
+      // from what `requestPermissions()` actually returned, and it survives for
+      // the session. Absent means we have never asked — which is genuinely
+      // 'default', the one case where reporting "on" is defensible, because the
+      // user has not declined anything yet.
+      return this.nativePermission() ?? 'default';
     }
     if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
     const p = (window as unknown as { Notification?: { permission: string } }).Notification;
@@ -65,6 +82,22 @@ export class NotificationService {
     return this.browserPermission() === 'denied' ? 'blocked' : 'granted';
   }
 
+  /**
+   * The user's explicit OFF switch, as distinct from what the OS will allow.
+   *
+   * Separate from `permissionState` because the two answer different questions.
+   * `permissionState` is "will a notification actually appear?", which is the
+   * honest thing to show next to a toggle that cannot do anything — a toggle
+   * reading "on" while the OS has denied permission is worse than no toggle.
+   *
+   * This is the stored preference, and it is the signal the switches bind to.
+   */
+  isEnabledByPreference(preference: boolean | undefined): boolean {
+    // Absent means enabled: nobody who signed up before this field existed
+    // should be silently opted out. Same rule as AppUser.notificationsEnabled.
+    return preference !== false;
+  }
+
   async requestPermission(): Promise<boolean> {
     if (this.platform.is('capacitor')) {
       try {
@@ -73,12 +106,21 @@ export class NotificationService {
           '@capacitor/push-notifications'
         );
         const result = await PushNotifications.requestPermissions();
-        if (result.receive === 'granted') {
+        // Record the answer before branching, so a DENIAL is remembered too.
+        // Without this the next render falls back to 'default' -> 'granted' and
+        // the toggle snaps back to "on" the moment the user says no.
+        const granted = result.receive === 'granted';
+        this.nativePermission.set(granted ? 'granted' : 'denied');
+        if (granted) {
           await PushNotifications.register();
           return true;
         }
         return false;
       } catch (err) {
+        // A thrown registration is not the same as a refusal, but it does mean
+        // notifications are not going to arrive — reporting 'denied' is closer to
+        // the truth than leaving the toggle claiming permission.
+        this.nativePermission.set('denied');
         console.warn('Push notification registration error:', err);
         return false;
       }

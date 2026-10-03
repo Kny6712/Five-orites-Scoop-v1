@@ -71,7 +71,12 @@ export class VoucherService {
       throw new Error('Could not reach the voucher service. Please try again.');
     }
 
-    if (snap.empty) throw new Error(`Voucher "${normalized}" not found. or is no longer active.`);
+    // The query filters on BOTH code and isActive, so an empty result is
+    // genuinely ambiguous — the code does not exist, or it does and is switched
+    // off. The message says so rather than guessing, and it had a stray period
+    // mid-sentence ("not found. or is no longer active.") that made the two cases
+    // look like one badly punctuated sentence.
+    if (snap.empty) throw new Error(`Voucher "${normalized}" was not found, or is no longer active.`);
 
     const voucher = { id: snap.docs[0].id, ...snap.docs[0].data() } as Voucher;
 
@@ -100,6 +105,9 @@ export class VoucherService {
     }
 
     const discount = calculateDiscount(subtotal, voucher);
+    // calculateDiscount returns 0 for two reasons — inactive, or below minOrder.
+    // The `inactive` case is already excluded by the query and the switch above,
+    // so below-minimum is the only one left, and this message is accurate.
     if (discount <= 0) throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
     return { voucher, discount };
   }

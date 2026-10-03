@@ -78,9 +78,9 @@ export const VISION = {
 export const CUSTOMER_FEATURES: AboutFeature[] = [
   {
     icon: 'ice-cream',
-    title: 'Browse 64 Flavors',
+    title: 'Premium Ice Cream, 8 Flavor Families',
     description:
-      'Explore eight categories, each offering eight premium ice cream variants. Customers can discover different flavors and select the combination that best suits their preferences.',
+      'Explore eight flavor families — from Chocolates and Fruits to Coffee and Ube — each with a full range of pints, half gallons and gallons.',
   },
   {
     icon: 'cart',
@@ -95,10 +95,22 @@ export const CUSTOMER_FEATURES: AboutFeature[] = [
       'Follow your order from preparation to delivery. Real-time tracking helps customers stay updated on the progress of their ice cream order.',
   },
   {
+    // This said "Secure Payments" and described "a secure payment process" where
+    // "your payment information and transaction details are handled safely".
+    // There is no payment gateway, no payment UI on any screen, and no card or
+    // account detail is collected anywhere in the app — so that copy was not just
+    // unimplemented, it was a claim about handling customer financial data that
+    // the app does not do. `paymentStatus` is written once as 'pending' and never
+    // mutated by anything.
+    //
+    // What replaces it states only what is actually true. The real-world payment
+    // ARRANGEMENT (cash on delivery, bank transfer, arrangements made over the
+    // phone) is a business fact this codebase cannot confirm and must not invent —
+    // if you want it named on this page, put it here and say so.
     icon: 'shield-check',
-    title: 'Secure Payments',
+    title: 'No Card Details Needed',
     description:
-      'Complete your order using a secure payment process. Your payment information and transaction details are handled safely.',
+      'See the full price breakdown, including delivery, before you order. We never ask for or store your card or bank details.',
   },
 ];
 
