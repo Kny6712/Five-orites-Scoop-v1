@@ -382,6 +382,88 @@ describe('orders: customer cancel', () => {
       })
     );
   });
+
+  test('staff may NOT write a status outside the known set', async () => {
+    // The staff branch was a bare `if canRunShop()`, so it accepted any string.
+    // A typo like 'delivred' produces an order the tracker cannot render and the
+    // admin queue cannot filter — a blank row at read time instead of a refusal
+    // at write time.
+    await seed('orders/o10', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o10'), {
+        status: 'delivred',
+        updatedAt: Timestamp.now(),
+        statusHistory: [
+          { status: 'pending', timestamp: Timestamp.now() },
+          { status: 'delivred', timestamp: Timestamp.now() },
+        ],
+      })
+    );
+  });
+
+  test('staff may NOT truncate the fulfilment timeline', async () => {
+    // The customer cancel branch required statusHistory to grow by exactly one.
+    // The staff branch required nothing, so a manager could shrink the array and
+    // rewrite what the tracker's progress view is derived from.
+    //
+    // What is NOT asserted here: that an individual entry cannot be edited in
+    // place. Proving every prior entry survived at the same index needs a loop,
+    // and Firestore rules have no loop — the rules file says so rather than
+    // implying a guarantee it cannot keep.
+    await seed('orders/o11', {
+      ...orderFor(CUSTOMER, 'confirmed'),
+      statusHistory: [
+        { status: 'pending', timestamp: Timestamp.now() },
+        { status: 'confirmed', timestamp: Timestamp.now() },
+      ],
+    });
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o11'), {
+        statusHistory: [{ status: 'confirmed', timestamp: Timestamp.now() }],
+        updatedAt: Timestamp.now(),
+      })
+    );
+  });
+
+  test('staff may NOT change status without appending to the timeline', async () => {
+    await seed('orders/o11b', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o11b'), {
+        status: 'preparing',
+        updatedAt: Timestamp.now(),
+      })
+    );
+  });
+
+  test('staff MAY correct an address without touching the timeline', async () => {
+    // The ordinary non-status edit has to keep working: status unchanged, history
+    // unchanged, so the append-only rule must not demand growth here.
+    await seed('orders/o11c', orderFor(CUSTOMER, 'pending'));
+    await assertSucceeds(
+      updateDoc(doc(asAdmin(), 'orders/o11c'), {
+        deliveryAddress: 'Corrected address',
+        updatedAt: Timestamp.now(),
+      })
+    );
+  });
+
+  test('staff may NOT write a field outside the order whitelist', async () => {
+    // customerId decides whose order it is and paymentStatus decides whether it
+    // is paid. Neither belongs in a staff status write.
+    await seed('orders/o12', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o12'), {
+        paymentStatus: 'paid',
+        updatedAt: Timestamp.now(),
+      })
+    );
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o12'), {
+        customerId: OTHER_CUSTOMER,
+        updatedAt: Timestamp.now(),
+      })
+    );
+  });
 });
 
 describe('reads', () => {
@@ -453,6 +535,85 @@ describe('reviews', () => {
   // setDoc at a known path rather than addDoc with a random id.
   const reviewPath = (productId: string, uid: string) => `reviews/${productId}_${uid}`;
 
+  test('an author may NOT forge the shop\'s official reply', async () => {
+    // The author branch validated userId and rating but constrained nothing
+    // else, so adminResponse / adminResponderName / adminRespondedAt were all
+    // customer-writable — and those three render on the product page as a reply
+    // FROM the shop, attributed to staff. This is the whitelist closing that.
+    const ref = doc(asUser(CUSTOMER), reviewPath('forge', CUSTOMER));
+    await assertFails(
+      setDoc(ref, {
+        productId: 'forge',
+        userId: CUSTOMER,
+        displayName: 'C',
+        rating: 1,
+        comment: 'Terrible',
+        createdAt: Timestamp.now(),
+        adminResponse: 'Call us on 0917-000-0000 to book',
+        adminResponderName: 'Five-orites Scoop Staff',
+      })
+    );
+  });
+
+  test('an author may NOT add a staff reply to an existing review', async () => {
+    // The same forgery, but through the update path — which is the one the app
+    // actually uses (setDoc with merge). create and update are separate rules
+    // because diff() reads resource.data, and on a create there is no resource.
+    await seed('reviews/reply_' + CUSTOMER, {
+      productId: 'reply',
+      userId: CUSTOMER,
+      displayName: 'C',
+      rating: 4,
+      comment: 'Good',
+      createdAt: Timestamp.now(),
+    });
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), `reviews/reply_${CUSTOMER}`), {
+        adminResponse: 'Please disregard the reviews',
+        adminResponderName: 'Shop Owner',
+      })
+    );
+  });
+
+  test('an admin MAY set the official reply', async () => {
+    await seed('reviews/reply2_p1', {
+      productId: 'p1',
+      userId: CUSTOMER,
+      displayName: 'C',
+      rating: 4,
+      comment: 'Good',
+      createdAt: Timestamp.now(),
+    });
+    await assertSucceeds(
+      updateDoc(doc(asAdmin(), 'reviews/reply2_p1'), {
+        adminResponse: 'Thanks for the feedback!',
+        adminResponderName: 'Five-orites Scoop',
+        adminRespondedAt: Timestamp.now(),
+      })
+    );
+  });
+
+  test('an author MAY still edit their own rating and comment', async () => {
+    // The whitelist must not have broken the ordinary edit path. The document id
+    // is the deterministic `${productId}_${uid}` the rules require, so productId
+    // and the id have to agree.
+    await seed(reviewPath('edit', CUSTOMER), {
+      productId: 'edit',
+      userId: CUSTOMER,
+      displayName: 'C',
+      rating: 4,
+      comment: 'Good',
+      createdAt: Timestamp.now(),
+    });
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), reviewPath('edit', CUSTOMER)), {
+        rating: 5,
+        comment: 'Actually, excellent',
+        updatedAt: Timestamp.now(),
+      })
+    );
+  });
+
   test('an admin may set a valid category', async () => {
     await assertSucceeds(
       updateDoc(doc(asAdmin(), 'products/p1'), {
@@ -493,6 +654,30 @@ describe('reviews', () => {
         'stock.cup': 7,
         updatedAt: Timestamp.now(),
       })
+    );
+  });
+
+  test('an admin may NOT write a NEGATIVE price', async () => {
+    // `pricing.gallon is int` alone admitted -5000. That is not cosmetic:
+    // reconcileOrderStock clamps the discount to [0, totalAmount], which is only
+    // a safe clamp while totalAmount >= 0. With a negative price the subtotal is
+    // negative, Math.min(0, -5000) is -5000, and the Admin SDK — which bypasses
+    // these rules — persists a NEGATIVE discount that then satisfies
+    // grandTotal == totalAmount - discountAmount + deliveryFee.
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.gallon': -5000 })
+    );
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.cup': -1 })
+    );
+  });
+
+  test('a price of exactly zero is still allowed', async () => {
+    // The floor is >= 0, not > 0: a free sample or a giveaway flavour is a
+    // legitimate merchandising decision, and a rule that refused it would just be
+    // worked around in the data.
+    await assertSucceeds(
+      updateDoc(doc(asAdmin(), 'products/p1'), { 'pricing.cup': 0 })
     );
   });
 
@@ -1202,13 +1387,67 @@ describe('orders: cached geocode', () => {
     );
   });
 
-  test('a customer may NOT add geo to an existing order while cancelling', async () => {
-    // The cancel branch is confined with hasOnly(['status','cancelReason',
-    // 'updatedAt','statusHistory']). Widening it would let a customer rewrite the
-    // fulfilment timeline, so geo must stay out of it.
+  test('a customer MAY cache geo on their own order, and only that', async () => {
+    // OrderTrackerPage.ensureDestination geocodes `deliveryAddress` and writes the
+    // result back so the map — and the admin dispatch map — have a pin to draw.
+    // That write was PERMISSION_DENIED on every attempt and the failure was
+    // swallowed by a console.warn, so the geocode was never cached and the admin
+    // map could never show a destination. It is now allowed by its own narrow
+    // rule rather than by widening the cancel branch.
+    //
+    // The original test asserted the opposite ("may NOT add geo while
+    // cancelling"). That pinned the bug as intended behaviour. The concern behind
+    // it was real and is preserved by the test below: a customer must not be able
+    // to ride a geo write to touch anything else.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        geo: { lat: 14.6188159, lng: 121.1029457, label: 'Cainta, Rizal' },
+      })
+    );
+  });
+
+  test('a geo write may NOT be used to touch anything else', async () => {
+    // This is the invariant the cancel branch's whitelist exists to protect, and
+    // the reason geo got its own rule instead of a slot in that one. The cancel
+    // branch requires status == 'pending', and a tracker is opened precisely to
+    // watch an order that has already left, so geo could not go there. Here it
+    // must not become a second way in: pairing geo with a status change, or with
+    // any money field, must still fail.
     await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
     await assertFails(
-      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 0, lng: 0 } })
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        geo: { lat: 14.6, lng: 121.1 },
+        status: 'cancelled',
+      })
+    );
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        geo: { lat: 14.6, lng: 121.1 },
+        grandTotal: 0,
+      })
+    );
+  });
+
+  test('a customer may NOT cache a geo on somebody else\'s order', async () => {
+    await seed('orders/o3', orderFor(OTHER_CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o3'), { geo: { lat: 14.6, lng: 121.1 } })
+    );
+  });
+
+  test('a customer may NOT cache an out-of-range coordinate', async () => {
+    // Leaflet throws on a non-finite or out-of-range coordinate, and a throw
+    // inside the map render takes the whole tracker page with it.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 999, lng: 121.1 } })
+    );
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 14.6, lng: -999 } })
+    );
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), { geo: { lat: 'north', lng: 121.1 } })
     );
   });
 

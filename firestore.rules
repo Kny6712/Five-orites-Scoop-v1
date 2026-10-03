@@ -140,6 +140,36 @@ service cloud.firestore {
         && sizeIsSane(request.resource.data.stock.gallon);
     }
 
+    // The complete set of order statuses, and nothing else.
+    //
+    // Mirrors the `OrderStatus` union in src/app/core/models/order.model.ts.
+    // An open list would let staff write any string at all — the staff update
+    // branch below uses this to reject a typo like 'delivred', which would
+    // otherwise produce an order the tracker cannot render and the admin queue
+    // cannot filter. A closed list turns that into a PERMISSION_DENIED at write
+    // time instead of a blank row at read time.
+    //
+    // If you add a status to the TypeScript union, add it here in the same
+    // commit. The staff update branch depends on it.
+    function isKnownOrderStatus() {
+      return request.resource.data.status in
+        ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
+    }
+
+    // A cached geocode, when present, must be a real coordinate.
+    //
+    // `label` and `at` are written by OrderTrackerPage alongside lat/lng and are
+    // left unchecked: `label` is a display string from Nominatim and `at` is a
+    // timestamp, neither of which anything branches on. lat/lng are checked
+    // because Leaflet throws on a non-finite or out-of-range coordinate, and a
+    // throw inside a map render takes the whole tracker page with it.
+    function geoIsSane(geo) {
+      return geo == null
+        || (geo is map
+            && geo.lat is number && geo.lat >= -90 && geo.lat <= 90
+            && geo.lng is number && geo.lng >= -180 && geo.lng <= 180);
+    }
+
     // `category` is OPTIONAL and only checked when present. Every product
     // document seeded before the field existed has no `category` at all, and
     // making it mandatory here would reject each of those on their next admin
@@ -150,13 +180,27 @@ service cloud.firestore {
         || request.resource.data.category in ['flavor', 'sundae', 'cone'];
     }
 
+    // Every price must be a non-negative integer, not merely an integer.
+    //
+    // `pricing.gallon is int` alone admits -5000, and that is not a cosmetic gap:
+    // reconcileOrderStock clamps the discount to [0, totalAmount], which is only
+    // a safe clamp while totalAmount >= 0. With a negative price the subtotal is
+    // negative, Math.min(0, -5000) is -5000, and the Admin SDK — which bypasses
+    // these rules — persists a NEGATIVE discount that then satisfies
+    // grandTotal == totalAmount - discountAmount + deliveryFee. The rules
+    // express `discountAmount >= 0` on order create; this is what stops a manager
+    // from writing the product that makes it a lie.
     function isWellFormedProduct() {
       return request.resource.data.setNumber is int
         && request.resource.data.setNumber >= 1
         && request.resource.data.pricing.cup is int
+        && request.resource.data.pricing.cup >= 0
         && request.resource.data.pricing.pint is int
+        && request.resource.data.pricing.pint >= 0
         && request.resource.data.pricing.halfGallon is int
+        && request.resource.data.pricing.halfGallon >= 0
         && request.resource.data.pricing.gallon is int
+        && request.resource.data.pricing.gallon >= 0
         && request.resource.data.isActive is bool
         && categoryIsValid()
         && stockIsSane();
@@ -248,15 +292,65 @@ service cloud.firestore {
         && request.resource.data.discountAmount is number
         && request.resource.data.discountAmount >= 0
         && request.resource.data.discountAmount <= request.resource.data.totalAmount;
-      // Admin advances status / edits freely. A customer may only cancel their
-      // own order, only while it is still pending, and may only touch the four
-      // fields the cancel path writes — so no price, quantity or total is
-      // reachable from a customer session.
+      // A customer may only cancel their own order, only while it is still
+      // pending, and may only touch the four fields the cancel path writes — so
+      // no price, quantity or total is reachable from a customer session.
       //
       // `statusHistory` must gain exactly one entry: the cancel path appends a
       // single arrayUnion element, so a caller cannot rewrite the fulfilment
       // timeline that the tracker renders.
+      //
+      // Staff advance status, and may only do that honestly.
+      //
+      // The staff branch was a bare `if canRunShop()`: no transition whitelist,
+      // no statusHistory check, no field whitelist. A manager could move a
+      // DELIVERED order back to 'pending', erase statusHistory entirely and
+      // rewrite the timeline the tracker renders, or write any arbitrary field
+      // onto the order. The customer branch was already strict about exactly
+      // these three things, which made the staff branch the odd one out rather
+      // than a deliberate looser tier.
+      //
+      // Note what this does NOT restrict: reconcileOrderStock and
+      // restockCancelledOrder use the ADMIN SDK and bypass these rules, so the
+      // functions' own writes (`totalAmount`, `stockRestored`, a 'confirmed'
+      // status, a `voucher_*` cancelReason) are unaffected by every check here.
       allow update: if canRunShop()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'cancelReason', 'updatedAt', 'statusHistory',
+                           'deliveryAddress', 'notes', 'items', 'geo',
+                           'totalAmount', 'deliveryFee', 'discountAmount', 'grandTotal'])
+            && isKnownOrderStatus()
+            && (request.resource.data.status == 'cancelled'
+                  ? (request.resource.data.cancelReason is string
+                        ? request.resource.data.cancelReason.size() <= 300
+                        : request.resource.data.cancelReason == null)
+                  : true)
+            // The timeline is APPEND-ONLY. A status change must append exactly
+            // one entry (the cancel branch below already requires this); any other
+            // staff write — correcting an address, editing notes — must leave the
+            // history exactly as it was.
+            //
+            // This stops the erasure a bare `canRunShop()` permitted: a manager
+            // could replace the whole array and rewrite what the tracker renders.
+            // It does NOT make individual entries immutable — proving every prior
+            // entry survived unchanged at the same index needs a loop, and
+            // Firestore rules have no loop. `stockMovements` is the
+            // tamper-evident record; statusHistory is the view derived from it.
+            //
+            // FORMATTING WARNING, learned the hard way. Do NOT wrap this staff
+            // branch in its own parentheses. `(canRunShop() && ... ) || (...)`
+            // compiles in the TypeScript-looking source but the rules compiler
+            // rejects it with "Unexpected ';'" pointing at the END of the *next*
+            // clause — the customer branch's `+ 1);` — which sends you looking at
+            // the wrong line. `&&` already binds tighter than `||`, so the
+            // unparenthesised form below is equivalent and parses. Same trap
+            // applies to `diff()` on a create, where `resource` does not exist.
+            && ((request.resource.data.status != resource.data.status
+                 && request.resource.data.statusHistory.size()
+                      == resource.data.statusHistory.size() + 1)
+                || (request.resource.data.status == resource.data.status
+                    && request.resource.data.statusHistory.size()
+                         == resource.data.statusHistory.size()))
         || (isSignedIn()
             && resource.data.customerId == request.auth.uid
             && resource.data.status == 'pending'
@@ -268,6 +362,32 @@ service cloud.firestore {
                 : request.resource.data.cancelReason == null)
             && request.resource.data.statusHistory.size()
                  == resource.data.statusHistory.size() + 1);
+
+      // A customer may cache the GEO for their own order, and nothing else.
+      //
+      // OrderTrackerPage.ensureDestination geocodes `deliveryAddress` and writes
+      // the result back so the map and the admin dispatch map have a pin to draw.
+      // That write was PERMISSION_DENIED on every attempt — the cancel branch
+      // above omits `geo` from its whitelist — and the failure was swallowed by a
+      // console.warn, so the geocode was never cached and the admin map could
+      // never show a destination.
+      //
+      // It could not simply be added to the cancel branch: that branch requires
+      // `status == 'pending'`, and a tracker is opened precisely to watch an order
+      // that has already left. So this is its own rule, OR'd in by Firestore's
+      // rule that several `allow` statements for one operation are permissive if
+      // ANY of them passes.
+      //
+      // This is safe to allow because `geo` is DERIVED from `deliveryAddress`,
+      // which the customer wrote themselves and cannot change afterwards. The
+      // worst a lie here does is draw a pin in the wrong place on a map nobody
+      // navigates by. The ranges are still checked so a malformed document cannot
+      // reach Leaflet, which throws on a non-finite coordinate.
+      allow update: if isSignedIn()
+            && resource.data.customerId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['geo'])
+            && geoIsSane(request.resource.data.geo);
       allow delete: if false;
     }
 
@@ -335,15 +455,54 @@ service cloud.firestore {
     // `match /reviews/{reviewId}` the only capture is `reviewId`, so a bare
     // `productId` is an undefined identifier and the whole ruleset fails to
     // deploy. That was the error in the original gap analysis.
-    match /reviews/{reviewId} {
-      allow read: if isSignedIn();
-      allow create, update: if (isSignedIn()
+    // The author may write ONLY their own review, and only these fields.
+      //
+      // The key whitelist is what stops a customer forging the shop's official
+      // reply. Without it the author branch validated `userId` and `rating` but
+      // constrained nothing else, so `adminResponse`, `adminResponderName` and
+      // `adminRespondedAt` were customer-writable — and those three render on the
+      // product page as a reply from the shop, attributed to staff. A customer
+      // could post "Call us at 09xx-xxx-xxxx" under the shop's name and every
+      // reader would take it as a staff response.
+      //
+      // `create` and `update` are SEPARATE statements, and the difference is not
+      // cosmetic.
+      //
+      // A combined `allow create, update` cannot express this whitelist. On an
+      // update you want `diff().affectedKeys()` — constrain what the write
+      // TOUCHED, so a partial merge legitimately omits untouched fields. But
+      // `diff()` reads `resource.data`, and on a CREATE there is no resource: the
+      // emulator returns a null-value error and the write is refused, which is
+      // what happened when these were first combined — every first review was
+      // denied with "evaluation error".
+      //
+      // On a create the full document IS what was written, so `keys()` is both
+      // correct and necessary. On an update the resource exists, so `diff()` is
+      // safe. Split by operation and each clause uses the primitive that is true
+      // for it.
+      match /reviews/{reviewId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn()
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.productId is string
             && reviewId == request.resource.data.productId + '_' + request.auth.uid
             && request.resource.data.rating is int
             && request.resource.data.rating >= 1
-            && request.resource.data.rating <= 5)
+            && request.resource.data.rating <= 5
+            && request.resource.data.keys()
+                 .hasOnly(['productId', 'userId', 'displayName', 'rating',
+                           'comment', 'createdAt', 'updatedAt']))
+        || canRunShop();
+        allow update: if (isSignedIn()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.productId is string
+            && reviewId == request.resource.data.productId + '_' + request.auth.uid
+            && request.resource.data.rating is int
+            && request.resource.data.rating >= 1
+            && request.resource.data.rating <= 5
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['productId', 'userId', 'displayName', 'rating',
+                           'comment', 'createdAt', 'updatedAt']))
         || canRunShop();
       // The author may withdraw their own review. The id check is what stops
       // this becoming a delete-anything rule.
