@@ -385,6 +385,14 @@ Previously this list said Cloud Functions were out of scope. They exist. Correct
 - App Store / Play Store signing and release pipeline. `android/` now exists and
   a debug APK builds; there is no keystore, no iOS project, and no app icon or
   splash artwork in `src/assets/`.
+- **Staging is declared but not provisioned.** `.firebaserc` has a `staging`
+  alias and a `deploy:staging` script, so the intent is recorded. No second
+  Firebase project exists yet, and `environment.staging.ts` plus its
+  `fileReplacement` in `angular.json` are **not** wired. Until they are,
+  `deploy:staging` sends rules to the right place while the built app still points
+  at production — a worse state than no staging, so the placeholder project id is
+  left obviously invalid rather than guessed. The provisioning steps are written
+  out inside `.firebaserc` itself.
 
 ---
 

@@ -1,5 +1,29 @@
 {
+  "//README": "Which Firebase project each command talks to. `default` is the LIVE shop, so a bare `firebase deploy` targets it -- which is why staging is set up rather than left as 'do it later'. Before this file existed, dev and prod were the same project AND the same credentials, so running the app locally meant reading and writing production Firestore.",
+  "//how-to-use": [
+    "Production (live shop data) -- the default, no flag needed:",
+    "  npm run deploy            # firestore + functions + hosting, to `default`",
+    "",
+    "Staging (throwaway) -- always pass the alias explicitly:",
+    "  npm run deploy:staging    # rules + hosting to `staging`",
+    "  npm run build:staging     # Angular build pointed at the staging env",
+    "",
+    "Rules tests -- never touches a live project, the label is a name only:",
+    "  npm run test:rules",
+    "",
+    "TO CREATE THE STAGING PROJECT (one-off, console or CLI):",
+    "  1. Create a second Firebase project, e.g. five-orites-scoop-staging.",
+    "  2. Enable Firestore, Email/Password and Google sign-in on it.",
+    "  3. Register a Web App and copy the config into",
+    "     src/environments/environment.staging.ts (see environment.example.ts),",
+    "     then wire the fileReplacement in angular.json -- it is NOT wired yet.",
+    "  4. Point the alias below at the new project id.",
+    "  Until step 3 is done, `deploy:staging` will deploy RULES to the right",
+    "  place but the BUILT APP will still point at production. That mismatch is",
+    "  worse than having no staging at all, so step 3 is not optional."
+  ],
   "projects": {
-    "default": "five-orites-scoop"
+    "default": "five-orites-scoop",
+    "staging": "REPLACE_WITH_YOUR_STAGING_PROJECT_ID"
   }
 }

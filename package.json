@@ -29,6 +29,8 @@
     "deploy:hosting": "npm run build && firebase deploy --only hosting",
     "deploy:firestore": "firebase deploy --only firestore:rules,firestore:indexes",
     "deploy:functions": "npm --prefix functions run build && firebase deploy --only functions",
+    "deploy:staging": "firebase deploy --project staging --only firestore:rules,firestore:indexes,hosting",
+    "build:staging": "cross-env FIREBASE_PROJECT=staging ng build",
     "emulators": "firebase emulators:start",
     "verify": "npm run typecheck && npm run typecheck:scripts && npm run lint && npm run test:logic && npm run test:rules && npm run check:contrast && npm run build",
     "check:contrast": "node scripts/check-contrast.mjs",
