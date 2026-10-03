@@ -63,7 +63,12 @@
     </div>
   }
 
-  <!-- Truncated queue: an order off-screen is an order never prepared -->
+  <!--
+    Memory ceiling reached. The queue now pages to the END of the result set, so
+    this is no longer "the newest N orders" — it means there are more orders than
+    will be held at once. The old copy said "clear finished orders from Firestore
+    to free up the queue", which was advice about a limit that no longer exists.
+  -->
   @if (!isLoading() && !loadError() && truncated()) {
     <app-alert-banner
       tone="warning"
@@ -71,7 +76,7 @@
       [message]="
         'Showing the ' +
         allOrders().length +
-        ' most recent orders. Older orders exist and are not listed here — check Analytics for totals, or clear finished orders from Firestore to free up the queue.'
+        ' most recent orders and stopped there. Older orders exist but are not listed here — check Analytics for totals.'
       "
     />
   }

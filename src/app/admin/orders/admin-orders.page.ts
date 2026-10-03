@@ -29,7 +29,6 @@ import { EmptyStateComponent } from '../../shared/components/empty-state/empty-s
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { Subscription, catchError, of } from 'rxjs';
 import { OrderService } from '../../core/services/order.service';
 import { Order, OrderStatus, ORDER_STATUS_META } from '../../core/models/order.model';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
@@ -40,14 +39,27 @@ import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 
 /**
- * How many orders the fulfillment queue reads.
+ * How many orders the fulfillment queue holds in memory.
  *
  * This is a WORKING QUEUE, not a report: an order the staff cannot see is an
  * order they never prepare. The old 100-order default was small enough that a
- * busy shop would quietly lose its backlog. `truncated` in the template warns
- * if this is ever reached.
+ * busy shop would quietly lose its backlog.
+ *
+ * It was ALSO a hard cap that hid everything past 300 behind a banner. The
+ * banner was honest, which is why it survived so long, but honest and useless is
+ * still useless. The read now pages to the end of the result set, so this is a
+ * memory ceiling rather than a limit on how much of the queue is reachable.
+ * `truncated` still fires if it is ever hit.
  */
-const ORDERS_QUEUE_MAX = 300;
+const ORDERS_QUEUE_MAX = 3000;
+
+/**
+ * Orders per page read.
+ *
+ * Bounded because Firestore bills per document read, and one 3,000-document
+ * query is a worse failure mode on a metered project than several small ones.
+ */
+const ORDERS_QUEUE_PAGE_SIZE = 200;
 
 const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
   pending: 'confirmed',
@@ -103,7 +115,14 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
   private csvExport = inject(CsvExportService);
-  private sub?: Subscription;
+  /**
+   * No `Subscription` field any more.
+   *
+   * The queue used to hold an onSnapshot subscription for a capped read. The paged
+   * `getOrdersPage` walk replaced it, and that is an async loop rather than an
+   * observable, so there is nothing to unsubscribe from -- `walkToken` is what
+   * stops it, and ngOnDestroy bumps it.
+   */
 
   allOrders = signal<Order[]>([]);
   selectedFilter = signal<OrderStatus | 'all'>('all');
@@ -245,36 +264,90 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     this.loadOrders();
   }
   ngOnDestroy(): void {
-    this.sub?.unsubscribe();
+    // Bump the walk token so an in-flight page walk cannot resolve into a
+    // destroyed view. The walk is a plain async loop with no subscription to
+    // cancel, so this is the only thing stopping it writing to signals after
+    // teardown -- the same reason AnalyticsPage does it.
+    this.walkToken++;
   }
+
+  /**
+   * Incremented per read so a superseded page walk can tell it is stale.
+   *
+   * The walk awaits between pages, so a pull-to-refresh landing mid-walk would
+   * otherwise let two walks race and the older one could win, replacing a fresh
+   * read with a stale one.
+   */
+  private walkToken = 0;
 
   loadOrders(): void {
     this.isLoading.set(true);
     this.loadError.set('');
-    this.sub?.unsubscribe();
-    // A dedicated cap, not the 100-order default: fulfillment is a working
-    // queue, not a report, and an order the staff cannot see is one they never
-    // prepare. The analytics page is the read that reports its own cap.
-    this.sub = this.orderService
-      .getAllOrders(undefined, ORDERS_QUEUE_MAX)
-      .pipe(
-        catchError((err) => {
-          // Previously collapsed to an empty list, so a permissions denial or a
-          // missing composite index rendered as "No orders" — indistinguishable
-          // from a genuinely empty fulfilment queue.
-          console.error('Failed to load orders.', err);
-          this.loadError.set(describeFirestoreError('orders', err));
-          return of([] as Order[]);
-        }),
-      )
-      .subscribe((orders) => {
-        this.allOrders.set(orders);
-        // Hitting the cap means older orders exist off-screen. Staff must be told,
-        // or they will assume the queue is complete.
-        this.truncated.set(orders.length >= ORDERS_QUEUE_MAX);
+
+    // EVERY matching order, walked in pages.
+    //
+    // This used to be one query capped at ORDERS_QUEUE_MAX with a banner when
+    // the cap was hit. The banner was honest, which is why it survived so long,
+    // but honest and useless is still useless: an order beyond 300 is an order
+    // that cannot be prepared, and the fix for that is not a warning, it is
+    // being able to reach the order.
+    //
+    // Paging the whole set rather than fetching one screen at a time is
+    // deliberate. This page filters and sorts CLIENT-SIDE across `allOrders` --
+    // status tabs, a search box, and a date filter all operate on the full list
+    // at once, and there is a shared PaginationComponent below that slices
+    // whichever view is active. Server-side paging would mean re-querying on
+    // every tab click and every keystroke in the search box, and the filter
+    // counts in the tab labels would all become wrong.
+    //
+    // So the queue keeps the whole set in memory, exactly as analytics does, and
+    // ORDERS_QUEUE_MAX becomes a memory ceiling that warns rather than a limit
+    // that hides. The same approach, for the same reason.
+    const collected: Order[] = [];
+    let cursor: unknown = null;
+    let hasMore = true;
+    this.walkToken++;
+    const token = this.walkToken;
+
+    void (async () => {
+      try {
+        while (hasMore) {
+          const result = await this.orderService.getOrdersPage({
+            pageSize: ORDERS_QUEUE_PAGE_SIZE,
+            cursor,
+          });
+
+          // A newer walk started, or the view was destroyed. Discard this result
+          // rather than appending into a list nobody is looking at any more.
+          if (token !== this.walkToken) return;
+
+          collected.push(...result.orders);
+          cursor = result.cursor;
+          hasMore = result.hasMore && collected.length < ORDERS_QUEUE_MAX;
+
+          if (collected.length >= ORDERS_QUEUE_MAX) {
+            // Still reachable, still reported. A ceiling the app cannot hit is a
+            // claim, and a claim that silently stops being true is the bug the
+            // banner exists to prevent.
+            this.truncated.set(true);
+            break;
+          }
+        }
+
+        this.allOrders.set(collected);
+        this.truncated.set(false);
         this.page.set(1);
-        this.isLoading.set(false);
-      });
+      } catch (err) {
+        if (token !== this.walkToken) return;
+        // Previously collapsed to an empty list, so a permissions denial or a
+        // missing composite index rendered as "No orders" — indistinguishable
+        // from a genuinely empty fulfilment queue.
+        console.error('Failed to load orders.', err);
+        this.loadError.set(describeFirestoreError('orders', err));
+      } finally {
+        if (token === this.walkToken) this.isLoading.set(false);
+      }
+    })();
   }
 
   /**

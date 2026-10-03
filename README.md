@@ -85,8 +85,12 @@ above are not mistaken for more than they are.
   from those, which meant past 500 orders the whole page silently described the
   newest 500 while the header said "All Time". A 5,000-order memory ceiling
   remains and the UI still says so if it is ever hit.
-  The **fulfilment queue is still capped at 300** and surfaces a banner when it
-  is — that one has not been paginated yet.
+  The **fulfilment queue** also pages to the end of the result set now. It reads
+  the whole set into memory rather than one screen at a time, because the status
+  tabs, the search box and the date filter all operate across `allOrders` at
+  once — server-side paging would mean re-querying on every tab click and every
+  keystroke, and the counts in the tab labels would all go wrong. Both pages keep
+  a memory ceiling (5,000 and 3,000) and warn rather than hide.
 - **Selecting a date range is a server-side query, not a browser-side filter.**
   It is read through the same paged walk with a `where('createdAt','>=',…)` bound,
   so "last 30 days" means the last 30 days.
@@ -368,10 +372,10 @@ Previously this list said Cloud Functions were out of scope. They exist. Correct
 - **Payment gateway** (GCash / Maya / PayMongo). No payment UI exists on any
   screen and no card detail is collected. The About page used to advertise
   "Secure Payments"; that claim has been removed rather than left standing.
-- **Server-side analytics aggregation.** Figures are computed on the client from
-  a paged read of every matching order. Correct, but it reads the whole set into
-  memory; a real shop with years of history would want an aggregate.
-- **Pagination on the fulfilment queue** (still capped at 300, and says so).
+- **Server-side aggregation.** Both the analytics page and the fulfilment queue
+  page through every matching order and aggregate in the browser. Correct, but
+  they hold the whole set in memory. A shop with years of history wants the sums
+  computed server-side.
 - **Guest catalog browsing.** `/products` is behind `authGuard`, and
   `firestore.rules` is `allow read: if isSignedIn()`, so this needs both changed.
 - **Self-service account deletion.** Not in the app; `PRIVACY.md` says so
