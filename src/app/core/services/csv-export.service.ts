@@ -28,14 +28,20 @@
 // exports directory the app never cleans up is worse than a cache the OS
 // reclaims. The file is deleted immediately after the share sheet returns.
 //
+// VERIFIED: android/app/src/main/res/xml/file_paths.xml declares
+// <cache-path name="my_cache_images" path="." />, and the FileProvider is
+// declared with authority <appId>.fileprovider and grantUriPermissions="true",
+// contributed by Capacitor core (NOT by the share plugin — its AAR manifest
+// declares no provider, so the two halves must both be present for a share of a
+// cache file to resolve). Confirmed working on an Android 13 x86_64 emulator:
+// writeFile to Cache produced file:///data/user/0/com.fiveorites.scoop/cache/…
+// and the share sheet opened with the CSV attached.
+//
 // ANDROID FILE PROVIDER
-// @capacitor/share serves files from the app's own cache directory through a
-// FileProvider the plugin contributes, which covers this path. A file from
-// anywhere else — a user-picked directory, an external volume — needs a
-// FileProvider configured in AndroidManifest.xml and will throw "no such file"
-// or a bare Uri permission failure at the share call. If a future export writes
-// somewhere else, that is the thing to add, and it cannot be verified until
-// there is an android/ folder to edit.
+// A file from anywhere else — a user-picked directory, an external volume —
+// needs its own FileProvider path entry in file_paths.xml and will otherwise
+// fail at the share call. If a future export writes outside the cache, that is
+// the thing to add.
 
 import { Injectable, inject } from '@angular/core';
 import { Platform } from '@ionic/angular/standalone';
@@ -55,6 +61,22 @@ export class CsvExportService {
    * Returns a result rather than throwing, because the web path can genuinely
    * fail in ways a caller may want to surface (a blocked popup, a revoked
    * permission) and "nothing happened" is the failure mode worth reporting.
+   *
+   * TIMING, VERIFIED ON AN ANDROID 13 EMULATOR
+   * On web this resolves in the same tick as the click. On native it resolves
+   * only once the user has finished with the share sheet — dismissing it,
+   * completing it, or backgrounding the app. So the caller's `await` stays
+   * pending for as long as that sheet is open, which is why the success toast
+   * on the admin pages appears after the share rather than before it.
+   *
+   * Two consequences worth knowing:
+   *   - The cache file is deleted in the `finally` below, so it survives until
+   *     then. If a user leaves the sheet open, the file stays in the cache
+   *     until they come back or the OS reclaims it. That is the right way
+   *     round: deleting it while the sheet still has a URI pointing at it
+   *     would break the share they are in the middle of.
+   *   - A caller must not treat `export()` resolving as "the file was written
+   *     somewhere" — on native it means the share sheet closed.
    */
   async export(csv: string, filename: string): Promise<CsvExportResult> {
     return this.platform.is('capacitor')
