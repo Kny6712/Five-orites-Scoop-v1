@@ -318,6 +318,172 @@ describe('products: stock is staff-owned', () => {
   test('a signed-out visitor may NOT delete a product', async () => {
     await assertFails(deleteDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1')));
   });
+
+  // ── Legacy-catalogue tolerance ──────────────────────────────────────────
+  //
+  // `isWellFormedProduct()` requires all four `pricing.*` fields to be `int`, and
+  // unlike `stockIsSane()` it does NOT tolerate them being absent: `null is int`
+  // is false. So before the narrow stock clause existed, one legacy flavour
+  // missing a price field made its stock unmovable and every order containing it
+  // un-advanceable — a PERMISSION_DENIED naming neither the price nor the reason.
+  //
+  // These pin the fix AND its limit: stock may move on an untidy catalogue, but
+  // the untidiness itself is still refused.
+  describe('stock movement does not require a pristine catalogue', () => {
+    /** A flavour seeded before one of the four price fields existed. */
+    const LEGACY = {
+      ...PRODUCT,
+      variantName: 'Legacy Flavor',
+      pricing: { cup: 65, pint: 200, gallon: 950 },
+    };
+
+    test('a manager MAY move stock on a flavour missing a price field', async () => {
+      await seed('products/legacy', LEGACY);
+      await assertSucceeds(
+        updateDoc(doc(asManager(), 'products/legacy'), {
+          'stock.cup': 4,
+          updatedAt: Timestamp.now(),
+        }),
+      );
+    });
+
+    test('but the missing price field itself may still NOT be written', async () => {
+      // The narrow clause only covers `stock` and `updatedAt`. Filling in the
+      // absent price is a catalogue edit and must still be well-formed.
+      await seed('products/legacy', LEGACY);
+      await assertFails(
+        updateDoc(doc(asManager(), 'products/legacy'), {
+          pricing: { cup: 65, pint: 200, halfGallon: -500, gallon: 950 },
+        }),
+      );
+    });
+
+    test('and a negative stock level is still refused on that same flavour', async () => {
+      // The point of routing through `stockIsSane()` rather than dropping the
+      // check: tolerant about the catalogue, not about the number being written.
+      await seed('products/legacy', LEGACY);
+      await assertFails(
+        updateDoc(doc(asManager(), 'products/legacy'), {
+          'stock.cup': -1,
+          updatedAt: Timestamp.now(),
+        }),
+      );
+    });
+
+    test('a staff account still may NOT move stock', async () => {
+      // The narrow clause is `canRunShop()`, not `isStaff()`. Being able to read
+      // the fulfilment queue is not authority over the shelf.
+      await seed('products/legacy', LEGACY);
+      await assertFails(
+        updateDoc(doc(asStaff(), 'products/legacy'), {
+          'stock.cup': 4,
+          updatedAt: Timestamp.now(),
+        }),
+      );
+    });
+
+    test('a customer still may NOT move stock on a legacy flavour either', async () => {
+      await seed('products/legacy', LEGACY);
+      await assertFails(
+        updateDoc(doc(asUser(CUSTOMER), 'products/legacy'), {
+          'stock.cup': 4,
+          updatedAt: Timestamp.now(),
+        }),
+      );
+    });
+  });
+});
+
+describe('orders: a legacy order with no timeline', () => {
+  // The append-only check reads `resource.data.statusHistory.size()`. On an order
+  // with no `statusHistory`, `null.size()` is an EVALUATION ERROR, which denies
+  // the entire write — so before `historyLen()` existed, such an order could be
+  // neither advanced by staff nor cancelled by its customer, ever.
+  //
+  // `placeOrder` has always written the field, so this is only reachable for
+  // orders written by a seed script, a console paste, or an older build. Which is
+  // precisely what a live shop's database accumulates.
+  const WITHOUT_TIMELINE = (() => {
+    const o = orderFor(CUSTOMER, 'pending') as Record<string, unknown>;
+    delete o.statusHistory;
+    return o;
+  })();
+
+  test('staff MAY advance an order that has no statusHistory', async () => {
+    await seed('orders/old', WITHOUT_TIMELINE);
+    await assertSucceeds(
+      updateDoc(doc(asManager(), 'orders/old'), {
+        status: 'confirmed',
+        statusHistory: [{ status: 'confirmed', timestamp: Timestamp.now() }],
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a status change with NO timeline append is still refused', async () => {
+    // The append-only guarantee, restated for an order that HAS a timeline.
+    // `historyLen` must not have weakened this into "size may be anything".
+    await seed('orders/old', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asManager(), 'orders/old'), {
+        status: 'confirmed',
+        statusHistory: [{ status: 'pending', timestamp: Timestamp.now() }],
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('the timeline may not be truncated either', async () => {
+    await seed('orders/old', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asManager(), 'orders/old'), {
+        status: 'confirmed',
+        statusHistory: [],
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a legacy order may gain ONE entry, not two', async () => {
+    // The tolerance is "absent means empty", NOT "absent means unconstrained".
+    // Writing two entries where exactly one append is permitted is the case that
+    // would let a manager fabricate a history out of nothing.
+    await seed('orders/old', WITHOUT_TIMELINE);
+    await assertFails(
+      updateDoc(doc(asManager(), 'orders/old'), {
+        status: 'confirmed',
+        statusHistory: [
+          { status: 'pending', timestamp: Timestamp.now() },
+          { status: 'confirmed', timestamp: Timestamp.now() },
+        ],
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer MAY still cancel a `pending` order that has no timeline', async () => {
+    await seed('orders/old', WITHOUT_TIMELINE);
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/old'), {
+        status: 'cancelled',
+        cancelReason: 'Changed my mind',
+        statusHistory: [{ status: 'cancelled', timestamp: Timestamp.now() }],
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test("and still may NOT cancel somebody else's", async () => {
+    await seed('orders/old', { ...WITHOUT_TIMELINE, customerId: OTHER_CUSTOMER });
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/old'), {
+        status: 'cancelled',
+        cancelReason: 'Not mine',
+        statusHistory: [{ status: 'cancelled', timestamp: Timestamp.now() }],
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
 });
 
 describe('orders: money floors', () => {

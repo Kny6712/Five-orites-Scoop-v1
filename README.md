@@ -245,8 +245,9 @@ tests/                       ← tests/logic.test.ts, tests/firestore.rules.test
   `SETUP_GUIDE.txt`
 - **Note the billing plan.** The app is built to run on the free **Spark** plan:
   stock, vouchers, notifications and account deletion all work without a server.
-  It is not built to deploy Cloud Functions, so `npm run deploy` will fail at the
-  functions step. If you upgrade to Blaze, read `CUTOVER.md` first.
+  It is not built to deploy Cloud Functions, so `npm run deploy` leaves them out
+  and `npm run deploy:functions` will fail. If you upgrade to Blaze, read
+  `CUTOVER.md` first.
 
 ### 1. Install Dependencies
 
@@ -324,8 +325,8 @@ npm run lint:fix         # same, with --fix
 npm run format           # Prettier, in place
 npm run format:check     # Prettier, check only (non-blocking in CI)
 npm run check:contrast   # WCAG contrast check over the theme tokens
-npm run test:logic       # business-logic unit tests (node:test via tsx) — ~160 cases
-npm run test:rules       # Firestore security rules tests, via the emulator — 120 cases
+npm run test:logic       # business-logic unit tests (node:test via tsx) — ~165 cases
+npm run test:rules       # Firestore security rules tests, via the emulator - 143 cases
 npm run test             # Both suites in sequence
 npm run build            # production bundle -> www/browser
 ```
@@ -336,37 +337,60 @@ and `capacitor.config.ts` point at.
 ### 7. Deploy
 
 ```bash
+npm run deploy                                     # rules + indexes, then hosting
+```
+
+That is these two commands, in that order:
+
+```bash
 npm run deploy:firestore                          # rules + indexes  — WORKS
 npm run build && firebase deploy --only hosting    # the built app      — WORKS
 ```
 
-**`npm run deploy` does not work on this project, and has never.** It chains
-three steps:
+The split is deliberate and `deploy` now does both halves: deploying hosting
+alone does **not** deploy `firestore.indexes.json`, and deploying Firestore
+alone does not publish the app. Do both.
+
+**The functions step used to sit in the middle of that chain, and it is why
+hosting had never been published.** It used to be
 
 ```json
 "deploy": "npm run deploy:firestore && npm run deploy:functions && npm run deploy:hosting"
 ```
 
-Step 1 succeeds. Step 2 (`deploy:functions`) fails, because Cloud Functions
-cannot be deployed on the free Spark plan — that is a billing constraint, not a
-bug. Because the chain is `&&`, step 3 never runs, so **a `npm run deploy`
-leaves the hosting deploy un-applied while reporting only the functions error.**
-Read it as "nothing was published", not "the rules went out".
+Step 1 succeeded. Step 2 (`deploy:functions`) failed every time, because Cloud
+Functions cannot be deployed on the free Spark plan — that is a billing
+constraint, not a bug. Because the chain is `&&`, step 3 never ran, so **a
+`npm run deploy` reported a functions error and left the hosting deploy
+un-applied.** Read it as "nothing was published", not "the rules went out". The
+script worked as written; the chain was wrong, and the wrongness was silent
+because the error it reported was about a step nothing depended on.
 
-The two commands above are the working replacement, and the split is
-deliberate: deploying hosting alone does **not** deploy `firestore.indexes.json`,
-and deploying Firestore alone does not publish the app. Do both, in that order.
+`deploy:functions` is out of the chain now. There was nothing to keep it for:
+the three handlers in `functions/` have never run and cannot (see "Known
+limitations"), so keeping them in the path cost a deploy every time and bought
+nothing.
 
 Also worth knowing before you use anything in this area:
 
-- **`npm run deploy:functions` will always fail here.** Don't put it in a release
-  script or a habit. The three handlers in `functions/` are dead code (see
-  "Known limitations").
-- **`npm run build:staging` silently produces a PRODUCTION build.** It sets
-  `FIREBASE_PROJECT=staging`, and nothing reads that variable:
-  `src/environments/environment.staging.ts` does not exist and `angular.json` has
-  no staging `fileReplacement`. It is a production bundle pointed at production
-  Firebase, built without a warning. Do not use it as if it were isolated.
+- **`npm run deploy:functions` will always fail here.** The script still exists.
+  Do not put it in a release script, a CI job or a habit — it fails on billing,
+  so no flag, config or retry makes it work. The handlers in `functions/` are
+  dead code (see "Known limitations").
+- **There is no staging project, and every deploy targets the live shop.**
+  `.firebaserc` declares exactly one project, `five-orites-scoop`. There is no
+  rehearsal environment to catch a bad rules file before it reaches customers,
+  and a second project used to be _declared_ here with the literal placeholder
+  `REPLACE_WITH_YOUR_STAGING_PROJECT_ID` as its id. It was removed rather than
+  left standing, because a declared alias reads as isolation without providing
+  any: there was no such project, no `environment.staging.ts`, and no staging
+  `fileReplacement` in `angular.json`, so the staging scripts would have sent
+  rules to one place while the built app still pointed at production — the worst
+  of both, silent and looking rehearsed. The rollback reference is the **git
+  history of `firestore.rules`**: revert the commit, then
+  `npm run deploy:firestore`. There is no second copy of the shop to fall back
+  to, and no second copy of the data either, so test with `npm run test:rules`
+  and think before you deploy.
 
 ### 8. Build for Android / iOS
 
@@ -379,37 +403,36 @@ npm run build:ios
 
 ## Project Commands
 
-| Command                     | What it does                                                                                                                                             |
-| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm start`                 | Dev server                                                                                                                                               |
-| `npm run build`             | Production bundle to `www/browser`                                                                                                                       |
-| `npm run typecheck`         | `tsc --noEmit` against `tsconfig.app.json`                                                                                                               |
-| `npm run typecheck:scripts` | `tsc --noEmit` against `scripts/tsconfig.json` — the seeders live outside the app tsconfig, so nothing else checks them                                  |
-| `npm run lint`              | ESLint over `src/`, `scripts/`, `tests/` and `functions/`                                                                                                |
-| `npm run lint:fix`          | The same, with `--fix`                                                                                                                                   |
-| `npm run format`            | Prettier, in place                                                                                                                                       |
-| `npm run format:check`      | Prettier, check only — non-blocking in CI                                                                                                                |
-| `npm run check:contrast`    | WCAG contrast check over the theme tokens                                                                                                                |
-| `npm run test:logic`        | Unit tests for pricing, delivery, vouchers, stock, ratings — ~160 cases                                                                                  |
-| `npm run test:rules`        | Security rules tests against the Firestore emulator — 120 cases, all passing (Java required)                                                             |
-| `npm run test`              | Both suites in sequence                                                                                                                                  |
-| `npm run verify`            | `typecheck` + `typecheck:scripts` + `lint` + `test:logic` + `test:rules` + `check:contrast` + `build` — run this before any deploy                       |
-| `npm run emulators`         | Start the emulator UI to inspect rules interactively                                                                                                     |
-| `npm run seed`              | Seed 64 products (add `seed:preserve-stock` to keep stock)                                                                                               |
-| `npm run seed:admin`        | Promote an account: `npm run seed:admin -- <uid> owner`                                                                                                  |
-| `npm run images:generate`   | Generate one placeholder SVG per flavor                                                                                                                  |
-| `npm run images:seed`       | Re-seed with those images, so products are not imageless                                                                                                 |
-| `npm run upload:images`     | Upload product photos to Cloudinary (`--dir=<folder> --upload --write`)                                                                                  |
-| `npm run deploy:firestore`  | Deploy rules + indexes — **the only deploy script that works as written**                                                                                |
-| `npm run deploy:hosting`    | `npm run build` then `firebase deploy --only hosting`                                                                                                    |
-| `npm run deploy`            | Chained `firestore → functions → hosting`. **Fails at the functions step on the free plan, so hosting is never deployed.** Run the two above separately. |
-| `npm run deploy:functions`  | Deploy the Cloud Functions. **Always fails here** — Spark cannot deploy functions.                                                                       |
-| `npm run deploy:staging`    | Rules/indexes/hosting to the `staging` project id. **The project does not exist yet** — see "Not done yet".                                              |
-| `npm run build:staging`     | ⚠ **Silently produces a production build.** Sets a variable nothing reads; there is no `environment.staging.ts`.                                         |
+| Command                     | What it does                                                                                                                       |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `npm start`                 | Dev server                                                                                                                         |
+| `npm run build`             | Production bundle to `www/browser`                                                                                                 |
+| `npm run typecheck`         | `tsc --noEmit` against `tsconfig.app.json`                                                                                         |
+| `npm run typecheck:scripts` | `tsc --noEmit` against `scripts/tsconfig.json` — the seeders live outside the app tsconfig, so nothing else checks them            |
+| `npm run lint`              | ESLint over `src/`, `scripts/`, `tests/` and `functions/`                                                                          |
+| `npm run lint:fix`          | The same, with `--fix`                                                                                                             |
+| `npm run format`            | Prettier, in place                                                                                                                 |
+| `npm run format:check`      | Prettier, check only — non-blocking in CI                                                                                          |
+| `npm run check:contrast`    | WCAG contrast check over the theme tokens                                                                                          |
+| `npm run test:logic`        | Unit tests for pricing, delivery, vouchers, stock, ratings — ~165 cases                                                            |
+| `npm run test:rules`        | Security rules tests against the Firestore emulator — 143 cases, all passing (Java required)                                       |
+| `npm run test`              | Both suites in sequence                                                                                                            |
+| `npm run verify`            | `typecheck` + `typecheck:scripts` + `lint` + `test:logic` + `test:rules` + `check:contrast` + `build` — run this before any deploy |
+| `npm run emulators`         | Start the emulator UI to inspect rules interactively                                                                               |
+| `npm run seed`              | Seed 64 products (add `seed:preserve-stock` to keep stock)                                                                         |
+| `npm run seed:admin`        | Promote an account: `npm run seed:admin -- <uid> owner`                                                                            |
+| `npm run images:generate`   | Generate one placeholder SVG per flavor                                                                                            |
+| `npm run images:seed`       | Re-seed with those images, so products are not imageless                                                                           |
+| `npm run upload:images`     | Upload product photos to Cloudinary (`--dir=<folder> --upload --write`)                                                            |
+| `npm run deploy:firestore`  | Deploy rules + indexes                                                                                                             |
+| `npm run deploy:hosting`    | `npm run build` then `firebase deploy --only hosting`                                                                              |
+| `npm run deploy`            | Chained `firestore → hosting`. Works. Functions are **not** in it — see below.                                                     |
+| `npm run deploy:functions`  | Deploy the Cloud Functions. **Always fails here** — Spark cannot deploy functions. Keep it out of any release path.                |
 
 `npm run deploy:hosting` exists so the hosting half can be run on its own after
-`deploy:firestore` — the reason `deploy` paired them is that hosting does not
-deploy `firestore.indexes.json`, and skipping the rules breaks the app.
+`deploy:firestore` — the reason `deploy` chains them is that hosting does not
+deploy `firestore.indexes.json`, and skipping the rules breaks the app. `deploy`
+now runs both halves in that order, so the usual command is `npm run deploy`.
 
 ### Tooling that runs on every change
 
@@ -531,29 +554,19 @@ this field existed keep appearing in the catalog.
 - App Store / Play Store signing and release pipeline. `android/` now exists and
   a debug APK builds; there is no keystore, no iOS project, and no app icon or
   splash artwork in `src/assets/`.
-- **Staging is declared but not provisioned.** `.firebaserc` has a `staging`
-  alias and a `deploy:staging` script, so the intent is recorded. No second
-  Firebase project exists yet, and `environment.staging.ts` plus its
-  `fileReplacement` in `angular.json` are **not** wired. Until they are,
-  `deploy:staging` sends rules to the right place while the built app still points
-  at production — a worse state than no staging, so the placeholder project id is
-  left obviously invalid rather than guessed. The provisioning steps are written
-  out inside `.firebaserc` itself. **`npm run build:staging` is worse still: it
-  silently produces a production build**, because nothing reads the variable it
-  sets.
 
 ---
 
 ## Testing
 
 `npm run test:logic` runs the business-logic suite with `node:test` via `tsx` —
-about **160 cases**. The tests import the real implementations from
+about **165 cases**. The tests import the real implementations from
 `src/app/core/logic/` and `src/app/core/models/`, which are deliberately free of
 Angular and Firebase imports.
 
 `npm run test:rules` runs the Firestore security-rules suite against the local
 emulator (requires Java). It needs no credentials and touches no live project,
-and it is **120 cases, all passing** — including the assertions that a customer
+and it is **143 cases, all passing** — including the assertions that a customer
 cannot write a product's stock at all. `npm run test` runs both.
 
 `npm run verify` is the gate, and CI runs the same chain: `typecheck` →

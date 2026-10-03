@@ -156,6 +156,41 @@ service cloud.firestore {
         ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
     }
 
+    // How many entries an order's timeline holds, treating a MISSING timeline as
+    // empty rather than as an error.
+    //
+    // WHY THIS EXISTS. The append-only check on the staff branch below reads
+    // `resource.data.statusHistory.size()` directly. On an order that has no
+    // `statusHistory` field at all, `null.size()` is an EVALUATION ERROR, and an
+    // evaluation error denies the whole write. Every branch that reads it was
+    // therefore a total lockout, not a partial one: staff could not advance such
+    // an order and the customer could not cancel it, ever.
+    //
+    // That was not a theoretical risk. `placeOrder` has always written the field,
+    // so orders placed by the app are fine — but nothing in `allow create`
+    // REQUIRES it (`keys().hasOnly` restricts which keys may appear, it does not
+    // require a key to be there), so an order written by a seed script, a
+    // console paste, or an older build is missing it and is now un-advanceable.
+    // Data written before a field existed is exactly what a live shop has.
+    //
+    // Folded to 0 here rather than backfilled in the data on purpose: a one-off
+    // migration fixes today's rows and leaves the next bad write to brick an
+    // order the same way. This costs nothing in security — the guarantee is that
+    // a status change ADDS exactly one entry, and for a timeline that starts
+    // absent the first append is still the only way to create it.
+    //
+    // THE `in` IS NOT OPTIONAL, and this cost a test to learn. The obvious
+    // spelling — `order.statusHistory is list ? order.statusHistory.size() : 0` —
+    // still throws "Property statusHistory is undefined on object", because in
+    // Firestore rules a dot access to an absent key is itself an error and the
+    // `is` operator does not launder it. Only the `in` operator is null-safe.
+    // `categoryIsValid()` above gets this right for the same reason.
+    function historyLen(order) {
+      return 'statusHistory' in order && order.statusHistory is list
+        ? order.statusHistory.size()
+        : 0;
+    }
+
     // A cached geocode, when present, must be a real coordinate.
     //
     // `label` and `at` are written by OrderTrackerPage alongside lat/lng and are
@@ -263,7 +298,34 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if isSignedIn();
       allow create: if canRunShop() && isWellFormedProduct();
-      allow update: if canRunShop() && isWellFormedProduct();
+
+      // Two ways in, and the difference is deliberate.
+      //
+      // The general clause re-validates the WHOLE catalogue entry, because that is
+      // what an admin form does: it edits prices, names and category together, and
+      // every one of those should be checked.
+      //
+      // The narrow clause below exists because stock movement is not an admin form.
+      // `OrderService.transitionOrderStatus` writes `stock.<size>` and `updatedAt`
+      // and nothing else, from inside the order transaction — and routing that
+      // through `isWellFormedProduct()` couples "can this order start being
+      // prepared" to "is this flavour's price data pristine". Those are unrelated.
+      // `isWellFormedProduct()` requires all four `pricing.*` fields to be `int`
+      // and does NOT tolerate them being absent (unlike `stockIsSane`, which
+      // tolerates a missing size), so a single legacy flavour missing one price
+      // field would make its stock permanently unmovable — every order containing
+      // it would fail to advance, with a PERMISSION_DENIED that names no price
+      // and no reason.
+      //
+      // This grants no new power. It is still `canRunShop()`, and that tier could
+      // already write any field on any product through the clause above. It only
+      // stops an unrelated blemish on the catalogue from blocking the fulfilment
+      // queue. Prices are still validated on every path that actually edits them.
+      allow update: if canRunShop()
+            && (isWellFormedProduct()
+                || (request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['stock', 'updatedAt'])
+                    && stockIsSane()));
 
       // Delete: admin only.
       //
@@ -410,11 +472,11 @@ service cloud.firestore {
             // unparenthesised form below is equivalent and parses. Same trap
             // applies to `diff()` on a create, where `resource` does not exist.
             && ((request.resource.data.status != resource.data.status
-                 && request.resource.data.statusHistory.size()
-                      == resource.data.statusHistory.size() + 1)
+                 && historyLen(request.resource.data)
+                      == historyLen(resource.data) + 1)
                 || (request.resource.data.status == resource.data.status
-                    && request.resource.data.statusHistory.size()
-                         == resource.data.statusHistory.size()))
+                    && historyLen(request.resource.data)
+                         == historyLen(resource.data)))
         || (isSignedIn()
             && resource.data.customerId == request.auth.uid
             && resource.data.status == 'pending'
@@ -424,8 +486,8 @@ service cloud.firestore {
             && (request.resource.data.cancelReason is string
                 ? request.resource.data.cancelReason.size() <= 300
                 : request.resource.data.cancelReason == null)
-            && request.resource.data.statusHistory.size()
-                 == resource.data.statusHistory.size() + 1);
+            && historyLen(request.resource.data)
+                 == historyLen(resource.data) + 1);
 
       // ── The restock marker, on its own narrow clause ────────────────────
       //

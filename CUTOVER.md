@@ -43,7 +43,7 @@ a runbook that sends you to the wrong line is worse than one that says "see
 | Customer stock-write rule | **DELETED** — `/products` is write-gated to `canRunShop()`                                 | `firestore.rules`, `match /products/{productId}`                    |
 | Restock on cancel         | **Not needed**: a customer can only cancel while `pending`, which is before stock is taken | `firestore.rules`, `match /orders/{orderId}` customer cancel clause |
 | Rules tests               | **120 / 120 passing**                                                                      | `npm run test:rules`                                                |
-| Business-logic tests      | ~160 cases                                                                                 | `npm run test:logic`                                                |
+| Business-logic tests      | ~165 cases                                                                                 | `npm run test:logic`                                                |
 | Cloud Functions           | 3 handlers on disk, **cannot be deployed on Spark**                                        | `functions/src/index.ts`                                            |
 
 ### Why stock is not decremented at checkout, in one paragraph
@@ -63,15 +63,26 @@ thing that is atomic.
 npm run deploy:firestore
 ```
 
-Expected: rules deploy, then the **7 composite indexes** in
+Expected: rules deploy, then the **4 composite indexes** in
 `firestore.indexes.json` are created. Index creation is asynchronous in the
 console — a fresh project can report "indexes are being created" for a minute or
 two, and a query that needs one fails until then. That is not a broken deploy.
 
-**Do not use `npm run deploy`.** It chains `firestore → functions → hosting`,
-and the functions step fails on the Spark plan, so hosting is never deployed.
-Use `deploy:firestore` and `npm run build && firebase deploy --only hosting`
-separately.
+**`npm run deploy` now works, and it is the thing to use.** It used to chain
+`firestore → functions → hosting`, and because the functions step cannot succeed
+on the Spark plan it died in the middle and hosting was never published at all.
+The functions step is now out of the chain rather than left to fail: `deploy` is
+`deploy:firestore && deploy:hosting`, and `deploy:functions` survives as a
+separate script that still fails, so nobody puts it in a release pipeline by
+accident.
+
+Still worth running the two halves separately while you are reading the output,
+because one `&&` chain reports only the first failure and this is the first time
+either half has ever run against a live project.
+
+**There is no staging project.** Every deploy targets the live shop. Rollback is
+the git history of `firestore.rules`: revert the commit, then
+`npm run deploy:firestore`.
 
 ## Step 2 — Prove the staff path moves stock, before trusting it
 
@@ -102,7 +113,7 @@ If step 2 does not move stock, **stop.** Do not deploy anything else.
 npm run test:rules
 ```
 
-All 120 cases must pass. The ones that matter here assert that a signed-in
+All 143 cases must pass. The ones that matter here assert that a signed-in
 customer **cannot**:
 
 - write a product's `stock` at all, in the app or with the raw SDK;
