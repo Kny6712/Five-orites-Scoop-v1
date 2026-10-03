@@ -440,12 +440,61 @@ service cloud.firestore {
       // `restockCancelledOrder` can never be deployed and never run. Stock is
       // moved by STAFF from the app, which means every stock-related write in
       // this file is now genuinely rule-gated. Nothing here is exempt.
+      //
+      // WHY `stockRestored` IS IN THE WHITELIST — a bug the rules tests missed.
+      //
+      // `transitionOrderStatus` cancels a held order in ONE update carrying
+      // `status`, `cancelReason`, `statusHistory`, `stockRestored`,
+      // `stockRestoredAt` and `updatedAt` together. That write matched NOTHING:
+      //
+      //   - this branch refused it, because `stockRestored` was not whitelisted;
+      //   - the narrow restock clause below refused it too, because it requires
+      //     `affectedKeys().hasOnly(['stockRestored','stockRestoredAt'])` AND
+      //     `resource.data.status == 'cancelled'` — and on a cancel the resource
+      //     is still `confirmed`/`preparing`, which is the entire point.
+      //
+      // So every stock-restoring cancellation was PERMISSION_DENIED for every
+      // role including owner: cancelling a confirmed or preparing order simply
+      // did not work. The separate restock clause was written for the REPAIR
+      // panel, which only touches the flag on an already-cancelled order, and
+      // nobody checked that the atomic cancel-and-restock write had a home.
+      //
+      // It is safe here, and only here, because of what it does NOT change:
+      //   - still `canRunShop()`, so no customer can reach this branch at all;
+      //   - the create-time `keys().hasOnly` above still OMITS `stockRestored`,
+      //     so the laundering hole — pairing a forged cancelled order with
+      //     `stockRestored: true` — remains closed;
+      //   - the flag is only ever read from orders already filtered to
+      //     `status == 'cancelled'`, so writing `true` on a live order is inert,
+      //     and writing `false` only adds a row to the repair queue, which is
+      //     the conservative direction.
+      //
+      // The lesson is in how this was found: 143 rules tests passed while the
+      // real client write was impossible. Rules tests assert each clause in
+      // isolation; nothing asserted that the write the app actually makes is
+      // authorizable. tests/order-stock.integration.test.ts now does.
       allow update: if canRunShop()
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['status', 'cancelReason', 'updatedAt', 'statusHistory',
                            'deliveryAddress', 'notes', 'items', 'geo',
-                           'totalAmount', 'deliveryFee', 'discountAmount', 'grandTotal'])
+                           'totalAmount', 'deliveryFee', 'discountAmount', 'grandTotal',
+                           // 'stockRestored' and 'stockRestoredAt' BELONG HERE, and
+                           // their absence was a live bug. See the note below.
+                           'stockRestored', 'stockRestoredAt'])
             && isKnownOrderStatus()
+            // THE MARKER MAY ONLY TRAVEL WITH A CANCELLATION.
+            //
+            // Whitelisting `stockRestored` above is necessary — the atomic
+            // cancel writes it in the same update as the status change — but
+            // whitelisting it ALONE would have quietly undone a deliberate
+            // hardening: `stockRestored` on a live order is inert (the repair
+            // panel filters on `status == 'cancelled'`), yet refusing it keeps the
+            // flag meaning exactly one thing rather than "whatever a manager
+            // typed". This restores that: touch the marker and the order must be
+            // ending up cancelled.
+            && (!request.resource.data.diff(resource.data).affectedKeys()
+                     .hasAny(['stockRestored', 'stockRestoredAt'])
+                 || request.resource.data.status == 'cancelled')
             && (request.resource.data.status == 'cancelled'
                   ? (request.resource.data.cancelReason is string
                         ? request.resource.data.cancelReason.size() <= 300

@@ -77,6 +77,28 @@ import { VoucherService } from './voucher.service';
 const STOCK_HELD_STATUSES: readonly OrderStatus[] = ['pending', 'confirmed', 'preparing'];
 
 /**
+ * Statuses in which stock has ALREADY been taken off the shelf.
+ *
+ * This is NOT `STOCK_HELD_STATUSES`, and conflating the two was a live bug worth
+ * ₱ of real inventory. `pending` is in the held list because an order waits in it
+ * — but the take fires on EXIT from `pending`, so a `pending` order holds
+ * NOTHING. Deriving the restock decision from the held list therefore made
+ * `pending -> cancelled` attempt a restock that was never taken, and:
+ *
+ *   - a MANAGER cancelling a pending order INVENTED inventory (the shelf grew),
+ *   - a CUSTOMER cancelling their own pending order was PERMISSION_DENIED
+ *     outright, because the transaction tried to write a product document — the
+ *     exact thing the customer rules branch exists to prevent, reached by the
+ *     customer's own legitimate action.
+ *
+ * A set is the honest statement of the invariant: to be in one of these, an
+ * order must have passed through a take. `out_for_delivery` and `delivered` are
+ * excluded on purpose — the ice cream has left the building, so returning its
+ * stock would invent inventory the shop could then sell a second time.
+ */
+const STOCK_TAKEN_STATUSES: readonly OrderStatus[] = ['confirmed', 'preparing'];
+
+/**
  * The shelf is short. Distinct from every other failure on purpose.
  *
  * A real Firestore error — network, permissions, contention — must NEVER be
@@ -532,7 +554,6 @@ export class OrderService {
 
         const from = order.status;
         const isCancel = newStatus === 'cancelled';
-        const wasHolding = STOCK_HELD_STATUSES.includes(from);
         const willHold = STOCK_HELD_STATUSES.includes(newStatus);
 
         // The take fires on ANY exit from `pending`, not only `pending ->
@@ -543,12 +564,12 @@ export class OrderService {
         // exist to be shortcuts.
         const shouldTake = !isCancel && from === 'pending' && willHold;
 
-        // Cancellation returns stock only if it was actually taken. A
-        // `pending -> cancelled` move therefore returns nothing, which is what
-        // makes the CUSTOMER cancel path correct: the rules pin a customer to
-        // cancelling while `pending`, before any take, so a customer can never owe
+        // Cancellation returns stock only if it was actually taken — see
+        // STOCK_TAKEN_STATUSES, and the bug that list's absence allowed. This is
+        // what makes the CUSTOMER cancel path correct: the rules pin a customer
+        // to cancelling while `pending`, before any take, so a customer never owes
         // a restock and never needs to write a product.
-        const shouldRestore = isCancel && wasHolding;
+        const shouldRestore = isCancel && STOCK_TAKEN_STATUSES.includes(from);
 
         // Whether this attempt writes product documents at all — the condition
         // the manager-only product rule actually gates. Published for the
@@ -599,6 +620,30 @@ export class OrderService {
         const skipped: string[] = [];
 
         for (const line of lines) {
+          // NOTHING TO MOVE ON THIS TRANSITION — skip the line entirely.
+          //
+          // This guard was missing, and the default it was hiding was the most
+          // dangerous line in the file. Below, `next` is
+          // `shouldTake ? current - quantity : current + quantity`, and the
+          // `reads.push` that applies it ran UNCONDITIONALLY for every line of
+          // every order. So any transition that was neither a take nor a restore
+          // did not merely fail to move stock — it ADDED the ordered quantity
+          // back to the shelf:
+          //
+          //   confirmed -> preparing, preparing -> out_for_delivery,
+          //   pending -> delivered (the take does not fire for `delivered`),
+          //   out_for_delivery -> delivered
+          //
+          // Every one of those inflated inventory, silently, and wrote a
+          // `cancel_restock` ledger row claiming a return that never happened.
+          // The shop would have been selling ice cream it did not have.
+          //
+          // Found by tests/order-stock.integration.test.ts. 165 logic tests and
+          // 143 rules tests all passed with this in place: the rules tests
+          // never drove this code, and the logic tests only tested
+          // `normaliseStockLines`, which is correct on its own.
+          if (!shouldTake && !shouldRestore) continue;
+
           const ref = doc(this.firestore, `products/${line.productId}`);
           const snap = await tx.get(ref);
           const product = snap.data() as Product | undefined;

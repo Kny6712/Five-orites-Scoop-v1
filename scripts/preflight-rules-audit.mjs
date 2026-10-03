@@ -2,8 +2,8 @@
 // Five-orites Scoop — pre-deploy rules audit (READ ONLY)
 //
 // WHY THIS EXISTS
-// `firestore.rules` validates the SHAPE of a document every time it is written,
-// including writes that were not meant to touch the field being validated. Two
+// `firestore.rules` validates the SHAPE of a document on every write, including
+// writes that were never meant to touch the field being validated. Two
 // consequences bit this project, and both only show up against real data:
 //
 //   1. An order with no `statusHistory` array used to be UNADVANCEABLE. The
@@ -14,42 +14,31 @@
 //      UNMOVABLE STOCK, because every stock movement re-validates the whole
 //      catalogue entry. Fixed by a narrow stock-only update clause.
 //
-// Both are now handled in the rules, which is why this script is a
-// CONFIDENCE CHECK rather than a gate. It tells you what shape your live data
-// is in BEFORE you deploy, so a surprise is a line of output instead of a
-// failed order at the counter.
+// Both are handled in the rules now, which makes this a CONFIDENCE CHECK rather
+// than a gate: it reports what shape your live data is in, so a surprise is a
+// line of output instead of a failed order at the counter.
 //
-// IT ONLY READS. It cannot write, update or delete anything.
+// IT ONLY EVER ISSUES HTTP GET. There is no code path in this file that can
+// write, update or delete anything — no Admin SDK, no credentials with write
+// intent, just the public Firestore REST read API with a bearer token.
 //
 // HOW TO RUN
-//   npx firebase login:ci                       # one-off, prints a token
-//   $env:FIREBASE_TOKEN = "<the token>"         # PowerShell
-//   node scripts/preflight-rules-audit.mjs
+//   npm run audit:rules
 //
-// Revoke the token afterwards with `firebase login:ci --reauth`, or delete the
-// CI account from Firebase Console > Project settings > Service accounts.
-// Alternatively `npx firebase login:ci --no-local` prints the token without
-// storing anything on this machine.
+// The token is picked up automatically from the Firebase CLI's own credential
+// store, which is the same credential `npm run deploy` already uses. No setup.
 //
-// Cost: one read per product and per order. The Spark plan allows 50,000 reads
-// per DAY, so this is a rounding error against that budget.
+// If the stored token has expired, ANY firebase command refreshes it — for
+// example `npx firebase projects:list` — so run that and then run this again.
+//
+// COST: one document read per product and per order. The Spark plan allows
+// 50,000 reads per DAY, so this is a rounding error against that budget.
 
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID ?? 'five-orites-scoop';
-
-if (!process.env.FIREBASE_TOKEN && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-  console.error(
-    'No credential found.\n\n' +
-      '  Run `npx firebase login:ci` and set the token it prints:\n' +
-      '    $env:FIREBASE_TOKEN = "<token>"      # PowerShell\n\n' +
-      'This script only reads. To revoke the token afterwards, run\n' +
-      '`npx firebase login:ci --reauth`.',
-  );
-  process.exit(1);
-}
-
 const SIZES = ['cup', 'pint', 'halfGallon', 'gallon'];
 const STATUSES = [
   'pending',
@@ -60,35 +49,118 @@ const STATUSES = [
   'cancelled',
 ];
 
-const app = initializeApp({ projectId: PROJECT_ID });
-const db = getFirestore(app);
+// ── Credential ──────────────────────────────────────────────────────────
 
-/** Collected problems, keyed by collection so the summary can group them. */
-const problems = [];
-
-function report(collection, id, field, detail) {
-  problems.push({ collection, id, field, detail });
+function tokenFromCliStore() {
+  const candidates = [
+    join(homedir(), '.config', 'configstore', 'firebase-tools.json'),
+    join(homedir(), '.config', 'firebase', 'rc.json'),
+    join(homedir(), '.firebaserc'),
+  ];
+  for (const path of candidates) {
+    try {
+      const json = JSON.parse(readFileSync(path, 'utf8'));
+      const token = json?.tokens?.access_token;
+      if (!token) continue;
+      const expiresAt = Number(json.tokens.expires_at);
+      if (Number.isFinite(expiresAt)) {
+        const expiryMs = expiresAt > 99999999999 ? expiresAt : expiresAt * 1000;
+        if (Date.now() > expiryMs) {
+          return {
+            error:
+              'The Firebase CLI token on this machine has expired. Run any firebase ' +
+              'command to refresh it (e.g. `npx firebase projects:list`), then run this again.',
+          };
+        }
+      }
+      return { token };
+    } catch {
+      // Not there, or not readable — try the next candidate.
+    }
+  }
+  return {
+    error:
+      'No Firebase credential found. Sign in with `npx firebase login`, or set ' +
+      'FIREBASE_TOKEN to an access token.',
+  };
 }
 
-/**
- * Mirrors `isWellFormedProduct()` in firestore.rules, minus the whole-document
- * re-validation that the narrow stock clause deliberately does not require.
- * Kept in step with that function by hand; if you change one, change both.
- */
+const cred = process.env.FIREBASE_TOKEN
+  ? { token: process.env.FIREBASE_TOKEN }
+  : tokenFromCliStore();
+
+if (cred.error) {
+  console.error(cred.error);
+  process.exit(2);
+}
+
+// ── Firestore REST reads ────────────────────────────────────────────────
+
+const ENDPOINT = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
+
+/** Firestore's tagged value union -> a plain JS value. */
+function decode(v) {
+  if (v === null || v === undefined) return null;
+  if ('stringValue' in v) return v.stringValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('nullValue' in v) return null;
+  if ('timestampValue' in v) return v.timestampValue;
+  if ('arrayValue' in v) return (v.arrayValue?.values ?? []).map(decode);
+  if ('mapValue' in v) return decodeMap(v.mapValue?.fields ?? {});
+  return null;
+}
+
+function decodeMap(fields) {
+  const out = {};
+  for (const [k, v] of Object.entries(fields)) out[k] = decode(v);
+  return out;
+}
+
+async function readCollection(collection) {
+  const docs = [];
+  let pageToken = null;
+  do {
+    const url =
+      `${ENDPOINT}/${collection}?pageSize=1000` +
+      (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${cred.token}` },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(
+          `Firestore refused the read (HTTP ${res.status}). The token is probably ` +
+            `expired or lacks the Firestore scope.\n${body.slice(0, 300)}`,
+        );
+      }
+      throw new Error(`HTTP ${res.status} reading ${collection}: ${body.slice(0, 300)}`);
+    }
+    const json = await res.json();
+    for (const d of json.documents ?? []) {
+      docs.push({ id: d.name.split('/').pop(), data: decodeMap(d.fields ?? {}) });
+    }
+    pageToken = json.nextPageToken ?? null;
+  } while (pageToken);
+  return docs;
+}
+
+// ── The checks. Each mirrors a clause in firestore.rules. ───────────────
+
+const problems = [];
+const notes = [];
+const report = (c, id, field, detail) => problems.push({ c, id, field, detail });
+const note = (c, id, field, detail) => notes.push({ c, id, field, detail });
+
 function checkProduct(id, p) {
   if (typeof p !== 'object' || p === null) return report('products', id, '(doc)', 'not a map');
 
-  // `isWellFormedProduct` reads each price with a dot access, so an absent price
-  // is an evaluation error and every write to the product is denied.
   for (const size of SIZES) {
     const v = p.pricing?.[size];
     if (!Number.isInteger(v)) {
-      report(
-        'products',
-        id,
-        `pricing.${size}`,
-        `is ${JSON.stringify(v)}, needs a whole peso (is int)`,
-      );
+      report('products', id, `pricing.${size}`, `is ${JSON.stringify(v)}, needs a whole peso`);
     }
   }
   if (!Number.isInteger(p.setNumber) || p.setNumber < 1) {
@@ -97,8 +169,9 @@ function checkProduct(id, p) {
   if (typeof p.isActive !== 'boolean') {
     report('products', id, 'isActive', `is ${JSON.stringify(p.isActive)}, needs a bool`);
   }
-  // `stockIsSane()` requires `stock` to be a map, but tolerates a missing SIZE.
   if (typeof p.stock !== 'object' || p.stock === null) {
+    // NOT covered by the narrow stock clause, which still calls stockIsSane(),
+    // and that requires `stock` to be a map. This one really would block.
     report('products', id, 'stock', `is ${JSON.stringify(p.stock)}, needs a map`);
   } else {
     for (const size of SIZES) {
@@ -113,10 +186,9 @@ function checkProduct(id, p) {
 function checkOrder(id, o) {
   if (typeof o !== 'object' || o === null) return report('orders', id, '(doc)', 'not a map');
 
-  // Handled by `historyLen()` in the rules now, but worth knowing how many of
-  // your orders rely on that tolerance rather than on a real timeline.
   if (!Array.isArray(o.statusHistory)) {
-    report(
+    // Tolerated by historyLen() now, so this is a note rather than a blocker.
+    note(
       'orders',
       id,
       'statusHistory',
@@ -125,6 +197,7 @@ function checkOrder(id, o) {
     );
   }
   if (!STATUSES.includes(o.status)) {
+    // NOT tolerated anywhere. Staff cannot advance this order at all.
     report(
       'orders',
       id,
@@ -133,10 +206,9 @@ function checkOrder(id, o) {
         'cannot advance it and the tracker cannot render it',
     );
   }
-  // `allow create` requires these; `allow update` does not re-check them, so a
-  // legacy order with a float or absent fee is still advanceable. Informational.
   if (!Number.isInteger(o.deliveryFee)) {
-    report(
+    // `allow create` requires this but `allow update` does not re-check it.
+    note(
       'orders',
       id,
       'deliveryFee',
@@ -144,43 +216,49 @@ function checkOrder(id, o) {
         'but a NEW order like this would be refused',
     );
   }
+  if (!Array.isArray(o.items) || o.items.length === 0) {
+    report('orders', id, 'items', 'is empty or missing — stock movement would have no lines');
+  }
 }
 
-console.log(`Auditing live project "${PROJECT_ID}" (read only)...\n`);
+console.log(`Auditing live project "${PROJECT_ID}" over the REST read API...`);
+console.log('(GET requests only — this script cannot write)\n');
 
-const products = await db.collection('products').get();
-const orders = await db.collection('orders').get();
+let products;
+let orders;
+try {
+  products = await readCollection('products');
+  orders = await readCollection('orders');
+} catch (err) {
+  console.error(`\nFAILED: ${err.message}`);
+  process.exit(1);
+}
 
-console.log(`  ${products.size} products read`);
-console.log(`  ${orders.size} orders read`);
+console.log(`  ${products.length} products read`);
+console.log(`  ${orders.length} orders read`);
 
-for (const d of products.docs) checkProduct(d.id, d.data());
-for (const d of orders.docs) checkOrder(d.id, d.data());
+for (const d of products) checkProduct(d.id, d.data);
+for (const d of orders) checkOrder(d.id, d.data);
+
+function print(list, heading, colour) {
+  console.log(`\n${colour}${heading}: ${list.length}${colour}\n`);
+  for (const p of list) console.log(`  ${p.c}/${p.id}  ${p.field}: ${p.detail}`);
+  if (list.length) console.log('');
+}
+
+print(notes, 'TOLERATED (informational)', '[36m');
+print(problems, 'BLOCKING — the rules would refuse these', '[31m');
 
 if (problems.length === 0) {
-  console.log('\nOK. Nothing in the live data would be refused by the current rules.\n');
+  console.log('\n[32mOK. Nothing in the live data would be refused by the current rules.[0m\n');
   process.exit(0);
 }
 
-const byCollection = new Map();
-for (const p of problems) {
-  if (!byCollection.has(p.collection)) byCollection.set(p.collection, []);
-  byCollection.get(p.collection).push(p);
-}
-
-console.log(`\n${problems.length} problem(s) found:\n`);
-for (const [collection, list] of byCollection) {
-  console.log(`  ${collection} — ${list.length}`);
-  for (const p of list) {
-    console.log(`    ${p.id}  ${p.field}: ${p.detail}`);
-  }
-  console.log('');
-}
-
 console.log(
-  'The two rules fixes in this commit make the stock and timeline entries\n' +
-    'non-blocking (see historyLen() and the narrow stock clause). The rest are\n' +
-    'NOT automatic — a staff account cannot advance an order whose status is not\n' +
-    'one of the six, and that will keep failing until the data is corrected.\n',
+  'Each BLOCKING row above is something staff cannot change until the data is\n' +
+    'corrected: an order whose status is not one of the six, a product whose\n' +
+    'stock is not a map, or an empty order. Deploying the rules does not create\n' +
+    'these — it stops them being fixable through the app. Fix the data (Admin\n' +
+    'SDK or console) or delete the row.\n',
 );
 process.exit(1);
