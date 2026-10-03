@@ -10,7 +10,7 @@ import {
   IonChip, IonLabel, IonButton, IonSegment, IonSegmentButton,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { Subscription } from 'rxjs';
+
 import { OrderService } from '../../core/services/order.service';
 import { AuthService } from '../../core/services/auth.service';
 import { Order, OrderStatus } from '../../core/models/order.model';
@@ -32,12 +32,26 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 interface TopFlavor { name: string; setName: string; count: number; revenue: number; }
 
 /**
- * Upper bound on a single reporting read. Comfortably above what a small shop
- * accumulates, and `truncated` reports honestly if it is ever reached, so a
- * capped figure degrades to "at least this much" rather than silently becoming
- * wrong.
+ * Orders per page read. Bounded because Firestore bills per document read, and a
+ * single 5,000-document query is a worse failure mode on a metered project than
+ * several small ones that can be abandoned partway.
  */
-const ANALYTICS_MAX_ORDERS = 500;
+const ANALYTICS_PAGE_SIZE = 200;
+
+/**
+ * Safety ceiling on how many orders are held in memory at once.
+ *
+ * NOT a limit on how much history is counted. The page walks pages until the set
+ * is exhausted, so revenue reflects every matching order — which is the whole
+ * point, since the previous single capped query made every figure silently
+ * describe only the newest 500 orders while the header read "All Time".
+ *
+ * This is the point at which the walk stops anyway and says so. Comfortably above
+ * what a single shop accumulates in `orders()` at once, and `truncated` reports it
+ * honestly if it is ever reached, so a capped figure degrades to "at least this
+ * much" rather than silently becoming wrong.
+ */
+const ANALYTICS_MAX_ORDERS = 5000;
 
 @Component({
   selector: 'app-analytics',
@@ -58,7 +72,14 @@ const ANALYTICS_MAX_ORDERS = 500;
 export class AnalyticsPage implements OnInit, OnDestroy {
   private orderService = inject(OrderService);
   private authService = inject(AuthService);
-  private sub?: Subscription;
+  /**
+   * Incremented per read so a superseded page walk can tell it is stale.
+   *
+   * The walk below awaits between pages, so two rapid range changes would
+   * otherwise interleave and let the slower walk win — showing figures for the
+   * segment the admin already navigated away from.
+   */
+  private walkToken = 0;
 
   orders = signal<Order[]>([]);
   isLoading = signal(true);
@@ -506,7 +527,16 @@ export class AnalyticsPage implements OnInit, OnDestroy {
 
 
   ngOnInit(): void { this.loadData(); }
-  ngOnDestroy(): void { this.sub?.unsubscribe(); }
+  ngOnDestroy(): void {
+    // Bump the token so an in-flight page walk cannot resolve into a destroyed
+    // view. The walk has no subscription to cancel -- it is a plain async loop --
+    // so this is the only thing that stops it writing to signals after teardown.
+    //
+    // There is deliberately no `sub` any more: the page used to hold an
+    // onSnapshot subscription, and the paged read it replaced is a getDocs walk
+    // that emits once at the end rather than on every change.
+    this.walkToken++;
+  }
 
   /**
    * Orders are read for the SELECTED RANGE, server-side.
@@ -518,37 +548,68 @@ export class AnalyticsPage implements OnInit, OnDestroy {
    * a `where('createdAt','>=',...)` clause, and the on-screen filter is limited
    * to the 'all' case, where no lower bound exists.
    */
-  loadData(): void {
+  async loadData(): Promise<void> {
     this.isLoading.set(true);
     this.loadError.set('');
     this.truncated.set(false);
     // A new range is a new ranking; staying on page 7 would show an empty table.
     this.flavorPage.set(1);
-    this.sub?.unsubscribe();
+
+    // Aborts an in-flight page walk when the range changes mid-read. Without it,
+    // switching segments quickly interleaves two walks and the slower one wins.
+    this.walkToken++;
 
     const range = this.dateRange();
-    if (range === 'all') {
-      this.sub = this.orderService.getAllOrders(undefined, ANALYTICS_MAX_ORDERS).subscribe({
-        next: (orders) => {
-          this.orders.set(orders);
-          // Hitting the cap means the figures below are a floor, not a total.
-          this.truncated.set(orders.length >= ANALYTICS_MAX_ORDERS);
-          this.isLoading.set(false);
-        },
-        error: (err: unknown) => this.onLoadError(err),
-      });
-      return;
-    }
+    const since = range === 'all' ? undefined : this.rangeStart(range);
+    const token = this.walkToken;
 
-    const since = this.rangeStart(range);
-    this.sub = this.orderService.getOrdersSince(since, ANALYTICS_MAX_ORDERS).subscribe({
-      next: (orders) => {
-        this.orders.set(orders);
-        this.truncated.set(orders.length >= ANALYTICS_MAX_ORDERS);
-        this.isLoading.set(false);
-      },
-      error: (err: unknown) => this.onLoadError(err),
-    });
+    // Every page, accumulated.
+    //
+    // The figures on this page are AGGREGATES — revenue, order count, the flavor
+    // ranking, the daily series. Paging what the admin SEES would mean each page
+    // showed a different partial total, which is worse than the cap it replaced.
+    // So the whole matching set is read, in correctly-sized pages, and the
+    // aggregates run over all of it.
+    //
+    // The old code read the newest ANALYTICS_MAX_ORDERS in ONE query and stopped.
+    // Past that count, revenue silently under-reported while the header said "All
+    // Time". `truncated` is still here for the same reason: ANALYTICS_MAX_ORDERS
+    // is now a safety ceiling on total memory rather than a limit on how much
+    // history is counted, and a shop that somehow exceeds it still gets told.
+    const collected: Order[] = [];
+    let cursor: unknown = null;
+    let hasMore = true;
+
+    try {
+      while (hasMore) {
+        const page = await this.orderService.getOrdersPage({
+          since,
+          pageSize: ANALYTICS_PAGE_SIZE,
+          cursor,
+        });
+
+        // A newer walk started while this one was awaiting. Discard this result
+        // rather than letting two walks append into the same array.
+        if (token !== this.walkToken) return;
+
+        collected.push(...page.orders);
+        cursor = page.cursor;
+        hasMore = page.hasMore && collected.length < ANALYTICS_MAX_ORDERS;
+
+        if (collected.length >= ANALYTICS_MAX_ORDERS) {
+          this.truncated.set(true);
+          break;
+        }
+      }
+
+      if (token !== this.walkToken) return;
+      this.orders.set(collected);
+    } catch (err) {
+      if (token !== this.walkToken) return;
+      this.onLoadError(err);
+    } finally {
+      if (token === this.walkToken) this.isLoading.set(false);
+    }
   }
 
   /** Inclusive lower bound for a rolling range, as a Date. */

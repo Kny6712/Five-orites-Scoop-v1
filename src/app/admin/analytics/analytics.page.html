@@ -60,14 +60,20 @@
 
       @if (truncated()) {
         <!--
-          The read hit its cap, so every figure below is a LOWER BOUND, not a
-          total. Saying so is the difference between "we did 40k this month" and
-          "we did at least 40k this month", and only the second is true.
+          The page walk hit ANALYTICS_MAX_ORDERS and stopped, so every figure below
+          is a LOWER BOUND rather than a total. Saying so is the difference between
+          "we did 40k this month" and "we did at least 40k this month", and only
+          the second is true.
+
+          This should now be unreachable at any realistic order volume -- the walk
+          pages through until Firestore runs out. It is kept because a ceiling the
+          app cannot reach is a claim, and a claim that silently stops being true
+          is the bug this banner exists to prevent.
         -->
         <app-alert-banner
           tone="warning"
           title="Figures are a lower bound"
-          [message]="'Showing the most recent ' + orders().length + ' orders. Older orders were not included, so these totals may understate real activity.'"
+          [message]="'Counted ' + orders().length + ' orders and stopped there. Anything older was not included, so these totals understate real activity.'"
         />
       }
 

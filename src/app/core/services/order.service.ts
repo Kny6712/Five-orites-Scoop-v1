@@ -12,6 +12,9 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
+  getDocs,
+  getCountFromServer,
   onSnapshot,
   serverTimestamp,
   arrayUnion,
@@ -19,8 +22,29 @@ import {
   updateDoc,
   runTransaction,
 } from '@angular/fire/firestore';
+import type {
+  QueryConstraint,
+  QueryDocumentSnapshot,
+} from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { getDeliveryFee } from '../models/cart.model';
+
+/**
+ * One page of reporting results.
+ *
+ * `cursor` is deliberately `unknown`: it is the Firestore `QueryDocumentSnapshot`
+ * the page ended on, passed back verbatim so the implicit `__name__` tiebreaker is
+ * preserved. Reconstructing a `{createdAt, id}` object instead loses that
+ * tiebreaker, and orders sharing a createdAt millisecond can then be skipped or
+ * repeated across a page boundary. See `getOrdersPage`.
+ */
+export interface OrdersPage {
+  orders: Order[];
+  hasMore: boolean;
+  /** True total from a server-side count, not the length of this page. */
+  total: number;
+  cursor: unknown;
+}
 
 import { Order, OrderItem, OrderStatus } from '../models/order.model';
 import { AuthService } from './auth.service';
@@ -304,6 +328,68 @@ export class OrderService {
       );
       return () => unsubscribe();
     });
+  }
+
+  /**
+ * One page of orders for reporting, plus whether more exist.
+ *
+ * THE CAP THIS REPLACES
+ * `getAllOrders(undefined, 500)` returned an array that stopped at 500, and the
+ * analytics page derived revenue, order counts and the flavor ranking from it. So
+ * once a shop passed 500 orders, every figure on that page silently described the
+ * NEWEST 500 orders while the header said "All Time". Revenue under-reported and
+ * nothing on screen said so.
+ *
+ * A larger limit would not fix that — it moves the cliff, it does not remove it,
+ * and it costs more Firestore reads to hide it. So this pages properly.
+ *
+ * WHY A COUNT IS INCLUDED
+ * `hasMore` is derived from the page coming back full, which is one query. But the
+ * caller also needs to know the TRUE total to page through and to say "page 2 of
+ * 9" — and `getCountFromServer` is a single aggregate read regardless of how many
+ * orders exist, where counting by fetching would be O(n).
+ *
+ * `total` comes from the server rather than being inferred, so a shop with 12
+ * orders is not told it has 12 pages, and one with 5,000 is not told 500.
+ *
+ * NOT LIVE. This is a `getDocs` read, not `onSnapshot`, unlike the rest of this
+ * service. Paging a live query while the underlying set mutates means a document
+ * can be skipped or repeated across page boundaries — the cursor points at a
+ * position, and inserting above it shifts everything. Reporting wants a consistent
+ * snapshot; the page re-reads on refresh and on range change.
+ */
+  async getOrdersPage(options: {
+    status?: OrderStatus;
+    since?: Date;
+    pageSize?: number;
+    cursor?: unknown;
+  }): Promise<OrdersPage> {
+    const pageSize = Math.max(1, Math.min(options.pageSize ?? 50, 200));
+    const ordersCol = collection(this.firestore, 'orders');
+
+    const filters: QueryConstraint[] = [];
+    if (options.status) filters.push(where('status', '==', options.status));
+    if (options.since) filters.push(where('createdAt', '>=', Timestamp.fromDate(options.since)));
+
+    const q = query(
+      ordersCol,
+      ...filters,
+      orderBy('createdAt', 'desc'),
+      ...(options.cursor ? [startAfter(options.cursor as QueryDocumentSnapshot)] : []),
+      limit(pageSize)
+    );
+
+    const snapshot = await getDocs(q);
+    const orders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Order[];
+
+    // A short page is the last page: Firestore returns fewer than `limit` only when
+    // the result set is exhausted, so this is exact rather than a guess.
+    const hasMore = orders.length === pageSize;
+    const cursor = hasMore ? snapshot.docs[snapshot.docs.length - 1] : null;
+
+    const countSnap = await getCountFromServer(query(ordersCol, ...filters));
+
+    return { orders, hasMore, total: countSnap.data().count, cursor };
   }
 
   async updateOrderStatus(orderId: string, newStatus: OrderStatus): Promise<void> {
