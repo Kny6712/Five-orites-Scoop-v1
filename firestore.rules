@@ -208,30 +208,62 @@ service cloud.firestore {
 
     // ── Products ─────────────────────────────────────────────────────
     // Read: any signed-in user. Write: canRunShop() (manager+) with full
-    // validation, OR — TEMPORARY, PENDING THE FUNCTION DEPLOY — a customer
-    // touching nothing but `stock` so the CURRENT deployed client can still
-    // decrement at checkout and return stock on cancel.
+    // validation. That is the ENTIRE rule — there is no customer branch.
     //
-    // The customer branch below is the worst hole in this file and it is meant to
-    // disappear: `stockIsSane()` only checks each size is a non-negative integer,
-    // so any signed-in session could write `stock.cup: 999999` (oversell) or zero
-    // the catalog (availability DoS). The intended fix is the `reconcileOrderStock`
-    // Cloud Function (functions/src/index.ts), which reserves stock server-side.
+    // HISTORY, because the deletion is the whole point and a bare deletion reads
+    // like an accident. This block used to be:
     //
-    // WHY IT IS STILL HERE: the function is written and tested but this Firebase
-    // project is on the Spark (free) plan, and Cloud Functions require Blaze. Until
-    // the plan is upgraded and the function is deployed AND LIVE, removing this
-    // branch while the client still decrements would deny every checkout. The
-    // client-side decrement and this branch are a matched pair — cut them over to
-    // the function TOGETHER, never one without the other. See CUTOVER.md.
+    //   allow update: if (canRunShop() && isWellFormedProduct())
+    //     || (isSignedIn()
+    //         && request.resource.data.diff(resource.data).affectedKeys()
+    //              .hasOnly(['stock', 'updatedAt'])
+    //         && stockIsSane());
+    //
+    // The second clause granted ANY SIGNED-IN SESSION a write to a product's
+    // `stock`, scoped only by KEY NAME. `stockIsSane()` (above) checks that each
+    // size is a non-negative integer and nothing else, so any customer could
+    // write `stock.cup: 999999` — oversell and inventory inflation — or zero the
+    // whole catalog, which is also an availability DoS because the low-stock pill
+    // and the storefront stepper read that same map. There was no direction
+    // check (raising was as free as lowering), no requirement that the caller
+    // owned any order containing the product, and no ledger row. Every stock
+    // figure the admin UI renders was attacker-writable, which is precisely what
+    // `StockLedgerService.findUnloggedChanges()` exists to detect after the fact.
+    //
+    // WHY THE "MATCHED PAIR" WARNING THAT PROTECTED IT IS NOW FALSE. The comment
+    // here used to say that removing the branch "while the client still decrements
+    // would deny every checkout", and that the client write and this branch were
+    // a matched pair to be cut over together. Both halves of that were correct
+    // AT THE TIME and both are now false:
+    //
+    //   - The client decrement was DELETED. `OrderService.placeOrder` no longer
+    //     touches stock; see the tombstone in src/app/core/services/order.service.ts.
+    //   - The `reconcileOrderStock` Cloud Function that was supposed to replace
+    //     it cannot be deployed: this project is on the Spark (free) plan and
+    //     Cloud Functions require Blaze. It will never run here.
+    //
+    // So for months this clause was pure attack surface with no remaining caller,
+    // and its own justifying comment was the reason a zero-cost fix was never
+    // made. That is the failure mode this paragraph exists to prevent repeating.
+    //
+    // WHERE STOCK MOVES NOW. Stock is reserved by STAFF, in the fulfilment queue,
+    // inside the same transaction that advances an order out of `pending`:
+    // `OrderService.transitionOrderStatus`. It re-reads every product inside the
+    // transaction, aborts the whole movement if any line is short, and writes a
+    // `stockMovements` ledger row per line alongside the decrement. THIS RULE IS
+    // WHAT MAKES THAT THE ONLY WAY A PRODUCT'S STOCK CAN CHANGE.
+    //
+    // WHY NO CUSTOMER PATH IS NEEDED. A customer buys nothing by losing the
+    // clause: checkout never wrote stock, so nothing breaks. And a customer who
+    // cancels cannot be owed a restock, because the rules pin a customer to
+    // cancelling only while the order is still `pending` — which is before stock
+    // is ever taken. There is therefore no customer action anywhere in this app
+    // that needs to write a product document, and the clause had no caller left to
+    // serve.
     match /products/{productId} {
       allow read: if isSignedIn();
       allow create: if canRunShop() && isWellFormedProduct();
-      allow update: if (canRunShop() && isWellFormedProduct())
-        || (isSignedIn()
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['stock', 'updatedAt'])
-            && stockIsSane());
+      allow update: if canRunShop() && isWellFormedProduct();
 
       // Delete: admin only.
       //
@@ -246,8 +278,8 @@ service cloud.firestore {
       // flavor cannot break a past order's record, but it does lose the only
       // record of what the stock levels were. That trade is the admin's to make,
       // behind the confirmation dialog, and it is why this stays behind isAdmin()
-      // rather than being opened up to any signed-in user the way the stock
-      // decrement branch above necessarily is.
+      // rather than being opened up to every signed-in user — as the (now-deleted)
+      // customer stock branch briefly was.
       allow delete: if isAdmin();
     }
 
@@ -276,11 +308,40 @@ service cloud.firestore {
           'statusHistory'
         ])
         && request.resource.data.items.size() > 0
-        && request.resource.data.totalAmount >= 0
+        // ── Money floors. `deliveryFee` WAS NOT VALIDATED AT ALL ────────────
+        //
+        // This clause used to check only `totalAmount >= 0` and
+        // `grandTotal >= 0`. `deliveryFee` appeared NOWHERE except inside the
+        // consistency identity below, so it was completely unconstrained — not
+        // even required to be a number.
+        //
+        // That made a free ₱450 order with NO zero-price line item and nothing
+        // for a human reviewer to notice:
+        //
+        //   totalAmount: 1000, discountAmount: 0, deliveryFee: -450,
+        //   grandTotal: 550
+        //
+        // Every other clause passes: both money fields are >= 0, and the
+        // identity holds because 550 == 1000 - 0 + (-450). The customer keeps
+        // real line items at real prices and simply shaves the delivery fee
+        // negative. It was strictly easier to miss than a `unitPrice: 0` line,
+        // because nothing in the payload looks wrong.
+        //
+        // `is int` rather than `is number` because a fractional peso is never
+        // legitimate and every price in the app is a whole peso.
+        && request.resource.data.totalAmount is int
+        && request.resource.data.totalAmount > 0
+        && request.resource.data.grandTotal is int
         && request.resource.data.grandTotal >= 0
-        // The totals must be internally consistent. A forgeable client could
-        // otherwise set discount == total for a ₱0 order. Per-item unitPrice
-        // still cannot be verified without the Cloud Function (no loop in rules).
+        && request.resource.data.deliveryFee is int
+        && request.resource.data.deliveryFee >= 0
+        // The totals must be internally consistent, so a forgeable client cannot
+        // set discount == total for a ₱0 order. Per-item `unitPrice` still cannot
+        // be verified here — Firestore rules have no loop, so an array of items
+        // cannot be summed — which is why `totalAmount > 0` above matters: it
+        // refuses the all-zero basket even though the per-line prices are opaque.
+        // The complete fix is re-pricing server-side, which needs a deployed
+        // function. See CUTOVER.md.
         && request.resource.data.grandTotal
              == request.resource.data.totalAmount
               - request.resource.data.discountAmount
@@ -310,10 +371,13 @@ service cloud.firestore {
       // these three things, which made the staff branch the odd one out rather
       // than a deliberate looser tier.
       //
-      // Note what this does NOT restrict: reconcileOrderStock and
-      // restockCancelledOrder use the ADMIN SDK and bypass these rules, so the
-      // functions' own writes (`totalAmount`, `stockRestored`, a 'confirmed'
-      // status, a `voucher_*` cancelReason) are unaffected by every check here.
+      // NOTE ON THE FUNCTIONS. An earlier version of this comment said the
+      // Cloud Functions bypass these rules via the Admin SDK, so their writes were
+      // unaffected. That is true of the ADMIN SDK and irrelevant here: this
+      // project is on the Spark plan, so `reconcileOrderStock` and
+      // `restockCancelledOrder` can never be deployed and never run. Stock is
+      // moved by STAFF from the app, which means every stock-related write in
+      // this file is now genuinely rule-gated. Nothing here is exempt.
       allow update: if canRunShop()
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['status', 'cancelReason', 'updatedAt', 'statusHistory',
@@ -362,6 +426,44 @@ service cloud.firestore {
                 : request.resource.data.cancelReason == null)
             && request.resource.data.statusHistory.size()
                  == resource.data.statusHistory.size() + 1);
+
+      // ── The restock marker, on its own narrow clause ────────────────────
+      //
+      // `stockRestored` is a handover flag, not part of the order's state: it
+      // records whether a cancellation actually returned its stock. It gets a
+      // SEPARATE clause rather than a place in the staff whitelist above,
+      // because mixing the two would quietly widen what any other staff write may
+      // touch along with it — and this flag is specifically what the laundering
+      // defence at the create clause protects.
+      //
+      // WHY THIS EXISTS AT ALL. `stockRestored` appeared in NO allow-list in this
+      // file before now — only in comments. So `OrderService.repairStockRestock()`
+      // was dead code: its very first statement,
+      // `updateDoc(orderRef, { stockRestored: false })`, matched no branch and
+      // threw PERMISSION_DENIED for every role including owner. The admin repair
+      // panel was therefore a control that could never be used, and because
+      // nothing could write `false`, the queue it filters on was permanently
+      // empty. The method's own comment blamed "only `allow update: if isAdmin()`",
+      // a clause that does not exist on orders — the real staff branch is
+      // `canRunShop()` PLUS a whitelist, which this field failed too.
+      //
+      // ABUSE SURFACE, stated plainly. A manager can now write this flag by
+      // hand. That is acceptable because:
+      //   - it is read only from orders already filtered to `status ==
+      //     'cancelled'`, and only compared against `false`, so a stray write on
+      //     a live order is inert;
+      //   - setting `true` hides nothing — the ledger still holds the truth;
+      //   - setting `false` only ADDS a row to the repair queue, which is the
+      //     conservative direction;
+      //   - it cannot reopen the create-time laundering hole, because that is
+      //     governed by the separate `keys().hasOnly` list above, which still
+      //     omits `stockRestored` and must keep omitting it.
+      allow update: if canRunShop()
+            && resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['stockRestored', 'stockRestoredAt'])
+            && (request.resource.data.stockRestored is bool
+                  || request.resource.data.stockRestored == null);
 
       // A customer may cache the GEO for their own order, and nothing else.
       //

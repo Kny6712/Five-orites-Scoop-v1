@@ -163,7 +163,12 @@ export class OrdersPage implements OnInit, OnDestroy {
     event.preventDefault();
     const alert = await this.alertCtrl.create({
       header: 'Cancel Order',
-      message: `Cancel order #${order.id.slice(-6).toUpperCase()}? Stock will be restored.`,
+      // No mention of stock. This button is only offered while the order is
+      // `pending` (see canCancel above), and a `pending` order has never had any
+      // stock taken for it — stock is taken when STAFF move it out of pending in
+      // the fulfilment queue. So "stock will be restored" was not merely
+      // optimistic, it described a movement that can never apply to this order.
+      message: `Cancel order #${order.id.slice(-6).toUpperCase()}? This cannot be undone.`,
       inputs: [{ name: 'reason', type: 'text', placeholder: 'Reason (optional)' }],
       buttons: [
         { text: 'Back', role: 'cancel' },
@@ -175,7 +180,7 @@ export class OrdersPage implements OnInit, OnDestroy {
             try {
               await this.orderService.cancelOrder(order.id, data?.reason);
               const toast = await this.toastCtrl.create({
-                message: 'Order cancelled. Stock restored.',
+                message: 'Order cancelled.',
                 color: 'warning',
                 duration: 2500,
                 position: 'top',

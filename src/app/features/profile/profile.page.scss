@@ -246,7 +246,7 @@
    paragraph each and sit inline in a form, not above it — but the colours are
    the tokens, not private copies, so a high-contrast session reaches them. */
 .locked-note,
-.blocked-note {
+.toggle-hint {
   display: flex;
   gap: var(--space-2);
   align-items: flex-start;
@@ -262,15 +262,26 @@
   color: var(--tone-info-ink);
 }
 
-.blocked-note {
+/* Replaces the old `.blocked-note` warning panel. Notifications are in-app only
+   now, so there is no OS permission that can be refused and nothing to warn
+   about — but the SCOPE still has to be stated where the user reads it, because
+   "nothing arrives while the app is closed" is the single most surprising thing
+   about this feature and it is not discoverable from a toggle. */
+.toggle-hint {
   margin-top: var(--space-3);
-  background: var(--tone-warning-bg);
-  border: 1px solid var(--tone-warning-border);
-  color: var(--tone-warning-ink);
+  background: var(--tone-info-bg);
+  border: 1px solid var(--tone-info-border);
+  color: var(--tone-info-ink);
+  /* Not a flex row: this is a paragraph of prose with a link inside it, and
+     making it a flex container would put the link on its own line. */
+  display: block;
 }
 
-.locked-note app-icon,
-.blocked-note app-icon {
+.toggle-hint .inline-link {
+  white-space: nowrap;
+}
+
+.locked-note app-icon {
   --icon-size: 16px;
   flex: 0 0 auto;
   margin-top: 1px;

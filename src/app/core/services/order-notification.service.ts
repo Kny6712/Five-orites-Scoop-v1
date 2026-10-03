@@ -11,9 +11,11 @@
 // notifies them on a genuine transition. It also derives the persistent feed
 // that the notifications page and the unread badge read from.
 //
-// SCOPE: in-app only. There is no Cloud Function in this project and therefore
-// nothing to fan out through FCM when the app is closed. That is a deliberate
-// scope decision, not a gap being papered over.
+// SCOPE: in-app only. This project is on Firebase's free Spark plan, so the
+// Cloud Functions in `functions/src/` CANNOT BE DEPLOYED and no push fan-out is
+// possible. That is a deliberate scope decision, not a gap being papered over.
+// (Wording matters here: three functions DO exist on disk, they just cannot run.
+// Saying "there is no Cloud Function" would be its own kind of lie.)
 //
 // TWO CONSUMERS, ONE WATCHER
 //

@@ -429,8 +429,15 @@ export class AdminUsersPage implements OnInit {
     this.errorMessage.set('');
     this.loadFailed.set(false);
     try {
+      // Ordered on the DOCUMENT ID, not on a `uid` field. The line below
+      // synthesises `uid` from `d.id`, which is itself the admission that no
+      // `uid` field is stored on the document — so `orderBy('uid')` was sorting
+      // on a field that is absent everywhere. Firestore tolerates that (missing
+      // values sort first), which is why it never threw: it just returned an
+      // order determined by nothing the user can see, and required a single-field
+      // index on a field no document has.
       const snap = await getDocs(
-        query(collection(this.firestore, 'users'), orderBy('uid', 'asc'), limit(USERS_MAX)),
+        query(collection(this.firestore, 'users'), orderBy('__name__', 'asc'), limit(USERS_MAX)),
       );
       this.users.set(snap.docs.map((d) => ({ ...d.data(), uid: d.id }) as AppUser));
       this.truncated.set(snap.size >= USERS_MAX);

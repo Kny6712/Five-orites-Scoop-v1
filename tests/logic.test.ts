@@ -19,7 +19,11 @@ import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '../src/app/core/logic/v
 import { summarizeRatings } from '../src/app/core/logic/rating';
 import { assertCanAddToCart, clampToStock, normaliseStockLines } from '../src/app/core/logic/stock';
 import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
-import { describeFirestoreError, isMissingIndexError } from '../src/app/core/logic/firestore-error';
+import {
+  describeFirestoreError,
+  isMissingIndexError,
+  isPermissionDeniedError,
+} from '../src/app/core/logic/firestore-error';
 import {
   buildNotificationFeed,
   countUnread,
@@ -764,6 +768,47 @@ describe('firestore error messages', () => {
     assert.equal(isMissingIndexError({ code: 'firestore/failed-precondition' }), true);
     assert.equal(isMissingIndexError({ code: 'permission-denied' }), false);
     assert.equal(isMissingIndexError(null), false);
+  });
+
+  /**
+   * The staff-gate case. A shift lead who advances an order off `pending` has
+   * their whole transaction refused because the product write inside it needs a
+   * manager, and without this the user is shown a bare `permission-denied`.
+   */
+  describe('isPermissionDeniedError', () => {
+    it('is true for a rules refusal, with or without the SDK prefix', () => {
+      assert.equal(isPermissionDeniedError({ code: 'permission-denied' }), true);
+      assert.equal(isPermissionDeniedError({ code: 'firestore/permission-denied' }), true);
+    });
+
+    it('treats a lost session as the same problem, so the message still fits', () => {
+      assert.equal(isPermissionDeniedError({ code: 'unauthenticated' }), true);
+      assert.equal(isPermissionDeniedError({ code: 'firestore/unauthenticated' }), true);
+    });
+
+    it('is false for the other failures, so it cannot swallow them', () => {
+      assert.equal(isPermissionDeniedError({ code: 'unavailable' }), false);
+      assert.equal(isPermissionDeniedError({ code: 'failed-precondition' }), false);
+      assert.equal(isPermissionDeniedError({ code: 'resource-exhausted' }), false);
+      assert.equal(isPermissionDeniedError({ code: 'deadline-exceeded' }), false);
+    });
+
+    it('is false for a non-error, rather than throwing', () => {
+      assert.equal(isPermissionDeniedError(null), false);
+      assert.equal(isPermissionDeniedError(undefined), false);
+      assert.equal(isPermissionDeniedError({}), false);
+      assert.equal(isPermissionDeniedError(new Error('boom')), false);
+    });
+
+    it('exists because the read-oriented message is wrong for a write', () => {
+      // `describeFirestoreError`'s permission branch says "permission to LOAD",
+      // which is inaccurate in every particular when a write was refused: nothing
+      // was being loaded, and "sign in again" is not the remedy. This pins that
+      // wording so the reason for the separate helper is not quietly forgotten.
+      const readMessage = describeFirestoreError('the order', { code: 'permission-denied' });
+      assert.match(readMessage, /permission to load/i);
+      assert.doesNotMatch(readMessage, /change|save|update/i);
+    });
   });
 });
 

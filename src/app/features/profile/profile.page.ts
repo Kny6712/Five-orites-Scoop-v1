@@ -303,6 +303,19 @@ export class ProfilePage implements OnInit {
    * The dialog is not decoration. This is the most irreversible action in the
    * app, and a single mis-tap on a button that only appears on one page should
    * not be able to destroy someone's account and order history.
+   *
+   * THE DIALOG SAYS WHAT ACTUALLY HAPPENS, which is less than it used to claim.
+   * This text once ended "…but your name, email and address are removed from
+   * them." That was false. The redaction was to be done by the
+   * `anonymiseDeletedCustomerOrders` Cloud Function, and this project is on the
+   * free Spark plan, so that function has never been deployed and has never run.
+   * Deleting the account therefore leaves name, email and delivery address on
+   * every order that customer ever placed — those orders are the shop's sales
+   * records, and they are retained.
+   *
+   * PRIVACY.md now says exactly this too. A confirmation dialog is the last place
+   * a user reads before an irreversible action, so it is the worst place to be
+   * vague: a promise made here is a promise the shop is held to.
    */
   async confirmDeleteAccount(): Promise<void> {
     if (this.isDeleting()) return;
@@ -311,7 +324,7 @@ export class ProfilePage implements OnInit {
     const alert = await this.alertCtrl.create({
       header: 'Delete your account?',
       message:
-        'This permanently deletes your account and cannot be undone. Your past orders are kept as sales records, but your name, email and address are removed from them.',
+        'This permanently deletes your account and cannot be undone. Your past orders are kept as sales records, and they still show the name, email and address you ordered with. Delete your account only if you are comfortable with that.',
       buttons: [
         { text: 'Cancel', role: 'cancel' },
         { text: 'Delete my account', role: 'destructive' },

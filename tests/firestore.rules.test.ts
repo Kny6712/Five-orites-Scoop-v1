@@ -57,6 +57,8 @@ const OWNER = 'owner-uid';
 const STAFF = 'staff-uid';
 /** A manager: runs the shop day to day, but cannot hand out roles. */
 const MANAGER = 'manager-uid';
+/** A second customer, used to prove one cannot touch another's order. */
+const asManager = () => env.authenticatedContext(MANAGER).firestore();
 
 const PRODUCT = {
   setNumber: 1,
@@ -137,17 +139,18 @@ beforeEach(async () => {
     await setDoc(doc(db, `users/${ADMIN}`), { uid: ADMIN, role: 'admin' });
     await setDoc(doc(db, `users/${OWNER}`), { uid: OWNER, role: 'owner' });
     await setDoc(doc(db, `users/${STAFF}`), { uid: STAFF, role: 'staff' });
+    await setDoc(doc(db, `users/${MANAGER}`), { uid: MANAGER, role: 'manager' });
     await setDoc(doc(db, `users/${CUSTOMER}`), { uid: CUSTOMER, role: 'customer' });
     await setDoc(doc(db, `users/${OTHER_CUSTOMER}`), { uid: OTHER_CUSTOMER, role: 'customer' });
   });
 });
 
-describe('products: customer stock writes', () => {
-  test('a customer may NOT write stock at all — the Cloud Function owns it', async () => {
-    // Stock is reserved server-side by reconcileOrderStock (functions/src/index.ts)
-    // using the Admin SDK. There is no longer a customer branch on the products
-    // rule, so EVERY stock write from a customer session is refused: the checkout
-    // decrement AND the cancel-restock, both of which the function now performs.
+describe('products: stock is staff-owned', () => {
+  test('a customer may NOT write stock at all — staff own it now', async () => {
+    // There is no customer branch on the products rule. Stock moves in the
+    // transaction that advances an order out of `pending`, performed by STAFF from
+    // the fulfilment queue (`OrderService.transitionOrderStatus`), so EVERY stock
+    // write from a customer session is refused.
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 3,
@@ -156,7 +159,7 @@ describe('products: customer stock writes', () => {
     );
   });
 
-  test('a customer may NOT restock on cancel either (restockCancelledOrder owns it)', async () => {
+  test('a customer may NOT restock on cancel either', async () => {
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 6,
@@ -166,10 +169,10 @@ describe('products: customer stock writes', () => {
   });
 
   test('a customer may NOT raise stock to inflate availability — the hole is CLOSED', async () => {
-    // Previously this SUCCEEDED and was pinned as a "known limitation": any
-    // signed-in session could write stock.cup: 999999 (oversell) or zero the whole
-    // catalog (availability DoS). Removing the customer branch is what closed it,
-    // and this assertion is the proof it stays closed.
+    // This SUCCEEDED for months: any signed-in session could write
+    // stock.cup: 999999 (oversell) or zero the whole catalog (availability DoS).
+    // Deleting the customer branch is what closed it, and this assertion is the
+    // proof it stays closed.
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': 999999,
@@ -195,6 +198,51 @@ describe('products: customer stock writes', () => {
     await assertFails(
       updateDoc(doc(asUser(CUSTOMER), 'products/p1'), {
         'stock.cup': -1000,
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a STAFF-tier account may NOT write stock either', async () => {
+    // THE ONE REAL BEHAVIOUR REGRESSION from deleting the customer branch.
+    //
+    // While it existed, ANY signed-in session could write `stock` — which
+    // included a `staff` shift lead. So a shift lead could zero the catalog, and
+    // a test elsewhere in this file documented that as SUCCEEDING.
+    //
+    // Now that stock is taken by the fulfilment take, which is a PRODUCT write and
+    // therefore gated on `canRunShop()` (manager+), a `staff` account cannot write
+    // stock at all. That is the correct trade — it is precisely the hole being
+    // closed — but it is a change in what a shift lead can do, so it is pinned
+    // here rather than discovered by someone on a shop floor.
+    await assertFails(
+      updateDoc(doc(asStaff(), 'products/p1'), {
+        'stock.cup': 99,
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a MANAGER-tier account MAY decrement stock — that is the fulfilment take', async () => {
+    // The positive control for the test above. Without it, "staff cannot" could
+    // pass for the wrong reason (a broken product rule rather than a correct tier
+    // boundary), and the take in `OrderService.transitionOrderStatus` would be
+    // impossible for anyone.
+    await assertSucceeds(
+      updateDoc(doc(asManager(), 'products/p1'), {
+        'stock.cup': 4,
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a MANAGER-tier account may NOT set stock negative', async () => {
+    // `stockIsSane()` still floors every size at zero for the manager path too, so
+    // the take can never drive a shelf below empty even if the transaction's own
+    // shortfall check were somehow bypassed.
+    await assertFails(
+      updateDoc(doc(asManager(), 'products/p1'), {
+        'stock.cup': -1,
         updatedAt: Timestamp.now(),
       }),
     );
@@ -269,6 +317,136 @@ describe('products: customer stock writes', () => {
 
   test('a signed-out visitor may NOT delete a product', async () => {
     await assertFails(deleteDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1')));
+  });
+});
+
+describe('orders: money floors', () => {
+  // `deliveryFee` used to be validated NOWHERE — not even `is number`. It appeared
+  // only inside the consistency identity, which made a forged negative fee the
+  // cheapest way to steal from the shop: keep every line item at a real price,
+  // shave the fee, and nothing in the payload looks wrong to a human reviewer.
+
+  test('a customer may NOT create an order with a NEGATIVE delivery fee', async () => {
+    // The attack this closes, in full: a ₱1,000 basket settled for ₱550.
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'pending'),
+        totalAmount: 1000,
+        discountAmount: 0,
+        deliveryFee: -450,
+        grandTotal: 550,
+      }),
+    );
+  });
+
+  test('a customer may NOT create a ₱0 order', async () => {
+    // Five gallons recorded at zero. `totalAmount > 0` is what refuses it; the
+    // per-line `unitPrice` cannot be checked at all, because Firestore rules have
+    // no loop and cannot sum an array.
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'pending'),
+        items: [
+          {
+            productId: 'p1',
+            variantName: 'Rocky Road',
+            setName: 'Chocolates',
+            size: 'gallon',
+            quantity: 5,
+            unitPrice: 0,
+            subtotal: 0,
+          },
+        ],
+        totalAmount: 0,
+        discountAmount: 0,
+        deliveryFee: 0,
+        grandTotal: 0,
+      }),
+    );
+  });
+
+  test('a customer may NOT create an order with a fractional peso anywhere', async () => {
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'pending'),
+        deliveryFee: 49.5,
+        grandTotal: 65 + 49.5,
+      }),
+    );
+  });
+
+  test('a customer MAY still create an ordinary order', async () => {
+    // The positive control. Without it, the three tests above could all pass
+    // because the clause rejects EVERY order rather than because the money floors
+    // work — which would be a far worse bug than the one being fixed.
+    await assertSucceeds(setDoc(doc(asUser(CUSTOMER), 'orders/o1'), orderFor(CUSTOMER, 'pending')));
+  });
+});
+
+describe('orders: the restock marker', () => {
+  // `stockRestored` appeared in NO allow-list in firestore.rules before this — only
+  // in comments — so `OrderService.repairStockRestock()` threw PERMISSION_DENIED on
+  // its first statement for every role including owner, and the admin repair panel
+  // was a control that could never be used. It now has its own narrow clause.
+
+  test('a MANAGER may mark a cancelled order as restocked', async () => {
+    await seed('orders/o1', orderFor(CUSTOMER, 'cancelled'));
+    await assertSucceeds(
+      updateDoc(doc(asManager(), 'orders/o1'), {
+        stockRestored: true,
+        stockRestoredAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT write the restock marker on an update', async () => {
+    await seed('orders/o1', orderFor(CUSTOMER, 'cancelled'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        stockRestored: false,
+        stockRestoredAt: null,
+      }),
+    );
+  });
+
+  test('a customer may NOT set the marker at CREATE to seed a fake repair row', async () => {
+    // The laundering defence. A `false` marker on a fresh order would appear in
+    // the owner's repair queue, and a repair moves real stock — so the create
+    // allow-list must keep omitting `stockRestored`. This test is the reason it
+    // does, and the reason the marker got a SEPARATE clause rather than a place in
+    // the staff whitelist.
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'cancelled'),
+        stockRestored: false,
+        stockRestoredAt: null,
+      }),
+    );
+  });
+
+  test('a manager may NOT use the marker clause to also change the status', async () => {
+    // The narrow clause allows ONLY the two marker fields. Without this, widening
+    // it to reach the marker would have quietly widened every other staff write.
+    await seed('orders/o1', orderFor(CUSTOMER, 'cancelled'));
+    await assertFails(
+      updateDoc(doc(asManager(), 'orders/o1'), {
+        stockRestored: true,
+        status: 'delivered',
+      }),
+    );
+  });
+
+  test('the marker may NOT be written on an order that is not cancelled', async () => {
+    // A stray write on a live order is inert (the repair panel filters on
+    // `status === 'cancelled'`), but refusing it keeps the flag meaning exactly one
+    // thing rather than "whatever a manager typed".
+    await seed('orders/o1', orderFor(CUSTOMER, 'confirmed'));
+    await assertFails(
+      updateDoc(doc(asManager(), 'orders/o1'), {
+        stockRestored: false,
+        stockRestoredAt: null,
+      }),
+    );
   });
 });
 

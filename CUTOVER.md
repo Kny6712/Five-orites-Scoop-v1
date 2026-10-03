@@ -1,174 +1,205 @@
-# CUTOVER.md — moving stock ownership from the client to Cloud Functions
+# CUTOVER.md — stock ownership, staff-gated
 
-Referenced from `firestore.rules`. **Read this before deploying rules or functions.**
+Referenced from `firestore.rules`. **Read this before deploying rules, and before
+telling a customer anything about stock or their orders.**
+
+> ### ⚠ THIS IS NOT THE RUNBOOK THE FILE NAME SUGGESTS
+>
+> An earlier version of this file was a runbook for deploying Cloud Functions and
+> cutting stock ownership over to them. **That deployment can never happen on this
+> project** — it is on the free Spark plan — and every line-number citation in it
+> had gone stale. It has been rewritten as what it now is: **a runbook for the
+> staff-gated stock movement that replaced it**, plus an honest note on the one
+> customer-visible behaviour change it introduced.
+>
+> There is **no Blaze upgrade to do** and **no `deploy:functions` step**. If you
+> were following the old version of this file, stop and re-read.
 
 ## TL;DR
 
-The repository is frozen **half-way through a cutover**. The client half is done; the
-server half is not live. Until you finish this runbook, **every sale ships without
-decrementing inventory.**
+The cutover landed, and it landed somewhere other than where this file used to
+predict. Stock is **not** reserved at checkout and **not** moved by a server.
+**Stock is taken by staff**, inside the transaction that advances an order out of
+`pending` in the fulfilment queue. Checkout writes the order and nothing else.
 
-Do not remove the customer branch from `firestore.rules` until step 3 below has
-confirmed the functions are live and moving stock. Out of order, you either lose all
-checkouts or you oversell indefinitely.
+There is no "half-finished migration" any more, and no ordering constraint: the
+rules no longer permit a customer to write stock, and nothing in the app needs
+them to.
+
+### A note on citations
+
+This file cites **file + symbol**, never line numbers. The previous version cited
+~20 line numbers, and every one of them was wrong by the time anyone read it —
+a runbook that sends you to the wrong line is worse than one that says "see
+`transitionOrderStatus`".
 
 ## Current state, verified
 
-| Layer                         | State                     | Where                                           |
-| ----------------------------- | ------------------------- | ----------------------------------------------- |
-| Client stock decrement        | **REMOVED**               | `src/app/core/services/order.service.ts:68-83`  |
-| `reconcileOrderStock`         | Written, **not deployed** | `functions/src/index.ts:260`                    |
-| `restockCancelledOrder`       | Written, **not deployed** | `functions/src/index.ts:499`                    |
-| Customer stock-write rule     | **STILL OPEN**            | `firestore.rules:186-190`                       |
-| Rules tests for the new world | **4 RED**                 | `tests/firestore.rules.test.ts:126,139,148,161` |
+| Layer                     | State                                                                                      | Where                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| Checkout stock write      | **Does not exist.** `placeOrder` writes the order only.                                    | `OrderService.placeOrder`, `src/app/core/services/order.service.ts` |
+| Stock movement            | **Lives in the status transition**, in one transaction                                     | `OrderService.transitionOrderStatus`, same file                     |
+| Ledger row per movement   | Written in the same transaction as the decrement                                           | `stockMovements` collection                                         |
+| Customer stock-write rule | **DELETED** — `/products` is write-gated to `canRunShop()`                                 | `firestore.rules`, `match /products/{productId}`                    |
+| Restock on cancel         | **Not needed**: a customer can only cancel while `pending`, which is before stock is taken | `firestore.rules`, `match /orders/{orderId}` customer cancel clause |
+| Rules tests               | **120 / 120 passing**                                                                      | `npm run test:rules`                                                |
+| Business-logic tests      | ~160 cases                                                                                 | `npm run test:logic`                                                |
+| Cloud Functions           | 3 handlers on disk, **cannot be deployed on Spark**                                        | `functions/src/index.ts`                                            |
 
-### Why stock is not decrementing today
+### Why stock is not decremented at checkout, in one paragraph
 
-`order.service.ts` no longer writes stock — it delegates to a function that is not
-running. The rules still _permit_ a customer to write stock, but nothing in the app
-does so any more. Net result: orders are created, money is (presumably) collected, and
-the shelf count never moves.
+Because nothing reserves it. A customer places an order; the order is `pending`;
+stock is untouched. When staff advance it to `confirmed` or `preparing`, the
+transaction re-reads every product on the order, checks every line, decrements
+all of them and writes a `stockMovements` row per line — or aborts the whole
+movement and refuses the transition if any line is short. This is deliberate and
+it is the correct trade for a shop that cannot run a server: the person who knows
+the shelf is the person who takes from it, and the transition they make is the
+thing that is atomic.
 
-### Why you cannot simply delete the rule branch
-
-`firestore.rules:186-190` grants any signed-in user a stock write scoped only by _key
-name_:
-
-```rules
-|| (isSignedIn()
-    && request.resource.data.diff(resource.data).affectedKeys()
-         .hasOnly(['stock', 'updatedAt'])
-    && stockIsSane());
-```
-
-`stockIsSane()` (`firestore.rules:135-141`) only checks each size is a non-negative
-integer. So today any signed-in session can write `stock.cup: 999999` (oversell) or
-zero the entire catalogue (availability DoS). That branch is the worst hole in the file.
-
-It is also, right now, the only thing that would have let a client decrement — but the
-client no longer tries. **The branch is pure attack surface with no remaining purpose.**
-
-Deleting it is correct and is the goal. It is only unsafe if the function is not yet
-live, because then nothing decrements at all _and_ the cancellation restock path is
-gone too.
-
-## Prerequisites
-
-- [ ] **Firebase project upgraded Spark → Blaze.** Cloud Functions cannot deploy on the
-      free plan. This is a billing change in the Google Cloud console and it is the
-      single hardest gate in this document — nothing here works without it.
-- [ ] You are signed in as an owner: `firebase login`
-- [ ] `five-orites-scoop` is the active project (`.firebaserc` default)
-
-## Step 1 — Deploy the functions
-
-```bash
-npm run deploy:functions
-```
-
-Expected: `tsc` compiles clean, then `firebase deploy --only functions` reports two
-deployed triggers. Verify in the console under **Functions**.
-
-## Step 2 — Prove the function moves stock BEFORE touching the rules
-
-Place one real order through the app (any signed-in non-admin account):
-
-1. Note a product's `stock.cup` in the Firestore console.
-2. Check out one unit of that product.
-3. **Confirm `stock.cup` dropped by exactly 1**, and that a `stockMovements` row
-   appeared with reason `sale`.
-4. Cancel the order.
-5. **Confirm `stock.cup` returned to its original value** and a `cancel_restock` row
-   appeared.
-6. Cancel the same order a second time. Stock must **not** move again.
-
-If stock does not move in step 3, **stop.** The function is not live or not triggered.
-Do not proceed to step 3.
-
-## Step 3 — Close the hole in the rules
-
-Only after step 2 passes. Edit `firestore.rules:186-190`, replacing:
-
-```rules
-      allow update: if (canRunShop() && isWellFormedProduct())
-        || (isSignedIn()
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['stock', 'updatedAt'])
-            && stockIsSane());
-```
-
-with:
-
-```rules
-      allow update: if canRunShop() && isWellFormedProduct();
-```
-
-Then update the comment block above it (`firestore.rules:166-182`) — it describes a
-temporary branch that no longer exists.
+## Step 1 — Deploy the rules and indexes
 
 ```bash
 npm run deploy:firestore
 ```
 
-## Step 4 — Prove the rules now refuse it
+Expected: rules deploy, then the **7 composite indexes** in
+`firestore.indexes.json` are created. Index creation is asynchronous in the
+console — a fresh project can report "indexes are being created" for a minute or
+two, and a query that needs one fails until then. That is not a broken deploy.
+
+**Do not use `npm run deploy`.** It chains `firestore → functions → hosting`,
+and the functions step fails on the Spark plan, so hosting is never deployed.
+Use `deploy:firestore` and `npm run build && firebase deploy --only hosting`
+separately.
+
+## Step 2 — Prove the staff path moves stock, before trusting it
+
+This is the check that matters. Static review cannot prove deployed state.
+
+1. Sign in as a **non-admin** and place a real order. Confirm `stock` on every
+   product on it is **unchanged**. This is the single test that catches a
+   regression into client-side decrement.
+2. Sign in as staff, open the fulfilment queue, advance that order out of
+   `pending`. Confirm:
+   - `stock` dropped by exactly the ordered quantity, for **every** line;
+   - a `stockMovements` row appeared per line, reason `sale`, carrying the
+     `orderId`.
+3. **Test the abort.** Order a quantity larger than the current stock of one
+   flavour and advance it. The transition must be **refused**, and no line may
+   move. A partial decrement is the failure mode to look for.
+4. Open the admin ledger and confirm the running balance matches
+   `InventoryService.adjustStock` history for the same product.
+5. Cancel a still-`pending` order as the customer. Stock must **not** move —
+   nothing was ever taken. Confirm the order reaches `cancelled` and the reason
+   is visible to the customer.
+
+If step 2 does not move stock, **stop.** Do not deploy anything else.
+
+## Step 3 — Prove the rules refuse a customer stock write
 
 ```bash
 npm run test:rules
 ```
 
-The 4 tests at `tests/firestore.rules.test.ts:126,139,148,161` must now pass:
+All 120 cases must pass. The ones that matter here assert that a signed-in
+customer **cannot**:
 
-- a customer may NOT write stock at all — the Cloud Function owns it
-- a customer may NOT restock on cancel either
-- a customer may NOT raise stock to inflate availability — the hole is CLOSED
-- a customer may NOT zero the catalog (availability DoS)
+- write a product's `stock` at all, in the app or with the raw SDK;
+- raise stock to inflate availability (`stock.cup: 999999`);
+- zero the catalog as an availability denial-of-service;
+- restock by cancelling.
 
-Then run the full gate:
+Then the full gate:
 
 ```bash
 npm run verify
 ```
 
-`verify` chains `typecheck → typecheck:scripts → test:logic → test:rules →
-check:contrast → build`. **It cannot pass today** — `test:rules` is red. It should be
-green after this runbook is complete.
+`verify` chains `typecheck → typecheck:scripts → lint → test:logic → test:rules
+→ check:contrast → build`. **It is green.** It was not, for a long time, and the
+reason it was red is the reason this section exists: the rules still granted a
+customer a stock write while the client no longer performed one, so the tests
+described the intended state and the rules did not implement it. That gap is
+closed.
 
-## Step 5 — Confirm the live project agrees
+## Step 4 — Confirm the live project agrees
 
-Static review cannot prove deployed state. Against the live project:
+Static review and a green suite cannot prove deployed state. Against the live
+project, in order:
 
-1. Sign in as a **non-admin** and place a real order. This is the single test that
-   catches the original bug.
-2. Cancel it; confirm stock returns to its prior value.
-3. Open the same order in two tabs, cancel in both, confirm stock returns **once**.
-4. As admin, advance the status; confirm the in-app notification lands on the
+1. Non-admin places a real order (step 2.1 above).
+2. Staff advance it; stock moves once, with ledger rows.
+3. Open the same order in two tabs and advance it in both. Stock must move
+   **once** — the second transition is a no-op because the order is no longer
+   `pending`.
+4. As admin, advance the status and confirm the in-app notification lands on the
    **customer's** device, not the admin's.
 5. Sign in as a second customer; confirm neither order is readable.
-6. Withdraw network access and open admin inventory — it must show an **error**, not
-   "0 products".
+6. Withdraw network access and open admin inventory — it must show an **error**,
+   not "0 products".
+
+## The one behaviour change, stated plainly
+
+**Stock is taken when staff advance the order, not at checkout. So an order can
+be accepted and then declined.**
+
+Before this change, checkout held stock for you and the order could not fail for
+want of it. Now the order sits `pending` with nothing reserved, and a staff
+member can refuse it at the moment they pick it up — usually because a flavour
+sold out between your checkout and their review. `TERMS.md` says this to
+customers; `README.md` → "Known limitations" says it to developers. Keep all
+three in step if the model ever changes.
+
+Nothing else a customer can do touches stock, which is why no customer write path
+was needed.
 
 ## Rollback
 
-If step 3 goes wrong, revert the rules immediately:
+If the staff transition misbehaves, the safe move is to **stop using the queue**,
+not to re-open the customer write:
 
 ```bash
-git revert <the commit that removed the branch>
-npm run deploy:firestore
+npm run deploy:firestore        # after reverting the offending commit
 ```
 
-Restoring the branch is safe on its own: with the client no longer writing stock, the
-branch grants no new capability the app uses. It re-opens the hole, so treat the revert
-as temporary and fix forward.
+Re-opening the customer branch of `firestore.rules` would be **fixing forward in
+the wrong direction**: it grants any signed-in session a write to a product's
+stock scoped only by key name, with no direction check and no requirement that
+the caller own any order — so `stock.cup: 999999` (oversell) and a zeroed catalog
+(availability DoS) both become one call away. It is not a rollback target. Fix
+the transaction instead.
 
-Rolling back the **functions** alone (step 1) is the dangerous direction — it stops
-stock decrementing while the client still does not decrement either.
+Rolling back the **functions** is not a scenario: there is nothing deployed to
+roll back.
 
 ## After the cutover
 
-Two things in this repo still assume the old world and should be cleaned up:
+Already done — recorded so nobody re-opens them:
 
-- `functions/src/index.ts:39-47` describes a client cutover that has already happened.
-- `src/app/core/services/stock-ledger.service.ts:5-22` documents the customer stock
-  hole as open. After step 3 it is closed.
-- `README.md:82-92` still says "Stock is decremented client-side" and `README.md:311`
-  lists Cloud Functions as out of scope. Both are false.
+- The customer stock-write branch is deleted from `firestore.rules`, with the
+  reason it existed written into the comment block above it (the history is the
+  point; a bare deletion reads like an accident).
+- Its comment block no longer claims the client write and the rule branch were a
+  "matched pair" to be cut over together. Both halves of that were correct when
+  written and both are now false.
+- `npm run verify` is green, and CI (`.github/workflows/ci.yml`) runs the same
+  chain, so this cannot silently regress again.
+
+Still true, and worth knowing before you promise anything:
+
+- **`functions/` is dead code.** `reconcileOrderStock`,
+  `restockCancelledOrder` and `anonymiseDeletedCustomerOrders` cannot be
+  deployed on the Spark plan and have never run. `reconcileOrderStock` was
+  replaced by the staff transaction; `anonymiseDeletedCustomerOrders` is why
+  `PRIVACY.md` has to say that a deleted customer's past orders are **not**
+  redacted. Deleting `functions/` is a clean, separate change if you want it —
+  but the privacy caveat has to go with it, not before.
+- **`StockLedgerService` is read-only.** It reads `stockMovements` and reports
+  drift; it does not write rows and has no `record()` method. Every ledger row is
+  written by the inventory adjust/restock transaction or by the status-transition
+  transaction, inside the same transaction as the product write.
+- **Per-item `unitPrice` is still client-authored.** Firestore rules cannot loop
+  over `items`, so the basket total is whatever the client said. `totalAmount`,
+  `deliveryFee`, `discountAmount` and `grandTotal` are all validated, but the
+  line items behind them are not.

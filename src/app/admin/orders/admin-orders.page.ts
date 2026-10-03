@@ -424,10 +424,34 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     await alert.present();
   }
 
+  /**
+   * Statuses at which the shop is holding this order's stock.
+   *
+   * Mirrors `STOCK_HELD_STATUSES` in OrderService, which is where the movement
+   * actually happens. It is repeated here rather than imported because the page
+   * needs it only to decide what to SAY, and a message that misstated the stock
+   * consequence is a support ticket — but if the two ever disagree, this copy is
+   * the wrong one, so change the service first.
+   */
+  protected readonly heldStockStatuses: readonly OrderStatus[] = [
+    'pending',
+    'confirmed',
+    'preparing',
+  ];
+
   async cancelOrder(order: Order): Promise<void> {
+    // Whether stock comes back depends entirely on where the order is. Stock is
+    // taken when an order LEAVES `pending`, so a `pending` order holds none and
+    // cancelling it returns nothing; a `confirmed` or `preparing` order does hold
+    // its stock and cancelling it puts it back on the shelf. One message covering
+    // both cases would have to be a lie for one of them.
+    const heldStock = this.heldStockStatuses.includes(order.status);
+
     const alert = await this.alertCtrl.create({
       header: 'Cancel Order',
-      message: `Cancel order #${order.id.slice(-6).toUpperCase()}? Stock will be restored.`,
+      message:
+        `Cancel order #${order.id.slice(-6).toUpperCase()}?` +
+        (heldStock ? ' Its stock will be returned to the shelf.' : ''),
       inputs: [{ name: 'reason', type: 'text', placeholder: 'Reason (optional)' }],
       buttons: [
         { text: 'Back', role: 'cancel' },
@@ -440,7 +464,7 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
               await this.orderService.cancelOrder(order.id, data?.reason);
               // Owner notified by OrderNotificationService, not from here.
               const toast = await this.toastCtrl.create({
-                message: 'Order cancelled and stock restored.',
+                message: heldStock ? 'Order cancelled and stock returned.' : 'Order cancelled.',
                 color: 'warning',
                 duration: 2500,
                 position: 'top',

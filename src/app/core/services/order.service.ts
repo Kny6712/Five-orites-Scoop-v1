@@ -22,9 +22,16 @@ import {
   updateDoc,
   runTransaction,
 } from '@angular/fire/firestore';
-import type { QueryConstraint, QueryDocumentSnapshot } from '@angular/fire/firestore';
+import type {
+  QueryConstraint,
+  QueryDocumentSnapshot,
+  DocumentReference,
+} from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { getDeliveryFee } from '../models/cart.model';
+import { normaliseStockLines } from '../logic/stock';
+import { isPermissionDeniedError } from '../logic/firestore-error';
+import type { Product, SizeVariant } from '../models/product.model';
 
 /**
  * One page of reporting results.
@@ -49,16 +56,38 @@ import { CartService } from './cart.service';
 import { InventoryService } from './inventory.service';
 import { VoucherService } from './voucher.service';
 
-// The "which statuses still count as pre-dispatch" policy is no longer
-// expressed here. It used to be a client constant that cancelOrder consulted
-// before restocking, mirrored in functions/src/index.ts with a comment asking
-// the two to be kept identical.
-//
-// cancelOrder no longer restocks -- `restockCancelledOrder` does, on the
-// cancellation trigger -- so this copy had no callers. It was deleted rather
-// than left as dead-but-documented, because two lists that must stay in step,
-// where only one is real, is exactly the arrangement that silently drifts.
-// The server is now the single place the policy lives.
+/**
+ * Statuses at which the shop is still physically holding the order's stock.
+ *
+ * WHY THIS LIST IS HERE AND NOT IN A FUNCTION. `functions/src/index.ts` declares
+ * `PRE_DISPATCH_STATUSES` for the same purpose, but this project is on Firebase's
+ * free Spark plan and Cloud Functions CANNOT BE DEPLOYED, so that copy can never
+ * run. This is now the single real copy.
+ *
+ * The earlier arrangement — a client list mirrored in the function, with a
+ * comment asking the two to be kept in step — was deleted deliberately, because
+ * two lists that must match where only one is real is exactly the arrangement
+ * that drifts silently. Deleting the unreachable copy is what makes that true
+ * again.
+ *
+ * `out_for_delivery` and `delivered` are excluded on purpose: the ice cream has
+ * left the building, so returning its stock would invent inventory the shop can
+ * then sell a second time.
+ */
+const STOCK_HELD_STATUSES: readonly OrderStatus[] = ['pending', 'confirmed', 'preparing'];
+
+/**
+ * The shelf is short. Distinct from every other failure on purpose.
+ *
+ * A real Firestore error — network, permissions, contention — must NEVER be
+ * reported to the shop as "not enough ice cream". Doing so would cancel an order
+ * the customer could legitimately have had, which is the worst of both outcomes:
+ * they lose the sale AND the stock stays on the shelf.
+ */
+class InsufficientStockError extends Error {}
+
+/** The order was cancelled or delivered between the caller's read and this write. */
+class OrderNoLongerOpenError extends Error {}
 
 @Injectable({ providedIn: 'root' })
 export class OrderService {
@@ -368,6 +397,11 @@ export class OrderService {
     since?: Date;
     pageSize?: number;
     cursor?: unknown;
+    /**
+     * The total from the first page of this walk, so later pages need not re-run
+     * the count query. See the note on `total` below.
+     */
+    knownTotal?: number;
   }): Promise<OrdersPage> {
     const pageSize = Math.max(1, Math.min(options.pageSize ?? 50, 200));
     const ordersCol = collection(this.firestore, 'orders');
@@ -392,72 +426,318 @@ export class OrderService {
     const hasMore = orders.length === pageSize;
     const cursor = hasMore ? snapshot.docs[snapshot.docs.length - 1] : null;
 
-    const countSnap = await getCountFromServer(query(ordersCol, ...filters));
+    // `total` is resolved ONLY on the first page.
+    //
+    // The count query takes neither the cursor nor the limit, so it is invariant
+    // across every page of a walk — a client paging through 25 pages was issuing 25
+    // identical count queries to learn the same number 25 times. It is also the
+    // only part of this method that is not free, and the analytics page walks to a
+    // 5,000-order ceiling against Firebase's 50,000 reads/day free quota.
+    //
+    // Once the caller has the first page's total it has the only total there is.
+    // Later pages reuse it, which is also the semantically honest answer: a count
+    // taken from the middle of a walk can silently disagree with the pages either
+    // side of it if an order arrives mid-walk.
+    const total = options.cursor
+      ? (options.knownTotal ?? orders.length)
+      : (await getCountFromServer(query(ordersCol, ...filters))).data().count;
 
-    return { orders, hasMore, total: countSnap.data().count, cursor };
+    return { orders, hasMore, total, cursor };
   }
 
   async updateOrderStatus(orderId: string, newStatus: OrderStatus): Promise<void> {
-    const orderRef = doc(this.firestore, `orders/${orderId}`);
-    await updateDoc(orderRef, {
-      status: newStatus,
-      updatedAt: serverTimestamp(),
-      statusHistory: arrayUnion({ status: newStatus, timestamp: Timestamp.now() }),
-    });
+    await this.transitionOrderStatus(orderId, newStatus);
   }
 
   async cancelOrder(orderId: string, reason?: string): Promise<void> {
-    const orderRef = doc(this.firestore, `orders/${orderId}`);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) throw new Error(`Order ${orderId} not found.`);
-    const order = { id: snap.id, ...snap.data() } as Order;
-    if (order.status === 'cancelled') return;
-    if (order.status === 'delivered') throw new Error('Delivered orders cannot be cancelled.');
-
+    // Truncated because the rules cap `cancelReason` at 300 characters, and a
+    // longer string is a PERMISSION_DENIED on the ENTIRE cancellation — the
+    // order would stay open with no explanation shown.
     const safeReason = reason && reason.trim().length > 0 ? reason.trim().slice(0, 300) : null;
+    await this.transitionOrderStatus(orderId, 'cancelled', { cancelReason: safeReason });
+  }
 
-    // ── The restock is the FUNCTION's job ─────────────────────────────────────
-    //
-    // `restockCancelledOrder` (functions/src/index.ts) watches exactly this
-    // transition — `status` moving into `cancelled` — and returns the stock in a
-    // transaction, writing the ledger row and the `stockRestored` marker with it.
-    // This method used to do all of that itself via
-    // `InventoryService.restockItems`, and doing both would return the stock
-    // twice for every cancellation.
-    //
-    // The transaction below therefore does ONE thing: move the status, atomically,
-    // so two concurrent cancels cannot both write it. Everything downstream —
-    // the restock, the marker, the repair-queue entry on failure — belongs to the
-    // trigger, which can see the transition and react to it even when the cancel
-    // came from the admin queue or the tracker page.
-    await runTransaction(this.firestore, async (tx) => {
-      const fresh = await tx.get(orderRef);
-      if (!fresh.exists()) return;
-      const current = fresh.data() as { status?: OrderStatus };
-      if (current.status === 'cancelled') return;
-      if (current.status === 'delivered') {
-        throw new Error('Delivered orders cannot be cancelled.');
-      }
-      tx.update(orderRef, {
-        status: 'cancelled',
-        cancelReason: safeReason,
-        updatedAt: serverTimestamp(),
-        statusHistory: arrayUnion({ status: 'cancelled', timestamp: Timestamp.now() }),
+  /**
+   * THE ONE place an order's status changes, and the one place stock moves.
+   *
+   * Everything else in the app — the fulfilment queue's advance button, its
+   * free-form status picker, its bulk advance, the dispatch map, the customer's
+   * own cancel — funnels through here. That is deliberate: it is why a stock take
+   * cannot be bypassed by using a different control, and why a fifth call site
+   * added later inherits the correct behaviour for free.
+   *
+   * WHY STAFF AND NOT THE CUSTOMER. This project is on Firebase's free plan, so
+   * there is no server to reserve stock and `reconcileOrderStock` can never be
+   * deployed. The alternative was letting the customer decrement at checkout,
+   * which requires a Firestore rule that grants every signed-in user a write to
+   * product stock — and that rule let ANY customer set `stock.cup: 999999` or
+   * zero the whole catalog. Moving the take to a staff action means customers
+   * cannot write a product document at all, so that rule could simply be deleted.
+   * See the products block in firestore.rules for the full history.
+   *
+   * THE TRADE, stated plainly: stock is no longer reserved at checkout, so two
+   * customers can both order the last pint. The second one is not declined at
+   * checkout — it is declined when staff try to start preparing it, and the order
+   * stays `pending` so staff can tell the customer. For a shop with staff
+   * watching a queue that is a workable process; TERMS.md says so rather than
+   * promising a checkout-time guarantee the app cannot keep.
+   *
+   * ROLE-AGNOSTIC BY DESIGN. This method is identical for a customer and a
+   * manager, and it is `firestore.rules` — not this code — that decides who may
+   * do what. A customer cancelling a `pending` order computes
+   * `shouldTake === false` and `shouldRestore === false` (stock was never taken
+   * at `pending`), so the only write is the status change their own rules branch
+   * already permits. They never touch a product.
+   */
+  private async transitionOrderStatus(
+    orderId: string,
+    newStatus: OrderStatus,
+    opts: { cancelReason?: string | null } = {},
+  ): Promise<void> {
+    const orderRef = doc(this.firestore, `orders/${orderId}`);
+    const actorUid = this.authService.currentUserSnapshot?.uid ?? null;
+
+    // Set inside the transaction body, read in the `catch` below. A transaction
+    // body may run more than once on contention and may abort partway, so this
+    // describes the LAST attempt rather than being computed up front — which is
+    // what we want, since it is only consulted to explain a failure.
+    let shouldMoveStock = false;
+
+    try {
+      await runTransaction(this.firestore, async (tx) => {
+        // ══ READS ═══════════════════════════════════════════════════════════
+        // Every read precedes every write — Firestore requires that ordering, and
+        // it is what makes this one atomic unit: a shortfall on the fourth product
+        // gives back the first three.
+        //
+        // Re-read INSIDE the transaction rather than trusting any value the caller
+        // already holds. The body re-runs on contention, so this is the only read
+        // the movement may rely on.
+
+        const orderSnap = await tx.get(orderRef);
+        if (!orderSnap.exists()) throw new Error(`Order ${orderId} not found.`);
+        const order = orderSnap.data() as Order;
+
+        // Idempotent: a double tap must be a no-op, not an error. Both call sites
+        // toast success unconditionally, so an error here would read as a failure
+        // for an action that in fact already happened.
+        if (order.status === newStatus) return;
+        if (order.status === 'delivered') {
+          throw new Error('Delivered orders cannot be changed.');
+        }
+        if (order.status === 'cancelled') {
+          if (newStatus === 'cancelled') return;
+          throw new OrderNoLongerOpenError('This order was cancelled.');
+        }
+
+        const from = order.status;
+        const isCancel = newStatus === 'cancelled';
+        const wasHolding = STOCK_HELD_STATUSES.includes(from);
+        const willHold = STOCK_HELD_STATUSES.includes(newStatus);
+
+        // The take fires on ANY exit from `pending`, not only `pending ->
+        // confirmed`. The admin queue can jump a pending order straight to
+        // `preparing`, `out_for_delivery` or `delivered` through its status
+        // picker and its bulk advance, and gating on the single common transition
+        // would leave a permanent silent hole in exactly the two controls that
+        // exist to be shortcuts.
+        const shouldTake = !isCancel && from === 'pending' && willHold;
+
+        // Cancellation returns stock only if it was actually taken. A
+        // `pending -> cancelled` move therefore returns nothing, which is what
+        // makes the CUSTOMER cancel path correct: the rules pin a customer to
+        // cancelling while `pending`, before any take, so a customer can never owe
+        // a restock and never needs to write a product.
+        const shouldRestore = isCancel && wasHolding;
+
+        // Whether this attempt writes product documents at all — the condition
+        // the manager-only product rule actually gates. Published for the
+        // `catch` below.
+        shouldMoveStock = shouldTake || shouldRestore;
+
+        // ── Validate and collapse the lines ─────────────────────────────────
+        // `normaliseStockLines` is pure and synchronous, so it is legal inside the
+        // transaction body. Called HERE, on the data just read, rather than
+        // outside it: `items` is staff-writable, so a pre-read would be a race on
+        // the very quantities being decremented.
+        //
+        // It does two jobs. Every quantity must be a whole number of at least 1,
+        // because the write is `stock - quantity` and a negative quantity RAISES
+        // stock. And duplicate product/size pairs are summed, because the
+        // transaction writes each document once — two lines for the same size
+        // would otherwise be charged twice while only one decrement applied.
+        //
+        // It THROWS on violation, which aborts the transaction, which is the
+        // fail-closed outcome: the order does not move at all.
+        const lines = normaliseStockLines(
+          (order.items ?? []).map((i) => ({
+            productId: i.productId,
+            size: i.size,
+            quantity: i.quantity,
+            variantName: i.variantName,
+          })),
+        );
+
+        // Defensive. Firestore's documented per-transaction ceiling is 500
+        // documents and this write costs `1 + 2N` for N distinct lines, so a
+        // 150-line order would fail opaquely deep in the SDK. A cart that large is
+        // a bug worth surfacing, not a transaction to attempt.
+        if (lines.length > 100) {
+          throw new Error(
+            'This order has too many distinct items to move atomically. Split it, or adjust the stock by hand.',
+          );
+        }
+
+        type Read = {
+          ref: DocumentReference;
+          size: SizeVariant;
+          quantity: number;
+          next: number;
+          variantName: string;
+        };
+        const reads: Read[] = [];
+        const skipped: string[] = [];
+
+        for (const line of lines) {
+          const ref = doc(this.firestore, `products/${line.productId}`);
+          const snap = await tx.get(ref);
+          const product = snap.data() as Product | undefined;
+
+          // An absent or non-finite level folds to 0. `NaN < quantity` is false,
+          // so a NaN would sail past the shortfall check and then fail the write
+          // with a much less useful message.
+          const raw = Number(product?.stock?.[line.size] ?? 0);
+          const current = Number.isFinite(raw) ? raw : 0;
+
+          if (shouldTake && current < line.quantity) {
+            // THROW to abort. By now earlier lines may already have staged
+            // decrements; the throw gives every one of them back. A partial take
+            // is strictly worse than no take — the shelf shrinks by three of four
+            // lines while the order sits pending and looks untouched.
+            throw new InsufficientStockError(
+              `${line.variantName} (${line.size}): ${current} left, ${line.quantity} needed.`,
+            );
+          }
+
+          if (shouldRestore && !snap.exists()) {
+            // A flavor deleted after the order was confirmed has no shelf to
+            // return to. Skipped rather than aborting, because the order is
+            // already cancelled and refusing the whole cancellation would be
+            // worse. It is recorded by leaving `stockRestored` false below.
+            skipped.push(line.productId);
+            console.error(
+              `Order ${orderId}: product ${line.productId} no longer exists, so its stock cannot be returned.`,
+            );
+            continue;
+          }
+
+          reads.push({
+            ref,
+            size: line.size,
+            quantity: line.quantity,
+            next: shouldTake ? current - line.quantity : current + line.quantity,
+            variantName: product?.variantName ?? line.variantName ?? 'Unknown',
+          });
+        }
+
+        // ══ WRITES ══════════════════════════════════════════════════════════
+        for (const read of reads) {
+          // Dot-path, not a whole-map write, so only the size actually sold is
+          // touched. A four-line order is then four independent writes that no
+          // single clobber can merge into one.
+          tx.update(read.ref, {
+            [`stock.${read.size}`]: read.next,
+            updatedAt: serverTimestamp(),
+          });
+
+          // The audit row goes in the SAME transaction, so a movement can never
+          // be recorded for a decrement that rolled back, or missed for one that
+          // committed. `reason: 'sale'` is what lets the admin ledger tell a real
+          // sale apart from a staff adjustment — the two were previously
+          // indistinguishable, which is why StockLedgerService exists.
+          tx.set(doc(collection(this.firestore, 'stockMovements')), {
+            productId: read.ref.id,
+            variantName: read.variantName,
+            size: read.size,
+            delta: shouldTake ? -read.quantity : read.quantity,
+            balanceAfter: read.next,
+            reason: shouldTake ? 'sale' : 'cancel_restock',
+            orderId,
+            // The staff member who caused it, NOT the customer. `orderId` already
+            // carries the customer link, so writing them here too would make this
+            // field a duplicate of it and destroy the only distinct meaning it
+            // has: "who caused this".
+            actorUid,
+            createdAt: serverTimestamp(),
+          });
+        }
+
+        // The order document LAST, in the same transaction. So a status can never
+        // claim to be preparing for stock that was not taken, and `stockRestored`
+        // can never claim a return that did not fully happen.
+        tx.update(orderRef, {
+          status: newStatus,
+          // Spread rather than `cancelReason: null`: a non-cancel transition must
+          // leave cancelReason exactly as it was.
+          ...(isCancel ? { cancelReason: opts.cancelReason ?? null } : {}),
+          ...(shouldRestore
+            ? {
+                // FALSE, not true, when any line was skipped. Claiming a completed
+                // return that partially failed would hide a real hole from the
+                // repair queue, and this marker is the only thing that decides
+                // whether the queue shows this order at all.
+                stockRestored: skipped.length === 0,
+                stockRestoredAt: skipped.length === 0 ? serverTimestamp() : null,
+              }
+            : {}),
+          updatedAt: serverTimestamp(),
+          statusHistory: arrayUnion({ status: newStatus, timestamp: Timestamp.now() }),
+        });
       });
-    });
+    } catch (err) {
+      if (err instanceof InsufficientStockError) {
+        // Rethrown as a plain Error so no page can branch on the internal class.
+        // The wording matters: nothing was taken and the order has NOT moved, and
+        // staff need to know that to decide whether to decline or restock.
+        throw new Error(
+          `${err.message} Nothing was taken and the order has not moved — decline it from the queue, or fix the stock and try again.`,
+        );
+      }
+      if (err instanceof OrderNoLongerOpenError) throw new Error(err.message);
+
+      // A staff shift lead hitting this is an EXPECTED outcome, not a fault, and
+      // the raw error is useless to them: it names no field and no role, and
+      // `describeFirestoreError` would have said "permission to LOAD", which is
+      // wrong in every particular for a write.
+      //
+      // Only reported for a transition that actually moves stock. A `pending ->
+      // cancelled` writes no product, so a customer cancelling their own order
+      // can never reach here, and a staff member cancelling a `pending` order is
+      // not blocked by this gate at all.
+      if (shouldMoveStock && isPermissionDeniedError(err)) {
+        throw new Error(
+          'Moving this order changes stock on the shelf, and only a manager or the owner can do that. Nothing was changed — ask a manager to take it from here.',
+        );
+      }
+      throw err;
+    }
   }
 
   /**
    * Re-runs the restock for a cancelled order whose stock never came back.
    *
-   * Admin-only in effect: `stockRestored` is outside the customer cancel clause's
-   * `hasOnly([...])`, so only `allow update: if isAdmin()` can write it. The
-   * marker is set to true FIRST, before the restock is attempted, so a second
-   * click cannot double-restock while the first write is in flight — a
-   * double-restock inflates inventory the same way a failed one deflates it.
+   * Staff-only, and now genuinely reachable: `stockRestored` gained its own
+   * clause in firestore.rules. It previously appeared in NO allow-list at all —
+   * only in comments — so the first `updateDoc` below threw PERMISSION_DENIED for
+   * every role including owner, and the admin repair panel was a control that
+   * could never be used. (The old comment here blamed "only `allow update: if
+   * isAdmin()`", a clause that does not exist on orders.)
    *
-   * On failure the marker is rolled back to false, because leaving it true would
-   * hide the order from the repair queue permanently.
+   * The marker is claimed FIRST, before the restock, so a second click cannot
+   * double-restock while the first write is in flight — a double-restock inflates
+   * inventory exactly as a failed one deflates it. On failure the marker is rolled
+   * back to false, because leaving it true would hide the order from the repair
+   * queue permanently.
    */
   async repairStockRestock(orderId: string): Promise<void> {
     const orderRef = doc(this.firestore, `orders/${orderId}`);

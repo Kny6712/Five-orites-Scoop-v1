@@ -190,6 +190,24 @@ export class InventoryService {
     const cutoff = threshold ?? this.shopSettings.lowStockThreshold();
     return new Observable<Product[]>((observer) => {
       const productsCol = collection(this.firestore, 'products');
+
+      // DELIBERATELY UNCAPPED, and adding a `limit()` here would be a bug rather
+      // than an optimisation.
+      //
+      // The filter that makes this list "low stock" runs on the CLIENT, in the
+      // `onSnapshot` callback below. Firestore applies `limit()` BEFORE it hands
+      // anything back, so a cap would not return "the N most urgent low items" —
+      // it would return the first N ACTIVE products in document order and filter
+      // those, silently dropping every low item that sorts after the cut. The
+      // admin would see an empty low-stock panel on a fully-stocked shelf and
+      // read it as "nothing is low".
+      //
+      // Doing it correctly means moving the threshold into the query. `stock` is
+      // a nested map of four size variants, so there is no single indexed field
+      // to compare against — it would need four OR'd range queries over four
+      // numeric fields, i.e. four composite indexes and four listeners. That is
+      // not worth it for a catalogue of this size, where the whole active set is
+      // already in memory elsewhere (see the note at line 439).
       const q = query(productsCol, where('isActive', '==', true));
 
       const unsubscribe = onSnapshot(

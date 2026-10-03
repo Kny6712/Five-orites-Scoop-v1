@@ -14,9 +14,10 @@
 // have created a notification row failed. See core/logic/notifications.ts for
 // the full reasoning.
 //
-// SCOPE: in-app only. No Cloud Functions in this project, so nothing arrives
-// when the app is closed. That limitation is stated in the README rather than
-// hidden here.
+// SCOPE: in-app only. This project is on Firebase's free Spark plan, so the
+// Cloud Functions in `functions/src/` cannot be deployed and nothing arrives when
+// the app is closed. That limitation is stated in the README rather than hidden
+// here.
 
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';

@@ -78,7 +78,7 @@ STEPS TO RUN THE APP
 3. Run: npm install
    (if peer-dependency errors appear, retry with npm install --legacy-peer-deps)
 4. Run: npm run typecheck      (optional sanity check — no Firebase needed)
-5. Run: npm run test:logic     (optional — 18 business-logic tests)
+5. Run: npm run test:logic     (optional — 160 business-logic tests)
 6. Run: npm run seed           (writes 64 products to Firestore)
 7. Run: npm start              (dev server, opens in browser)
 8. Open: http://localhost:4200

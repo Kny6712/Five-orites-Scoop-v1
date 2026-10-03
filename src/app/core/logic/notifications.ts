@@ -31,9 +31,13 @@
 // compares against.
 //
 // THE HONEST LIMIT OF "IN-APP ONLY"
-// This is a college project with no Cloud Functions and no push provider, so a
-// notification exists only while the app is open. That is a design decision, not
-// a bug, and it is documented in the README rather than hidden.
+// This project is on Firebase's free Spark plan. The Cloud Functions in
+// `functions/src/` exist on disk but CANNOT BE DEPLOYED on that plan, so there is
+// nothing to fan a notification out through and a customer only ever sees one
+// while the app is open. That is a design decision, not a bug, and it is
+// documented in the README rather than hidden. (The wording matters: three
+// functions do exist, they just cannot run. "There is no Cloud Function" would
+// be its own kind of lie.)
 //
 // Framework-free on purpose: no Angular, no Firebase, no `@angular/fire`. The
 // timestamp type is structural (see `toEpochMs`) rather than Firestore's

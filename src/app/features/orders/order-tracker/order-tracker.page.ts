@@ -275,7 +275,12 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
     if (!order || order.status !== 'pending') return;
     const alert = await this.alertCtrl.create({
       header: 'Cancel Order',
-      message: 'Cancel this order? Stock will be restored.',
+      // No mention of stock, and deliberately so. This action is gated on
+      // `status === 'pending'` (line 275), and a `pending` order has never had any
+      // stock taken for it: stock is taken when staff move the order out of
+      // `pending` in the fulfilment queue. The old "Stock will be restored" here
+      // and on the toast described a movement that cannot apply to this order.
+      message: 'Cancel this order? This cannot be undone.',
       inputs: [{ name: 'reason', type: 'text', placeholder: 'Reason (optional)' }],
       buttons: [
         { text: 'Back', role: 'cancel' },
@@ -287,7 +292,7 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
             try {
               await this.orderService.cancelOrder(order.id, data?.reason);
               const toast = await this.toastCtrl.create({
-                message: 'Order cancelled. Stock restored.',
+                message: 'Order cancelled.',
                 color: 'warning',
                 duration: 2500,
                 position: 'top',

@@ -243,10 +243,20 @@ export class DashboardPage implements OnInit, OnDestroy {
     // Recent orders
     const uid = this.currentUser()?.uid;
     if (uid) {
+      // Capped at exactly what is rendered. This was `getCustomerOrders(uid)`
+      // followed by `.slice(0, 3)`, which subscribed to the newest 50 orders and
+      // then discarded 47 of them — 50 document reads per emission to draw three
+      // rows, on a dashboard that is refreshed often. `getCustomerOrders` already
+      // applies `orderBy('createdAt', 'desc')` BEFORE `limit()`, so asking for 3
+      // returns the same three the slice did.
+      //
+      // The orders page reads the same collection separately for its own list,
+      // which is a second listener rather than a shared one. Worth folding into
+      // one subscription if this ever shows up in a bill.
       const s2 = this.orderService
-        .getCustomerOrders(uid)
+        .getCustomerOrders(uid, 3)
         .pipe(catchError((err) => this.feedFailed('your recent orders', err)))
-        .subscribe((orders) => this.recentOrders.set(orders.slice(0, 3)));
+        .subscribe((orders) => this.recentOrders.set(orders));
       this.subs.push(s2);
     }
   }

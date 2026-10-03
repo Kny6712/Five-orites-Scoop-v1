@@ -65,6 +65,27 @@
   font-size: 14px;
 }
 
+/* The link into the notifications feed, so the notification banner is a way INTO
+   the history rather than only a switch. Sits under the prose inside the same
+   flex column, which is why it is a block-level underline rather than an inline
+   accent — a link sharing a line with `promo-sub` would be read as part of the
+   sentence. */
+.promo-link {
+  margin-top: var(--space-1);
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.promo-link:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
 .promo-sub {
   font-size: 12px;
   opacity: 0.9;

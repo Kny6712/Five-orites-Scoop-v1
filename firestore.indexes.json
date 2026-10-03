@@ -1,5 +1,5 @@
 {
-  "//": "Five-orites Scoop — Firestore Composite Indexes",
+  "//": "Five-orites Scoop — Firestore Composite Indexes. Every entry here is matched to a query in src/; an index nothing queries is pure write cost and noise in the Firebase console. Three were removed as inverses that no query can use: products(isActive, setNumber, variantName), products(isActive, setNumber) and vouchers(code, isActive). No query in the app orders by setNumber, variantName or code at all — the catalogue is ordered in memory. Note Firestore auto-creates single-field indexes, so a lone orderBy needs no entry here.",
   "indexes": [
     {
       "collectionGroup": "orders",
@@ -18,36 +18,11 @@
       ]
     },
     {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isActive", "order": "ASCENDING" },
-        { "fieldPath": "setNumber", "order": "ASCENDING" },
-        { "fieldPath": "variantName", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "products",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "isActive", "order": "ASCENDING" },
-        { "fieldPath": "setNumber", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "reviews",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "productId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "vouchers",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "code", "order": "ASCENDING" },
-        { "fieldPath": "isActive", "order": "ASCENDING" }
       ]
     },
     {

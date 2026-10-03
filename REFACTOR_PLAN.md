@@ -1,4 +1,4 @@
-# Five-orites Scoop — Refactor & Bug-Fix Plan
+Pro# Five-orites Scoop — Refactor & Bug-Fix Plan
 
 Scope: remove dead code, consolidate duplicated config, and fix the critical
 correctness/security/deploy bugs found during the `repomix-output.xml` review.
