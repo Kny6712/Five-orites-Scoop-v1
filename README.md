@@ -68,32 +68,55 @@ above are not mistaken for more than they are.
   earlier version fired from whichever client *performed* the change, so the
   toast appeared on the admin's device and the customer saw nothing. That is
   fixed. What remains: a customer with the app closed still receives nothing.
-  Real background push needs FCM tokens plus a deployed Cloud Function, which
-  is not set up (see "Out of Scope").
+  Real background push needs FCM tokens plus a deployed Cloud Function. The
+  plugin is installed and `PushNotifications.register()` is called, but **no
+  token is ever obtained**: there is no `pushNotificationRegistrationFor`
+  listener anywhere, so nothing is persisted and nothing can be fanned out. A
+  Cloud Function would have to do that fan-out, so this is downstream of the
+  Blaze upgrade described above.
 - **No payment gateway.** Every order is written with `paymentStatus: 'pending'`
   and stays that way. Revenue figures count *delivered* orders, not paid ones.
-- **Reports and queues are capped, and say so when they are.** A single read
-  returns at most 500 orders for analytics and 300 for the fulfillment queue.
-  Past that the UI states the figures are a lower bound rather than presenting a
-  silent total. Selecting a date range is a server-side query
-  (`OrderService.getOrdersSince`), not a browser-side filter, so "last 30 days"
-  really means the last 30 days rather than the newest 100 orders re-filtered.
-  Deeper history needs pagination.
-- **Stock is decremented client-side, so the rules must let customers write
-  stock.** The order flow decrements stock, writes the order, and rolls the
-  decrement back if the write fails. Firestore rules cannot require a stock
-  change to accompany an order, so `firestore.rules` grants any signed-in user
-  a narrow `products` write scoped to the `stock` and `updatedAt` keys, with
-  every size still required to be a non-negative integer.
-  **The accepted tradeoff:** a user with the raw Firebase SDK can set any stock
-  level, because the rule constrains *which keys* may change but not by how
-  much. Only a Cloud Function performing the decrement server-side closes this.
-  `tests/firestore.rules.test.ts` asserts the current behaviour deliberately,
-  so the limitation stays visible rather than being rediscovered later.
-- **Voucher discounts are resolved from the `vouchers` collection only.** A
-  deactivated voucher no longer falls back to a built-in list, so turning a
-  voucher off in the admin UI genuinely disables it. Rules additionally clamp
-  `discountAmount` to the subtotal.
+- **Reports page properly; the fulfilment queue does not.** Analytics walks
+  pages (`OrderService.getOrdersPage`) until Firestore runs out, and reports the
+  true order count from `getCountFromServer`, so revenue reflects every matching
+  order. It previously read the newest 500 in one query and derived every figure
+  from those, which meant past 500 orders the whole page silently described the
+  newest 500 while the header said "All Time". A 5,000-order memory ceiling
+  remains and the UI still says so if it is ever hit.
+  The **fulfilment queue is still capped at 300** and surfaces a banner when it
+  is — that one has not been paginated yet.
+- **Selecting a date range is a server-side query, not a browser-side filter.**
+  It is read through the same paged walk with a `where('createdAt','>=',…)` bound,
+  so "last 30 days" means the last 30 days.
+  Note that bound carries no `customerId` filter, so Firestore only authorises it
+  for an admin. Analytics sits behind `adminGuard` so that holds — but the read
+  must not be reused on a customer-facing page without restoring the owner
+  filter.
+- **Stock ownership is mid-cutover, and this is the most important thing on this
+  page.** The client no longer writes stock — `OrderService.placeOrder` delegates
+  to the `reconcileOrderStock` Cloud Function, which re-prices every line from the
+  catalog, decrements in one transaction, and cancels the order itself if the
+  shelf is short. That function is **written but NOT deployed** (Cloud Functions
+  need the Blaze plan; this project is on Spark).
+  The customer branch of the `products` rule is **still open**, so any signed-in
+  user can currently write any stock level — `stock.cup: 999999` or zeroing the
+  catalog. Four tests in `tests/firestore.rules.test.ts` assert that branch is
+  *closed* and therefore **fail right now**; `npm run verify` is red because of
+  it, and that is correct: the tests describe the intended state and the rules do
+  not implement it yet.
+  The two halves must be changed together. Removing the rule branch before the
+  function is live denies every checkout. **Follow `CUTOVER.md`**, and do not
+  deploy rules or functions without reading it.
+- **Voucher limits are enforced server-side, in the same transaction as the
+  stock.** `maxRedemptions` and `perCustomerLimit` used to be decoration: the
+  counter was incremented by the *client*, against a `vouchers` write the rules
+  reserve for admins, so every attempt was refused and silently swallowed into a
+  `console.error`. One code was redeemable without limit, forever. The counter now
+  moves in `reconcileOrderStock`, checked and spent atomically, and the discount
+  is **recomputed** from the voucher document rather than clamped from the
+  client's figure — a forged `discountAmount: totalAmount` used to buy the whole
+  basket for the delivery fee. This is server-side too, so it inherits the same
+  "written but not deployed" caveat as above.
 - **One review per customer per product.** Reviews are written under a
   deterministic id (`${productId}_${uid}`), so a second submission edits the
   first rather than adding a duplicate, and `firestore.rules` enforces that the
@@ -188,7 +211,18 @@ npm start
 
 ### 6. Verify the Build
 ```bash
-npm run verify        # typecheck + business-logic tests + production build
+npm run verify        # typecheck + typecheck:scripts + test:logic + test:rules
+                      # + check:contrast + build
+```
+
+> **`npm run verify` currently FAILS**, at `test:rules`. Four assertions that the
+> customer stock-write branch is closed fail because `firestore.rules` still
+> grants it — see "Known limitations" above and `CUTOVER.md`. This is the honest
+> state of the build: the tests are correct and the rules are not finished. It is
+> also what CI reports, so a red build here is expected until the cutover lands.
+>
+> To check everything that *is* green today:
+> `npm run typecheck && npm run typecheck:scripts && npm run test:logic && npm run check:contrast && npm run build`
 ```
 
 Or individually:
@@ -306,15 +340,33 @@ this field existed keep appearing in the catalog.
 
 ---
 
-## Out of Scope (Future Phases)
+## Not done yet
 
-- **Firebase Cloud Functions** — needed for real background push notifications,
-  and for enforcing stock decrements server-side (see Known Limitations)
-- **Payment gateway integration** (PayMongo / Paymaya webhook handlers)
-- **Server-side analytics aggregation** — current figures are computed on the
-  client from a capped query
+Previously this list said Cloud Functions were out of scope. They exist. Corrected:
+
+- **Cloud Functions are written but NOT DEPLOYED.** `functions/` holds
+  `reconcileOrderStock` and `restockCancelledOrder`. They need the Blaze plan;
+  the project is on Spark. This is the single blocker behind most of what
+  follows. See `CUTOVER.md`.
+- **Real background push.** No FCM token is ever obtained — the plugin is
+  installed and `register()` is called, but no `registration` listener exists,
+  so nothing is stored to fan out to. Needs a Cloud Function.
+- **Payment gateway** (GCash / Maya / PayMongo). No payment UI exists on any
+  screen and no card detail is collected. The About page used to advertise
+  "Secure Payments"; that claim has been removed rather than left standing.
+- **Server-side analytics aggregation.** Figures are computed on the client from
+  a paged read of every matching order. Correct, but it reads the whole set into
+  memory; a real shop with years of history would want an aggregate.
+- **Pagination on the fulfilment queue** (still capped at 300, and says so).
+- **Guest catalog browsing.** `/products` is behind `authGuard`, and
+  `firestore.rules` is `allow read: if isSignedIn()`, so this needs both changed.
+- **Self-service account deletion.** Not in the app; `PRIVACY.md` says so
+  plainly rather than claiming otherwise. Both stores require it for apps with
+  account creation.
 - CSV bulk product import
-- App Store / Play Store deployment pipeline
+- App Store / Play Store signing and release pipeline. `android/` now exists and
+  a debug APK builds; there is no keystore, no iOS project, and no app icon or
+  splash artwork in `src/assets/`.
 
 ---
 

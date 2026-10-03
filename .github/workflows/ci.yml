@@ -1,0 +1,100 @@
+# Five-orites Scoop — CI
+#
+# WHY THIS EXISTS
+# There was no automated gate at all, and the repo was for a long time 103
+# uncommitted changes deep with a half-finished migration in the working tree.
+# Nothing would have noticed that the client half of the stock cutover was done
+# and the server half was not — which is exactly how a build ended up where every
+# sale shipped without decrementing inventory, and how `test:rules` sat red for
+# months without anyone noticing.
+#
+# This workflow runs the project's own `verify` chain, which already existed and
+# already covered the right things. It was simply never wired to anything.
+#
+# It is deliberately a gate, not a deployment. Nothing here touches Firebase,
+# because deploying rules to a live project from a pull request is how you
+# discover what "matched pair" means. Deployment stays manual and stays in
+# CUTOVER.md.
+
+name: CI
+
+on:
+  push:
+    branches: [main, mainV2]
+  pull_request:
+    branches: [main, mainV2]
+
+# Cancel an in-progress run when the same branch gets a new push. Without this a
+# queue of stale runs reports failures for commits nobody is shipping.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, tests, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 20 because .nvmrc says 20, and because package.json declares an
+      # upper bound that deliberately rejects Node 24:
+      #   "engines": { "node": ">=18.13.0 <21 || >=22.0.0 <23" }
+      # That bound was added because Angular 17 silently accepted a too-new Node
+      # and then failed the build with no diagnostic pointing at the version. npm
+      # only *warns* on an engine mismatch unless engine-strict is set, so the
+      # explicit setup-node version here is what actually pins it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # test:rules runs `firebase emulators:exec --only firestore`, and the
+      # Firestore emulator is a Java process. Temurin 17 rather than whatever is
+      # newest: the emulator and firebase-tools have historically broken on the
+      # newest JDKs, and a build that fails because the runner image gained a
+      # Java 25 is a build that trains people to ignore red.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck app
+        run: npm run typecheck
+
+      # scripts/ is outside tsconfig.app.json (which lists only src/main.ts), so
+      # this is the only thing typechecking the seed script that writes 64
+      # documents to production Firestore. It has caught a real error before.
+      - name: Typecheck scripts
+        run: npm run typecheck:scripts
+
+      - name: Typecheck cloud functions
+        run: npm --prefix functions ci && npm --prefix functions run build
+
+      - name: Business logic tests
+        run: npm run test:logic
+
+      # Runs against the emulator with --project five-orites-scoop-rules-test,
+      # which is a label. It needs no credentials and touches no live project.
+      - name: Firestore rules tests (emulator)
+        run: npm run test:rules
+
+      - name: Colour contrast
+        run: npm run check:contrast
+
+      - name: Build
+        run: npm run build
+
+      # Uploaded as an artifact so a failed PR can be opened in a browser and
+      # seen, rather than only read about. "It looks fine" is not a build result.
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: www-browser
+          path: www/browser
+          retention-days: 7

@@ -37,7 +37,14 @@ export interface Order {
   status: OrderStatus;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   // There is deliberately no paymentReference field: no payment gateway is
-  // integrated yet (see README "Out of Scope"). Add it back when one is.
+  // integrated (see README "Not done yet"). Add it back when one is.
+  //
+  // Note that 'paid' | 'failed' | 'refunded' are currently unreachable — the only
+  // writer is placeOrder, which always writes 'pending', and nothing in the app
+  // or the Cloud Functions moves it. Only dashboard.page.ts reads it, and that
+  // read is always false today. They are kept because they describe the intended
+  // domain, not because the app can currently produce them; revenue is counted
+  // from delivered orders instead.
   deliveryAddress: string;
   notes?: string | null;
   cancelReason?: string | null;

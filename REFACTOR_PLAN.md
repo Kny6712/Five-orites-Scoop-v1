@@ -4,8 +4,27 @@ Scope: remove dead code, consolidate duplicated config, and fix the critical
 correctness/security/deploy bugs found during the `repomix-output.xml` review.
 No new features. No new paid services.
 
-**Assumption:** client-only (no Cloud Functions). One item (#3) has a stronger
-fix that needs Cloud Functions — flagged as optional.
+> ### ⚠ HISTORICAL DOCUMENT — READ `CUTOVER.md` INSTEAD
+>
+> **The assumption below is false.** This plan was written for a client-only app
+> with no Cloud Functions. `functions/` now exists and owns stock reservation,
+> order pricing, and voucher redemption — and it is **written but not deployed**.
+>
+> Nearly all of this plan is done (Phases 0–6 were largely executed). What it
+> cannot describe is the thing that matters now: a **half-finished migration**
+> where the client has stopped writing stock but the server-side replacement is
+> not live, which means sales currently do not decrement inventory.
+>
+> Do not work from this file. Use:
+> - **`CUTOVER.md`** — the stock cutover, which is the current blocker
+> - **`README.md` → "Known limitations"** — what is and is not true today
+>
+> The phase structure below is kept for history only. Statements like "out of
+> scope for a client-only pass" were accurate when written and are now wrong.
+
+**Assumption (as originally written, and now false):** client-only (no Cloud
+Functions). One item (#3) has a stronger fix that needs Cloud Functions — flagged
+as optional.
 
 ---
 
