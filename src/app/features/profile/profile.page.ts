@@ -38,10 +38,7 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import {
-  NotificationService,
-  type NotificationPermissionState,
-} from '../../core/services/notification.service';
+import { NotificationService } from '../../core/services/notification.service';
 import type { AppUser } from '../../core/models/user.model';
 import { isStaffRole } from '../../core/models/user.model';
 
@@ -109,8 +106,8 @@ export class ProfilePage implements OnInit {
    * re-granted from a page, so the user has to change it in site settings. Saying
    * so is the difference between a setting and a broken button.
    */
-  readonly notificationState = computed<NotificationPermissionState>(() =>
-    this.notifications.permissionState(this.user()?.notificationsEnabled),
+  readonly updatesOn = computed(() =>
+    this.notifications.isEnabled(this.user()?.notificationsEnabled),
   );
 
   /** True when the user has changed something worth saving. */
@@ -257,30 +254,18 @@ export class ProfilePage implements OnInit {
   }
 
   /**
-   * Turning notifications ON necessarily asks the browser, because the permission
-   * can only be requested from a user gesture. Turning them OFF is a pure
-   * preference write with no prompt — which is what makes the toggle feel like a
-   * switch rather than a dialog.
+   * A pure preference write, in both directions.
+   *
+   * This used to prompt for an OS permission when turning notifications ON and
+   * roll the switch back on a denial, because the app registered for FCM push.
+   * In-app notifications need no permission, so there is nothing to prompt for and
+   * nothing to reconcile — which also removes the failure this method was built
+   * around, where the switch could read "on" while nothing was ever delivered.
    */
   async onNotificationsToggle(event: CustomEvent): Promise<void> {
     const enabled = event.detail.checked as boolean;
     this.errorMessage.set('');
     try {
-      if (enabled) {
-        const granted = await this.notifications.requestPermission();
-        if (!granted) {
-          // Put the switch back. Writing `false` would silently discard the
-          // user's intent, and leaving it visually on while nothing is delivered
-          // is the exact dishonesty this control was built to avoid.
-          await this.auth.updateProfile({ notificationsEnabled: false });
-          const fresh = await this.auth.refreshProfile();
-          this.applyUser(fresh);
-          this.fail(
-            'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.',
-          );
-          return;
-        }
-      }
       const updated = await this.auth.updateProfile({ notificationsEnabled: enabled });
       this.applyUser(updated);
     } catch (err) {

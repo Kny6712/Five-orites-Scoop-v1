@@ -79,6 +79,10 @@ const WANTED = {
   'eye-off': ['EyeOff'],
   lock: ['Lock'],
   mail: ['Mail'],
+  // The notification affordance: the header bell and the notifications page.
+  // Added with the in-app notification feed - `mail` was doing double duty as
+  // the only mail-ish glyph and reading as "email" rather than "your alerts".
+  bell: ['Bell'],
   filter: ['Funnel', 'Filter'],
   refresh: ['RefreshCw'],
   'arrow-right': ['ArrowRight'],

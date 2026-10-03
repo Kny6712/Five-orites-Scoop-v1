@@ -42,8 +42,8 @@
                      the icon's offset from --padding-start and the row height. -->
                 <span slot="start" class="nav-icon-wrap">
                   <app-icon [name]="item.icon" class="nav-icon" />
-                  @if (item.badge && cartItemCount() > 0) {
-                    <span class="cart-badge" aria-hidden="true">{{ cartItemCount() }}</span>
+                  @if (item.badgeCount && item.badgeCount() > 0) {
+                    <span class="cart-badge" aria-hidden="true">{{ item.badgeCount() }}</span>
                   }
                 </span>
                 <ion-label>{{ item.title }}</ion-label>

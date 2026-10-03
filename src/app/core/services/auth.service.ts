@@ -534,4 +534,18 @@ export interface ProfilePatch {
   photoURL?: string | null;
   phone?: string | null;
   notificationsEnabled?: boolean;
+  /**
+   * Epoch ms of the newest notification the user has seen.
+   *
+   * A plain number, NOT a `serverTimestamp()`, for two reasons. The feed compares
+   * it against normalised epoch ms, and a sentinel read straight back is not
+   * resolved yet - this file already documents that `createdAt` comes back that
+   * way and that `.toDate()` throws on it. And `suspendedAt` is already stored as
+   * epoch ms, so this follows the existing convention rather than inventing a
+   * second one.
+   *
+   * `updateProfile` merges, so writing it never disturbs `role`/`uid`, which the
+   * rules require to be preserved.
+   */
+  notificationsReadAt?: number | null;
 }

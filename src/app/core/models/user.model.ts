@@ -182,11 +182,29 @@ export interface AppUser {
    * defaulting them to opted-out would silently stop notifications for everyone
    * who signed up before this shipped.
    *
-   * This is the user's *preference* only. The browser's own permission is a
-   * separate axis, and a user cannot be granted a permission they have blocked at
-   * the browser level — see NotificationService.permissionState().
+   * This is the ONLY axis. It used to be joined by a second one - the OS/browser
+   * permission - because the app once tried to register for FCM push.
+   * Notifications are now in-app only, so there is nothing to grant and nothing
+   * that can be blocked; see NotificationService for why the permission model was
+   * deleted rather than left dormant.
    */
   notificationsEnabled?: boolean;
+
+  /**
+   * Epoch ms of the newest notification this user has already seen.
+   *
+   * The only piece of notification state that has to be stored. The messages
+   * themselves are derived from each order's `statusHistory`, which is already
+   * written by the code that performs each transition - so there is no
+   * notifications collection that can drift out of step with the orders it
+   * describes.
+   *
+   * ABSENT MEANS NEVER READ, which correctly renders the whole feed unread for a
+   * first-time user. Stored as epoch ms rather than a Timestamp so it compares
+   * directly against normalised entry times and reads back without hitting an
+   * unresolved sentinel.
+   */
+  notificationsReadAt?: number | null;
 
   /**
    * Whether an admin has blocked this account.

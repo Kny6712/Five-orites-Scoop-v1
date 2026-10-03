@@ -316,31 +316,21 @@ export class DashboardPage implements OnInit, OnDestroy {
    * A toggle that looks broken and offers no way out is worse than one that says
    * why.
    */
-  readonly notificationState = computed(() =>
-    this.notifService.permissionState(this.currentUser()?.notificationsEnabled),
+  readonly updatesOn = computed(() =>
+    this.notifService.isEnabled(this.currentUser()?.notificationsEnabled),
   );
 
   /**
-   * Turning notifications on necessarily prompts, since a browser permission can
-   * only be requested from a user gesture. Turning them off is a pure preference
-   * write.
+   * A pure preference write in both directions.
    *
-   * On a denial we write `false` back. Discarding the user's intent silently
-   * would be worse, but leaving the switch visually ON while nothing is ever
-   * delivered is precisely the dishonesty this control exists to avoid — so the
-   * switch returns to off and the banner explains the real cause.
+   * This used to prompt for an OS permission first and roll the toggle back on a
+   * denial, because the app was registering for FCM push. Notifications are now
+   * in-app only, so there is no permission, no prompt, and no second axis that
+   * could leave the switch reading "on" while nothing was delivered.
    */
   async onNotificationsToggle(event: CustomEvent): Promise<void> {
     const enabled = event.detail.checked as boolean;
     try {
-      if (enabled && !(await this.notifService.requestPermission())) {
-        await this.authService.updateProfile({ notificationsEnabled: false });
-        await this.authService.refreshProfile();
-        this.loadError.set(
-          'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.',
-        );
-        return;
-      }
       await this.authService.updateProfile({ notificationsEnabled: enabled });
       await this.authService.refreshProfile();
     } catch (err) {

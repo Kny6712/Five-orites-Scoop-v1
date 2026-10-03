@@ -45,14 +45,18 @@
 
     <!--
       Notification control. This used to be a div with role="button" and a click
-      handler that re-prompted for permission on every tap — so it could not show
+      handler that re-prompted for permission on every tap - so it could not show
       a real state, and tapping it twice did nothing different.
 
       It is now a genuine toggle bound to `notificationsEnabled` on the user
       document, which means the preference follows the user to another device
-      rather than living in one browser's localStorage. Turning it ON still has to
-      ask the browser, because a permission can only be requested from a user
-      gesture; turning it OFF is a plain preference write with no prompt.
+      rather than living in one browser's localStorage.
+
+      Turning it ON no longer asks the browser anything. The app used to register
+      for FCM push, which needed an OS permission and could leave the switch
+      reading "on" while nothing was ever delivered. Notifications are in-app
+      only now, so there is no permission to grant and the stored preference is
+      the whole truth - see NotificationService.
     -->
     <!--
       The admin-written announcement. Nothing renders unless an admin has saved a
@@ -81,21 +85,19 @@
       <div class="promo-text">
         <span class="promo-title">Track your orders live</span>
         <span class="promo-sub">
-          @switch (notificationState()) {
-            @case ('blocked') {
-              Your browser is blocking notifications for this site.
-            }
-            @case ('granted') {
-              You'll get an alert when your order's status changes.
-            }
-            @default {
-              Turn on alerts for status changes.
-            }
+          @if (updatesOn()) {
+            You'll see an alert in the app when your order's status changes.
+          } @else {
+            Turn on alerts for status changes.
           }
         </span>
+        <!-- The feed, so the banner is a way INTO the history rather than only a
+             switch. Someone who wants to know what happened to their order should
+             not have to find the menu for it. -->
+        <a routerLink="/notifications" class="promo-link">View notifications</a>
       </div>
       <ion-toggle
-        [checked]="notificationState() !== 'off'"
+        [checked]="updatesOn()"
         (ionChange)="onNotificationsToggle($event)"
         aria-label="Order update notifications"
       ></ion-toggle>

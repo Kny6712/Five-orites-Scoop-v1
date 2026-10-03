@@ -45,7 +45,29 @@ interface NavItem {
    * means "the customer list", which is where it has always applied.
    */
   capability?: Capability;
-  badge?: boolean;
+  /**
+   * The count to show on this row's icon, or absent for no badge.
+   *
+   * Was `badge?: boolean` with the number read from a single `cartItemCount()`
+   * signal, which only worked because exactly one row had a badge. The second
+   * badge is the unread-notification count, and it comes from a different place,
+   * so the flag had to become the value: a boolean next to a hard-coded count is
+   * how "My Cart" ends up showing the notification total.
+   *
+   * A function rather than a number so the badge tracks the signal it reads —
+   * an `item` object in a `readonly` array is built once, so a captured number
+   * would be frozen at construction and never update.
+   */
+  badgeCount?: () => number;
+  /**
+   * Plural noun for the badge, used in the row's accessible name.
+   *
+   * Needed because the two badges count different things: 3 in the cart is "3
+   * items", 3 on the bell is "3 unread". A shared noun produces "Notifications,
+   * 3 items", which is precisely the kind of announcement that makes a screen
+   * reader user distrust the whole menu.
+   */
+  badgeNoun?: string;
   /**
    * Hidden from the drawer when the viewer is staff. The route stays
    * reachable — this only removes the shortcut, and only for staff. See
@@ -96,10 +118,23 @@ export class AppComponent {
       url: '/cart',
       icon: 'cart',
       role: 'customer',
-      badge: true,
+      badgeCount: () => this.cartItemCount(),
+      badgeNoun: 'item',
       hideForStaff: true,
     },
     { title: 'My Orders', url: '/orders', icon: 'receipt', role: 'customer' },
+    {
+      // Next to My Orders rather than at the end of the list, because the feed is
+      // a view OF the orders. Anyone looking for "what happened to my order"
+      // reaches for the order list, and the notifications row is the answer to
+      // the next question they ask.
+      title: 'Notifications',
+      url: '/notifications',
+      icon: 'bell',
+      role: 'customer',
+      badgeCount: () => this.orderNotifications.unreadCount(),
+      badgeNoun: 'unread notification',
+    },
     // 'all', not 'customer': an admin is a signed-in user with a profile, and the
     // profile page is role-agnostic by design. Gating it to customers would hide
     // it from exactly the people most likely to want to fix their own name.
@@ -265,11 +300,17 @@ export class AppComponent {
    * instead of sitting in the end slot, so the item count would otherwise drop
    * out of the accessible name entirely. Folding it in here keeps "My Cart, 2
    * items" as one announcement rather than a bare "My Cart".
+   *
+   * The count and the noun both come from the item, never from a shared field.
+   * This used to read `cartItemCount()` unconditionally, which was correct only
+   * while the cart was the single badged row — the moment the bell got a badge
+   * too, "Notifications" would have announced the number of things in the cart.
    */
   navItemLabel(item: NavItem): string {
-    const n = this.cartItemCount();
-    if (!item.badge || n <= 0) return item.title;
-    return `${item.title}, ${n} item${n === 1 ? '' : 's'}`;
+    const n = item.badgeCount?.() ?? 0;
+    if (n <= 0) return item.title;
+    const noun = item.badgeNoun ?? 'item';
+    return `${item.title}, ${n} ${noun}${n === 1 ? '' : 's'}`;
   }
 
   getUserInitials(): string {

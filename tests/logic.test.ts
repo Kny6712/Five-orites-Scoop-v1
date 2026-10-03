@@ -20,6 +20,17 @@ import { summarizeRatings } from '../src/app/core/logic/rating';
 import { assertCanAddToCart, clampToStock, normaliseStockLines } from '../src/app/core/logic/stock';
 import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
 import { describeFirestoreError, isMissingIndexError } from '../src/app/core/logic/firestore-error';
+import {
+  buildNotificationFeed,
+  countUnread,
+  groupByDay,
+  relativeTime,
+  toEpochMs,
+  asOrderStatus,
+  ORDER_STATUS_NOTICES,
+  statusToastLine,
+  FEED_LIMIT,
+} from '../src/app/core/logic/notifications';
 import { readCachedGeo, interpolate, distanceMetres } from '../src/app/core/logic/geo';
 import { productCategory, PRODUCT_CATEGORIES } from '../src/app/core/models/product.model';
 import * as voucherModel from '../src/app/core/models/voucher.model';
@@ -1239,6 +1250,326 @@ describe('route interpolation and distance', () => {
     assert.ok(metres > 3000 && metres < 6000, `unexpected distance: ${metres}`);
   });
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IN-APP NOTIFICATION FEED
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe('notification feed', () => {
+  /** Minimal order shape the feed needs. `ts` is epoch ms. */
+  const order = (id: string, steps: { status: string; ts: number }[]) => ({
+    id,
+    statusHistory: steps.map((s) => ({ status: s.status, timestamp: { toMillis: () => s.ts } })),
+  });
+
+  const T0 = 1_700_000_000_000;
+
+  it('flattens every status change on every order into one list', () => {
+    const feed = buildNotificationFeed([
+      order('o1', [
+        { status: 'pending', ts: T0 },
+        { status: 'confirmed', ts: T0 + 1000 },
+      ]),
+      order('o2', [{ status: 'pending', ts: T0 + 2000 }]),
+    ]);
+
+    assert.equal(feed.length, 3);
+    assert.deepEqual(
+      feed.map((e) => e.orderId),
+      ['o2', 'o1', 'o1'],
+    );
+  });
+
+  it('orders newest first, so the most recent event is at the top', () => {
+    const feed = buildNotificationFeed([
+      order('o1', [
+        { status: 'pending', ts: T0 },
+        { status: 'delivered', ts: T0 + 5000 },
+        { status: 'confirmed', ts: T0 + 2500 },
+      ]),
+    ]);
+
+    assert.deepEqual(
+      feed.map((e) => e.status),
+      ['delivered', 'confirmed', 'pending'],
+    );
+  });
+
+  it('sorts stably when two transitions share a millisecond', () => {
+    // A fast double-advance, or a client clock with coarse resolution, produces
+    // equal timestamps. Without a tiebreak the relative order is
+    // implementation-defined and the same order can move between renders.
+    const feed = buildNotificationFeed([
+      order('o1', [
+        { status: 'pending', ts: T0 },
+        { status: 'confirmed', ts: T0 },
+      ]),
+      order('o2', [{ status: 'pending', ts: T0 }]),
+    ]);
+
+    // Deterministic across repeated calls, which is the actual requirement.
+    const once = feed.map((e) => e.id);
+    const twice = buildNotificationFeed([
+      order('o1', [
+        { status: 'pending', ts: T0 },
+        { status: 'confirmed', ts: T0 },
+      ]),
+      order('o2', [{ status: 'pending', ts: T0 }]),
+    ]).map((e) => e.id);
+    assert.deepEqual(once, twice);
+  });
+
+  it('gives every entry a unique id, so @for tracking cannot collide', () => {
+    const feed = buildNotificationFeed([
+      order('o1', [
+        { status: 'pending', ts: T0 },
+        { status: 'confirmed', ts: T0 + 1 },
+      ]),
+    ]);
+    assert.equal(new Set(feed.map((e) => e.id)).size, feed.length);
+  });
+
+  it('marks everything unread when the user has never opened the feed', () => {
+    // ABSENT notificationsReadAt must NOT mean "already seen" - a first-time
+    // user needs to see that their order arrived.
+    const feed = buildNotificationFeed([order('o1', [{ status: 'pending', ts: T0 }])], null);
+    assert.equal(feed[0].read, false);
+    assert.equal(countUnread(feed), 1);
+  });
+
+  it('marks entries at or before the read marker as read', () => {
+    const feed = buildNotificationFeed(
+      [
+        order('o1', [
+          { status: 'pending', ts: T0 },
+          { status: 'confirmed', ts: T0 + 1000 },
+          { status: 'preparing', ts: T0 + 2000 },
+        ]),
+      ],
+      T0 + 1000,
+    );
+
+    // Newest first: preparing(2000) is after the marker, confirmed(1000) is
+    // exactly ON it, pending(0) is before it. `<=` is deliberate: an entry the
+    // user has seen must never flicker back to unread because the marker landed
+    // on the same millisecond.
+    assert.deepEqual(
+      feed.map((e) => e.read),
+      [false, true, true],
+    );
+    assert.equal(countUnread(feed), 1);
+  });
+
+  it('skips an order with no statusHistory instead of throwing', () => {
+    // Real: the oldest documents predate the field, and firestore.rules
+    // `allow create` does not require it - so one written by hand in the console
+    // is rules-valid and would make a bare `.map` throw.
+    const feed = buildNotificationFeed([
+      { id: 'legacy', statusHistory: undefined },
+      { id: 'nulled', statusHistory: null },
+      order('o1', [{ status: 'pending', ts: T0 }]),
+    ]);
+    assert.equal(feed.length, 1);
+    assert.equal(feed[0].orderId, 'o1');
+  });
+
+  it('skips a status this build does not know about', () => {
+    // A future build adding a status must not blank this build's feed.
+    const feed = buildNotificationFeed([
+      order('o1', [
+        { status: 'pending', ts: T0 },
+        { status: 'refunded', ts: T0 + 1 },
+        { status: '', ts: T0 + 2 },
+      ]),
+    ]);
+    assert.equal(feed.length, 1);
+    assert.equal(feed[0].status, 'pending');
+  });
+
+  it('drops only the entry with an unusable timestamp, keeping the rest', () => {
+    // One good, one garbage, one good. Losing the whole order to a single bad
+    // value would hide the transitions that ARE readable.
+    const feed = buildNotificationFeed([
+      {
+        id: 'o1',
+        statusHistory: [
+          { status: 'pending', timestamp: { toMillis: () => T0 } },
+          { status: 'confirmed', timestamp: 'not-a-date' },
+          { status: 'preparing', timestamp: { toMillis: () => T0 + 2 } },
+        ],
+      },
+    ]);
+
+    assert.equal(feed.length, 2);
+    assert.deepEqual(
+      feed.map((e) => e.status),
+      ['preparing', 'pending'],
+    );
+  });
+
+  it('reads a statusHistory entry stored as a real Date, not a Timestamp', () => {
+    // A plain Date is an object, so it has to be handled before the generic
+    // Timestamp branch or every entry is silently dropped.
+    const feed = buildNotificationFeed([
+      { id: 'o1', statusHistory: [{ status: 'pending', timestamp: new Date(T0) }] },
+    ]);
+    assert.equal(feed.length, 1);
+    assert.equal(feed[0].at, T0);
+  });
+
+  it('caps the feed so the caller cannot render an unbounded list', () => {
+    const steps = Array.from({ length: FEED_LIMIT + 25 }, (_, i) => ({
+      status: 'pending',
+      ts: T0 + i,
+    }));
+    assert.equal(buildNotificationFeed([order('o1', steps)]).length, FEED_LIMIT);
+  });
+
+  it('carries the notice copy so the toast and the list cannot disagree', () => {
+    const feed = buildNotificationFeed([order('o1', [{ status: 'delivered', ts: T0 }])]);
+    assert.equal(feed[0].title, ORDER_STATUS_NOTICES.delivered.title);
+    assert.equal(feed[0].body, ORDER_STATUS_NOTICES.delivered.body);
+    // And the toast line is derived from the same record, not a second copy.
+    assert.ok(statusToastLine('delivered').includes(ORDER_STATUS_NOTICES.delivered.body));
+  });
+
+  it('has notice copy for every status the app can display', () => {
+    for (const status of [
+      'pending',
+      'confirmed',
+      'preparing',
+      'out_for_delivery',
+      'delivered',
+      'cancelled',
+    ] as const) {
+      assert.ok(ORDER_STATUS_NOTICES[status], `no notice for ${status}`);
+      assert.ok(ORDER_STATUS_NOTICES[status].title.length > 0);
+      assert.ok(ORDER_STATUS_NOTICES[status].body.length > 0);
+    }
+  });
+});
+
+describe('asOrderStatus', () => {
+  it('passes a known status through', () => {
+    assert.equal(asOrderStatus('delivered'), 'delivered');
+  });
+
+  it('rejects anything it does not recognise', () => {
+    // The stored status is untrusted document data. A future build adding a
+    // status must not blank this build's feed.
+    for (const bad of ['refunded', '', 'PENDING', null, undefined, 7, {}]) {
+      assert.equal(asOrderStatus(bad), null, `expected null for ${JSON.stringify(bad)}`);
+    }
+  });
+});
+
+describe('toEpochMs', () => {
+  it('reads a Firestore Timestamp via toMillis', () => {
+    assert.equal(toEpochMs({ toMillis: () => 1234 }), 1234);
+  });
+
+  it('reads a legacy Timestamp via toDate', () => {
+    assert.equal(toEpochMs({ toDate: () => new Date(5678) }), 5678);
+  });
+
+  it("reads Firestore's JSON {seconds, nanoseconds} shape", () => {
+    assert.equal(toEpochMs({ seconds: 2, nanoseconds: 500_000_000 }), 2500);
+  });
+
+  it('passes a Date and an epoch number straight through', () => {
+    assert.equal(toEpochMs(new Date(999)), 999);
+    assert.equal(toEpochMs(999), 999);
+  });
+
+  it('parses an ISO string', () => {
+    assert.equal(toEpochMs('1970-01-01T00:00:01.000Z'), 1000);
+  });
+
+  it('returns null rather than NaN for unusable input', () => {
+    // NaN in a sort comparator is not "slightly wrong": it makes the engine's
+    // ordering implementation-defined, reordering the whole feed.
+    for (const bad of [null, undefined, 'not-a-date', {}, [], true, NaN, { toMillis: () => NaN }]) {
+      assert.equal(toEpochMs(bad), null, `expected null for ${JSON.stringify(bad)}`);
+    }
+  });
+
+  it('rejects an empty string instead of reading it as 0', () => {
+    // Number('') is 0, which would silently date every entry to the epoch.
+    assert.equal(toEpochMs(''), null);
+    assert.equal(toEpochMs('   '), null);
+  });
+});
+
+describe('groupByDay', () => {
+  const DAY = 86_400_000;
+
+  it('splits today from yesterday from earlier, newest section first', () => {
+    // Fixed local noon so the test does not depend on the runner's timezone.
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      {
+        id: 'o1',
+        statusHistory: [
+          { status: 'pending', timestamp: { toMillis: () => now - 5 * DAY } },
+          { status: 'confirmed', timestamp: { toMillis: () => now - DAY - 1000 } },
+          { status: 'preparing', timestamp: { toMillis: () => now - 60_000 } },
+        ],
+      },
+    ]);
+
+    const groups = groupByDay(entries, now);
+    assert.deepEqual(
+      groups.map((g) => g.label),
+      ['Today', 'Yesterday', 'Earlier'],
+    );
+    assert.equal(groups[0].entries[0].status, 'preparing');
+  });
+
+  it('uses LOCAL midnight, so a late-evening order is not filed under yesterday', () => {
+    // 11pm local. Comparing against a UTC midnight is the classic bug that puts
+    // this under yesterday for any timezone east of UTC.
+    const now = new Date(2026, 2, 10, 23, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      {
+        id: 'o1',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 60_000 } }],
+      },
+    ]);
+    assert.equal(groupByDay(entries, now)[0].label, 'Today');
+  });
+
+  it('returns nothing for an empty feed', () => {
+    assert.deepEqual(groupByDay([], Date.now()), []);
+  });
+});
+
+describe('relativeTime', () => {
+  const now = 1_700_000_000_000;
+
+  it('collapses anything under 45 seconds to "just now"', () => {
+    assert.equal(relativeTime(now, now), 'just now');
+    assert.equal(relativeTime(now - 44_000, now), 'just now');
+  });
+
+  it('reads as minutes, then hours, then days', () => {
+    assert.equal(relativeTime(now - 5 * 60_000, now), '5m');
+    assert.equal(relativeTime(now - 3 * 3_600_000, now), '3h');
+    assert.equal(relativeTime(now - 2 * DAY_MS, now), '2d');
+  });
+
+  it('falls back to a date beyond a week', () => {
+    const old = relativeTime(now - 30 * DAY_MS, now);
+    assert.ok(!/^\d/.test(old), `expected a date, got ${old}`);
+  });
+
+  it('says "just now" for a future timestamp rather than "in 3m"', () => {
+    // Clock skew, or a server timestamp ahead of the device. "in 3m" would be
+    // inventing a fact; "just now" is the truthful reading.
+    assert.equal(relativeTime(now + 3 * 60_000, now), 'just now');
+  });
+});
+
+const DAY_MS = 86_400_000;
 
 /** Counts non-overlapping occurrences, for the no-stacking assertion. */
 function times2Count(haystack: string, needle: string): number {

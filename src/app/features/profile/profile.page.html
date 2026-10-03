@@ -187,29 +187,24 @@
             <p class="toggle-sub">Get a notification when your order's status changes.</p>
           </div>
           <ion-toggle
-            [checked]="notificationState() !== 'off'"
+            [checked]="updatesOn()"
             (ionChange)="onNotificationsToggle($event)"
             aria-label="Order update notifications"
           ></ion-toggle>
         </div>
 
-        @if (notificationState() === 'blocked') {
-          <!--
-            A denied browser permission cannot be re-requested from a page; the
-            user has to change it in site settings. Saying that is the difference
-            between a setting and a switch that looks broken.
-          -->
-          <div class="blocked-note">
-            <app-icon name="wifi-off" />
-            <div>
-              <p class="locked-title">Notifications are blocked</p>
-              <p class="locked-text">
-                Your browser is blocking notifications for this site. Allow them in your browser's site settings, then
-                switch this back on.
-              </p>
-            </div>
-          </div>
-        }
+        <!--
+          States the scope rather than describing a permission the app no longer
+          asks for. The "Notifications are blocked" panel that used to sit here is
+          gone: there is no OS permission behind an in-app notification any more,
+          so the state it described is unreachable, and a control that can render
+          a state it cannot escape is one that looks broken.
+        -->
+        <p class="toggle-hint">
+          Notifications appear in this app &mdash; in your notifications list, and as a message while it is open.
+          Nothing is sent while the app is closed.
+          <a routerLink="/notifications" class="inline-link">Open your notifications</a>
+        </p>
       </div>
 
       @if (saveState() === 'saved') {

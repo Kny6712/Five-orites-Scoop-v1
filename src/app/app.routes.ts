@@ -52,6 +52,15 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    // The in-app notification feed. Behind authGuard because it is derived
+    // entirely from the signed-in user's own orders, so there is nothing to show
+    // a guest and no document a guest could read.
+    path: 'notifications',
+    loadComponent: () =>
+      import('./features/notifications/notifications.page').then((m) => m.NotificationsPage),
+    canActivate: [authGuard],
+  },
+  {
     path: 'about',
     loadComponent: () => import('./features/about/about.page').then((m) => m.AboutPage),
   },

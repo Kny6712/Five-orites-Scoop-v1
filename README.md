@@ -8,7 +8,7 @@
 
 ## Project Overview
 
-Five-orites Scoop is a production-grade cross-platform mobile/web application built with **Ionic 7 + Angular 17 + Firebase**. It enables customers to browse 64 ice cream flavors, order by size, track orders in real time, and receive push notifications — while giving store admins a live inventory and fulfillment dashboard.
+Five-orites Scoop is a production-grade cross-platform mobile/web application built with **Ionic 7 + Angular 17 + Firebase**. It enables customers to browse 64 ice cream flavors, order by size, and track orders in real time - with in-app notifications on every status change - while giving store admins a live inventory and fulfillment dashboard.
 
 ---
 
@@ -64,18 +64,39 @@ Five-orites Scoop is a production-grade cross-platform mobile/web application bu
 These are real constraints of the current build, documented here so the claims
 above are not mistaken for more than they are.
 
-- **Notifications are in-app only.** `OrderNotificationService` watches the
-  signed-in user's own orders and shows a toast (plus a browser notification,
-  where that API is available and permitted) on a real status transition. The
-  earlier version fired from whichever client _performed_ the change, so the
-  toast appeared on the admin's device and the customer saw nothing. That is
-  fixed. What remains: a customer with the app closed still receives nothing.
-  Real background push needs FCM tokens plus a deployed Cloud Function. The
-  plugin is installed and `PushNotifications.register()` is called, but **no
-  token is ever obtained**: there is no `pushNotificationRegistrationFor`
-  listener anywhere, so nothing is persisted and nothing can be fanned out. A
-  Cloud Function would have to do that fan-out, so this is downstream of the
-  Blaze upgrade described above.
+- **Notifications are in-app only, by design.** This is a deliberate scope
+  decision, not an unfinished feature. There is no push provider and no SMS
+  gateway in this project, and no Cloud Functions to fan anything out through.
+  What exists instead:
+  - A **persistent feed** at `/notifications`, reachable from the side menu, with
+    an unread badge on the bell row. Entries are **derived from each order's
+    `statusHistory`** rather than stored in a notifications collection, so the
+    feed cannot drift out of step with the orders it describes and costs no extra
+    Firestore writes. See `src/app/core/logic/notifications.ts`.
+  - A **toast** while the app is open, fired by `OrderNotificationService` when
+    it observes a genuine transition on the signed-in user's own orders. The
+    earlier version fired from whichever client _performed_ the change, so the
+    toast appeared on the admin's device and the customer saw nothing. That is
+    fixed.
+  - A single on/off preference (`notificationsEnabled` on the user document),
+    editable from Settings, Dashboard and Profile — all three read the same field.
+
+  **What you do not get:** nothing arrives when the app is closed or killed.
+  Real background push needs an FCM token store plus a deployed Cloud Function to
+  fan out from, and this project is on the free Spark plan, which cannot deploy
+  functions at all. The `@capacitor/push-notifications` dependency has been
+  **removed** rather than left dormant: it called `register()` with no
+  `registration` listener anywhere, so no token was ever obtained and the toggle
+  could read "on" while nothing was ever delivered. The OS-permission state
+  machine that went with it (`granted`/`blocked`/`off`) is gone for the same
+  reason — an in-app toast needs no permission, so the "blocked" state was
+  unreachable and its UI was a control that could render a state it could never
+  escape.
+
+  The feed reaches back through the **20 most recent orders** (`WATCH_LIMIT` in
+  `OrderNotificationService`), which is the same bound the dashboard query
+  already used. Older orders are not listed.
+
 - **No payment gateway.** Every order is written with `paymentStatus: 'pending'`
   and stays that way. Revenue figures count _delivered_ orders, not paid ones.
 - **Reports page properly; the fulfilment queue does not.** Analytics walks
@@ -366,9 +387,11 @@ Previously this list said Cloud Functions were out of scope. They exist. Correct
   `reconcileOrderStock` and `restockCancelledOrder`. They need the Blaze plan;
   the project is on Spark. This is the single blocker behind most of what
   follows. See `CUTOVER.md`.
-- **Real background push.** No FCM token is ever obtained — the plugin is
-  installed and `register()` is called, but no `registration` listener exists,
-  so nothing is stored to fan out to. Needs a Cloud Function.
+- **Any notification that reaches a closed app** — push, SMS, email. The project
+  is in-app only by decision (see "Known limitations"), and closing that gap
+  needs a server to send from, which the Spark plan cannot host. The
+  `@capacitor/push-notifications` dependency has been removed rather than left
+  wired to nothing.
 - **Payment gateway** (GCash / Maya / PayMongo). No payment UI exists on any
   screen and no card detail is collected. The About page used to advertise
   "Secure Payments"; that claim has been removed rather than left standing.

@@ -99,8 +99,7 @@ export class CsvExportService {
 
   private async exportNative(csv: string, filename: string): Promise<CsvExportResult> {
     // Dynamic imports: both plugins are native-only, and a static import would pull
-    // them into the web bundle where they can never work. Same pattern as
-    // NotificationService's dynamic import of @capacitor/push-notifications.
+    // them into the web bundle where they can never work.
     try {
       const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
       const { Share } = await import('@capacitor/share');

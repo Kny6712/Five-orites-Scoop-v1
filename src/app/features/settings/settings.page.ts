@@ -30,7 +30,6 @@ import {
 import { AppSettingsService } from '../../core/services/app-settings.service';
 import { NotificationService } from '../../core/services/notification.service';
 import { AuthService } from '../../core/services/auth.service';
-import type { NotificationPermissionState } from '../../core/services/notification.service';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { SectionHeaderComponent } from '../../shared/components/section-header/section-header.component';
@@ -107,7 +106,7 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
         <section class="panel">
           <div class="row">
             <span class="row-icon" aria-hidden="true">
-              <app-icon name="mail" />
+              <app-icon name="bell" />
             </span>
             <div class="row-text">
               <span class="row-title">Order updates</span>
@@ -115,28 +114,27 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
             </div>
             <ion-toggle
               [checked]="updatesOn()"
-              [disabled]="notificationState() === 'blocked'"
               (ionChange)="onNotifications($event)"
               aria-label="Order update notifications"
             ></ion-toggle>
           </div>
 
-          @if (notificationState() === 'blocked') {
-            <!--
-              A denied browser permission cannot be re-granted from a page, so the
-              toggle is disabled and says why rather than offering a control that
-              would silently do nothing.
-            -->
-            <p class="row-note row-note-warn">
-              Your browser is blocking notifications for this site. To turn them back on, allow
-              notifications for this site in your browser settings.
-            </p>
-          }
+          <!--
+            States the scope instead of assuming it. There is no blocked state and
+            no permission to grant any more — notifications are in-app only, so
+            this is a plain preference — but a user who closes the app still
+            receives nothing, and that has to be said somewhere the user can read
+            it before they rely on it.
+          -->
+          <p class="row-note">
+            Notifications appear inside this app, in your notifications list and as a message while
+            it is open. Nothing is sent while the app is closed.
+          </p>
 
           <p class="row-note">
-            Also on your
-            <a routerLink="/profile" class="inline-link">profile page</a> &mdash; both screens edit
-            the same setting.
+            <a routerLink="/notifications" class="inline-link">Open your notifications</a> &mdash;
+            and see the same setting on your
+            <a routerLink="/profile" class="inline-link">profile page</a>.
           </p>
         </section>
 
@@ -303,35 +301,27 @@ export class SettingsPage {
 
   /**
    * Mirrors the Profile page's notification logic rather than inventing a second
-   * path. The stored preference lives on the user document (`notificationsEnabled`)
-   * and the browser permission is a separate, non-re-grantable thing — the same
-   * three-state model the Profile toggle uses, so the two screens can never
-   * disagree about the state.
+   * path, so the two screens can never disagree about the state.
+   *
+   * This used to be a three-state model - `granted` / `blocked` / `off` - because
+   * the app asked the OS for notification permission so it could register for
+   * FCM. Notifications are now in-app only, so there is no permission to grant and
+   * no blocked state to render: the stored preference is the whole truth.
    */
-  protected readonly notificationState = computed<NotificationPermissionState>(() =>
-    this.notifications.permissionState(this.auth.currentUserSnapshot?.notificationsEnabled),
+  protected readonly updatesOn = computed(() =>
+    this.notifications.isEnabled(this.auth.currentUserSnapshot?.notificationsEnabled),
   );
 
-  protected readonly updatesOn = computed(() => this.notificationState() !== 'off');
-
   /**
-   * Turning notifications ON necessarily asks the browser, because the permission
-   * can only be requested from a user gesture. Turning them OFF is a pure
-   * preference write with no prompt.
+   * A pure preference write, in both directions.
+   *
+   * There is no prompt to request and no denial to reconcile, which is what this
+   * collapses to. It also means the toggle can no longer get into the dishonest
+   * state it was built to avoid - it used to be able to sit visually ON with
+   * nothing delivered, and needed a browser-permission prompt and a rollback path
+   * to prevent it. With no second axis there is nothing to fall out of step.
    */
   protected async onNotifications(event: CustomEvent<{ checked: boolean }>): Promise<void> {
-    const enabled = event.detail.checked;
-    if (!enabled) {
-      await this.auth.updateProfile({ notificationsEnabled: false });
-      return;
-    }
-    const granted = await this.notifications.requestPermission();
-    if (!granted) {
-      // Put the preference back to false rather than leaving it visually on while
-      // nothing is delivered.
-      await this.auth.updateProfile({ notificationsEnabled: false });
-      return;
-    }
-    await this.auth.updateProfile({ notificationsEnabled: true });
+    await this.auth.updateProfile({ notificationsEnabled: event.detail.checked });
   }
 }

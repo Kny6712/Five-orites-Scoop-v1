@@ -1,136 +1,77 @@
 // src/app/core/services/notification.service.ts
-// Five-orites Scoop — Push Notification Service (Capacitor + PWA fallback)
-// Author: Five-orites Scoop team (see README)
+// Five-orites Scoop — In-app notification service
+//
+// SCOPE, AND WHY IT IS ONLY THIS
+//
+// This app notifies INSIDE itself and nowhere else. That is a deliberate scope
+// decision for a college project on Firebase's free Spark plan, which cannot
+// deploy Cloud Functions at all - and therefore cannot fan anything out through
+// FCM when the app is closed.
+//
+// WHAT USED TO BE HERE, AND WHY IT IS GONE
+//
+// This file previously modelled a three-state permission model
+// (`granted` / `blocked` / `off`), asked the OS for notification permission via
+// `@capacitor/push-notifications`, and fired a Web `new Notification()`.
+//
+// Every bit of that is dead under an in-app-only scope, and keeping it would
+// have been worse than dead - it would have been LYING:
+//
+//   - `requestPermission()` called `PushNotifications.register()`, but nothing
+//     ever listened for the `registration` event, so no FCM token was ever
+//     captured and nothing could ever have been delivered. The toggle still said
+//     "on".
+//   - `showBrowserNotification()` used the Web Notification API. Inside a
+//     Capacitor WebView on Android that does not produce an Android system
+//     notification at all, so on the actual phone - the thing that matters - the
+//     customer saw nothing.
+//   - The permission state machine existed to explain a "blocked" state the
+//     product can no longer reach. A control that can render a state it cannot
+//     escape is a control that looks broken.
+//
+// So the permission model is deleted rather than disabled, and what replaces it
+// is much smaller: a preference, a toast, and a derived feed. The feed itself
+// lives in `core/logic/notifications.ts` (pure, unit-tested) and is surfaced by
+// `OrderNotificationService` and the notifications page.
+//
+// THE HONEST LIMIT
+// Nothing arrives when the app is closed. That is stated in the README under
+// "Known limitations" rather than being papered over.
 
-import { Injectable, inject, signal } from '@angular/core';
-import { ToastController, Platform } from '@ionic/angular/standalone';
+import { Injectable, inject } from '@angular/core';
+import { ToastController } from '@ionic/angular/standalone';
 import { OrderStatus } from '../models/order.model';
-
-/**
- * The three states a notification toggle actually has to represent.
- *
- * A plain boolean cannot express this. The trap: a user can tap "enable", be
- * denied by the browser, and the toggle would sit there reading "on" while
- * nothing ever arrives. Worse, once a browser permission is denied it cannot be
- * re-granted from a page at all — the user has to change it in site settings.
- * A toggle that appears broken and offers no way out is worse than one that says
- * why.
- */
-export type NotificationPermissionState =
-  /** Preference on AND the browser allows it. Notifications will arrive. */
-  | 'granted'
-  /** Preference on, but the browser has blocked it. Needs a site-settings change. */
-  | 'blocked'
-  /** Preference off, or permission never requested. */
-  | 'off';
+import { ORDER_STATUS_NOTICES, statusToastLine } from '../logic/notifications';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   private toastCtrl = inject(ToastController);
-  private platform = inject(Platform);
 
   /**
-   * What the native permission prompt last answered, for this session.
+   * Whether the user wants in-app order notifications.
    *
-   * Null until `requestPermission()` has run on a device. See
-   * `browserPermission()` for why this has to exist at all.
+   * ABSENT MEANS ENABLED. Every account that predates the `notificationsEnabled`
+   * field has no such field, and defaulting them to opted-out would silently
+   * stop notifications for everyone who signed up before it shipped. The same
+   * rule as the other optional user fields - absent is not false.
+   *
+   * Note what this is NOT any more: there is no second axis. The OS permission
+   * is gone because there is nothing to grant - an in-app toast needs no
+   * permission, and a notification the user has not enabled needs no permission
+   * to be withheld. One boolean, one meaning.
    */
-  private readonly nativePermission = signal<'granted' | 'denied' | 'default' | null>(null);
-
-  /**
-   * What has the BROWSER actually allowed?
-   *
-   * `Notification.permission` is readable without prompting, which is what lets
-   * the dashboard show the true state on load rather than assuming "off" until
-   * someone taps.
-   */
-  browserPermission(): 'granted' | 'denied' | 'default' {
-    if (this.platform.is('capacitor')) {
-      // Native push has no synchronous equivalent of Notification.permission — the
-      // Capacitor plugin exposes no getter. Returning a hard-coded 'default'
-      // (which is what this used to do) meant `permissionState` below could only
-      // ever return 'granted' on a device, so BOTH the Settings and Profile
-      // toggles read "on" even after the user tapped Deny. There was no way to
-      // reflect a real native refusal.
-      //
-      // So the answer is remembered instead of guessed: `nativePermission` is set
-      // from what `requestPermissions()` actually returned, and it survives for
-      // the session. Absent means we have never asked — which is genuinely
-      // 'default', the one case where reporting "on" is defensible, because the
-      // user has not declined anything yet.
-      return this.nativePermission() ?? 'default';
-    }
-    if (typeof window === 'undefined' || !('Notification' in window)) return 'denied';
-    const p = (window as unknown as { Notification?: { permission: string } }).Notification;
-    return p?.permission === 'granted'
-      ? 'granted'
-      : p?.permission === 'denied'
-        ? 'denied'
-        : 'default';
-  }
-
-  /**
-   * Combines the user's stored preference with what the browser will allow.
-   *
-   * The preference lives on the user document, not in localStorage, so it
-   * follows the user to a new device. See AppUser.notificationsEnabled — absent
-   * means ENABLED, so nobody who signed up before this field existed is silently
-   * opted out.
-   */
-  permissionState(preference: boolean | undefined): NotificationPermissionState {
-    if (preference === false) return 'off';
-    return this.browserPermission() === 'denied' ? 'blocked' : 'granted';
-  }
-
-  /**
-   * The user's explicit OFF switch, as distinct from what the OS will allow.
-   *
-   * Separate from `permissionState` because the two answer different questions.
-   * `permissionState` is "will a notification actually appear?", which is the
-   * honest thing to show next to a toggle that cannot do anything — a toggle
-   * reading "on" while the OS has denied permission is worse than no toggle.
-   *
-   * This is the stored preference, and it is the signal the switches bind to.
-   */
-  isEnabledByPreference(preference: boolean | undefined): boolean {
-    // Absent means enabled: nobody who signed up before this field existed
-    // should be silently opted out. Same rule as AppUser.notificationsEnabled.
+  isEnabled(preference: boolean | undefined): boolean {
     return preference !== false;
   }
 
-  async requestPermission(): Promise<boolean> {
-    if (this.platform.is('capacitor')) {
-      try {
-        // Dynamic import to avoid SSR issues
-        const { PushNotifications } = await import('@capacitor/push-notifications');
-        const result = await PushNotifications.requestPermissions();
-        // Record the answer before branching, so a DENIAL is remembered too.
-        // Without this the next render falls back to 'default' -> 'granted' and
-        // the toggle snaps back to "on" the moment the user says no.
-        const granted = result.receive === 'granted';
-        this.nativePermission.set(granted ? 'granted' : 'denied');
-        if (granted) {
-          await PushNotifications.register();
-          return true;
-        }
-        return false;
-      } catch (err) {
-        // A thrown registration is not the same as a refusal, but it does mean
-        // notifications are not going to arrive — reporting 'denied' is closer to
-        // the truth than leaving the toggle claiming permission.
-        this.nativePermission.set('denied');
-        console.warn('Push notification registration error:', err);
-        return false;
-      }
-    }
-    // PWA: browser notification API
-    if ('Notification' in window) {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    }
-    return false;
-  }
-
+  /**
+   * The one transient notification surface: a toast over the current screen.
+   *
+   * A toast is not a notification system - it auto-dismisses and leaves no
+   * record - which is exactly why the feed in `core/logic/notifications.ts`
+   * exists alongside it. The toast is for "your action had an effect"; the feed
+   * is for "here is what happened to your orders".
+   */
   async showToast(
     message: string,
     color: 'success' | 'warning' | 'danger' | 'primary' = 'primary',
@@ -144,7 +85,7 @@ export class NotificationService {
       // No `buttons: [{ icon: 'close-outline' }]`.
       //
       // That field is rendered by Ionic's INTERNAL ion-icon and resolves names
-      // out of the ionicons registry, not out of this app's icon set — so it was
+      // out of the ionicons registry, not out of this app's icon set - so it was
       // only ever working by accident, whenever some other component happened to
       // have registered `closeOutline` first. There is no app-icon equivalent,
       // because ion-toast renders its own chrome.
@@ -156,33 +97,23 @@ export class NotificationService {
     await toast.present();
   }
 
+  /**
+   * Announces an order's new status to whoever is looking at the app.
+   *
+   * Called by `OrderNotificationService` when the listener observes a genuine
+   * transition on the signed-in user's own orders - NOT by whichever client
+   * performed the write, which is what this used to do and which meant the toast
+   * appeared on the admin's phone instead of the customer's.
+   *
+   * The copy comes from `ORDER_STATUS_NOTICES`, shared with the feed, so the
+   * toast and the notification list cannot drift into describing the same event
+   * differently.
+   */
   async notifyOrderStatusChange(orderId: string, newStatus: OrderStatus): Promise<void> {
-    const statusMessages: Record<OrderStatus, string> = {
-      pending: "🍦 Order received! We're reviewing it now.",
-      confirmed: '✅ Your order has been confirmed!',
-      preparing: '👨‍🍳 Our scoop artists are preparing your order!',
-      out_for_delivery: '🛵 Your scoops are on the way!',
-      delivered: '🎉 Order delivered! Enjoy your scoops!',
-      cancelled: '❌ Your order has been cancelled.',
-    };
-
-    const message = statusMessages[newStatus];
-    if (message) {
-      await this.showToast(message, newStatus === 'cancelled' ? 'danger' : 'success');
-      this.showBrowserNotification(
-        'Five-orites Scoop',
-        `${message} (#${orderId.slice(-6).toUpperCase()})`,
-      );
-    }
-  }
-
-  private showBrowserNotification(title: string, body: string): void {
-    try {
-      if (!('Notification' in window) || Notification.permission !== 'granted') return;
-      // eslint-disable-next-line no-new
-      new Notification(title, { body });
-    } catch {
-      // Notifications unsupported/blocked — toast already shown.
-    }
+    if (!ORDER_STATUS_NOTICES[newStatus]) return;
+    await this.showToast(
+      `${statusToastLine(newStatus)} (#${orderId.slice(-6).toUpperCase()})`,
+      newStatus === 'cancelled' ? 'danger' : 'success',
+    );
   }
 }
