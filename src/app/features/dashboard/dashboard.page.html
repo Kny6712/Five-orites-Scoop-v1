@@ -264,7 +264,7 @@
         </header>
 
         <ul class="low-stock-list">
-          @for (product of lowStockProducts(); track product.id) {
+          @for (product of pagedLowStock(); track product.id) {
             <li class="low-stock-item">
               <div class="low-stock-info">
                 <span class="low-stock-name">{{ product.variantName }}</span>
@@ -292,6 +292,20 @@
           Restock
           <app-icon name="arrow-right" />
         </a>
+
+        <!--
+          Paged from the panel's own total, not the slice above, so the pager
+          survives a restock landing while the reader is on a later page — which
+          is exactly when they need to get back to page 1. Below the CTA because
+          "Restock" is what the panel is for; the pager is chrome for the list.
+        -->
+        <app-pagination
+          [page]="lowStockPage()"
+          [total]="lowStockProducts().length"
+          [pageSize]="LOW_STOCK_PAGE_SIZE"
+          itemLabel="low-stock flavors"
+          (pageChange)="lowStockPage.set($event)"
+        />
       </section>
     }
 

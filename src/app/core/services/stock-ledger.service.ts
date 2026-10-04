@@ -89,6 +89,48 @@ export interface UnloggedChange {
   drift: number;
 }
 
+/**
+ * What one reconciliation pass covered, so the UI can say so.
+ *
+ * `rowsScanned` is what was actually read and `window` is the cap it read to.
+ * A pass that finds nothing is only reassuring in proportion to how much of the
+ * ledger it looked at, which is why the report carries both numbers instead of
+ * returning a bare array: `rowsScanned >= window` means the ledger is longer
+ * than the pass covered.
+ */
+export interface ReconciliationReport {
+  changes: UnloggedChange[];
+  rowsScanned: number;
+  window: number;
+}
+
+/**
+ * How many recent ledger rows ONE reconciliation pass reads.
+ *
+ * WHY A SINGLE GLOBAL WINDOW RATHER THAN A QUERY PER PRODUCT
+ * This used to loop over the catalogue and query 200 rows for each product, so
+ * on the 64-flavor catalogue one button press cost up to 12,800 document reads —
+ * a quarter of the Spark plan's 50,000-per-day allowance, repeatable at the
+ * speed of a thumb. One ordered query over `stockMovements` costs one read per
+ * row instead, and needs only the single-field index on `createdAt` that
+ * `recent()` already relies on, so no new index is introduced. The rows are
+ * grouped by product client-side and the per-product comparison is unchanged.
+ *
+ * WHY 500
+ * Drift is created by a stock write that happened while the shop was open, so it
+ * is a recent event by construction, and the opening-balance anchor below already
+ * tolerates a truncated history — a window costs coverage, not correctness. 500
+ * rows is 1% of the Spark plan's daily allowance per press, and is deep enough
+ * that a flavor touched during normal trading is still inside it. Raising it
+ * toward "every row ever" would put one report back in the range where pressing
+ * the button twice breaks the day's budget.
+ *
+ * WHAT THIS COSTS
+ * A flavor whose last movement predates the window is not compared at all, so
+ * the report must state the window rather than implying it checked everything.
+ */
+const RECONCILE_WINDOW = 500;
+
 @Injectable({ providedIn: 'root' })
 export class StockLedgerService {
   private firestore = inject(Firestore);
@@ -112,6 +154,11 @@ export class StockLedgerService {
 
   /**
    * Every movement for one product — the per-flavor history view.
+   *
+   * NOT the reconciliation's read path: a per-product query is correct but costs
+   * one read set per product, which is what `findUnloggedChanges` used to do for
+   * the whole catalogue. Kept for a single product's history, where it is one
+   * query and the exact answer.
    */
   async forProduct(productId: string, limitRows = 50): Promise<StockMovement[]> {
     const q = query(
@@ -134,9 +181,16 @@ export class StockLedgerService {
    *
    * Compares `stored` against the sum of deltas plus an opening balance, and the
    * opening balance is taken as the first row's `balanceAfter - delta`. That
-   * works even though the ledger only holds recent rows: the anchor is derived
-   * rather than assumed, so a truncated history does not report every product as
-   * drifted.
+   * works even though only the most recent `RECONCILE_WINDOW` rows are read: the
+   * anchor is derived rather than assumed, so a truncated history does not report
+   * every product as drifted.
+   *
+   * COVERAGE IS THE WINDOW, NOT THE CATALOGUE. One ordered read of the newest
+   * `RECONCILE_WINDOW` rows replaces the old query-per-product sweep (up to 12,800
+   * reads per press), and a flavor with no movement inside that window is not
+   * compared. That is a real reduction in coverage, which is why this returns a
+   * `ReconciliationReport` carrying `rowsScanned` and `window` — the caller has
+   * to display the window it actually inspected.
    */
   async findUnloggedChanges(
     products: {
@@ -145,15 +199,34 @@ export class StockLedgerService {
       pricing?: unknown;
       stock?: Record<string, number>;
     }[],
-  ): Promise<UnloggedChange[]> {
+  ): Promise<ReconciliationReport> {
     const sizes = ['cup', 'pint', 'halfGallon', 'gallon'] as const;
     const out: UnloggedChange[] = [];
 
-    for (const p of products) {
-      const rows = await this.forProduct(p.id, 200);
-      if (rows.length === 0) continue;
+    // ONE query for the whole pass, not one per product. `recent()` is already
+    // this query: a lone `orderBy('createdAt','desc')`, so Firestore's automatic
+    // single-field index serves it and no composite index is involved.
+    const rows = await this.recent(RECONCILE_WINDOW);
+
+    // Grouped in QUERY ORDER (newest first) and never re-sorted: the
+    // opening-balance anchor below reads the LAST row of each size group as the
+    // oldest, and a Map preserves insertion order, so each group stays
+    // newest-first for free.
+    const byProduct = new Map<string, StockMovement[]>();
+    for (const row of rows) {
+      const group = byProduct.get(row.productId);
+      if (group) group.push(row);
+      else byProduct.set(row.productId, [row]);
+    }
+
+    const catalogue = new Map(products.map((p) => [p.id, p]));
+    for (const [productId, productRows] of byProduct) {
+      // A movement for a flavor that is no longer in the catalogue has no stored
+      // level to be compared against, so it is not drift and is not reported.
+      const p = catalogue.get(productId);
+      if (!p) continue;
       for (const size of sizes) {
-        const forSize = rows.filter((r) => r.size === size);
+        const forSize = productRows.filter((r) => r.size === size);
         if (forSize.length === 0) continue;
         const loggedSum = forSize.reduce((s, r) => s + (r.delta ?? 0), 0);
         // Rows arrive newest-first, so the LAST one is the oldest.
@@ -173,6 +246,6 @@ export class StockLedgerService {
         }
       }
     }
-    return out;
+    return { changes: out, rowsScanned: rows.length, window: RECONCILE_WINDOW };
   }
 }

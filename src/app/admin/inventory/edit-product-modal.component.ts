@@ -2,7 +2,7 @@
 // Five-orites Scoop — Edit Product: variant name, description and image.
 // Stock quantities are edited from the inventory list, not here.
 
-import { Component, Input, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -33,6 +33,7 @@ import {
   productCategory,
 } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+import { flavourOf } from '../../core/logic/flavor';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 
 @Component({
@@ -84,6 +85,33 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
               this modal on one of the original 64 and saving does not silently
               relabel it.
             -->
+            <!--
+              Flavor, derived — not a control.
+
+              Read-only because there is nothing to choose: the flavour IS the
+              product's set, and every product already stores a setName. A dropdown
+              here would mean a second place to keep the same fact in step with the
+              name, which is the shape of most of the bugs this project has had.
+
+              It is NOT derived from the variant name, despite sitting directly
+              under it. Seven of the sixty-five products name a different flavour
+              inside their variant name — "Chocolate Chip Cookie Dough" is a Cookies
+              & Cream, "Coffee Chocolate Chip" is a Coffee — so a name search would
+              answer "Chocolate" for every one of them. core/logic/flavor.ts lists
+              them.
+
+              Distinct from Type, which answers a different question. Type is what
+              FORM the product is (flavor / sundae / cone); Flavor is which FLAVOUR.
+            -->
+            <ion-item>
+              <ion-input
+                label="Flavor"
+                labelPlacement="stacked"
+                [value]="flavour()"
+                readonly
+                aria-label="Flavor, derived from the product's set"
+              ></ion-input>
+            </ion-item>
             <ion-item>
               <ion-select
                 label="Type"
@@ -385,6 +413,14 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
   readonly uploadService = inject(ImageUploadService);
 
   @Input() product: Product | null = null;
+
+  /**
+   * The product's flavour, derived from its set.
+   *
+   * A `computed` rather than a field assigned in `ngOnInit`, so it cannot go stale
+   * if `product` is re-assigned while the modal stays open.
+   */
+  readonly flavour = computed(() => flavourOf(this.product));
 
   variantName = '';
   description = '';

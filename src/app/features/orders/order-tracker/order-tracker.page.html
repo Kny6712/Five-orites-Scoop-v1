@@ -127,12 +127,7 @@
           @if (order()!.notes) {
             <p class="info-notes">Note: {{ order()!.notes }}</p>
           }
-          <a
-            class="address-link"
-            [href]="shopMapsUrl + '&q=' + order()!.deliveryAddress"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a class="address-link" [href]="deliveryMapsUrl()" target="_blank" rel="noopener noreferrer">
             <app-icon name="map-pin" />
             Open in Maps
           </a>

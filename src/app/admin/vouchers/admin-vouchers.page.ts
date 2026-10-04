@@ -62,6 +62,7 @@ import {
   deleteDoc,
   query,
   where,
+  orderBy,
   limit,
   deleteField,
 } from '@angular/fire/firestore';
@@ -73,6 +74,42 @@ function toDateInput(ms?: number): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
+
+/** Per-code totals joined from delivered orders. */
+type VoucherMetrics = Record<string, { orders: number; discount: number; revenue: number }>;
+
+/**
+ * Delivered orders the performance metrics are measured over, newest first.
+ *
+ * DOWN FROM 500, AND NOW ORDERED. The report answers "which code actually sells",
+ * which is a ranking of recent behaviour rather than a lifetime total, and an
+ * unordered `limit` was in any case an arbitrary slice — the docs in whatever
+ * order Firestore happened to return, which made the cap a lie of omission. An
+ * explicit `orderBy('createdAt','desc')` turns the same read into "the most
+ * recent N delivered orders", and it costs nothing extra: the
+ * `orders(status ASC, createdAt DESC)` composite index in firestore.indexes.json
+ * already serves `where('status', '==', 'delivered') + orderBy('createdAt')`,
+ * which is the shape `OrderService` uses everywhere else.
+ */
+const METRICS_WINDOW = 200;
+
+/**
+ * Session memo for `loadMetrics`.
+ *
+ * Every visit to this page used to re-read up to 500 order documents to colour
+ * one chip per voucher row — pure decoration around a working editor, billed per
+ * document, and the most expensive thing in the app to merely LOOK at. The
+ * aggregate is a performance report, not live state: it only changes when an
+ * order is delivered, which happens elsewhere. Holding it for the life of the
+ * app session makes a revisit cost zero reads.
+ *
+ * WHAT THE COST OF THAT IS: a code redeemed after the first visit does not move
+ * the numbers until the app is reloaded, and the CSV export carries the same
+ * snapshot. Deliberate — an hour-old ranking beats 200 reads per page view. A
+ * FAILED read is deliberately not memoised, so the error banner's retry can
+ * still succeed.
+ */
+let metricsMemo: VoucherMetrics | null = null;
 
 @Component({
   selector: 'app-admin-vouchers',
@@ -145,10 +182,10 @@ export class AdminVouchersPage implements OnInit {
    * actually sells?" had no answer until now. DELIVERED only, matching the
    * analytics page: a cancelled or in-progress order is not revenue, and
    * counting one would make a discount look more effective than it was.
+   *
+   * A WINDOW, not a lifetime: `METRICS_WINDOW` most recent delivered orders.
    */
-  readonly stats = signal<Record<string, { orders: number; discount: number; revenue: number }>>(
-    {},
-  );
+  readonly stats = signal<VoucherMetrics>({});
   readonly metricsLoading = signal(false);
 
   /** Mirrors MAX_PERCENT_DISCOUNT, which the cart service enforces server-side. */
@@ -342,14 +379,32 @@ export class AdminVouchersPage implements OnInit {
    *
    * `stats` is keyed by CODE rather than by document id, because that is what an
    * order carries — and because the document id changes when a code is renamed.
+   *
+   * READ COST: one query, `METRICS_WINDOW` documents, and then memoised for the
+   * session (see `metricsMemo`) — so this is a once-per-session bill rather than
+   * a bill per visit. When the window comes back full the numbers cover only the
+   * most recent orders, and since this table has no room to say so, the page
+   * toasts the window instead of quietly reporting a lifetime total it does not
+   * have.
    */
   async loadMetrics(): Promise<void> {
+    if (metricsMemo) {
+      // Session hit: the aggregate cannot have moved in a way this page caused,
+      // so this is free and must not flash the metrics spinner.
+      this.stats.set(metricsMemo);
+      return;
+    }
     this.metricsLoading.set(true);
     try {
       const snap = await getDocs(
-        query(collection(this.firestore, 'orders'), where('status', '==', 'delivered'), limit(500)),
+        query(
+          collection(this.firestore, 'orders'),
+          where('status', '==', 'delivered'),
+          orderBy('createdAt', 'desc'),
+          limit(METRICS_WINDOW),
+        ),
       );
-      const out: Record<string, { orders: number; discount: number; revenue: number }> = {};
+      const out: VoucherMetrics = {};
       for (const d of snap.docs) {
         const data = d.data() as Record<string, unknown>;
         const code = data['voucherCode'] as string | null;
@@ -360,10 +415,24 @@ export class AdminVouchersPage implements OnInit {
         row.revenue += (data['totalAmount'] as number) ?? 0;
         out[code] = row;
       }
+      metricsMemo = out;
       this.stats.set(out);
+      if (snap.size >= METRICS_WINDOW) {
+        // The only honest way to say it from this file: the table has no caption
+        // for the window, and a chip reading "12 orders · ₱340 off" implies a
+        // lifetime figure it is not.
+        await this.toast
+          .create({
+            message: `Voucher performance covers the ${METRICS_WINDOW} most recent delivered orders.`,
+            color: 'warning',
+            duration: 3200,
+            position: 'top',
+          })
+          .then((t) => t.present());
+      }
     } catch {
       // Metrics are an enhancement on top of a working editor; failing to read
-      // them must not blank the voucher list.
+      // them must not blank the voucher list. Not memoised, so a retry re-reads.
       this.stats.set({});
     } finally {
       this.metricsLoading.set(false);

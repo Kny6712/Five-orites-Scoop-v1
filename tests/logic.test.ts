@@ -17,7 +17,13 @@ import {
 } from '../src/app/core/logic/delivery';
 import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '../src/app/core/logic/voucher';
 import { summarizeRatings } from '../src/app/core/logic/rating';
-import { assertCanAddToCart, clampToStock, normaliseStockLines } from '../src/app/core/logic/stock';
+import {
+  assertCanAddToCart,
+  clampToStock,
+  normaliseStockLines,
+  totalStock,
+} from '../src/app/core/logic/stock';
+import { flavourOf, initialsOf } from '../src/app/core/logic/flavor';
 import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
 import {
   describeFirestoreError,
@@ -254,6 +260,127 @@ describe('client ↔ firestore.rules drift lint', () => {
       .sort();
     const clientStaff = ALL_ROLES.filter((r) => r !== 'customer').sort();
     assert.deepEqual(rulesSet, clientStaff, 'isStaff() set drifted from the client staff roles');
+  });
+
+  /**
+   * Every field `updateProfile` can write must be permitted by the rules branch
+   * that governs it.
+   *
+   * This is the third time a client write and a rules allow-list have drifted
+   * apart, and the third time nothing noticed:
+   *
+   *   - `stockRestored` appeared in NO allow-list, so the admin stock-repair
+   *     panel was PERMISSION_DENIED for every role including owner.
+   *   - `notificationsReadAt` was omitted from all THREE `users` update lists, so
+   *     tapping any notification produced "Could not update your
+   *     notifications" for customer, staff, admin and owner alike.
+   *
+   * The pattern is the same each time and it is not a typo problem. `users/{uid}`
+   * is written through `setDoc(..., { merge: true })` with a `hasOnly` guard, and
+   * adding a field to the model and to `ProfilePatch` is invisible from the rules
+   * file. Both halves were individually correct and each had its own tests; no
+   * test asserted that they agreed, so the join was untested by construction.
+   *
+   * So this asserts the join directly: read `ProfilePatch` out of the service,
+   * read the allow-lists out of the rules, and require that a field the client
+   * can write is a field the rules let that role write. Drift becomes a red test
+   * at the moment someone adds the field, which is the only moment it is cheap.
+   */
+  describe('ProfilePatch and the rules user-update allow-lists agree', () => {
+    const authSrc = readFileSync(
+      join(__dirname, '..', 'src', 'app', 'core', 'services', 'auth.service.ts'),
+      'utf8',
+    );
+
+    /** Field names declared on the ProfilePatch interface. */
+    function profilePatchFields(): string[] {
+      const body = authSrc.match(/export interface ProfilePatch \{([\s\S]*?)\n\}/)?.[1] ?? '';
+      assert.ok(body, 'ProfilePatch interface not found in auth.service.ts');
+      return [...body.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]);
+    }
+
+    /**
+     * The three lists that gate a write to a user document, kept SEPARATE.
+     *
+     * There are three, and they are not all in the same place: two sit inside the
+     * `users/{uid}` match block (the owner branch and the self-service branch)
+     * and the third, `isAdminUserEdit()`, is a helper defined far above it.
+     *
+     * They are deliberately not unioned. An earlier version of this guard took
+     * the union of all three, which passed while a field was still missing from
+     * one of them — so it caught the original all-three-missing bug and would
+     * have sailed straight through the far more likely partial fix, where two
+     * lists are corrected and the third is forgotten. Per-list is the only
+     * formulation that fails on the mistake actually being made.
+     */
+    function rulesUserAllowLists(): Record<string, Set<string>> {
+      if (!hasRules) return {};
+      const block = rules.match(/match \/users\/\{uid\} \{([\s\S]*?)\n {4}\}/)?.[1] ?? '';
+      const helper = rules.match(/function isAdminUserEdit\(\) \{([\s\S]*?)\n {4}\}/)?.[1] ?? '';
+      assert.ok(block, 'users match block not found in firestore.rules');
+      assert.ok(helper, 'isAdminUserEdit() helper not found in firestore.rules');
+
+      const fromBlock = [...block.matchAll(/hasOnly\(\[([\s\S]*?)\]\)/g)];
+      assert.equal(
+        fromBlock.length,
+        2,
+        'expected the users block to hold exactly two hasOnly lists (owner, self-service)',
+      );
+      const keysOf = (src: string) => new Set([...src.matchAll(/'([^']+)'/g)].map((m) => m[1]));
+      const fromHelper = [...helper.matchAll(/hasOnly\(\[([\s\S]*?)\]\)/g)];
+      assert.equal(fromHelper.length, 1, 'expected isAdminUserEdit() to hold one hasOnly list');
+
+      // The self-service list is the shorter of the two in-block lists and the
+      // one that does NOT mention `role`; that distinguishes it from the owner
+      // branch without depending on statement order.
+      const withRole = fromBlock.findIndex((l) => l[1].includes("'role'"));
+      const selfIdx = withRole === 0 ? 1 : 0;
+      return {
+        owner: keysOf(fromBlock[withRole === 0 ? 0 : 1][1]),
+        self: keysOf(fromBlock[selfIdx][1]),
+        admin: keysOf(fromHelper[0][1]),
+      };
+    }
+
+    it('finds both sides', () => {
+      assert.ok(profilePatchFields().length > 0, 'ProfilePatch must declare at least one field');
+      if (!hasRules) {
+        assert.ok(
+          Object.keys(rulesUserAllowLists()).length === 3,
+          'expected three user-update allow-lists',
+        );
+      }
+    });
+
+    it('every client-writable profile field is permitted by EVERY user-update branch', () => {
+      if (!hasRules) return;
+      const lists = rulesUserAllowLists();
+      // `role` and `uid` are deliberately NOT in ProfilePatch: a profile save must
+      // never carry them, and AuthService documents that as the reason the merge
+      // is safe. They are asserted absent below rather than skipped here.
+      const clientWritable = profilePatchFields().filter((f) => f !== 'role' && f !== 'uid');
+      for (const [branch, permitted] of Object.entries(lists)) {
+        const missing = clientWritable.filter((f) => !permitted.has(f));
+        assert.deepEqual(
+          missing,
+          [],
+          `updateProfile can write [${missing.join(', ')}] but the ${branch} branch ` +
+            'of the users update rule does not permit it — that role gets ' +
+            'PERMISSION_DENIED on every profile save and every notification tap',
+        );
+      }
+    });
+
+    it('the client never sends role or uid through a profile save', () => {
+      // The mirror image: the rules protect `role` by keeping it out of the
+      // self-service list, which is only safe while the client agrees.
+      const fields = profilePatchFields();
+      assert.ok(
+        !fields.includes('role'),
+        'ProfilePatch must not carry `role` — the rules keep it out of the self-service list',
+      );
+      assert.ok(!fields.includes('uid'), 'ProfilePatch must not carry `uid`');
+    });
   });
 
   it('the rules canRunShop tier set matches the client manage_inventory grants', () => {
@@ -579,6 +706,132 @@ describe('cart stock cap', () => {
 
   it('rejects a non-positive quantity', () => {
     assert.throws(() => assertCanAddToCart('Rocky Road (pint)', 0, 0, 10), /at least 1/);
+  });
+});
+
+describe('totalStock', () => {
+  it('sums every size', () => {
+    assert.equal(totalStock({ cup: 20, pint: 30, halfGallon: 20, gallon: 20 }), 90);
+  });
+
+  it('counts a missing size as zero rather than NaN', () => {
+    // A legacy document with only two sizes must still produce a number. `reduce`
+    // over the incoming keys would have produced NaN, which the card and the delete
+    // confirmation would then have disagreed about.
+    assert.equal(totalStock({ cup: 5, pint: 7 } as Partial<Record<string, number>>), 12);
+  });
+
+  it('ignores a non-finite level instead of poisoning the total', () => {
+    assert.equal(totalStock({ cup: 5, pint: NaN, halfGallon: 2, gallon: 3 }), 10);
+  });
+
+  it('is zero for nothing', () => {
+    assert.equal(totalStock(null), 0);
+    assert.equal(totalStock(undefined), 0);
+    assert.equal(totalStock({}), 0);
+  });
+
+  it('ignores an unexpected extra size key', () => {
+    // Iterates SIZE_VARIANTS rather than the document's own keys, so a stray field
+    // cannot inflate the number and the function cannot drift from the size list.
+    assert.equal(totalStock({ cup: 1, pint: 1, halfGallon: 1, gallon: 1, tub: 999 } as never), 4);
+  });
+});
+
+describe('flavourOf: the SET is the flavour', () => {
+  it('singularises the one set name that needs it', () => {
+    assert.equal(flavourOf({ setName: 'Chocolates' }), 'Chocolate');
+  });
+
+  it('leaves already-singular names alone', () => {
+    for (const name of ['Vanilla', 'Ube', 'Mint', 'Mango', 'Strawberry', 'Coffee', 'Pistachio']) {
+      assert.equal(flavourOf({ setName: name }), name);
+    }
+  });
+
+  it('does not strip the s in "Cookies & Cream"', () => {
+    assert.equal(flavourOf({ setName: 'Cookies & Cream' }), 'Cookies & Cream');
+  });
+
+  /**
+   * The reason this helper exists rather than a substring search on the variant
+   * name. Every row below is a REAL product in the live catalogue whose variant
+   * name mentions a DIFFERENT flavour; a name search answers with the mention,
+   * which is wrong on all seven.
+   */
+  const MENTIONS_ANOTHER_FLAVOUR: Array<[string, string, string]> = [
+    ['Chocolate Chip Cookie Dough', 'Cookies & Cream', 'Cookies & Cream'],
+    ['Coffee Chocolate Chip', 'Coffee', 'Coffee'],
+    ['Mint Chocolate Chip', 'Mint', 'Mint'],
+    ['Mint Chocolate Cookie', 'Mint', 'Mint'],
+    ['Vanilla Cookie Crumble', 'Vanilla', 'Vanilla'],
+    ['Ube Cookies and Cream', 'Ube', 'Ube'],
+  ];
+
+  for (const [variantName, setName, expected] of MENTIONS_ANOTHER_FLAVOUR) {
+    it(`"${variantName}" is ${expected}, not the flavour its name mentions`, () => {
+      assert.equal(flavourOf({ setName }), expected);
+      // And the name genuinely does contain a rival flavour word, so this test
+      // would be vacuous if the fixture were wrong.
+      const rivals = [
+        'Chocolate',
+        'Vanilla',
+        'Strawberry',
+        'Mango',
+        'Ube',
+        'Mint',
+        'Coffee',
+        'Cookie',
+      ];
+      assert.ok(
+        rivals.some((r) => variantName.toLowerCase().includes(r.toLowerCase())),
+        `${variantName} is supposed to name another flavour, for this test to mean anything`,
+      );
+    });
+  }
+
+  it('handles the screenshot case', () => {
+    assert.equal(flavourOf({ setName: 'Chocolates' }), 'Chocolate');
+  });
+
+  it('answers for a set that SET_NAMES does not define', () => {
+    // Set 9 "Pistachio" exists in the live catalogue and is absent from
+    // `SET_NAMES` in pricing.config.ts, which stops at 8. Reading the product's
+    // own setName cannot break on it the way reading that constant would; its
+    // single variant is "Choco Pistachio", which names a flavour it is not.
+    assert.equal(flavourOf({ setName: 'Pistachio' }), 'Pistachio');
+  });
+
+  it('is empty rather than "undefined" for a missing name', () => {
+    assert.equal(flavourOf(null), '');
+    assert.equal(flavourOf({}), '');
+    assert.equal(flavourOf({ setName: '   ' }), '');
+  });
+});
+
+describe('initialsOf', () => {
+  it('takes the first and last word', () => {
+    assert.equal(initialsOf('Kenn Karlo Umadhay'), 'KU');
+    assert.equal(initialsOf('Justin Curby P. Esguerra'), 'JE');
+  });
+
+  it('copes with a single name', () => {
+    assert.equal(initialsOf('Prince'), 'PR');
+  });
+
+  it('never returns more than two letters', () => {
+    assert.equal(initialsOf('Antonio Miguel Villanueva'), 'AV');
+    assert.equal(initialsOf('A B C D'), 'AD');
+  });
+
+  it('has a placeholder rather than an empty avatar', () => {
+    assert.equal(initialsOf(''), '?');
+    assert.equal(initialsOf(null), '?');
+    assert.equal(initialsOf('   '), '?');
+  });
+
+  it('ignores punctuation-only words', () => {
+    assert.equal(initialsOf('  ,  .  '), '?');
   });
 });
 

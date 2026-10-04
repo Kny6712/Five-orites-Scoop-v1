@@ -17,7 +17,7 @@
 // tests/firestore.rules.test.ts), and the reconciliation panel reports the
 // drift that creates.
 
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -38,12 +38,14 @@ import {
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
 import {
   StockLedgerService,
   STOCK_REASON_LABELS,
+  type ReconciliationReport,
   type StockMovement,
   type StockReason,
   type UnloggedChange,
@@ -78,6 +80,7 @@ import { firstValueFrom } from 'rxjs';
     AppIconComponent,
     AlertBannerComponent,
     EmptyStateComponent,
+    PaginationComponent,
     AppFooterComponent,
   ],
   templateUrl: './admin-settings.page.html',
@@ -107,6 +110,15 @@ export class AdminSettingsPage implements OnInit {
   checking = signal(false);
   drift = signal<UnloggedChange[]>([]);
   checked = signal(false);
+  /**
+   * What the last pass actually read.
+   *
+   * Rendered in the panel because "no drift found" only means something next to
+   * how much of the ledger was compared, and the check reads a recent window
+   * rather than the whole ledger.
+   */
+  scannedRows = signal(0);
+  scannedWindow = signal(0);
   movements = signal<StockMovement[]>([]);
   movementsLoading = signal(false);
 
@@ -162,15 +174,19 @@ export class AdminSettingsPage implements OnInit {
       this.movements.set([]);
     } finally {
       this.movementsLoading.set(false);
+      // A fresh read can leave the list shorter than the page the admin was on.
+      this.movementsPage.set(1);
     }
   }
 
   /**
    * Compares stored stock against the ledger and reports the disagreement.
    *
-   * Sequential per product rather than parallel: each call is a query, and
-   * firing 64 of them at once on a phone is how you get rate-limited. The admin
-   * is waiting on a report, not watching it stream.
+   * Now TWO reads for the whole pass — the product list and one window of
+   * movements — where it used to be one read per product on top of the same
+   * product list, which is why this is no longer a loop worth defending: the
+   * per-product queries that made "sequential rather than parallel" a
+   * rate-limiting concern are gone (see `StockLedgerService.findUnloggedChanges`).
    */
   async reconcile(): Promise<void> {
     if (this.checking()) return;
@@ -178,14 +194,20 @@ export class AdminSettingsPage implements OnInit {
     this.drift.set([]);
     try {
       const products = await firstValueFrom(this.inventory.getAllProducts(200));
-      const found = await this.ledger.findUnloggedChanges(products as never);
-      this.drift.set(found);
+      const report: ReconciliationReport = await this.ledger.findUnloggedChanges(products as never);
+      this.drift.set(report.changes);
+      this.scannedRows.set(report.rowsScanned);
+      this.scannedWindow.set(report.window);
       this.checked.set(true);
+      // A new report replaces the old list, which can be shorter.
+      this.driftPage.set(1);
       await this.toast(
-        found.length
-          ? `${found.length} stock ${found.length === 1 ? 'value does' : 'values do'} not match the ledger.`
-          : 'All stock values match the ledger.',
-        found.length ? 'warning' : 'success',
+        report.changes.length
+          ? `${report.changes.length} stock ${
+              report.changes.length === 1 ? 'value does' : 'values do'
+            } not match the ledger.`
+          : 'Every stock value checked matches the ledger.',
+        report.changes.length ? 'warning' : 'success',
       );
     } catch (err: unknown) {
       await this.toast(describeFirestoreError('the stock ledger', err), 'danger');
@@ -194,9 +216,62 @@ export class AdminSettingsPage implements OnInit {
     }
   }
 
-  filteredMovements(): StockMovement[] {
+  /**
+   * The 60 movements that were read, narrowed by the reason filter.
+   *
+   * A computed rather than the method this was, because `pagedMovements` has to
+   * re-slice whenever the filter changes; a method call inside a computed is
+   * not tracked.
+   */
+  readonly filteredMovements = computed(() => {
     const f = this.reasonFilter();
     return f === 'all' ? this.movements() : this.movements().filter((m) => m.reason === f);
+  });
+
+  // ── Paging ────────────────────────────────────────────────────────────────
+  /* Three independent lists on one page, so three independent page indexes: one
+     shared index would page the drift table and the movement history together,
+     which is only coherent if the reader is looking at one of them. Same page
+     size for all three because they are all "a screenful of rows" — twelve is
+     what still fits above the fold on a phone with the panel heading in view.
+
+     Each index is reset where that list's contents change: `loadMovements`,
+     `reconcile`, and `loadRepairs`/`repair`. `movementsPage` also depends on
+     `reasonFilter`, which no control on this page currently writes to — whoever
+     adds one has to reset the index there too, the way the orders page does. */
+  readonly MOVEMENTS_PAGE_SIZE = 12;
+  readonly DRIFT_PAGE_SIZE = 12;
+  readonly REPAIRS_PAGE_SIZE = 12;
+
+  readonly movementsPage = signal(1);
+  readonly driftPage = signal(1);
+  readonly repairsPage = signal(1);
+
+  readonly pagedMovements = computed(() => {
+    const start = (this.movementsPage() - 1) * this.MOVEMENTS_PAGE_SIZE;
+    return this.filteredMovements().slice(start, start + this.MOVEMENTS_PAGE_SIZE);
+  });
+
+  readonly pagedDrift = computed(() => {
+    const start = (this.driftPage() - 1) * this.DRIFT_PAGE_SIZE;
+    return this.drift().slice(start, start + this.DRIFT_PAGE_SIZE);
+  });
+
+  readonly pagedRepairs = computed(() => {
+    const start = (this.repairsPage() - 1) * this.REPAIRS_PAGE_SIZE;
+    return this.unrestoredOrders().slice(start, start + this.REPAIRS_PAGE_SIZE);
+  });
+
+  onMovementsPageChange(next: number): void {
+    this.movementsPage.set(next);
+  }
+
+  onDriftPageChange(next: number): void {
+    this.driftPage.set(next);
+  }
+
+  onRepairsPageChange(next: number): void {
+    this.repairsPage.set(next);
   }
 
   formatWhen(value: unknown): string {
@@ -262,6 +337,8 @@ export class AdminSettingsPage implements OnInit {
       await this.toast('Could not load cancelled orders.', 'danger');
     } finally {
       this.repairLoading.set(false);
+      // A reload can leave a shorter queue than the page the admin was on.
+      this.repairsPage.set(1);
     }
   }
 
@@ -270,6 +347,9 @@ export class AdminSettingsPage implements OnInit {
     try {
       await this.orderService.repairStockRestock(order.id);
       this.unrestoredOrders.update((rows) => rows.filter((o) => o.id !== order.id));
+      // Removing the last row of a page would otherwise leave the reader on an
+      // empty page with nothing to click.
+      this.repairsPage.set(1);
       await this.toast('Stock returned to inventory.', 'success');
     } catch (err: unknown) {
       await this.toast(describeFirestoreError('that order', err), 'danger');

@@ -1,5 +1,5 @@
-<!-- src/app/admin/inventory/inventory.page.html -->
-<!-- Five-orites Scoop — Admin Inventory Manager -->
+﻿<!-- src/app/admin/inventory/inventory.page.html -->
+<!-- Five-orites Scoop â€” Admin Inventory Manager -->
 
 <ion-header>
   <ion-toolbar color="primary">
@@ -9,8 +9,18 @@
     <ion-title>Inventory Manager</ion-title>
     <!--
       No cart button here. This is an admin surface: an admin has no cart, and
-      the toolbar's end slot is now where the page's own actions live.
+      the toolbar's end slot is where the page's own actions live.
+
+      The bulk-import trigger lives here rather than in the scrolling header block
+      it used to sit in, for the same reason admin-orders and admin-reviews put
+      their CSV export in `slot="end"`: a control inside <ion-content> scrolls out
+      of reach, so on a phone the admin scrolls back up to find it every time.
     -->
+    <ion-buttons slot="end">
+      <ion-button size="small" (click)="openImport()" aria-label="Import flavors from a CSV file">
+        <app-icon name="upload" slot="icon-only" />
+      </ion-button>
+    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
@@ -22,7 +32,7 @@
   <!--
     A failed catalog read must not look like an empty one. The error branch
     replaces the count, the search bar, and the bulk actions, because all three
-    act on data that never arrived — Add Product in particular builds its
+    act on data that never arrived â€” Add Product in particular builds its
     set-number options from the loaded catalog, so over a failed read it would
     silently fall back to a hardcoded default.
   -->
@@ -56,10 +66,6 @@
       <div class="inv-actions">
         <ion-button size="small" (click)="addProduct()">+ Add Product</ion-button>
         <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
-        <ion-button size="small" fill="clear" (click)="toggleImport()">
-          <app-icon name="upload" slot="start" />
-          Import CSV
-        </ion-button>
       </div>
     </div>
   }
@@ -83,8 +89,8 @@
           <div class="inv-card-main">
             <!--
               The product image, and the way to replace it. One tap opens the
-              upload sheet — the previous path was Details → scroll → tap image →
-              pick file → Save.
+              upload sheet â€” the previous path was Details â†’ scroll â†’ tap image â†’
+              pick file â†’ Save.
 
               A real <button> rather than a div with role="button": native
               keyboard support, a real accessible name, and Enter/Space for free.
@@ -116,6 +122,15 @@
                   <div class="inv-ident">
                     <ion-chip color="primary" class="set-chip-sm">Set {{ product.setNumber }}</ion-chip>
                     <p class="inv-set-name">{{ product.setName }}</p>
+                    <!--
+                      The family total, so an owner scanning the grid gets one
+                      figure per flavour instead of adding four in their head. The
+                      four steppers below remain the authoritative per-size
+                      figures and the only editable ones; this is a read-out.
+                    -->
+                    <ion-chip color="secondary" class="set-chip-sm stock-total-chip">
+                      {{ totalStock(product.stock) }} units
+                    </ion-chip>
                   </div>
 
                   <!--
@@ -128,7 +143,7 @@
                     with a dot states the state at a glance and does not invite
                     the misreading.
 
-                    X is destructive and irreversible — it deletes the Firestore
+                    X is destructive and irreversible â€” it deletes the Firestore
                     document. It is separated from the pill by a gap, given its
                     own hit area, and guarded by a confirm dialog that names the
                     flavor. The pencil is the same Details modal the old
@@ -178,7 +193,7 @@
                   press Save to move it by one.
 
                   The value is the source of truth from the live snapshot, and
-                  each press calls an atomic server-side adjust — see
+                  each press calls an atomic server-side adjust â€” see
                   InventoryService.adjustStock for why this is a transaction
                   rather than a client-side read-modify-write.
                 -->
@@ -252,92 +267,6 @@
         (pageChange)="page.set($event)"
       />
     }
-  }
-
-  <!-- Bulk CSV import. All-or-nothing by construction: parseProductCsv returns
-       zero valid rows if any row fails, so there is no partial-import state. -->
-  @if (importOpen()) {
-    <div class="import-panel" role="region" aria-label="Bulk product import">
-      <div class="import-head">
-        <h2 class="import-title">Bulk import flavors</h2>
-        <button type="button" class="import-close" (click)="closeImport()" aria-label="Close the import panel">
-          <app-icon name="x" class="import-close-icon" />
-        </button>
-      </div>
-
-      @if (!importPlan()) {
-        <p class="import-note">
-          Upload a CSV of flavors. Every row is checked before anything is written &mdash; if one row is wrong, nothing
-          is imported.
-        </p>
-        <input #csvInput type="file" accept=".csv,text/csv" hidden (change)="onCsvPicked($event)" />
-        <div class="import-actions">
-          <ion-button size="small" (click)="csvInput.click()">Choose CSV file</ion-button>
-          <ion-button size="small" fill="clear" (click)="downloadTemplate()">
-            <app-icon name="download" slot="start" />
-            Template
-          </ion-button>
-        </div>
-        <details class="import-help">
-          <summary>Which columns?</summary>
-          <p>
-            <code>set_number, set_name, variant_name</code> are required. <code>description</code>,
-            <code>category</code> (flavor / sundae / cone) and the four price and stock columns are optional. Names are
-            matched loosely, so <code>Price (Half Gallon)</code> works as well as <code>half_gallon_price</code>. Lines
-            starting with <code>#</code> are ignored.
-          </p>
-        </details>
-      } @else {
-        @if (importErrors().length) {
-          <app-alert-banner
-            tone="danger"
-            title="Nothing was imported"
-            [message]="
-              importErrors().length +
-              ' problem' +
-              (importErrors().length === 1 ? '' : 's') +
-              ' found. Fix the file and try again.'
-            "
-          />
-          <ul class="import-errors">
-            @for (e of importErrors(); track e.line) {
-              <li>
-                <strong>Line {{ e.line }}:</strong> {{ e.message }}
-              </li>
-            }
-          </ul>
-          <div class="import-actions">
-            <ion-button size="small" fill="outline" (click)="resetImport()">Choose another file</ion-button>
-          </div>
-        } @else {
-          <app-alert-banner
-            tone="success"
-            title="File is ready"
-            [message]="importValid().length + ' flavor' + (importValid().length === 1 ? '' : 's') + ' validated.'"
-          />
-          @if (importUnknown().length) {
-            <p class="import-note">
-              Ignored unknown column{{ importUnknown().length === 1 ? '' : 's' }}:
-              {{ importUnknown().join(', ') }}
-            </p>
-          }
-          <div class="import-summary">
-            @for (row of importValid().slice(0, 8); track row.setNumber + row.variantName) {
-              <span class="import-pill">{{ row.variantName }}</span>
-            }
-            @if (importValid().length > 8) {
-              <span class="import-pill import-pill--more">+{{ importValid().length - 8 }} more</span>
-            }
-          </div>
-          <div class="import-actions">
-            <ion-button size="small" (click)="commitImport()" [disabled]="importing()">
-              {{ importing() ? 'Importing...' : 'Import ' + importValid().length + ' flavors' }}
-            </ion-button>
-            <ion-button size="small" fill="clear" (click)="resetImport()">Cancel</ion-button>
-          </div>
-        }
-      }
-    </div>
   }
 </ion-content>
 

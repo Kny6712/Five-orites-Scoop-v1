@@ -136,6 +136,9 @@ const WANTED = {
   gauge: ['Gauge'],
   // Export / external navigation.
   download: ['Download'],
+  // Import. The inventory CSV trigger referenced this name before it existed here,
+  // so the button rendered with an empty <svg> and no icon at all.
+  upload: ['Upload'],
   'external-link': ['ExternalLink'],
   // The redesigned cart affordance and its menu entry. ShoppingCart reads as a
   // wireframe trolley; ShoppingBag is the shape most people picture.
@@ -245,8 +248,31 @@ const file = `// src/app/core/icons/lucide-icon-data.ts
 /** One SVG shape: element name plus its attributes. */
 export type IconNode = [tag: string, attrs: Record<string, string>];
 
-/** Icon geometry, keyed by the app-level name used in \`<app-icon name="…">\`. */
-export const LUCIDE_ICON_DATA: Record<string, IconNode[]> = ${JSON.stringify(out, null, 2)};
+/**
+ * Icon geometry, keyed by the app-level name used in \`<app-icon name="…">\`.
+ *
+ * \`satisfies\`, NOT a \`Record<string, IconNode[]>\` annotation, and this line is
+ * load-bearing in a way that is easy to undo by accident.
+ *
+ * An explicit \`Record<string, …>\` annotation WIDENS this object to
+ * \`Record<string, IconNode[]>\`, so \`keyof typeof\` below — which is what
+ * \`AppIcon\` in app-icons.ts is built from — becomes plain \`string\`. Every
+ * \`<app-icon name="…">\` in the app then type-checks against \`string\`, and the
+ * promise in that file's comment that a typo becomes a compile error is false.
+ *
+ * It was not theoretical: \`name="upload"\` on the inventory CSV button was not one
+ * of these keys, so it rendered an empty \`<svg>\` and the button lost its icon with
+ * nothing reporting a problem. Regenerating this file used to silently restore the
+ * broken annotation, which is why the fix lives HERE and not in the generated
+ * output.
+ *
+ * \`satisfies\` keeps the literal key union while still checking every value is a
+ * well-formed \`IconNode[]\`, so a name outside the vocabulary stops compiling.
+ */
+export const LUCIDE_ICON_DATA = ${JSON.stringify(out, null, 2)} satisfies Record<
+  string,
+  IconNode[]
+>;
 
 export type LucideIconName = keyof typeof LUCIDE_ICON_DATA;
 `;

@@ -46,6 +46,36 @@ export function clampToStock(quantity: number, available: number | undefined): n
 export const SIZE_VARIANTS = ['cup', 'pint', 'halfGallon', 'gallon'] as const;
 
 /**
+ * Total units on hand across every size, for the "how do we look overall" read.
+ *
+ * Cup 20 + Pint 30 + Half Gallon 20 + Gallon 20 is 90 units, which is the number
+ * an owner actually wants when scanning the inventory rather than reading four
+ * separate figures per flavour.
+ *
+ * Iterates `SIZE_VARIANTS` rather than the keys of the incoming map, so a
+ * document that somehow carries an extra size cannot inflate the total, and the
+ * function cannot drift from the size list as it grows. A non-finite or missing
+ * level counts as zero rather than poisoning the sum with `NaN` — which is the
+ * failure mode of the inline `reduce` this replaced, and the reason the inventory
+ * card and the delete-confirmation could have quoted different totals for the
+ * same product.
+ */
+export function totalStock<T extends object>(stock: T | null | undefined): number {
+  if (!stock || typeof stock !== 'object') return 0;
+  // Generic over the shape rather than typed as `Record<string, number>`: a
+  // `StockLevel` is a plain interface with four named keys and NO index
+  // signature, so TypeScript refuses to assign it to an index-signature type even
+  // though the read is perfectly safe. The narrowing below is the real guarantee.
+  const levels = stock as Record<string, unknown>;
+  let total = 0;
+  for (const size of SIZE_VARIANTS) {
+    const level = levels[size];
+    total += typeof level === 'number' && Number.isFinite(level) ? level : 0;
+  }
+  return total;
+}
+
+/**
  * Validates and collapses the stock movements a checkout is about to apply.
  *
  * Two reasons this is not a plain `for` loop:

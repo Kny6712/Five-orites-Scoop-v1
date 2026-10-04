@@ -114,6 +114,36 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   readonly geoUnavailable = signal(false);
 
   /**
+   * A maps link to the DELIVERY ADDRESS, which is not what the control used to do.
+   *
+   * It read `SHOP_LOCATION.mapsUrl` and appended `&q=<address>`. That looks like
+   * a parameterised maps URL and is not one: `shop.config.ts` holds a
+   * `maps.app.goo.gl/<id>` short link, which is a REDIRECT ENDPOINT. It ignores
+   * every query parameter and unconditionally lands on the shop's own pin. So the
+   * link silently opened the shop for every customer, at a distance, with no error
+   * anywhere to notice — and the address was interpolated raw, unescaped, so any
+   * `&` in it split the query.
+   *
+   * `https://www.google.com/maps/search/?api=1&query=` is the documented URL
+   * scheme and does accept a query, which is why it is built here rather than
+   * reusing the short link. Coordinates are preferred when the order already has
+   * them — the page geocodes on open — and the written address is the fallback for
+   * before geocoding finishes or when it fails.
+   *
+   * `shopMapsUrl` stays for the SHOP's own location, where a bare short link is
+   * exactly right. Two different destinations, two different kinds of URL.
+   */
+  readonly deliveryMapsUrl = computed(() => {
+    const dest = this.destination();
+    const query = dest
+      ? `${dest.lat},${dest.lng}`
+      : encodeURIComponent(this.order()?.deliveryAddress ?? '');
+    return query
+      ? `https://www.google.com/maps/search/?api=1&query=${query}`
+      : SHOP_LOCATION.mapsUrl;
+  });
+
+  /**
    * 0–1 progress along the route, derived from the order status.
    *
    * There is NO live courier position anywhere in this app — no driver app, no

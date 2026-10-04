@@ -85,7 +85,8 @@
         <label class="field">
           <span class="field-label">Display name</span>
           <ion-input
-            [(ngModel)]="displayName"
+            [ngModel]="displayName()"
+            (ngModelChange)="displayName.set($event)"
             name="displayName"
             type="text"
             placeholder="Your name"
@@ -97,7 +98,8 @@
         <label class="field">
           <span class="field-label">Phone number</span>
           <ion-input
-            [(ngModel)]="phone"
+            [ngModel]="phone()"
+            (ngModelChange)="phone.set($event)"
             name="phone"
             type="tel"
             placeholder="0917 123 4567"
@@ -176,6 +178,83 @@
           </p>
         }
       </div>
+
+      <!-- ── Password ──────────────────────────────────────────────────── -->
+      <!--
+        Shown only to accounts that HAVE a password credential.
+
+        The requirement this came from was "hide it for email sign-in, show it for
+        anything else", which reads backwards: a Google-only account has no
+        password at all, so it is the one case where the control cannot work, and
+        an account carrying BOTH Google and email/password is the case where it
+        must not be hidden. `hasPasswordProvider()` asks the question that actually
+        decides it, from the same `providerData` the email-lock check uses.
+
+        Stated rather than silently absent, so a Google-only user learns why there
+        is no password to change instead of concluding the app has forgotten.
+      -->
+      @if (hasPasswordProvider()) {
+        <div class="group">
+          <h2 class="panel-title">Password</h2>
+
+          <label class="field">
+            <span class="field-label">Current password</span>
+            <ion-input
+              [(ngModel)]="currentPassword"
+              name="currentPassword"
+              type="password"
+              autocomplete="current-password"
+            ></ion-input>
+          </label>
+
+          <label class="field">
+            <span class="field-label">New password</span>
+            <ion-input
+              [(ngModel)]="newPassword"
+              name="newPassword"
+              type="password"
+              autocomplete="new-password"
+            ></ion-input>
+            <span class="field-hint">At least 6 characters.</span>
+          </label>
+
+          <label class="field">
+            <span class="field-label">Confirm new password</span>
+            <ion-input
+              [(ngModel)]="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              autocomplete="new-password"
+            ></ion-input>
+          </label>
+
+          <ion-button
+            fill="outline"
+            class="change-email-btn"
+            [disabled]="isChangingPassword()"
+            (click)="changePassword()"
+          >
+            @if (isChangingPassword()) {
+              <ion-spinner name="crescent" slot="start"></ion-spinner>
+            }
+            Change password
+          </ion-button>
+        </div>
+      } @else {
+        <div class="group">
+          <h2 class="panel-title">Password</h2>
+          <div class="locked-note">
+            <app-icon name="lock" />
+            <div>
+              <p class="locked-title">Managed by Google</p>
+              <p class="locked-text">
+                You sign in with Google, so this account has no password. Your password lives in your Google account
+                settings.
+              </p>
+            </div>
+          </div>
+        </div>
+      }
 
       <!-- ── Notifications ─────────────────────────────────────────────── -->
       <div class="group">

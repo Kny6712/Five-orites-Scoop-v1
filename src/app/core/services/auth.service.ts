@@ -15,6 +15,7 @@ import {
   updateProfile,
   verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
+  updatePassword,
   deleteUser,
   EmailAuthProvider,
   User,
@@ -422,6 +423,58 @@ export class AuthService {
     if (!firebaseUser) throw new Error('You must be signed in.');
     const credential = EmailAuthProvider.credential(firebaseUser.email ?? '', password);
     await reauthenticateWithCredential(firebaseUser, credential);
+  }
+
+  /**
+   * Does this account actually have a password to change?
+   *
+   * The honest gate for a Change Password control, and deliberately NOT the
+   * inverse of "signed in with an external provider". Those two are not the same
+   * question:
+   *
+   *   - a Google-only account has NO password credential at all, so there is
+   *     nothing to change and `updatePassword` cannot be called on it;
+   *   - an account that has signed in with BOTH Google and email/password HAS a
+   *     password, and hiding the control from it would be wrong.
+   *
+   * `providerData` is the only source that distinguishes these, and it is
+   * already read for the email-lock check below.
+   */
+  hasPasswordProvider(): boolean {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) return false;
+    return firebaseUser.providerData.some((p) => p.providerId === 'password');
+  }
+
+  /**
+   * Changes the password, after confirming the current one.
+   *
+   * The reauthentication is not optional. Firebase rejects `updatePassword` with
+   * `auth/requires-recent-login` when the session is older than a few minutes,
+   * and this is the one action on the profile page where the failure mode of
+   * skipping it is an error dialog with no way forward — the user would simply be
+   * told to sign in again, mid-form.
+   *
+   * The current password is re-checked here rather than relying on the caller's
+   * earlier `reauthenticateWithPassword`, so this method is safe to call on its
+   * own.
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) throw new Error('You must be signed in.');
+    if (!this.hasPasswordProvider()) {
+      throw new Error('This account signs in with Google, so it has no password to change.');
+    }
+    if (newPassword.length < 6) {
+      throw new Error('Choose a password of at least 6 characters.');
+    }
+    if (currentPassword === newPassword) {
+      throw new Error('The new password must be different from the current one.');
+    }
+
+    const credential = EmailAuthProvider.credential(firebaseUser.email ?? '', currentPassword);
+    await reauthenticateWithCredential(firebaseUser, credential);
+    await updatePassword(firebaseUser, newPassword);
   }
 
   /**

@@ -17,8 +17,28 @@
 /** One SVG shape: element name plus its attributes. */
 export type IconNode = [tag: string, attrs: Record<string, string>];
 
-/** Icon geometry, keyed by the app-level name used in `<app-icon name="…">`. */
-export const LUCIDE_ICON_DATA: Record<string, IconNode[]> = {
+/**
+ * Icon geometry, keyed by the app-level name used in `<app-icon name="…">`.
+ *
+ * `satisfies`, NOT a `Record<string, IconNode[]>` annotation, and this line is
+ * load-bearing in a way that is easy to undo by accident.
+ *
+ * An explicit `Record<string, …>` annotation WIDENS this object to
+ * `Record<string, IconNode[]>`, so `keyof typeof` below — which is what
+ * `AppIcon` in app-icons.ts is built from — becomes plain `string`. Every
+ * `<app-icon name="…">` in the app then type-checks against `string`, and the
+ * promise in that file's comment that a typo becomes a compile error is false.
+ *
+ * It was not theoretical: `name="upload"` on the inventory CSV button was not one
+ * of these keys, so it rendered an empty `<svg>` and the button lost its icon with
+ * nothing reporting a problem. Regenerating this file used to silently restore the
+ * broken annotation, which is why the fix lives HERE and not in the generated
+ * output.
+ *
+ * `satisfies` keeps the literal key union while still checking every value is a
+ * well-formed `IconNode[]`, so a name outside the vocabulary stops compiling.
+ */
+export const LUCIDE_ICON_DATA = {
   home: [
     [
       'path',
@@ -1667,6 +1687,26 @@ export const LUCIDE_ICON_DATA: Record<string, IconNode[]> = {
       },
     ],
   ],
+  upload: [
+    [
+      'path',
+      {
+        d: 'M12 3v12',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'm17 8-5-5-5 5',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4',
+      },
+    ],
+  ],
   'external-link': [
     [
       'path',
@@ -1949,6 +1989,6 @@ export const LUCIDE_ICON_DATA: Record<string, IconNode[]> = {
       },
     ],
   ],
-};
+} satisfies Record<string, IconNode[]>;
 
 export type LucideIconName = keyof typeof LUCIDE_ICON_DATA;

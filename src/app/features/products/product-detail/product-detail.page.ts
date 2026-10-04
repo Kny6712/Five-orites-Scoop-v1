@@ -39,6 +39,7 @@ import { summarizeRatings } from '../../../core/logic/rating';
 import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../../shared/pipes/cloudinary.pipe';
 import { StarRatingComponent } from '../../../shared/components/star-rating/star-rating.component';
+import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
 import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
@@ -76,6 +77,7 @@ interface SizeOption {
     CartButtonComponent,
     AppIconComponent,
     QtyStepperComponent,
+    PaginationComponent,
     AppFooterComponent,
   ],
   templateUrl: './product-detail.page.html',
@@ -131,6 +133,30 @@ export class ProductDetailPage implements OnInit, OnDestroy {
    * number is still a silent understatement on a heavily reviewed flavor.
    */
   readonly reviewsTruncated = signal(false);
+
+  /**
+   * Twelve reviews a page. The read still asks for REVIEWS_PAGE_LIMIT (200) — see
+   * the note above — so this only decides what is RENDERED, and the two are not
+   * the same question.
+   *
+   * A flavor with two hundred reviews rendered every one of them under a single
+   * star summary, so reading three recent opinions meant scrolling past a hundred
+   * and thirty older ones, and the write-a-review form at the bottom of the page
+   * was further away than it needed to be.
+   *
+   * Slicing here rather than in `summarizeRatings` is deliberate and is the whole
+   * reason this is a computed and not a change to the read: the average and the
+   * "(n)" must describe every fetched review, so a page boundary can never move a
+   * star. The summary is taken once over the whole set in loadReviews, from the
+   * same `reviews` array the pager slices.
+   */
+  readonly REVIEWS_PER_PAGE = 12;
+  readonly reviewsPage = signal(1);
+
+  readonly pagedReviews = computed(() => {
+    const start = (this.reviewsPage() - 1) * this.REVIEWS_PER_PAGE;
+    return this.reviews().slice(start, start + this.REVIEWS_PER_PAGE);
+  });
 
   /**
    * The admin-editable cutoff, not the build-time constant.
@@ -210,6 +236,10 @@ export class ProductDetailPage implements OnInit, OnDestroy {
         this.avgRating.set(summary.average);
         this.reviewCount.set(summary.count);
         this.reviewsTruncated.set(reviews.length >= REVIEWS_PAGE_LIMIT);
+        // A fresh set of reviews can be shorter than the page the reader was on
+        // — someone else's review landing, or their own being withdrawn — and the
+        // newest entry belongs at the top, where they were looking.
+        this.reviewsPage.set(1);
       },
       error: (err: unknown) => {
         console.error('Load reviews error:', err);

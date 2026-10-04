@@ -39,6 +39,7 @@ import { OrderNotificationService } from '../../core/services/order-notification
 import { FeedEntry, groupByDay, relativeTime } from '../../core/logic/notifications';
 import type { OrderStatus } from '../../core/models/order.model';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 
 @Component({
@@ -57,6 +58,7 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
     IonRefresherContent,
     RouterLink,
     AppIconComponent,
+    PaginationComponent,
     AppFooterComponent,
   ],
   templateUrl: './notifications.page.html',
@@ -77,10 +79,46 @@ export class NotificationsPage implements ViewWillEnter {
    */
   protected readonly now = signal(Date.now());
 
-  /** Day sections, derived from the same feed the badge counts. */
-  protected readonly groups = computed(() => groupByDay(this.notifications.entries(), this.now()));
+  /**
+   * Twelve entries a page.
+   *
+   * The feed is derived from the newest 20 orders the watcher holds, so a
+   * customer with a couple of months of history gets every status change they
+   * have ever been notified about as one unbounded scroll of "Order received /
+   * Being prepared / Out for delivery" triples — long, repetitive, and with no
+   * way back to anything you scrolled past.
+   *
+   * PAGINATED BEFORE GROUPING, and that order is load-bearing rather than
+   * stylistic. `groupByDay` turns the flat newest-first entry list into
+   * Today/Yesterday/Earlier sections, and which section an entry belongs to is a
+   * property of the ENTRY, not of the group. Slicing groups would put "Earlier"
+   * on page 1 of a feed whose twelve newest entries all landed today, and would
+   * let the unread badge promise rows the current page cannot show. Slicing
+   * entries keeps both claims true: `isEmpty` and `unreadCount` still read the
+   * whole feed, and each heading still describes exactly the rows beneath it.
+   */
+  protected readonly PAGE_SIZE = 12;
+  protected readonly page = signal(1);
 
-  protected readonly isEmpty = computed(() => this.notifications.entries().length === 0);
+  /** The window of entries this page renders. */
+  protected readonly pagedEntries = computed(() => {
+    const start = (this.page() - 1) * this.PAGE_SIZE;
+    return this.notifications.entries().slice(start, start + this.PAGE_SIZE);
+  });
+
+  /** Day sections, derived from this page's entries rather than the whole feed. */
+  protected readonly groups = computed(() => groupByDay(this.pagedEntries(), this.now()));
+
+  /**
+   * The WHOLE feed's length, which is what the pager's `total` wants.
+   *
+   * Not the page's length, and not the number of day groups. `totalEntries` is
+   * also what `isEmpty` reads, so "is there anything at all" and "how many pages
+   * are there" cannot drift apart when a new status change arrives.
+   */
+  protected readonly totalEntries = computed(() => this.notifications.entries().length);
+
+  protected readonly isEmpty = computed(() => this.totalEntries() === 0);
 
   protected readonly unreadCount = this.notifications.unreadCount;
 

@@ -124,14 +124,14 @@ export class OrdersPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Eight orders a page.
+   * Ten orders a page.
    *
    * The list read is uncapped — `getCustomerOrders` has no limit — so a customer
-   * with a long history got a single unbounded scroll. Eight rows is about one
+   * with a long history got a single unbounded scroll. Ten rows is about one
    * screen of this list, and the pager matches the admin screens' component so
    * the control looks identical wherever it appears.
    */
-  readonly PAGE_SIZE = 8;
+  readonly PAGE_SIZE = 10;
   readonly page = signal(1);
 
   readonly pagedOrders = computed(() => {

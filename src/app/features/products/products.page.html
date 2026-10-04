@@ -225,26 +225,33 @@
     <app-empty-state icon="ice-cream" title="No flavors found" message="Try a different search or filter." />
   }
 
-  <!-- Product Grid -->
-  @if (!isLoading() && displayedProducts().length > 0) {
+  <!--
+    Product Grid.
+
+    Gated on `filteredProducts()` rather than on the rendered page, so the pager
+    below stays mounted when the current page happens to be past the end of the
+    list. Gating on the page slice would make the pager vanish at exactly the
+    moment it is needed to get the user back.
+  -->
+  @if (!isLoading() && filteredProducts().length > 0) {
     <ion-grid class="products-grid">
       <ion-row>
-        @for (product of displayedProducts(); track trackProduct($index, product)) {
+        @for (product of pagedProducts(); track trackProduct($index, product)) {
           <ion-col size="6" size-md="4" size-lg="3">
             <app-product-card [product]="product"></app-product-card>
           </ion-col>
         }
       </ion-row>
     </ion-grid>
-  }
 
-  <!-- Infinite Scroll -->
-  <ion-infinite-scroll [disabled]="displayedCount() >= filteredProducts().length" (ionInfinite)="loadMore($event)">
-    <ion-infinite-scroll-content
-      loadingSpinner="crescent"
-      loadingText="Loading more flavors..."
-    ></ion-infinite-scroll-content>
-  </ion-infinite-scroll>
+    <app-pagination
+      [page]="page()"
+      [total]="filteredProducts().length"
+      [pageSize]="PAGE_SIZE"
+      itemLabel="flavors"
+      (pageChange)="page.set($event)"
+    />
+  }
 </ion-content>
 
 <app-footer></app-footer>

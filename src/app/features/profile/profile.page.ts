@@ -82,23 +82,104 @@ export class ProfilePage implements OnInit {
 
   // Form fields. Seeded from the user, which is why `?? ''` matters throughout:
   // a console-bootstrapped admin has no displayName at all.
-  displayName = '';
-  phone = '';
+  //
+  // SIGNALS, and that is load-bearing rather than stylistic. These were plain
+  // class fields, and `isDirty` below is a `computed`. A computed caches its value
+  // and invalidates only on a SIGNAL read — its sole signal dependency was
+  // `user()`, so it was evaluated once when the profile first loaded and then
+  // never again. Typing into the two inputs wrote plain properties, invalidated
+  // nothing, and the Save button stayed disabled for the entire life of the page.
+  // The save method was always correct; it was simply never reachable.
+  displayName = signal('');
+  phone = signal('');
 
   newEmail = '';
   emailPassword = '';
   isChangingEmail = false;
+
+  currentPassword = '';
+  newPassword = '';
+  confirmPassword = '';
+  readonly isChangingPassword = signal(false);
 
   saveState = signal<SaveState>('idle');
   errorMessage = signal('');
   isUploadingPhoto = signal(false);
 
   /**
+   * Whether the Change Password section should render. A METHOD for the same
+   * reason `emailLocked()` is one: `providerData` is not a signal, so a `computed`
+   * would freeze its answer for the component's lifetime.
+   */
+  hasPasswordProvider(): boolean {
+    return this.auth.hasPasswordProvider();
+  }
+
+  /**
+   * Changes the account password.
+   *
+   * The two fields are compared here as well as being checked for emptiness,
+   * because a mismatch is the single most common way this form is submitted
+   * wrongly and Firebase's own error for it does not exist — it would happily
+   * accept the new value while the user believes nothing happened, because the
+   * confirmation box is ours, not theirs.
+   */
+  async changePassword(): Promise<void> {
+    if (this.isChangingPassword()) return;
+    const next = this.newPassword;
+    if (!this.currentPassword) {
+      this.fail('Enter your current password.');
+      return;
+    }
+    if (next.length < 6) {
+      this.fail('Choose a password of at least 6 characters.');
+      return;
+    }
+    if (next !== this.confirmPassword) {
+      this.fail('The two new passwords do not match.');
+      return;
+    }
+
+    this.isChangingPassword.set(true);
+    try {
+      await this.auth.changePassword(this.currentPassword, next);
+      // Clear the form so the new value is not left sitting in a DOM field, and a
+      // second submit cannot silently re-send it.
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.confirmPassword = '';
+      this.errorMessage.set('');
+      await this.toast
+        .create({
+          message: 'Password changed.',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
+    } catch (err: unknown) {
+      this.fail(err instanceof Error ? err.message : 'Could not change your password.');
+    } finally {
+      this.isChangingPassword.set(false);
+    }
+  }
+
+  /**
    * Google (and any other external identity) owns the address, so it cannot be
    * changed here without locking the user out of their own account. Detected from
    * providerData rather than hardcoded, so a second provider is handled too.
+   *
+   * A METHOD, not a `computed`, and that is not a style choice either. A computed
+   * caches on signal reads, and `isEmailManagedByProvider()` reads none — it goes
+   * to `auth.currentUser`, a plain getter over a BehaviorSubject. So the computed
+   * was evaluated once and frozen for the component's lifetime. It happened to look
+   * correct only because the auth guard guarantees a signed-in user before the
+   * first read, which is a coincidence rather than a guarantee: the value cannot
+   * change under a given session, but nothing in the code enforced that.
    */
-  readonly emailLocked = computed(() => this.auth.isEmailManagedByProvider());
+  emailLocked(): boolean {
+    return this.auth.isEmailManagedByProvider();
+  }
 
   /**
    * Three states, not two. A boolean toggle cannot say "you asked for this and
@@ -114,7 +195,7 @@ export class ProfilePage implements OnInit {
   readonly isDirty = computed(() => {
     const u = this.user();
     if (!u) return false;
-    return this.displayName !== (u.displayName ?? '') || this.phone !== (u.phone ?? '');
+    return this.displayName() !== (u.displayName ?? '') || this.phone() !== (u.phone ?? '');
   });
 
   readonly initials = computed(() => {
@@ -136,13 +217,13 @@ export class ProfilePage implements OnInit {
 
   private applyUser(u: AppUser): void {
     this.user.set(u);
-    this.displayName = u.displayName ?? '';
-    this.phone = u.phone ?? '';
+    this.displayName.set(u.displayName ?? '');
+    this.phone.set(u.phone ?? '');
     this.newEmail = u.email ?? '';
   }
 
   async saveProfile(): Promise<void> {
-    const name = this.displayName.trim();
+    const name = this.displayName().trim();
     if (!name) {
       this.fail('Please enter a name.');
       return;
@@ -151,7 +232,7 @@ export class ProfilePage implements OnInit {
     // PH mobile numbers, tolerating the separators people actually type. The
     // group is 09XX XXX XXXX, optionally with a +63 country code in place of the
     // leading 0.
-    const digits = this.phone.replace(/[\s()-]/g, '');
+    const digits = this.phone().replace(/[\s()-]/g, '');
     if (digits && !/^(?:\+?63|0)9\d{9}$/.test(digits)) {
       this.fail('Enter a valid PH mobile number, e.g. 0917 123 4567.');
       return;

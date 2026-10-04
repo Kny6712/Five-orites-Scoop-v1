@@ -107,9 +107,10 @@
         Stock integrity
       </h2>
       <p class="panel-note">
-        Compares every flavor's stored stock against the sum of its logged movements. A mismatch means the number was
+        Compares each flavor's stored stock against the sum of its logged movements. A mismatch means the number was
         changed outside the inventory screen — most often by a signed-in customer using the raw SDK, which the security
-        rules cannot prevent.
+        rules cannot prevent. It reads a window of recent movements rather than the whole ledger, and the window it used
+        is printed under the results.
       </p>
       <ion-button expand="block" fill="outline" (click)="reconcile()" [disabled]="checking()">
         {{ checking() ? 'Checking…' : 'Run reconciliation check' }}
@@ -119,8 +120,27 @@
         <app-alert-banner
           tone="success"
           title="Everything reconciles"
-          message="Every flavor's stock matches its logged movements."
+          message="Every stock value checked matches its logged movements."
         />
+      }
+
+      <!--
+        The window, stated every time. The check reads ONE ordered query of the
+        newest movements rather than a query per product, which is what makes it
+        affordable on the free read quota — and it means a flavor whose last
+        movement predates the window was not compared at all. Without this line,
+        "Everything reconciles" reads as "we checked the entire ledger", which
+        is the one thing this panel must not imply.
+      -->
+      @if (checked()) {
+        <p class="panel-note">
+          Checked the most recent {{ scannedRows() }} stock movements.
+          @if (scannedWindow() > 0 && scannedRows() >= scannedWindow()) {
+            The ledger is longer than that, so older movements were not inspected.
+          } @else {
+            That is the entire ledger so far.
+          }
+        </p>
       }
 
       @if (drift().length > 0) {
@@ -149,7 +169,7 @@
               </tr>
             </thead>
             <tbody>
-              @for (d of drift(); track d.productId + d.size) {
+              @for (d of pagedDrift(); track d.productId + d.size) {
                 <tr>
                   <td>{{ d.variantName }}</td>
                   <td>{{ d.size }}</td>
@@ -161,6 +181,18 @@
             </tbody>
           </table>
         </div>
+        <!--
+          Total is the whole drift list, not this page's rows — that is what the
+          pager needs — and it is exact, because the report already holds every
+          mismatch the pass found rather than a page of them.
+        -->
+        <app-pagination
+          [page]="driftPage()"
+          [total]="drift().length"
+          [pageSize]="DRIFT_PAGE_SIZE"
+          itemLabel="stock values"
+          (pageChange)="onDriftPageChange($event)"
+        />
         <ion-button size="small" fill="clear" (click)="exportDrift()">
           <app-icon name="download" slot="icon-only" />
           Export as CSV
@@ -175,8 +207,9 @@
         Recent stock movements
       </h2>
       <p class="panel-note">
-        Every change made from the inventory screen, newest first. Sales and cancellation restocks are NOT recorded here
-        — only admin adjustments are.
+        Every change made from the inventory screen, newest first, plus the sales and cancellation restocks the backend
+        functions log. The most recent 60 movements are read — older ones are not shown here and are not in the CSV
+        export.
       </p>
 
       @if (movementsLoading()) {
@@ -192,7 +225,7 @@
         />
       } @else {
         <div class="movement-list">
-          @for (m of filteredMovements(); track m.id) {
+          @for (m of pagedMovements(); track m.id) {
             <div class="movement-row">
               <span class="movement-delta" [class.is-plus]="m.delta > 0">
                 {{ m.delta > 0 ? '+' : '' }}{{ m.delta }}
@@ -205,6 +238,21 @@
             </div>
           }
         </div>
+        <!--
+          The total is the number of movements actually held (60 at most), NOT
+          the size of the ledger, and there is no count query that could tell us
+          the real figure without spending the reads this panel just avoided. The
+          label says "recent movements" so "of 47" is read as 47 of the recent
+          window rather than 47 in history — the alternative, hiding the range
+          with showRange, would leave a pager with no scale at all.
+        -->
+        <app-pagination
+          [page]="movementsPage()"
+          [total]="filteredMovements().length"
+          [pageSize]="MOVEMENTS_PAGE_SIZE"
+          itemLabel="recent movements"
+          (pageChange)="onMovementsPageChange($event)"
+        />
         <ion-button size="small" fill="clear" (click)="exportLedger()">
           <app-icon name="download" slot="icon-only" />
           Export as CSV
@@ -230,7 +278,8 @@
       </h2>
       <p class="panel-note">
         When an order is cancelled, its stock should go back on the shelf. If that write failed the order is marked, and
-        the items are still missing from inventory until they are put back here.
+        the items are still missing from inventory until they are put back here. The queue is drawn from the 300 most
+        recent orders.
       </p>
 
       @if (repairLoading()) {
@@ -255,7 +304,7 @@
           </p>
         }
 
-        @for (order of unrestoredOrders(); track order.id) {
+        @for (order of pagedRepairs(); track order.id) {
           <div class="repair-row">
             <div class="repair-text">
               <span class="repair-id"> #{{ order.id.slice(-6).toUpperCase() }} </span>
@@ -272,6 +321,18 @@
             </ion-button>
           </div>
         }
+        <!--
+          Total is the whole queue the 300-order read found, which is exact for
+          what this panel can act on. Repairing the last row on a page drops the
+          list by one, which `repair()` resets the index for.
+        -->
+        <app-pagination
+          [page]="repairsPage()"
+          [total]="unrestoredOrders().length"
+          [pageSize]="REPAIRS_PAGE_SIZE"
+          itemLabel="orders"
+          (pageChange)="onRepairsPageChange($event)"
+        />
       }
     </section>
   </div>

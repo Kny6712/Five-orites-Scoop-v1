@@ -32,8 +32,6 @@ import {
   IonButtons,
   IonMenuButton,
   IonToggle,
-  IonInfiniteScroll,
-  IonInfiniteScrollContent,
   IonSelect,
   IonSelectOption,
   IonSegment,
@@ -42,6 +40,7 @@ import {
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { Subscription } from 'rxjs';
 import { catchError, of } from 'rxjs';
@@ -110,8 +109,6 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
     IonButtons,
     IonMenuButton,
     IonToggle,
-    IonInfiniteScroll,
-    IonInfiniteScrollContent,
     IonSelect,
     IonSelectOption,
     IonSegment,
@@ -121,6 +118,7 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
     CartButtonComponent,
     AppIconComponent,
     EmptyStateComponent,
+    PaginationComponent,
     AppFooterComponent,
   ],
   templateUrl: './products.page.html',
@@ -140,8 +138,6 @@ export class ProductsPage implements OnInit, OnDestroy {
   inStockOnly = signal(false);
   wishlistOnly = signal(false);
   wishlistIds = signal<string[]>([]);
-  PAGE_SIZE = 20;
-  displayedCount = signal(this.PAGE_SIZE);
 
   /** Size the shopper is shopping for. null = "any size". */
   readonly selectedSize = signal<SizeVariant | null>(null);
@@ -336,7 +332,29 @@ export class ProductsPage implements OnInit, OnDestroy {
     return out;
   }
 
-  displayedProducts = computed(() => this.filteredProducts().slice(0, this.displayedCount()));
+  /**
+   * Twelve flavors a page.
+   *
+   * This was an infinite scroll that grew the grid by twenty as the user reached
+   * the bottom. On a catalog that filters down to a handful of results, that read
+   * as a list that had simply stopped — there was no page to go back to, nothing
+   * said how many matched, and after narrowing a filter the user landed on a
+   * short grid with no way to tell "that is all of them" from "that is where the
+   * scroll ran out".
+   *
+   * The pager fixes all three at once: it says how many matched, it makes any
+   * match reachable in a known number of taps, and it survives a filter change.
+   *
+   * The full filtered set stays in `filteredProducts` — this only decides what is
+   * rendered, so the filter logic, the sort and the set chips are unaffected.
+   */
+  readonly PAGE_SIZE = 12;
+  readonly page = signal(1);
+
+  readonly pagedProducts = computed(() => {
+    const start = (this.page() - 1) * this.PAGE_SIZE;
+    return this.filteredProducts().slice(start, start + this.PAGE_SIZE);
+  });
 
   skeletonItems = Array(8).fill(0);
 
@@ -410,12 +428,13 @@ export class ProductsPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Back to the first page. Every filter handler calls this: without it a user
-   * who scrolled page 3 and then narrowed the list would be left staring at an
-   * empty tail of the grid with the infinite scroll already disabled.
+   * Back to the first page. Every filter handler calls this, and it is the only
+   * place the page moves: a filter change usually shrinks the result set, so
+   * without it a user who was on page 3 would be left on an empty tail of the
+   * grid with the pager pointing at pages that no longer exist.
    */
   private resetPagination(): void {
-    this.displayedCount.set(this.PAGE_SIZE);
+    this.page.set(1);
   }
 
   /**
@@ -439,13 +458,6 @@ export class ProductsPage implements OnInit, OnDestroy {
   handleRefresh(event: CustomEvent): void {
     this.loadProducts();
     setTimeout(() => (event.target as HTMLIonRefresherElement).complete(), 1000);
-  }
-
-  loadMore(event: CustomEvent): void {
-    setTimeout(() => {
-      this.displayedCount.update((n) => n + this.PAGE_SIZE);
-      (event.target as HTMLIonInfiniteScrollElement).complete();
-    }, 500);
   }
 
   trackProduct(_: number, p: Product): string {

@@ -127,7 +127,7 @@
           @if (reviewsTruncated()) {
             <p class="reviews-truncated">Showing the most recent {{ reviews().length }} reviews.</p>
           }
-          @for (r of reviews(); track r.id) {
+          @for (r of pagedReviews(); track r.id) {
             <div class="review-item">
               <app-star-rating [rating]="r.rating"></app-star-rating>
               <p class="review-author">{{ r.displayName }}</p>
@@ -148,6 +148,18 @@
               }
             </div>
           }
+          <!--
+            Pages the RENDER only. The stars above the fold and the "(n)" beside
+            them still come from summarizeRatings() over every fetched review, so
+            paging cannot move an average.
+          -->
+          <app-pagination
+            [page]="reviewsPage()"
+            [total]="reviews().length"
+            [pageSize]="REVIEWS_PER_PAGE"
+            itemLabel="reviews"
+            (pageChange)="reviewsPage.set($event)"
+          />
         }
         <div class="review-form">
           <h3 class="section-title">{{ hasMyReview() ? 'Update your review' : 'Write a review' }}</h3>

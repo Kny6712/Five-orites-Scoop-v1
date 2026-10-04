@@ -60,17 +60,13 @@
       <button type="button" class="role-chip" [class.active]="roleFilter() === 'all'" (click)="onRoleFilter('all')">
         All ({{ users().length }})
       </button>
-      <button
-        type="button"
-        class="role-chip"
-        [class.active]="roleFilter() === 'manager'"
-        (click)="onRoleFilter('manager')"
-      >
-        Managers ({{ managerCount() }})
-      </button>
-      <button type="button" class="role-chip" [class.active]="roleFilter() === 'staff'" (click)="onRoleFilter('staff')">
-        Staff ({{ staffCount() }})
-      </button>
+      <!--
+        Customers only. Managers and Staff used to sit here too, and they are now
+        rendered by the staff-tier row below — which now actually includes `admin`,
+        where before the tier filter compared ranks the wrong way round and only
+        `owner` survived. Keeping both would have produced two `Staff (1)` chips
+        wired to the same filter, both showing as pressed at once.
+      -->
       <button
         type="button"
         class="role-chip"
@@ -82,9 +78,9 @@
     </div>
 
     <!--
-      Every tier, with live counts. One "Admins (3)" chip stopped meaning
-      anything once there were four roles, and the question behind it — "who can
-      do what I cannot?" — is asked per tier.
+      Every tier the signed-in user does not outrank, with live counts. One
+      "Admins (3)" chip stopped meaning anything once there were four roles, and
+      the question behind it — "who can do what I cannot?" — is asked per tier.
     -->
     <div class="role-chips" role="group" aria-label="Filter by staff tier">
       @for (tier of staffTiers(); track tier.role) {
@@ -228,7 +224,7 @@
         </div>
       }
     </div>
-  } @else if (filteredUsers().length === 0) {
+  } @else if (pagedUsers().length === 0) {
     <app-empty-state
       icon="users"
       [title]="users().length === 0 ? 'No users yet' : 'No matching users'"

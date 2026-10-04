@@ -34,14 +34,10 @@ import { Subscription } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
 import { Product, SizeVariant, StockLevel } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+import { totalStock } from '../../core/logic/stock';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
-import {
-  parseProductCsv,
-  slug,
-  PRODUCT_CSV_TEMPLATE,
-  type ImportPlan,
-} from '../../core/logic/csv-import';
-import { CsvExportService } from '../../core/services/csv-export.service';
+import { slug } from '../../core/logic/csv-import';
+import { CsvImportModalComponent } from './csv-import-modal.component';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { AddProductModalComponent } from './add-product-modal.component';
 import { EditProductModalComponent } from './edit-product-modal.component';
@@ -130,6 +126,13 @@ export class InventoryPage implements OnInit, OnDestroy {
   readonly busySizeId = signal<string | null>(null);
 
   readonly sizes: SizeVariant[] = ['cup', 'pint', 'halfGallon', 'gallon'];
+
+  /**
+   * Exposed for the template's family-total chip. A thin alias rather than a
+   * second sum in the template, so the card and the delete confirmation cannot
+   * drift apart.
+   */
+  readonly totalStock = totalStock;
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
   /**
    * The admin-editable threshold.
@@ -139,7 +142,6 @@ export class InventoryPage implements OnInit, OnDestroy {
    * list rather than needing a reload.
    */
   private readonly shop = inject(ShopSettingsService);
-  private csvExport = inject(CsvExportService);
   readonly lowStockThreshold = computed(() => this.shop.lowStockThreshold());
   skeletonItems = Array(6).fill(0);
 
@@ -149,127 +151,33 @@ export class InventoryPage implements OnInit, OnDestroy {
      bad row rejects the whole file, because a partial import is the one outcome
      an admin cannot recover from — 40 of 64 flavors written with no record of
      which 40 leaves a catalog nothing else can describe as correct. */
-  readonly importOpen = signal(false);
-  readonly importPlan = signal<ImportPlan | null>(null);
-  readonly importing = signal(false);
-
-  readonly importValid = computed(() => this.importPlan()?.valid ?? []);
-  readonly importErrors = computed(() => this.importPlan()?.errors ?? []);
-  readonly importUnknown = computed(() => this.importPlan()?.unknownColumns ?? []);
-
-  toggleImport(): void {
-    this.importOpen.update((v) => !v);
-    if (!this.importOpen()) this.resetImport();
-  }
-
-  closeImport(): void {
-    this.importOpen.set(false);
-    this.resetImport();
-  }
-
-  resetImport(): void {
-    this.importPlan.set(null);
-    this.importing.set(false);
-  }
-
-  async onCsvPicked(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    // Reset immediately or re-picking the same file fires no change event.
-    input.value = '';
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      await this.toast('That file is over 2 MB. Split it into smaller files.', 'danger');
-      return;
-    }
-    let text = '';
-    try {
-      text = await file.text();
-    } catch {
-      await this.toast('Could not read that file.', 'danger');
-      return;
-    }
-
-    // Existing ids, so a row that would silently UPDATE a live flavor is
-    // reported rather than quietly overwriting it.
-    const existing = new Set(this.products().map((p) => `${p.setNumber}_${slug(p.variantName)}`));
-    this.importPlan.set(parseProductCsv(text, existing));
-  }
-
   /**
-   * Writes the validated rows.
+   * Opens the bulk-import modal.
    *
-   * Sequential, not parallel: `createProduct` is a `setDoc` each, and firing 64
-   * of them at once is how a mobile browser earns a rate-limit error halfway
-   * through, leaving a partial import — the exact state the validator exists to
-   * prevent.
+   * It used to be an inline panel rendered at the very bottom of the page, after
+   * the product grid and the pagination, behind a trigger near the top of the
+   * viewport — so tapping it changed something well below the fold and nothing
+   * appeared to happen. As a modal it opens in the centre of the screen.
    *
-   * The count of failures is reported rather than swallowed. A run that stops at
-   * the first error would leave the admin with a partial catalog AND no idea how
-   * far it got; continuing and reporting is recoverable, stopping is not.
+   * The existing product keys are handed over so the CSV parser can report a row
+   * that would silently overwrite a live flavor. The modal dismisses with what it
+   * actually wrote, and the list is refreshed only then — so a cancelled or
+   * failed import costs no reads and shows no phantom change.
    */
-  async commitImport(): Promise<void> {
-    const rows = this.importValid();
-    if (!rows.length || this.importing()) return;
-
-    this.importing.set(true);
-    let written = 0;
-    const failures: string[] = [];
-
-    for (const row of rows) {
-      try {
-        await this.inventoryService.createProduct({
-          setNumber: row.setNumber,
-          setName: row.setName,
-          variantName: row.variantName,
-          description: row.description || `${row.variantName} — ${row.setName}.`,
-          imageUrl: '',
-          category: row.category,
-          pricing: row.pricing,
-          stock: row.stock,
-        });
-        written++;
-      } catch {
-        failures.push(row.variantName);
-      }
-    }
-
-    this.importing.set(false);
+  async openImport(): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: CsvImportModalComponent,
+      componentProps: {
+        existingKeys: this.products().map((p) => `${p.setNumber}_${slug(p.variantName)}`),
+      },
+      cssClass: 'large-sheet-modal',
+    });
+    await modal.present();
+    const result = (await modal.onDidDismiss())?.data as
+      { imported: number; failures: string[] } | undefined;
+    if (!result || result.imported === 0) return;
     await this.loadProducts();
-
-    if (failures.length) {
-      await this.toast(
-        `${written} imported, ${failures.length} failed: ${failures.slice(0, 3).join(', ')}`,
-        'warning',
-      );
-      // The failures stay in the panel so they can be fixed and re-tried, rather
-      // than disappearing along with the successful ones.
-      this.importPlan.set({
-        valid: [],
-        errors: failures.map((name, i) => ({
-          line: i + 1,
-          message: `"${name}" could not be written`,
-        })),
-        unknownColumns: [],
-        skipped: 0,
-      });
-      return;
-    }
-
-    await this.toast(`${written} flavor${written === 1 ? '' : 's'} imported.`, 'success');
-    this.closeImport();
-  }
-
-  /**
-   * The import template is the one export a phone most needs.
-   *
-   * It is also the export most likely to be used on a device: an admin standing
-   * in the shop with stock to add is exactly who has no laptop. The old
-   * anchor-click did nothing there, so the import feature was unreachable on the
-   * platform the app ships to.
-   */
-  async downloadTemplate(): Promise<void> {
-    await this.csvExport.export(PRODUCT_CSV_TEMPLATE, 'five-orites-product-template.csv');
+    await this.toast(`Imported ${result.imported} flavors.`, 'success');
   }
 
   ngOnInit(): void {
@@ -414,7 +322,10 @@ export class InventoryPage implements OnInit, OnDestroy {
    * 40 units of inventory can see the size of the mistake first.
    */
   async confirmDelete(product: Product): Promise<void> {
-    const total = this.sizes.reduce((sum, s) => sum + (product.stock?.[s] ?? 0), 0);
+    // `totalStock` rather than a local reduce, so this figure and the total shown
+    // on the card come from one place and cannot quote different numbers for the
+    // same product.
+    const total = totalStock(product.stock);
     const alert = await this.alertCtrl.create({
       header: `Delete ${product.variantName}?`,
       cssClass: 'alert-danger',

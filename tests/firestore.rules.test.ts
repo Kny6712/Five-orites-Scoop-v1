@@ -1184,6 +1184,89 @@ describe('reviews', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('users: self-service profile', () => {
+  /**
+   * The unread marker. REGRESSION — tapping a notification failed for EVERY role.
+   *
+   * `AuthService.updateProfile({ notificationsReadAt })` writes this field, and
+   * all three `users` update branches gate on `diff().affectedKeys().hasOnly([…])`.
+   * All three lists omitted it, so every write was PERMISSION_DENIED and the user
+   * saw "Could not update your notifications" with a badge that would not clear.
+   *
+   * The instructive part is that nothing was individually wrong: the model carried
+   * the field, `ProfilePatch` carried it, the write path was correct, and 143
+   * rules tests passed. Two correct halves with nothing asserting they agree.
+   */
+  describe('the notification read marker', () => {
+    test('a customer may mark their OWN feed read', async () => {
+      await assertSucceeds(
+        updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), {
+          notificationsReadAt: 1_700_000_000_000,
+        }),
+      );
+    });
+
+    test('and may CLEAR it back to null', async () => {
+      // markAllRead only ever sets a number, but a null is what an absent marker
+      // reads as, and a rule that accepted the number but not the clear would
+      // make the field write-once.
+      await seed(`users/${CUSTOMER}`, {
+        uid: CUSTOMER,
+        role: 'customer',
+        notificationsReadAt: 1_700_000_000_000,
+      });
+      await assertSucceeds(
+        updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { notificationsReadAt: null }),
+      );
+    });
+
+    test('staff, admin and owner may all mark their OWN feed read', async () => {
+      // The reported symptom was "both client, admin, owner", because all three
+      // lists omitted the field. Each tier therefore needs its own assertion:
+      // fixing only the customer branch would leave the other two broken in a way
+      // that still looks correct in the app.
+      for (const uid of [STAFF, ADMIN, OWNER]) {
+        await assertSucceeds(
+          updateDoc(doc(asUser(uid), `users/${uid}`), { notificationsReadAt: 1_700_000_000_000 }),
+        );
+      }
+    });
+
+    test('a user may NOT set the marker on somebody ELSE', async () => {
+      await assertFails(
+        updateDoc(doc(asUser(CUSTOMER), `users/${OTHER_CUSTOMER}`), {
+          notificationsReadAt: 1_700_000_000_000,
+        }),
+      );
+    });
+
+    test('a non-numeric marker is refused', async () => {
+      await assertFails(
+        updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { notificationsReadAt: 'yesterday' }),
+      );
+    });
+
+    test('a fractional marker is refused — the field is epoch MILLIseconds', async () => {
+      // `is number` would have admitted this. A fractional read marker silently
+      // compares wrong against normalised epoch ms in the feed, so the badge
+      // would be neither right nor reliably wrong.
+      await assertFails(
+        updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), { notificationsReadAt: 1.5 }),
+      );
+    });
+
+    test('the marker still cannot smuggle an admin-only field in', async () => {
+      // Adding a key to the self-service whitelist must not widen the branch.
+      // `isSuspended` is the one that matters: a customer who could write it
+      // could lift their own suspension.
+      await assertFails(
+        updateDoc(doc(asUser(CUSTOMER), `users/${CUSTOMER}`), {
+          notificationsReadAt: 1_700_000_000_000,
+          isSuspended: false,
+        }),
+      );
+    });
+  });
+
   // Account deletion. Both app stores require an in-app deletion path for an app
   // that lets someone create an account, and this rule used to be `if false`
   // for everyone -- PRIVACY.md had to promise a manual email route because

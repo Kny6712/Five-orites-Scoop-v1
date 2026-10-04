@@ -84,6 +84,18 @@
         </ul>
       }
 
+      <!--
+        Paged over entries, so the day headings above describe only the rows
+        beneath them and the unread badge still counts the whole feed.
+      -->
+      <app-pagination
+        [page]="page()"
+        [total]="totalEntries()"
+        [pageSize]="PAGE_SIZE"
+        itemLabel="updates"
+        (pageChange)="page.set($event)"
+      />
+
       <p class="scope-note">
         These are stored as your orders' own status history, not as a separate list &mdash; so this feed can never
         disagree with the order it describes.

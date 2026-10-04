@@ -116,8 +116,39 @@ service cloud.firestore {
       return isAdmin()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'displayName', 'photoURL', 'phone', 'notificationsEnabled',
-          'isSuspended', 'suspendReason', 'suspendedAt', 'adminNote'
+          'isSuspended', 'suspendReason', 'suspendedAt', 'adminNote',
+          'notificationsReadAt'
         ]);
+    }
+
+    // The read marker on a user's own document. Split out so all three of the
+    // places that permit a profile write agree on the type.
+    //
+    // THE `in` IS NOT OPTIONAL, and omitting it broke six unrelated tests. Written
+    // the obvious way —
+    //
+    //     request.resource.data.notificationsReadAt is int || ... == null
+    //
+    // — it denies EVERY profile save that does not happen to touch the marker,
+    // because a dot access to an absent key is an EVALUATION ERROR in Firestore
+    // rules and `is` does not launder it. Saving a display name on a document that
+    // had never had a read marker produced "Property notificationsReadAt is
+    // undefined on object" and a PERMISSION_DENIED. Only `in` is null-safe, for
+    // the same reason `historyLen()` below and `categoryIsValid()` above need it.
+    //
+    // NOT `notificationsReadAt <= request.time`. Firestore supports comparing
+    // against `request.time`, and clamping here would stop a user back-dating
+    // their own marker to hide future badges. It is deliberately absent: the
+    // value is written from a CLIENT clock (`Date.now()` in
+    // OrderNotificationService.markAllRead`), so any skew at all — even a few
+    // hundred milliseconds of drift — would reject a perfectly legitimate
+    // "mark all read". Trading a cosmetic abuse vector, which only affects the
+    // person doing it, for an intermittent failure that would hit EVERY user on
+    // a slow device is the wrong trade. The type check is the part worth having.
+    function readMarkerIsSane() {
+      return !('notificationsReadAt' in request.resource.data)
+        || request.resource.data.notificationsReadAt is int
+        || request.resource.data.notificationsReadAt == null;
     }
 
     // Every size must remain a non-negative whole number. Split out so the
@@ -630,7 +661,8 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys()
                  .hasOnly(['uid', 'email', 'displayName', 'photoURL', 'phone',
                            'notificationsEnabled', 'role', 'isSuspended',
-                           'suspendReason', 'suspendedAt', 'adminNote']))
+                           'suspendReason', 'suspendedAt', 'adminNote',
+                           'notificationsReadAt']))
         || isAdminUserEdit()
         || (isOwner(uid)
           && request.resource.data.role == resource.data.role
@@ -649,8 +681,20 @@ service cloud.firestore {
           // post-write document match the list, and `setDoc` without merge would
           // then be impossible. `hasOnly` (not `hasAll`) because a partial write
           // legitimately omits fields it is not changing.
+          //
+          // `notificationsReadAt` IS ON THIS LIST because the notifications
+          // feature needs it and the rules had never been told. Tapping any
+          // notification called `AuthService.updateProfile({ notificationsReadAt })`,
+          // this branch matched nothing, and every role — customer, staff, admin
+          // and owner alike — got "Could not update your notifications" and a
+          // badge that would not clear. Three lists omitted the field while the
+          // model, the `ProfilePatch` type and the write path all carried it: the
+          // two halves were each correct and neither was checked against the
+          // other. `tests/logic.test.ts` now asserts they agree.
           && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['displayName', 'photoURL', 'phone', 'notificationsEnabled']));
+               .hasOnly(['displayName', 'photoURL', 'phone', 'notificationsEnabled',
+                         'notificationsReadAt'])
+          && readMarkerIsSane());
 
       // A user may delete their OWN document. This was `if false` for everyone.
       //

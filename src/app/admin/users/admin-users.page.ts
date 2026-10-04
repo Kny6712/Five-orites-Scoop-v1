@@ -206,12 +206,15 @@ export class AdminUsersPage implements OnInit {
     });
   });
 
-  readonly managerCount = computed(
-    () => this.users().filter((u) => asRole(u.role) === 'manager').length,
-  );
-  readonly staffCount = computed(
-    () => this.users().filter((u) => asRole(u.role) === 'staff').length,
-  );
+  /**
+   * Chip counts, all reading the same `users()` array and the same `asRole`
+   * normaliser the filter uses.
+   *
+   * The staff-tier counts are NOT here: `staffTiers` computes those per tier, so a
+   * second `managerCount`/`staffCount` pair existed only to feed the duplicate chips
+   * that row replaced. Two ways to count the same tier is two places for them to
+   * disagree, which is the shape of the bug that put an `admin` chip nowhere.
+   */
   readonly customerCount = computed(
     () => this.users().filter((u) => asRole(u.role) === 'customer').length,
   );
@@ -229,9 +232,28 @@ export class AdminUsersPage implements OnInit {
   readonly PAGE_SIZE = 25;
   readonly page = signal(1);
 
+  /**
+   * The rows actually rendered, with the page index CLAMPED to the last page that
+   * has rows in it.
+   *
+   * The clamp is the fix for the one way this page could show an empty table: the
+   * template gated its empty state on `filteredUsers()` while the rows came from
+   * `pagedUsers()`. When the page index was past the end — a filter narrowing the
+   * list under a page number that had not been reset, or a page restored from a
+   * URL — the slice was empty while the gate was false, so the table rendered its
+   * header row and nothing else, with no message anywhere. That is precisely what
+   * "select this chip and the table is empty" looks like.
+   *
+   * Every current path happens to reset `page` on every filter and sort change, so
+   * this was unreachable in practice. Clamping in the component rather than only
+   * fixing the gate means it stays unreachable when `page` is later restored from
+   * a query param.
+   */
   readonly pagedUsers = computed(() => {
-    const start = (this.page() - 1) * this.PAGE_SIZE;
     const base = this.spendSortActive() ? this.spendSorted() : this.filteredUsers();
+    const lastPage = Math.max(1, Math.ceil(base.length / this.PAGE_SIZE));
+    const current = Math.min(this.page(), lastPage);
+    const start = (current - 1) * this.PAGE_SIZE;
     return base.slice(start, start + this.PAGE_SIZE);
   });
 
@@ -373,8 +395,22 @@ export class AdminUsersPage implements OnInit {
    */
   readonly staffTiers = computed(() => {
     const rank = ROLE_RANK[this.myRole];
+    // `<=`, not `>=`. The page sits behind `capabilityGuard('manage_users')`,
+    // which is OWNER-only, so `rank` is always 4 and `>= 4` selected `owner`
+    // alone: `admin` — a whole tier — got NO chip anywhere on the page, and the
+    // doc comment's "at or above each tier" described the opposite of what the
+    // code did.
+    //
+    // `<=` means "this tier and everyone above it", which is what an owner needs:
+    // the question behind this row is "who can do what I cannot?", and the answer
+    // for an owner is every tier that exists.
+    //
+    // This is why group one of the chips (All / Customers / Managers / Staff) has
+    // its Managers and Staff entries removed: they appear here already, and
+    // leaving both would render two `Staff (1)` chips wired to the same filter,
+    // both lighting up as active at once.
     return (['staff', 'manager', 'admin', 'owner'] as UserRole[])
-      .filter((r) => ROLE_RANK[r] >= rank)
+      .filter((r) => ROLE_RANK[r] <= rank)
       .map((role) => ({
         role,
         label: ROLE_LABELS[role],

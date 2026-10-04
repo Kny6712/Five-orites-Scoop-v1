@@ -137,20 +137,47 @@ export class DashboardPage implements OnInit, OnDestroy {
    * This list was a hard `.slice(0, 10)` with no pager, so an admin with 40
    * orders had no way to see the 11th-most-recent from this page at all — the
    * only route was "View All" into the fulfillment queue, which is a different
-   * task with different controls. Eight a page keeps the whole list reachable
-   * here without turning the dashboard into a table.
+   * task with different controls. Ten a page keeps the whole list reachable
+   * here without turning the dashboard into a table, and matches the 10–12 band
+   * every list in the app now pages at so the rows-per-page does not read as a
+   * different app depending on where you are.
    *
    * The underlying fetch is unchanged: getAllOrders() is capped at 100 by the
    * service, so the pager pages what was fetched rather than fetching more. That
    * is the right trade for a dashboard — it is a "what needs attention now"
    * surface, and the fulfillment queue is the exhaustive one.
    */
-  readonly RECENT_PAGE_SIZE = 8;
+  readonly RECENT_PAGE_SIZE = 10;
   readonly recentPage = signal(1);
 
   readonly pagedRecentOrders = computed(() => {
     const start = (this.recentPage() - 1) * this.RECENT_PAGE_SIZE;
     return this.adminRecentOrders().slice(start, start + this.RECENT_PAGE_SIZE);
+  });
+
+  /**
+   * Low stock paging.
+   *
+   * Same reasoning as the orders panel above, applied to the other list on this
+   * page: a shop with thirty flavors under the threshold rendered thirty rows of
+   * near-identical chips, and a restock is easier to work through a screen at a
+   * time. It is sorted worst-first (see loadAdminDashboard), so paging keeps
+   * that order — the flavors that will sell out today are still the first thing
+   * on page 1.
+   *
+   * CLIENT-SIDE, AND THE READ IS DELIBERATELY UNCAPPED. `subscribeToLowStock` is
+   * a live listener over every product, not a `limit()` query, so the panel is
+   * already reading all of them; slicing here costs nothing and hides nothing. The
+   * alternative — asking the service for one page at a time — would either lose
+   * the live updates that make the panel worth having, or make it a different
+   * kind of list than the one the KPI count above it describes.
+   */
+  readonly LOW_STOCK_PAGE_SIZE = 12;
+  readonly lowStockPage = signal(1);
+
+  readonly pagedLowStock = computed(() => {
+    const start = (this.lowStockPage() - 1) * this.LOW_STOCK_PAGE_SIZE;
+    return this.lowStockProducts().slice(start, start + this.LOW_STOCK_PAGE_SIZE);
   });
 
   constructor() {
