@@ -874,7 +874,7 @@ export const restockCancelledOrder = onDocumentUpdated('orders/{orderId}', async
  * WHY THIS EXISTS AND WHY IT IS SERVER-SIDE
  * `AuthService.deleteAccount()` removes the Auth record and the `users/{uid}`
  * document, and `firestore.rules` lets a user delete their OWN user document and
- * nothing else. That is the correct boundary � but it means the client cannot
+ * nothing else. That is the correct boundary — but it means the client cannot
  * redact their own orders either, because a customer may only update an order to
  * cancel it while it is pending.
  *
@@ -887,7 +887,7 @@ export const restockCancelledOrder = onDocumentUpdated('orders/{orderId}', async
  * WHAT IS REDACTED AND WHAT IS KEPT
  * Removed: customerEmail, deliveryAddress, notes. Those identify the person.
  *
- * Kept: the order itself in full � items, prices, status, timestamps, and
+ * Kept: the order itself in full — items, prices, status, timestamps, and
  * `customerId`. Those are the shop's accounting records and they do not identify
  * anyone on their own. `customerId` is the Firebase Auth UID, which is an opaque
  * identifier with no personal content once the Auth record behind it is gone.

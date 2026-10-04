@@ -75,7 +75,8 @@ import {
   type Capability,
   type UserRole,
 } from '../src/app/core/models/user.model';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { join, relative } from 'node:path';
 import * as fnConfig from '../functions/src/config';
 // ── Role / capability model ───────────────────────────────────────────────
@@ -1658,6 +1659,79 @@ describe('firestore.rules reads user fields defensively', () => {
       "myRole() must read the role with data.get('role', '') so that a missing role " +
         "is an empty string - which is 'in' no role list - rather than an evaluation " +
         'error that aborts the whole rule.',
+    );
+  });
+});
+
+/**
+ * No tracked file may contain U+FFFD, the Unicode replacement character.
+ *
+ * U+FFFD is what a decoder emits when handed bytes it cannot interpret. The original
+ * character is GONE once it is written - there is no recovery procedure, and the only
+ * fix is a human deciding what was meant. In this repo it reached
+ * functions/src/index.ts twice, both times an em-dash that had become a bare question
+ * mark inside a sentence that read perfectly well without it. That is why nothing
+ * caught it: the file compiled, the function deployed, and the damage was a comment.
+ *
+ * `npm run fix:encoding` does NOT cover this. That script reverses cp1252 read as UTF-8
+ * and looks for the `a<U+FFFD>` shapes such damage produces. These two had no
+ * `a` in front of them - the em-dash was replaced wholesale rather than mangled into a
+ * neighbouring glyph - so the heuristic returned false, the repair never ran, and the
+ * script exited successfully having fixed nothing. A tool that reports success while
+ * missing the case in front of it is exactly why this is an assertion and not a
+ * convention.
+ *
+ * Scoped to git-tracked files with a source extension, so a binary asset cannot fail
+ * the build for containing the byte sequence by accident.
+ */
+describe('no tracked file contains a Unicode replacement character', () => {
+  const TEXT_EXT = /\.(ts|tsx|js|mjs|cjs|scss|css|html|json|md|txt|yml|yaml|xml)$/;
+  const REPLACEMENT = '\uFFFD';
+
+  const tracked = execSync('git ls-files', { encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean)
+    .filter((f) => TEXT_EXT.test(f));
+
+  it('the file list is not empty, so the scan below is not vacuous', () => {
+    // If git ls-files ever breaks, every assertion below would pass against an empty
+    // list and the guard would report clean forever.
+    assert.ok(
+      tracked.length > 50,
+      `expected a real file list, got ${tracked.length} text files - has git ls-files broken?`,
+    );
+  });
+
+  it('the detector actually detects, before it is trusted to report clean', () => {
+    // A guard that cannot fail is worse than no guard.
+    assert.ok(
+      ('a' + REPLACEMENT + 'b').includes(REPLACEMENT),
+      'the replacement character did not survive string handling in this very test',
+    );
+    assert.ok(!'a clean sentence with an em-dash — in it'.includes(REPLACEMENT));
+  });
+
+  const offenders = tracked
+    .map((f) => {
+      const full = join(__dirname, '..', f);
+      if (!existsSync(full)) return null;
+      const text = readFileSync(full, 'utf8');
+      if (!text.includes(REPLACEMENT)) return null;
+      const line = text.split(/\r?\n/).findIndex((l) => l.includes(REPLACEMENT)) + 1;
+      return `${f}:${line}`;
+    })
+    .filter(Boolean);
+
+  it('no tracked text file contains U+FFFD', () => {
+    assert.deepEqual(
+      offenders,
+      [],
+      'these files contain U+FFFD, a character lost in decoding and not recoverable ' +
+        'automatically. Read the line and put back what was meant - usually an ' +
+        'em-dash or a curly quote. Note that npm run fix:encoding will NOT catch ' +
+        'this: it repairs cp1252 mojibake, and its heuristic does not match a wholly ' +
+        'replaced character. Offenders: ' +
+        offenders.join(', '),
     );
   });
 });
