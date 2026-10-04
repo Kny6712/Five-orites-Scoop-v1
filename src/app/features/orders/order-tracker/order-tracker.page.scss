@@ -144,22 +144,33 @@
 
 .step-active {
   .step-dot {
+    // The dot keeps the brand hue - it is a fill, and powder is legible as a fill.
     background: var(--color-brand-primary);
     border-color: var(--color-primary-ink);
     box-shadow: 0 0 0 4px var(--tile-powder);
     .step-icon {
-      color: #fff;
+      // Not white. White on the powder dot measured 1.79:1, and this is the CURRENT
+      // step - the one glyph on the page that most needs to be findable. An icon owes
+      // 3:1, and primary-ink on powder is 3.98:1.
+      color: var(--color-primary-ink);
     }
   }
   .step-label {
-    color: var(--color-brand-primary);
+    // Plum, not the brand hue: this measured 1.71:1 on the cream page. The step DOT
+    // beside it keeps powder on purpose - a 16px dot is a shape, and powder is legible
+    // as a shape. This is text.
+    color: var(--color-ink);
     font-size: 16px;
   }
 }
 
 .step-upcoming {
   .step-icon {
-    color: var(--ion-color-light-shade);
+    // light-shade is a BORDER token; as a glyph on white it measured 1.19:1. A dimmed
+    // UPCOMING step still has to be perceivable, and medium is 4.93:1 - so the
+    // de-emphasis now comes from the step's own dimming rather than from a colour
+    // nobody can see.
+    color: var(--ion-color-medium);
   }
 }
 
@@ -179,7 +190,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-brand-primary);
+  // primary-ink: 1.71:1 on cream becomes 6.82:1. At 11px this is small text and owes
+  // the full 4.5:1, so the brand hue could never have cleared it here at any weight.
+  color: var(--color-primary-ink);
   margin: 0 0 6px;
 }
 
@@ -245,7 +258,7 @@
 }
 .item-price {
   font-weight: 700;
-  color: var(--color-brand-primary);
+  color: var(--color-primary-ink);
 }
 
 .totals-block {
@@ -261,8 +274,16 @@
 .grand {
   font-size: 16px;
   font-weight: 800;
-  color: var(--color-brand-primary);
+  color: var(--color-primary-ink);
   border-top: 1px solid var(--ion-color-light-shade);
   padding-top: 8px;
   margin-top: 4px;
+}
+
+/* `color="danger"` on a `fill="outline"` button left the LABEL on the app primary,
+   measuring #8ECAE6 on cream at 1.71:1 - so the one destructive control on the page
+   both looked like an ordinary secondary action and read as powder on cream. The
+   danger foreground has to be declared. It is 5.38:1 on this cream ground. */
+.cancel-order-btn {
+  --color: var(--color-danger);
 }

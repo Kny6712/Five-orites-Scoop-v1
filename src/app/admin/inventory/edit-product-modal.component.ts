@@ -361,7 +361,15 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
        flip on stylesheet injection order. */
       ion-button.save-btn {
         --background: transparent;
-        --color: var(--color-brand-primary);
+        /* The BORDER was already primary-ink; the LABEL was the brand hue, so the
+           button was a dark outline around powder text. Measured 1.71:1 on the white
+           of this modal. Same token on both halves now.
+
+           Written as a CSS comment because this block is a STYLES string, not
+           JavaScript: a "//" line here is invalid CSS, and the apostrophe in the first
+           draft of this note made the parser report an unterminated string. Build only
+           warned, and the button rendered correctly anyway, so nothing looked broken. */
+        --color: var(--color-primary-ink);
         --border-color: var(--color-primary-ink);
         --border-style: solid;
         --border-width: 1.5px;

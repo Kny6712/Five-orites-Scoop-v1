@@ -45,9 +45,17 @@
          collide on a duplicate name. -->
     <div class="set-chips-scroll">
       @for (chip of setChips(); track chip.value) {
+        <!--
+          Explicit classes, NOT [color] + [outline].
+          Ionic's color input picks a foreground AND a background from one name with no
+          relationship between them. Measured on this page: the selected chip was
+          #64B6DD on #8ECAE6 (1.27:1) and the unselected one #808289 on white (3.84:1).
+          Both states failed; only the selected one was visible before any filter was
+          chosen, which is why every earlier audit of this page passed.
+          aria-pressed is unchanged and remains the real state announcement.
+        -->
         <ion-chip
-          [color]="effectiveSet() === chip.value ? 'primary' : 'medium'"
-          [outline]="effectiveSet() !== chip.value"
+          [ngClass]="effectiveSet() === chip.value ? 'set-chip-active' : 'set-chip-idle'"
           (click)="selectSet(chip.value)"
           (keydown.enter)="selectSet(chip.value)"
           (keydown.space)="selectSet(chip.value); $event.preventDefault()"

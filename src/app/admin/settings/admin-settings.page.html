@@ -112,7 +112,7 @@
         rules cannot prevent. It reads a window of recent movements rather than the whole ledger, and the window it used
         is printed under the results.
       </p>
-      <ion-button expand="block" fill="outline" (click)="reconcile()" [disabled]="checking()">
+      <ion-button expand="block" fill="outline" class="reconcile-btn" (click)="reconcile()" [disabled]="checking()">
         {{ checking() ? 'Checking…' : 'Run reconciliation check' }}
       </ion-button>
 

@@ -61,14 +61,20 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
       .star {
         --icon-size: 18px;
         --icon-stroke: 2;
-        color: #d0d0d0;
+        /* Not #d0d0d0, which measured 1.48:1 on cream. An icon owes 3:1 under WCAG
+           1.4.11 - less than text, and this still failed it. ion-color-medium is
+           4.72:1 here, and reads as an empty star rather than a smudge. */
+        color: var(--ion-color-medium);
         transition: color 0.1s ease;
       }
       /* Lucide has one star glyph, outline-style, for both states. Filling it with
        currentColor is what produces a solid star, and it inherits the active
        colour from .star.active -- so no second icon is needed. */
       .star.active {
-        color: var(--color-brand-accent);
+        /* --color-brand-accent is a SURFACE. Painted as a glyph it measured 1.51:1 on
+           cream. --color-sunny-ink is the ink paired with that hue elsewhere in this
+           app and is 7.10:1. */
+        color: var(--color-sunny-ink);
       }
       .star.active svg {
         fill: currentColor;

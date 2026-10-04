@@ -124,7 +124,9 @@
               class="field-input"
             ></ion-textarea>
           </div>
-          <ion-button expand="block" fill="outline" (click)="applyVoucher()">Apply Voucher</ion-button>
+          <ion-button expand="block" fill="outline" class="apply-voucher-btn" (click)="applyVoucher()">
+            Apply Voucher
+          </ion-button>
         } @else {
           <p class="review-notes">✅ {{ appliedVoucher() }} applied.</p>
           <ion-button expand="block" fill="clear" color="medium" (click)="removeVoucher()">Remove Voucher</ion-button>

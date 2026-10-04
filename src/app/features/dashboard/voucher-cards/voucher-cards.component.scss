@@ -49,7 +49,9 @@
 
 .voucher-mark {
   --icon-size: 20px;
-  color: var(--color-brand-primary);
+  // An ICON, so the floor is 3:1 rather than 4.5:1 - but the brand hue is 1.79:1 on
+  // this card's white, so it failed that too. primary-ink is 7.12:1.
+  color: var(--color-primary-ink);
   flex: 0 0 auto;
 }
 
@@ -96,6 +98,9 @@
 
 .use-btn {
   --border-radius: var(--radius-pill);
+  // Declared because an outline ion-button otherwise inherits --ion-color-primary,
+  // the powder brand hue: measured #8ECAE6 on white at 1.79:1.
+  --color: var(--color-primary-ink);
   font-weight: 700;
   flex: 1;
   min-width: 96px;

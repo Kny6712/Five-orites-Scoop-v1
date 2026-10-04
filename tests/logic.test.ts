@@ -1397,25 +1397,8 @@ describe('brand hues are not used as foregrounds (ratchet)', () => {
    * hole: a stale entry fails just as loudly as a new one.
    */
   const KNOWN_REMAINING = new Set([
-    'admin/inventory/edit-product-modal.component.ts | ion-button.save-btn',
-    'app.component.scss | &.admin-label',
-    'app.component.scss | .admin-nav-icon',
     'features/auth/auth.page.scss | .toggle-link',
-    'features/cart/cart.page.scss | .item-subtotal',
-    'features/cart/cart.page.scss | .review-item-price',
-    'features/cart/cart.page.scss | .review-label',
-    'features/cart/cart.page.scss | .total-amount',
-    'features/dashboard/dashboard.page.scss | .promo-banner',
-    'features/dashboard/dashboard.page.scss | .see-all-btn',
     'features/dashboard/voucher-cards/voucher-cards.component.scss | .voucher-empty app-icon',
-    'features/dashboard/voucher-cards/voucher-cards.component.scss | .voucher-mark',
-    'features/orders/order-tracker/order-tracker.page.scss | .grand',
-    'features/orders/order-tracker/order-tracker.page.scss | .info-label',
-    'features/orders/order-tracker/order-tracker.page.scss | .item-price',
-    'features/orders/order-tracker/order-tracker.page.scss | .step-label',
-    'features/products/product-detail/product-detail.page.scss | .line-total',
-    'features/products/product-detail/product-detail.page.scss | .tile-price',
-    'shared/components/product-card/product-card.component.scss | .price',
   ]);
 
   it('finds the usages the ratchet is tracking', () => {

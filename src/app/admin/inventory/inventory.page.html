@@ -100,7 +100,9 @@
       </p>
       <div class="inv-actions">
         <ion-button size="small" (click)="addProduct()">+ Add Product</ion-button>
-        <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
+        <ion-button size="small" fill="outline" class="bulk-restock-btn" (click)="bulkRestock()">
+          Bulk Restock
+        </ion-button>
       </div>
     </div>
   }
@@ -155,7 +157,7 @@
               <ion-card-header class="inv-card-header">
                 <div class="inv-card-title-row">
                   <div class="inv-ident">
-                    <ion-chip color="primary" class="set-chip-sm">Set {{ product.setNumber }}</ion-chip>
+                    <ion-chip class="set-chip-sm set-chip-powder">Set {{ product.setNumber }}</ion-chip>
                     <p class="inv-set-name">{{ product.setName }}</p>
                     <!--
                       The family total, so an owner scanning the grid gets one
@@ -163,7 +165,7 @@
                       four steppers below remain the authoritative per-size
                       figures and the only editable ones; this is a read-out.
                     -->
-                    <ion-chip color="secondary" class="set-chip-sm stock-total-chip">
+                    <ion-chip class="set-chip-sm stock-total-chip set-chip-mint">
                       {{ totalStock(product.stock) }} units
                     </ion-chip>
                   </div>

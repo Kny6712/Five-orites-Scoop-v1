@@ -80,7 +80,11 @@
   padding-bottom: 4px;
 
   &.admin-label {
-    color: var(--color-brand-primary);
+    // Measured 1.71:1 on the drawer cream, and only once the drawer was actually
+    // OPENED - a closed drawer renders nothing, so no audit of a default page view
+    // could see it. This is the heading that separates the customer menu from the
+    // admin one, so it is the last thing that should be hard to find.
+    color: var(--color-primary-ink);
   }
 }
 
@@ -146,7 +150,11 @@
 }
 
 .admin-nav-icon {
-  color: var(--color-brand-primary);
+  // Measured 1.71:1 as a glyph on the drawer cream, and the 0.7 opacity made the
+  // painted result dimmer still. An icon owes 3:1 under WCAG 1.4.11 and primary-ink is
+  // 6.82:1, so the de-emphasis is now carried by the opacity alone - which is what it
+  // was there for in the first place.
+  color: var(--color-primary-ink);
   opacity: 0.7;
 }
 

@@ -193,3 +193,51 @@ ion-toggle.toggle-checked::part(native) {
   color: var(--ion-color-medium);
   font-size: 10px;
 }
+
+/* ── Segmented controls ──────────────────────────────────────────────────────
+ *
+ * Ionic gives a checked `ion-segment-button` the primary for BOTH its label
+ * (--color-checked) and the indicator behind it (--indicator-color). With
+ * --ion-color-primary set to a pastel, that is the label painted on its own
+ * background: measured at 1.00:1 on /products, /admin/orders and /admin/analytics.
+ *
+ * Fixed once, here, rather than in three page stylesheets. Each of those pages styles
+ * its own segment and none of them fixed this, because the cause is the Ionic default
+ * and not any local rule - the same drift shape as everything else in this project.
+ *
+ * --color is set as well as --color-checked: the unchecked label was legible, but
+ * leaving it to inherit a shadown of a pastel is the same fragility one theme variable
+ * away. Ink on both is 7.20:1 on the powder indicator and far higher off it.
+ */
+ion-segment-button {
+  --color: var(--color-ink);
+  --color-checked: var(--color-ink);
+
+  /* THIS LINE IS NOT OPTIONAL, and getting it wrong is how the first attempt at this
+     fix traded one 1.00:1 for another. --indicator-color DEFAULTS TO --color, not to
+     the primary: declaring ink for the label therefore propagated ink into the pill
+     the label sits on, and the checked label measured ink-on-ink. Declaring the
+     indicator restores the brand pill, and ink on powder is 7.20:1. */
+  --indicator-color: var(--color-brand-primary);
+}
+
+/* ── Outline buttons ──────────────────────────────────────────────────────────
+ *
+ * An `ion-button fill="outline"` with no declared foreground inherits
+ * --ion-color-primary, and this app's primary is a pastel. Measured on the live pages:
+ * "Bulk Restock" 1.71:1, "Run reconciliation check" 1.79:1, "Apply Voucher" 1.71:1,
+ * "Wishlist" 1.71:1, "Clear Cart" 1.79:1 - all powder on cream or white, none of them
+ * below AA, all of them shipping.
+ *
+ * Fixed once here rather than by adding a class to each of five buttons across four
+ * pages, which is what had been happening, and which is how the sixth one arrived while
+ * the fifth was being fixed.
+ *
+ * The :where() is load-bearing. Written as `ion-button[fill="outline"]` this selector
+ * has specificity (0,1,1) and would BEAT a `.cancel-order-btn` class at (0,1,0),
+ * silently repainting the destructive Cancel buttons on /orders and the order tracker
+ * back to powder. :where() contributes nothing, so the rule sits at (0,0,1) and every
+ * explicit class still wins - which is what a default should do. */
+ion-button:where([fill='outline']) {
+  --color: var(--color-primary-ink);
+}

@@ -375,7 +375,9 @@
 
 .v-chip--muted {
   background: var(--tile-powder);
-  color: var(--ion-color-medium);
+  // ink-soft, not --ion-color-medium: measured 4.28:1 on this powder tile, a
+  // whisker under the 4.5 that 11px/700 owes. ink-soft is 5.56:1.
+  color: var(--color-ink-soft);
   border-color: transparent;
 }
 

@@ -75,7 +75,10 @@
   align-self: flex-start;
   font-size: 12px;
   font-weight: 700;
-  color: var(--color-primary-ink);
+  // Plum rather than primary-ink: this link sits on the mint banner, where
+  // primary-ink measures 4.09:1 - just under the 4.5 that 12px/700 needs. Measured,
+  // and the shortfall is the kind that eyeballing would never catch.
+  color: var(--color-ink);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -101,7 +104,10 @@
   padding: 12px 16px;
   border-radius: 12px;
   font-size: 14px;
-  color: var(--color-brand-primary);
+  // Plum. This measured 1.03:1 - powder on mint, the label sitting at the same
+  // lightness as the banner behind it. Ink on mint is 7.41:1 and is already asserted
+  // in check-contrast.mjs, so this pair is guarded rather than merely commented.
+  color: var(--color-ink);
   font-weight: 600;
   cursor: pointer;
   border: 1.5px dashed var(--color-primary-ink);
@@ -154,7 +160,8 @@
   color: var(--color-warning);
 }
 .see-all-btn {
-  --color: var(--color-brand-primary);
+  // primary-ink, not the brand hue: 6.82:1 on this cream ground against 1.71:1.
+  --color: var(--color-primary-ink);
   font-weight: 600;
   font-size: 13px;
 }

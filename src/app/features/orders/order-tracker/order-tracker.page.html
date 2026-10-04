@@ -56,7 +56,14 @@
       }
 
       @if (canCancel()) {
-        <ion-button expand="block" fill="outline" color="danger" (click)="cancelOrder()" [disabled]="isCancelling()">
+        <ion-button
+          expand="block"
+          fill="outline"
+          color="danger"
+          class="cancel-order-btn"
+          (click)="cancelOrder()"
+          [disabled]="isCancelling()"
+        >
           {{ isCancelling() ? 'Cancelling...' : 'Cancel Order' }}
         </ion-button>
       }

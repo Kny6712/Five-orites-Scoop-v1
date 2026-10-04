@@ -75,6 +75,15 @@
   margin-top: var(--space-2);
   font-size: 12px;
   font-weight: 700;
+
+  /* The foreground was never declared here, so `color="danger"` on a
+     `fill="outline"` button left the label on the app primary - #8ECAE6 on cream at
+     1.71:1, measured. The destructive control read as powder and looked like a
+     secondary action. Danger on this cream ground is 5.38:1.
+
+     The order tracker has the identical button and the identical fix; two pages, one
+     missing declaration. */
+  --color: var(--color-danger);
 }
 
 /* The empty and error states are <app-empty-state> components; the .empty-state

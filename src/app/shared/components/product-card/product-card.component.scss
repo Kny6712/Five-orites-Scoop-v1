@@ -126,7 +126,12 @@
   --padding-top: 4px;
   --padding-bottom: 4px;
   font-size: 11px;
-  --color-checked: var(--color-brand-primary);
+  // The INDICATOR keeps the brand hue - it is a background, which is what brand
+  // hues are for. The LABEL takes ink: checked text measured 1.00:1 on the powder
+  // indicator, i.e. invisible. The global rule in global.scss sets this too, but it
+  // is repeated here because this block overrides --color-checked locally and would
+  // otherwise keep the old value.
+  --color-checked: var(--color-ink);
   --indicator-color: var(--color-brand-primary);
 }
 
@@ -141,13 +146,42 @@
 .price {
   font-size: 18px;
   font-weight: 700;
-  color: var(--color-brand-primary);
+  // 18px/700 is NOT WCAG large text - that needs 24px, or 18.66px at weight 700+ -
+  // so this owes the full 4.5:1, and the brand hue only offers 1.71:1 on cream.
+  color: var(--color-primary-ink);
 }
 
 .stock-chip {
   font-size: 11px;
   height: 24px;
   margin: 0;
+  /* Both halves declared. Ion-chip paints its label colour from its own defaults
+     (rgba(0,0,0,0.87)) unless told otherwise, which on a tinted pill is what produced
+     the black-on-black reading. */
+  --color: var(--color-ink);
+
+  ion-label {
+    color: var(--color-ink);
+  }
+}
+
+/* Tone pairs for the stock chip. These classes are applied by an [ngClass] ternary in
+   the template, so a rule that is missing here shows up as a chip with no background
+   at all rather than as a compile error - which is exactly how the first attempt went
+   unnoticed. Ink on each of these tints is asserted in check-contrast.mjs. */
+.stock-chip-ok {
+  background: var(--tone-success-bg);
+  border: 1px solid var(--tone-success-border);
+}
+
+.stock-chip-low {
+  background: var(--tone-warning-bg);
+  border: 1px solid var(--tone-warning-border);
+}
+
+.stock-chip-out {
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-border);
 }
 
 // ── Add to Cart ────────────────────────────────────────

@@ -162,6 +162,29 @@
   font-size: 11px;
   min-height: 22px;
   margin: 0 0 2px;
+  --color: var(--color-ink);
+
+  ion-label {
+    color: var(--color-ink);
+  }
+}
+
+/* These carried color="primary" and color="secondary", which Ionic turns into a
+   foreground AND a background chosen independently: measured at 1.27:1 and 1.14:1,
+   the label and the pill at nearly the same lightness. Explicit backgrounds plus plum
+   ink, the treatment the credits page already uses. */
+.set-chip-powder {
+  background: var(--tile-powder);
+}
+
+.set-chip-mint {
+  background: var(--tile-mint);
+}
+
+/* An outline ion-button inherits --ion-color-primary - the powder brand hue - which
+   measured 1.71:1 on this page's cream ground. */
+.bulk-restock-btn {
+  --color: var(--color-primary-ink);
 }
 
 /* The family total is the one figure on the card that changes in place while an

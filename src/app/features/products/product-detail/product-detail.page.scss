@@ -106,17 +106,24 @@
 .tile-price {
   font-size: 18px;
   font-weight: 800;
-  color: var(--color-brand-primary);
+  // Plum, and specifically NOT primary-ink: this price sits on a MINT tile, where
+  // primary-ink is 4.09:1 - a fail. Measured 1.03:1 here, powder on mint. Plum is
+  // 7.41:1 on mint and 12.88:1 on the white tiles beside it.
+  color: var(--color-ink);
 }
 
 .tile-stock {
   font-size: 11px;
   font-weight: 500;
+  // All three stock states take plum on the mint tile. tone-success-ink was the
+  // obvious candidate and measures 4.28:1 there - still a fail. The state keeps its
+  // colour on the tile and the icon; the TEXT takes the one value verified on every
+  // surface this component sits on.
   &.stock-in-stock {
-    color: var(--color-success);
+    color: var(--color-ink);
   }
   &.stock-low-stock {
-    color: var(--color-warning);
+    color: var(--color-ink);
   }
   &.stock-out-of-stock {
     color: var(--color-danger);
@@ -155,7 +162,9 @@
   margin-left: auto;
   font-size: 20px;
   font-weight: 800;
-  color: var(--color-brand-primary);
+  // 20px/800 is still not WCAG large text - that needs 24px. Plum rather than
+  // primary-ink because this line sits on the mint summary tile.
+  color: var(--color-ink);
 }
 
 // ── CTA ──────────────────────────────────────────────────
@@ -250,4 +259,11 @@
   margin: 0 0 var(--space-2);
   font-size: 12px;
   color: var(--ion-color-medium);
+}
+
+/* An outline ion-button inherits --ion-color-primary, the powder brand hue: measured
+   #8ECAE6 on this page's cream ground at 1.71:1. The one action on a product page
+   that a returning customer reaches for was the least readable control on it. */
+.wishlist-btn {
+  --color: var(--color-primary-ink);
 }
