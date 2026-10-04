@@ -55,7 +55,7 @@ jobs:
     # drift was silent and would be again.
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Node 20 because .nvmrc says 20, and because package.json declares an
       # upper bound that deliberately rejects Node 24:
