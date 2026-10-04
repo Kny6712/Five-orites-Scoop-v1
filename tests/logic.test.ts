@@ -1452,6 +1452,159 @@ describe('brand hues are not used as foregrounds (ratchet)', () => {
   });
 });
 
+/**
+ * An emulator-backed test suite must close what it opens.
+ *
+ * `initializeTestEnvironment` hands out a NEW Firestore client every time you ask
+ * for a context - `env.authenticatedContext(uid).firestore()` is a constructor
+ * call, not a cache lookup - and each client owns a gRPC channel. This project
+ * opens them through five helpers across 172 rules tests and once per integration
+ * test, and until this guard existed not one of them was ever closed.
+ *
+ * The cost was an intermittent, undiagnosable CI failure. A channel settling after
+ * the root test context closed made Node's runner throw
+ * `ERR_INTERNAL_ASSERTION: Unknown worker message type` from an uncaught exception,
+ * which it reports as a bare file-level `'test failed'` - no assertion, no stack, no
+ * name of the test that broke. Every assertion had passed. It reproduced about once
+ * in twenty runs, so it could never be pinned down by re-running.
+ *
+ * Two halves, both checked:
+ *   - a file that creates an emulator environment terminates its clients
+ *   - a file that builds an Angular `Injector` destroys it
+ *
+ * A new suite that skips either fails here rather than in CI, twenty runs later,
+ * with a message that names nothing.
+ */
+describe('emulator-backed test suites close what they open', () => {
+  const SELF = 'logic.test.ts';
+
+  /**
+   * Remove comments before matching, because a COMMENT CAN SATISFY A REGEX.
+   *
+   * The first version of this guard read raw source, and a canary that deleted
+   * `injector.destroy()` left it GREEN - because the integration suite has a doc
+   * comment containing the literal text `.destroy()`. The check was being satisfied
+   * by prose describing the fix rather than by the fix. Every assertion here
+   * therefore runs against comment-stripped code.
+   *
+   * Over-stripping is the safe direction for these particular patterns: a URL in a
+   * string literal cannot contain `.terminate()`, `afterEach(` or `Injector.create(`.
+   */
+  function code(src: string): string {
+    return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, ' ');
+  }
+
+  const suites = readdirSync(__dirname)
+    .filter((f) => f.endsWith('.test.ts'))
+    // This guard quotes `initializeTestEnvironment` in its own prose, so without this
+    // it detects ITSELF as an emulator suite and asserts things about its own source.
+    .filter((f) => f !== SELF)
+    .map((f) => {
+      const src = readFileSync(join(__dirname, f), 'utf8');
+      return { name: f, src, code: code(src) };
+    });
+
+  const emulated = suites.filter((s) => /initializeTestEnvironment\s*\(/.test(s.code));
+
+  it('there ARE emulator-backed suites, so the checks below are not vacuous', () => {
+    // If the helper is ever renamed, every assertion below would pass trivially
+    // against an empty set. Guard the guard.
+    assert.ok(
+      emulated.length >= 2,
+      `expected at least 2 suites using initializeTestEnvironment, found ${emulated.length}: ` +
+        emulated.map((s) => s.name).join(', '),
+    );
+  });
+
+  it('this guard excludes itself, and its comment stripper actually strips', () => {
+    assert.ok(
+      !suites.some((s) => s.name === SELF),
+      'the teardown guard must exclude itself, or it asserts things about its own text',
+    );
+    // Prove the stripper works, because every check below leans on it. If this
+    // fails, all of them are decorative again.
+    for (const probe of ['// x.terminate()\nconst a = 1;', '/* x.terminate() */\nconst a = 1;']) {
+      assert.ok(
+        !/\.terminate\(\)/.test(code(probe)),
+        `comment stripping failed on: ${JSON.stringify(probe)}`,
+      );
+    }
+    assert.ok(
+      /\.terminate\(\)/.test(code('f().terminate();')),
+      'comment stripping removed real code',
+    );
+  });
+
+  for (const suite of emulated) {
+    it(`${suite.name} terminates every Firestore client it opens`, () => {
+      // `authenticatedContext(uid).firestore()` is a constructor call, not a cache
+      // lookup: every invocation builds a client and a gRPC channel.
+      if (!/authenticatedContext\([^)]*\)\.firestore\(\)/.test(suite.code)) return;
+      assert.ok(
+        /\.terminate\(\)/.test(suite.code),
+        `${suite.name} calls authenticatedContext(...).firestore() but never ` +
+          `.terminate(). A client outliving its test makes Node's runner raise ` +
+          `ERR_INTERNAL_ASSERTION from a late worker message, which it reports as a ` +
+          `file-level 'test failed' with no stack and no failing test name.`,
+      );
+    });
+
+    it(`${suite.name} destroys any Angular Injector it builds`, () => {
+      if (!/Injector\.create\(/.test(suite.code)) return;
+      assert.ok(
+        /\.destroy\(\)/.test(suite.code),
+        `${suite.name} calls Injector.create() but never .destroy(). An R3Injector ` +
+          `holds its providers - including the Firestore instance - alive until it is ` +
+          `explicitly destroyed.`,
+      );
+    });
+
+    it(`${suite.name} closes clients per-test, not only after the last one`, () => {
+      if (!/authenticatedContext\([^)]*\)\.firestore\(\)/.test(suite.code)) return;
+
+      // STRUCTURAL, not positional. The first attempt at this check asserted that a
+      // `.terminate()` appears somewhere AFTER the `afterEach(` registration, which
+      // is wrong: the sweep function is necessarily DEFINED before it is registered.
+      // That version failed against correct code, which is its own kind of lie.
+      //
+      // What actually matters is that the thing registered with afterEach is a
+      // defined function whose body terminates clients. So resolve the name, find
+      // its definition, and require the terminate inside it.
+      const registered = suite.code.match(/afterEach\(\s*([A-Za-z_$][\w$]*)/);
+      assert.ok(
+        registered,
+        `${suite.name} opens Firestore clients but registers no afterEach hook. The ` +
+          `failure this guards is specifically activity arriving AFTER a test ended, ` +
+          `so closing only in after() still leaves a live channel between tests.`,
+      );
+
+      const sweep = registered![1];
+      const defined = new RegExp(
+        `(function\\s+${sweep}\\s*\\(|const\\s+${sweep}\\s*=|let\\s+${sweep}\\s*=)`,
+      ).test(suite.code);
+      assert.ok(
+        defined,
+        `${suite.name} registers afterEach(${sweep}) but no function or const named ` +
+          `${sweep} is defined, so the hook resolves to nothing.`,
+      );
+
+      // Function declaration form: name ... ) { ...body... }
+      const body = suite.code.match(
+        new RegExp(`function\\s+${sweep}\\s*\\([^)]*\\)\\s*(?::[^{]+)?\\{([\\s\\S]*?)\\n\\}`),
+      );
+      // NOTE the single backslashes below: this is a regex LITERAL, not a string.
+      // It was first written with doubled backslashes, which made it match a literal
+      // backslash followed by any character, so it never matched the real body and
+      // the assertion failed against correct code.
+      assert.ok(
+        body && /\.terminate\(\)/.test(body[1]),
+        `${suite.name} registers afterEach(${sweep}), but ${sweep} does not call ` +
+          `.terminate() -- so the per-test sweep closes nothing.`,
+      );
+    });
+  }
+});
+
 describe('clampToStock', () => {
   it('caps the requested quantity at available stock', () => {
     assert.equal(clampToStock(9, 4), 4);

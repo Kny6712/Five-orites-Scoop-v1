@@ -39,11 +39,20 @@
 import 'zone.js';
 import '@angular/compiler';
 
-import { test, before, after, beforeEach, describe } from 'node:test';
+import { test, before, after, beforeEach, afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, RulesTestEnvironment } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, Timestamp } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  Timestamp,
+  type Firestore,
+} from 'firebase/firestore';
 import { Injector, runInInjectionContext } from '@angular/core';
 
 import { Firestore as AngularFirestore } from '@angular/fire/firestore';
@@ -131,7 +140,38 @@ async function seed(path: string, data: unknown): Promise<void> {
   });
 }
 
-const asUser = (uid: string) => env.authenticatedContext(uid).firestore();
+/**
+ * Both of the things this suite opens, tracked so neither outlives its test.
+ *
+ * `asUser()` minted a fresh Firestore -- and therefore a fresh gRPC channel -- on
+ * every call, and `serviceAs()` built a fresh Angular `Injector` per test. Neither
+ * was ever closed: the file contained zero `terminate()` and zero `.destroy()`.
+ *
+ * A channel that settles after the root test context closes makes Node's runner
+ * raise ERR_INTERNAL_ASSERTION ("Unknown worker message type") from an uncaught
+ * exception, which it reports as a bare file-level 'test failed'. Every assertion
+ * in the suite passed; the file still exited non-zero. It reproduced roughly once
+ * in twenty runs, which is the worst possible shape for a CI signal.
+ */
+const openClients = new Set<Firestore>();
+const openInjectors = new Set<Injector>();
+
+/** Close everything this test opened. Idempotent; safe to call from `afterEach`. */
+async function closeAll(): Promise<void> {
+  for (const injector of openInjectors) injector.destroy();
+  openInjectors.clear();
+  const clients = [...openClients];
+  openClients.clear();
+  await Promise.all(clients.map((c) => c.terminate()));
+}
+
+afterEach(closeAll);
+
+const asUser = (uid: string): Firestore => {
+  const client = env.authenticatedContext(uid).firestore();
+  openClients.add(client);
+  return client;
+};
 
 /** The size key on a product document, read with rules disabled. */
 async function stockOf(productId: string, size: string): Promise<unknown> {
@@ -172,6 +212,10 @@ function serviceAs(uid: string): OrderService {
     ],
   });
 
+  // Tracked so `closeAll()` can destroy it; an R3Injector holds its providers
+  // (including the Firestore instance) alive until it is explicitly destroyed.
+  openInjectors.add(injector);
+
   return runInInjectionContext(injector, () => new OrderService());
 }
 
@@ -183,6 +227,10 @@ before(async () => {
 });
 
 after(async () => {
+  // `afterEach` normally empties both registries. If a hook threw midway they can
+  // still be populated, and anything left open across `cleanup()` is what produces
+  // the late worker message this suite was intermittently failing on.
+  await closeAll();
   await env.cleanup();
 });
 

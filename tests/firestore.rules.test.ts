@@ -9,7 +9,7 @@
 // Run with the emulator:  npm run test:rules
 // (that script starts the emulator, runs this, then tears it down)
 
-import { test, before, after, beforeEach, describe } from 'node:test';
+import { test, before, after, beforeEach, afterEach, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
@@ -31,6 +31,7 @@ import {
   orderBy,
   getDocs,
   Timestamp,
+  type Firestore,
 } from 'firebase/firestore';
 
 /** Does this document still exist, read as an admin so reads are never the thing under test? */
@@ -39,6 +40,51 @@ async function exists(ref: ReturnType<typeof doc>): Promise<boolean> {
 }
 
 let env: RulesTestEnvironment;
+
+/**
+ * Every Firestore client this suite mints, so that none of them outlives the test
+ * that opened it.
+ *
+ * `env.authenticatedContext(uid).firestore()` constructs a NEW client every time
+ * it is called -- not a cached one -- and each carries its own gRPC channel. The
+ * five helpers below are invoked throughout 172 tests, so the suite was opening
+ * hundreds of channels and closing none. The visible symptom was rare and looked
+ * like a rules failure, because a channel settling after the root test context
+ * closed makes Node's runner throw ERR_INTERNAL_ASSERTION from a worker message it
+ * does not recognise, which lands in the report as a bare file-level 'test failed'
+ * with no assertion, no stack and no failing test name.
+ */
+const openClients = new Set<Firestore>();
+
+/** Mint an authenticated client and remember it, so `closeClients()` can close it. */
+function authed(uid: string | null): Firestore {
+  const client = env.authenticatedContext(uid).firestore();
+  openClients.add(client);
+  return client;
+}
+
+/** The same, signed out. Used to prove anonymous callers are refused. */
+function unauthed(): Firestore {
+  const client = env.unauthenticatedContext().firestore();
+  openClients.add(client);
+  return client;
+}
+
+/**
+ * Close everything opened since the last sweep.
+ *
+ * `terminate()` is idempotent, and the registry is cleared as it goes so a client
+ * is never closed twice. Runs in `afterEach` because the failure mode is
+ * specifically "activity after the test ended" -- closing only in `after()` would
+ * still leave a live channel between tests.
+ */
+async function closeClients(): Promise<void> {
+  const clients = [...openClients];
+  openClients.clear();
+  await Promise.all(clients.map((c) => c.terminate()));
+}
+
+afterEach(closeClients);
 
 const ADMIN = 'admin-uid';
 const CUSTOMER = 'customer-uid';
@@ -58,7 +104,7 @@ const STAFF = 'staff-uid';
 /** A manager: runs the shop day to day, but cannot hand out roles. */
 const MANAGER = 'manager-uid';
 /** A second customer, used to prove one cannot touch another's order. */
-const asManager = () => env.authenticatedContext(MANAGER).firestore();
+const asManager = () => authed(MANAGER);
 
 const PRODUCT = {
   setNumber: 1,
@@ -104,10 +150,10 @@ function orderFor(customerId: string, status: string) {
   };
 }
 
-const asUser = (uid: string | null) => env.authenticatedContext(uid).firestore();
-const asAdmin = () => env.authenticatedContext(ADMIN).firestore();
-const asOwner = () => env.authenticatedContext(OWNER).firestore();
-const asStaff = () => env.authenticatedContext(STAFF).firestore();
+const asUser = (uid: string | null) => authed(uid);
+const asAdmin = () => authed(ADMIN);
+const asOwner = () => authed(OWNER);
+const asStaff = () => authed(STAFF);
 
 /** Write a fixture directly, bypassing the rules (see beforeEach for why). */
 async function seed(path: string, data: unknown): Promise<void> {
@@ -124,6 +170,10 @@ before(async () => {
 });
 
 after(async () => {
+  // Belt and braces: `afterEach` normally empties this, but if a hook threw
+  // midway the registry can still hold clients, and a channel left open across
+  // `cleanup()` is precisely what produces the late worker message.
+  await closeClients();
   await env.cleanup();
 });
 
@@ -287,7 +337,7 @@ describe('products: stock is staff-owned', () => {
 
   test('a signed-out visitor may not write', async () => {
     await assertFails(
-      updateDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1'), {
+      updateDoc(doc(unauthed(), 'products/p1'), {
         'stock.cup': 0,
         updatedAt: Timestamp.now(),
       }),
@@ -316,7 +366,7 @@ describe('products: stock is staff-owned', () => {
   });
 
   test('a signed-out visitor may NOT delete a product', async () => {
-    await assertFails(deleteDoc(doc(env.unauthenticatedContext().firestore(), 'products/p1')));
+    await assertFails(deleteDoc(doc(unauthed(), 'products/p1')));
   });
 
   // ── Legacy-catalogue tolerance ──────────────────────────────────────────
@@ -1285,9 +1335,7 @@ describe('users: self-service profile', () => {
   });
 
   test('a signed-out caller may delete nothing', async () => {
-    await assertFails(
-      deleteDoc(doc(env.unauthenticatedContext().firestore(), `users/${CUSTOMER}`)),
-    );
+    await assertFails(deleteDoc(doc(unauthed(), `users/${CUSTOMER}`)));
   });
 
   test("even an OWNER cannot delete another person's account", async () => {
@@ -1377,13 +1425,11 @@ describe('users: self-service profile', () => {
   });
 
   test('a signed-out caller may NOT delete a user document', async () => {
-    await assertFails(
-      deleteDoc(doc(env.unauthenticatedContext().firestore(), `users/${CUSTOMER}`)),
-    );
+    await assertFails(deleteDoc(doc(unauthed(), `users/${CUSTOMER}`)));
   });
 
   test('a signed-out visitor may NOT read a user document', async () => {
-    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `users/${CUSTOMER}`)));
+    await assertFails(getDoc(doc(unauthed(), `users/${CUSTOMER}`)));
   });
 
   test('a sparse document is still editable', async () => {
@@ -1607,7 +1653,7 @@ describe('role tiers', () => {
     await seed(`users/${MANAGER}`, { uid: MANAGER, role: 'manager' });
     await seed('products/p2', { ...PRODUCT, variantName: 'Mint Chip' });
     await assertSucceeds(
-      updateDoc(doc(env.authenticatedContext(MANAGER).firestore(), 'products/p2'), {
+      updateDoc(doc(authed(MANAGER), 'products/p2'), {
         'stock.cup': 99,
       }),
     );
@@ -1638,7 +1684,7 @@ describe('role tiers', () => {
   test('a manager may NOT create a voucher', async () => {
     await seed(`users/${MANAGER}`, { uid: MANAGER, role: 'manager' });
     await assertFails(
-      setDoc(doc(env.authenticatedContext(MANAGER).firestore(), 'vouchers/NOPE'), {
+      setDoc(doc(authed(MANAGER), 'vouchers/NOPE'), {
         code: 'NOPE',
         type: 'percent',
         value: 10,
@@ -1710,7 +1756,7 @@ describe('vouchers', () => {
 
   test('a signed-OUT visitor may NOT read vouchers', async () => {
     await seed('vouchers/SCOOP10', voucher('SCOOP10'));
-    await assertFails(getDocs(collection(env.unauthenticatedContext().firestore(), 'vouchers')));
+    await assertFails(getDocs(collection(unauthed(), 'vouchers')));
   });
 
   test('an admin may create a voucher', async () => {
@@ -1764,7 +1810,7 @@ describe('shop settings', () => {
 
   test('a signed-OUT visitor may NOT read the settings document', async () => {
     await seed('shopSettings/app', settings());
-    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'shopSettings/app')));
+    await assertFails(getDoc(doc(unauthed(), 'shopSettings/app')));
   });
 
   test('an admin may NOT write the settings document (owner-only now)', async () => {
@@ -1825,7 +1871,7 @@ describe('developers (the public credits page)', () => {
     // Required, not a leak: the storefront links /developers and the page has no
     // authGuard. Gating the read would blank the credits for every visitor.
     await seed('developers/kenn', developer());
-    const snap = await getDoc(doc(env.unauthenticatedContext().firestore(), 'developers/kenn'));
+    const snap = await getDoc(doc(unauthed(), 'developers/kenn'));
     assert.equal(snap.exists(), true);
   });
 
