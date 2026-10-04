@@ -1,0 +1,203 @@
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Team Credits</ion-title>
+    <ion-buttons slot="end">
+      <ion-button size="small" (click)="startCreate()">Add</ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="page-body">
+    <!--
+      Stated rather than swallowed. The service falls back to the five names the
+      app shipped with when the Firestore read fails, and a public credits page
+      showing last-shipped content should not look identical to a live one.
+    -->
+    @if (usingFallback()) {
+      <app-alert-banner
+        tone="warning"
+        title="Showing the built-in list"
+        message="These credits could not be read from the database, so the names the app shipped with are standing in."
+      />
+    }
+
+    @if (errorMessage()) {
+      <app-alert-banner tone="danger" title="Could not save" [message]="errorMessage()" />
+    }
+
+    <!-- ── Edit form ─────────────────────────────────────────────────── -->
+    @if (editing()) {
+      <div class="card">
+        <div class="card-head">
+          <h2 class="card-title">{{ editing() === 'new' ? 'Add a developer' : 'Edit developer' }}</h2>
+          <button type="button" class="icon-btn" (click)="cancelEdit()" aria-label="Cancel">
+            <app-icon name="x" />
+          </button>
+        </div>
+
+        <div class="form-grid">
+          <ion-input
+            label="Name"
+            labelPlacement="stacked"
+            [(ngModel)]="formName"
+            maxlength="80"
+            placeholder="Their full name"
+          ></ion-input>
+
+          <div class="field">
+            <span class="field-label">Roles</span>
+            <div class="role-chips">
+              @for (role of formRoles; track role) {
+                <span class="role-chip">
+                  {{ role }}
+                  <button type="button" (click)="removeRole(role)" [attr.aria-label]="'Remove ' + role">
+                    <app-icon name="x" />
+                  </button>
+                </span>
+              }
+              @if (!formRoles.length) {
+                <span class="role-empty">No roles yet.</span>
+              }
+            </div>
+
+            <ion-input
+              label="Add a role"
+              labelPlacement="stacked"
+              [(ngModel)]="formRoleDraft"
+              placeholder="Type one, or tap a suggestion"
+              (keyup.enter)="addRole(formRoleDraft)"
+            ></ion-input>
+
+            <div class="suggestions">
+              @for (role of roleSuggestions; track role) {
+                <button type="button" class="suggestion" (click)="addRole(role)">{{ role }}</button>
+              }
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Avatar colour</span>
+            <!--
+              A closed palette, not a colour input. The initials are plum on a
+              PASTEL disc, which clears AA on each of these five; a free picker
+              would let a dark disc be chosen and put unreadable text on it, and
+              check:contrast validates the design tokens rather than a value typed
+              at runtime. firestore.rules rejects anything else.
+            -->
+            <div class="swatches">
+              @for (a of accents; track a.hex) {
+                <button
+                  type="button"
+                  class="swatch"
+                  [class.selected]="formAccent === a.hex"
+                  [style.background]="a.hex"
+                  (click)="formAccent = a.hex"
+                  [attr.aria-label]="a.label"
+                  [attr.aria-pressed]="formAccent === a.hex"
+                ></button>
+              }
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <ion-button size="small" (click)="save()" [disabled]="saving()">
+            @if (saving()) {
+              <ion-spinner name="crescent" slot="start"></ion-spinner>
+            }
+            Save
+          </ion-button>
+          <ion-button size="small" fill="clear" (click)="cancelEdit()">Cancel</ion-button>
+        </div>
+      </div>
+    }
+
+    <!-- ── The records ────────────────────────────────────────────────── -->
+    <div class="list">
+      @for (dev of developers(); track dev.id; let i = $index) {
+        <div class="card row">
+          <div class="avatar-wrap">
+            <!--
+              The photo when there is one, the initials when there is not, on the
+              same disc so the card does not change size between the two states.
+            -->
+            <div class="avatar" [style.background]="dev.accent">
+              @if (dev.photoURL) {
+                <img [src]="dev.photoURL | cloudinary: 128" [alt]="dev.name" />
+              } @else {
+                <span class="initials">{{ initialsFor(dev) }}</span>
+              }
+            </div>
+            @if (canEdit()) {
+              <label class="avatar-btn" [class.disabled]="uploadingFor() === dev.id">
+                <app-icon name="camera" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  (change)="onPhotoSelected($event, dev)"
+                  [disabled]="uploadingFor() === dev.id"
+                />
+              </label>
+            }
+          </div>
+
+          <div class="row-body">
+            <h3 class="row-title">{{ dev.name }}</h3>
+            <div class="role-chips">
+              @for (role of dev.roles; track role) {
+                <span class="role-chip">{{ role }}</span>
+              }
+            </div>
+          </div>
+
+          @if (canEdit()) {
+            <div class="row-actions">
+              <button type="button" class="icon-btn" (click)="move(i, -1)" [disabled]="i === 0" aria-label="Move up">
+                <app-icon name="chevron-up" />
+              </button>
+              <button
+                type="button"
+                class="icon-btn"
+                (click)="move(i, 1)"
+                [disabled]="i === developers().length - 1"
+                aria-label="Move down"
+              >
+                <app-icon name="chevron-down" />
+              </button>
+              <button type="button" class="icon-btn" (click)="startEdit(dev)" aria-label="Edit">
+                <app-icon name="pencil" />
+              </button>
+              @if (dev.photoURL) {
+                <button type="button" class="icon-btn" (click)="clearPhoto(dev)" aria-label="Remove photo">
+                  <app-icon name="image" />
+                </button>
+              }
+            </div>
+          }
+          <!--
+            Delete is hidden rather than disabled for anyone below owner. There is
+            nothing to learn from pressing a permanently greyed-out control, and
+            firestore.rules would refuse it anyway.
+          -->
+          @if (canDelete()) {
+            <button type="button" class="icon-btn danger" (click)="confirmRemove(dev)" aria-label="Remove">
+              <app-icon name="trash" />
+            </button>
+          }
+        </div>
+      } @empty {
+        <app-alert-banner
+          tone="info"
+          title="No credits yet"
+          message="Add the first developer to publish the credits page."
+        />
+      }
+    </div>
+  </div>
+</ion-content>
+
+<app-footer></app-footer>

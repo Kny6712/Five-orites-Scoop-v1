@@ -1667,6 +1667,14 @@ export const LUCIDE_ICON_DATA = {
       },
     ],
   ],
+  'chevron-up': [
+    [
+      'path',
+      {
+        d: 'm18 15-6-6-6 6',
+      },
+    ],
+  ],
   download: [
     [
       'path',

@@ -123,12 +123,12 @@
   <!-- Developer Grid -->
   <ion-grid class="dev-grid">
     <ion-row>
-      @for (dev of developers; track dev.name) {
+      @for (dev of developers(); track dev.id) {
         <ion-col size="12" size-md="6" size-lg="4">
           <ion-card class="dev-card">
             <ion-card-content class="dev-card-content">
               <ion-avatar class="dev-avatar" [style.background]="dev.accent">
-                <div class="dev-initials">{{ dev.initials }}</div>
+                <div class="dev-initials">{{ initialsFor(dev) }}</div>
               </ion-avatar>
 
               <div class="dev-info">

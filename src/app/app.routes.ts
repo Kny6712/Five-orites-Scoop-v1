@@ -4,7 +4,7 @@
 
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
-import { adminGuard, capabilityGuard } from './core/guards/admin.guard';
+import { adminGuard, capabilityGuard, teamGuard } from './core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -128,6 +128,15 @@ export const routes: Routes = [
         canActivate: [capabilityGuard('manage_orders')],
         loadComponent: () =>
           import('./admin/tracking/admin-tracking.page').then((m) => m.AdminTrackingPage),
+      },
+      {
+        // Manager and owner, NOT admin — `teamGuard` rather than a capabilityGuard,
+        // and the reasoning is in admin.guard.ts. Editing the public credits is the
+        // one page where the distinction between manager and admin matters.
+        path: 'developers',
+        canActivate: [teamGuard()],
+        loadComponent: () =>
+          import('./admin/developers/admin-developers.page').then((m) => m.AdminDevelopersPage),
       },
     ],
   },

@@ -25,7 +25,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import { can, isStaffRole, type Capability } from '../models/user.model';
+import { can, canManageTeam, isStaffRole, type Capability } from '../models/user.model';
 import { filter, map, switchMap, take } from 'rxjs/operators';
 
 /** The signed-in user once auth has settled. */
@@ -85,6 +85,41 @@ export function capabilityGuard(capability: Capability): CanActivateFn {
         // Back to the dashboard rather than a 404: the person is a legitimate
         // staff member who simply may not open this page, and the dashboard is
         // the page that still works for them.
+        router.navigate(['/dashboard']);
+        return false;
+      }),
+    );
+  };
+}
+
+/**
+ * Gate for pages a MANAGER may open but an ADMIN may not.
+ *
+ * There is exactly one such page — editing the public credits — and it cannot be
+ * expressed through `capabilityGuard`, because `ROLE_CAPABILITIES` has no
+ * capability with that shape: `manage_inventory` includes admin, and
+ * `manage_users` is owner-only.
+ *
+ * Inventing a `manage_team` capability would not work either, and the reason is
+ * worth recording. `tests/logic.test.ts` asserts the ladder invariant that every
+ * capability a lower tier holds, the tier above it also holds — so granting it to
+ * `manager` forces it onto `admin`, or the suite goes red. The honest options were
+ * to widen admin's reach to satisfy a test, or to check the rank directly. This
+ * is the second, and `firestore.rules` makes the same distinction independently in
+ * `canManageTeam()`.
+ */
+export function teamGuard(): CanActivateFn {
+  return () => {
+    const authService = inject(AuthService);
+    const router = inject(Router);
+
+    return readyUser(authService).pipe(
+      map((user) => {
+        if (!user) {
+          router.navigate(['/auth']);
+          return false;
+        }
+        if (canManageTeam(user.role)) return true;
         router.navigate(['/dashboard']);
         return false;
       }),

@@ -134,6 +134,26 @@ export function isStaffRole(role: string | null | undefined): boolean {
   return can(role, 'view_dashboard');
 }
 
+/**
+ * True for `manager` and `owner`, and deliberately NOT `admin`.
+ *
+ * This is a RANK comparison rather than a `ROLE_CAPABILITIES` entry, and the
+ * reason is a test. `tests/logic.test.ts` asserts the ladder invariant that every
+ * capability a lower tier holds, the tier above it also holds. Granting a new
+ * capability to `manager` therefore FORCES it onto `admin` or the suite goes red,
+ * and quietly widening admin's reach to satisfy a test would be the wrong fix.
+ *
+ * A rank check says what is actually meant — "at least a manager" — without
+ * touching the capability table every other rule reads.
+ *
+ * It is used for editing the developer credits, where `admin` being able to rewrite
+ * who built the app is a distinction worth keeping.
+ */
+export function canManageTeam(role: string | null | undefined): boolean {
+  const rank = ROLE_RANK[asRole(role)];
+  return rank >= ROLE_RANK['manager'];
+}
+
 /** Coerces anything stored onto a known role, defaulting to the safest. */
 export function asRole(value: unknown): UserRole {
   return value === 'staff' || value === 'manager' || value === 'admin' || value === 'owner'

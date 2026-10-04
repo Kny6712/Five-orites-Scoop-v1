@@ -25,7 +25,14 @@ import { AuthService } from './core/services/auth.service';
 import { CartService } from './core/services/cart.service';
 import { OrderNotificationService } from './core/services/order-notification.service';
 import type { AppIcon } from './core/icons/app-icons';
-import { can, isStaffRole, type Capability } from './core/models/user.model';
+import {
+  can,
+  isStaffRole,
+  asRole,
+  ROLE_RANK,
+  type Capability,
+  type UserRole,
+} from './core/models/user.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 interface NavItem {
@@ -45,6 +52,16 @@ interface NavItem {
    * means "the customer list", which is where it has always applied.
    */
   capability?: Capability;
+  /**
+   * Minimum rank for this row, when a CAPABILITY cannot express it.
+   *
+   * Exactly one row uses it: editing the public credits, which `manager` may do and
+   * `admin` may not. There is no capability with that shape, and adding one would
+   * force it onto `admin` anyway — `tests/logic.test.ts` asserts the ladder
+   * invariant. So this row is gated by rank, matching `teamGuard()` in
+   * admin.guard.ts and `canManageTeam()` in firestore.rules.
+   */
+  minRole?: UserRole;
   /**
    * The count to show on this row's icon, or absent for no badge.
    *
@@ -201,6 +218,15 @@ export class AppComponent {
       role: 'admin',
       capability: 'manage_settings',
     },
+    {
+      // Manager and owner, NOT admin. Gated by rank because no capability has that
+      // shape — see the note on NavItem.minRole.
+      title: 'Team Credits',
+      url: '/admin/developers',
+      icon: 'users',
+      role: 'admin',
+      minRole: 'manager',
+    },
   ];
 
   /**
@@ -225,7 +251,17 @@ export class AppComponent {
    * anyway is about not offering an action that cannot work.
    */
   readonly visibleAdminNavItems = computed(() =>
-    this.adminNavItems.filter((item) => !item.capability || this.can(item.capability)),
+    this.adminNavItems.filter((item) => {
+      // `minRole` is checked alongside `capability`, not instead of it: a row may
+      // legitimately need both, and a row with only one must not be hidden by the
+      // other's absence.
+      if (item.capability && !this.can(item.capability)) return false;
+      if (item.minRole) {
+        const rank = ROLE_RANK[asRole(this.currentUser()?.role)];
+        if (rank < ROLE_RANK[item.minRole]) return false;
+      }
+      return true;
+    }),
   );
 
   /**

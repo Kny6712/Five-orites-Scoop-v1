@@ -49,6 +49,54 @@ service cloud.firestore {
       return isStaff() && myRole() in ['manager', 'admin', 'owner'];
     }
 
+    // Manager and owner, and deliberately NOT admin.
+    //
+    // Placed here, below `isStaff()`, on purpose: `tests/logic.test.ts` matches the
+    // FIRST `myRole() in [...]` in this file against the client staff set, so
+    // `isStaff()` must stay first. See the developers match block for why this is
+    // not `canRunShop()`.
+    function canManageTeam() {
+      return isStaff() && myRole() in ['manager', 'owner'];
+    }
+
+    // The five disc colours the credits page may use, and the shape of a valid
+    // developer record.
+    //
+    // A closed colour list rather than any hex, and the reason is accessibility
+    // rather than tidiness. The initials are PLUM on a PASTEL disc, which clears
+    // AA on all five of these; a free colour input would let an owner pick a dark
+    // disc and silently put unreadable text on it. `check:contrast` validates the
+    // design tokens and cannot see a value typed at runtime, so constraining it here
+    // is the only way to keep the guarantee.
+    function developerIsWellFormed() {
+      // Every mandatory field is checked for PRESENCE with `in` before it is read.
+      // A dot access to an absent key is an EVALUATION ERROR rather than `false`,
+      // and an evaluation error denies the write — so omitting `name` is refused
+      // either way, but it is refused as a crash rather than as a decision, and the
+      // log then blames an evaluation fault instead of a missing field.
+      return 'name' in request.resource.data
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && 'roles' in request.resource.data
+        && request.resource.data.roles is list
+        && request.resource.data.roles.size() > 0
+        && request.resource.data.roles.size() <= 12
+        && 'accent' in request.resource.data
+        && request.resource.data.accent in [
+             '#CFE4F2', '#CDEAD9', '#F8D2DD', '#FBE9BE', '#D3DDF7'
+           ]
+        // `photoURL` is `string | null`, not `string`. The seed writes null and the
+        // admin's "remove photo" control sets null, so an `is string` check here
+        // rejected the exact shape the app itself writes.
+        && (!('photoURL' in request.resource.data)
+            || request.resource.data.photoURL is string
+            || request.resource.data.photoURL == null)
+        && 'order' in request.resource.data
+        && request.resource.data.order is int
+        && request.resource.data.order >= 0;
+    }
+
     // The user directory and role changes. Deliberately OWNER-only.
     //
     // This is the whole point of the tiers: a shift lead works the queue and
@@ -842,6 +890,58 @@ service cloud.firestore {
         && request.resource.data.lowStockThreshold is number
         && request.resource.data.lowStockThreshold >= 1;
       allow delete: if false;
+    }
+
+    // ── Developers (the public credits page) ───────────────────────────
+    //
+    // These five records used to be five object literals inside
+    // `DevelopersPage`, which meant the owner could not correct a misspelled name
+    // or replace a photo without a developer, a rebuild and a deploy.
+    //
+    // READ IS PUBLIC, and that is a deliberate consequence rather than an
+    // oversight: `/developers` carries no `authGuard`, `adminGuard` or
+    // `capabilityGuard`, so a signed-out guest reaches it and the storefront links
+    // it. Gating the read would blank the credits page for every visitor.
+    //
+    // WRITE IS NOT PUBLIC, and it is the only part that matters. Cloudinary is
+    // configured with an UNSIGNED upload preset, so the upload POST itself cannot
+    // be permission-gated — anyone can push an image and get a URL back. The
+    // Firestore write is the only enforceable step, which is exactly why a
+    // permission check in the UI is not sufficient on its own and this block
+    // exists.
+    //
+    // `canManageTeam()` rather than `canRunShop()`: the intent is manager and
+    // owner, NOT admin. `canRunShop()` is manager+admin+owner, so it would have
+    // handed admin the ability to rewrite who built the app. The client helper of
+    // the same name is a rank comparison for the same reason — a ROLE_CAPABILITIES
+    // entry would be forced onto admin by the ladder invariant in
+    // tests/logic.test.ts.
+    //
+    // NOTE ON PLACEMENT. `tests/logic.test.ts` asserts that the FIRST
+    // `myRole() in [...]` in this file is the staff set used by `isStaff()`. The
+    // predicate below is a second one, so `isStaff()` must stay above it — which it
+    // does. Moving this block above the role helpers would fail that test.
+    match /developers/{developerId} {
+      allow read: if true;
+
+      allow create: if canManageTeam()
+        && developerIsWellFormed()
+        && request.resource.data.keys().hasOnly([
+             'name', 'roles', 'accent', 'photoURL', 'order',
+             'updatedAt', 'updatedBy'
+           ]);
+
+      allow update: if canManageTeam()
+        && developerIsWellFormed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'name', 'roles', 'accent', 'photoURL', 'order',
+             'updatedAt', 'updatedBy'
+           ]);
+
+      // OWNER-only. Removing someone from the credits page is not a typo fix, it
+      // is deleting a person from the record of who built the thing, and it is not
+      // what "manager" was asked to be able to do.
+      allow delete: if canManageUsers();
     }
 
     // ── Catch-all deny ────────────────────────────────────────────────

@@ -134,6 +134,10 @@ const WANTED = {
   list: ['List'],
   'chart-column': ['ChartColumnBig', 'ChartColumn'],
   gauge: ['Gauge'],
+  // Reordering the credits page. `chevron-down` already existed at line 91; its
+  // counterpart did not, and the admin developers page needs a matched pair
+  // rather than a rotated icon.
+  'chevron-up': ['ChevronUp'],
   // Export / external navigation.
   download: ['Download'],
   // Import. The inventory CSV trigger referenced this name before it existed here,

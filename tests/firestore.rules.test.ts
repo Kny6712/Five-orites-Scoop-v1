@@ -1795,6 +1795,170 @@ describe('shop settings', () => {
   });
 });
 
+describe('developers (the public credits page)', () => {
+  /**
+   * These five records were object literals inside `DevelopersPage`, so there was
+   * nothing to write and therefore nothing to protect. They are documents now,
+   * which makes them the first thing in this file that a CUSTOMER could reach for
+   * if the block were written loosely.
+   *
+   * The asymmetry is the point: `/developers` carries no route guard, so a
+   * signed-out guest reads it — that is why `read` is open. Cloudinary is
+   * configured with an UNSIGNED upload preset, so the upload POST cannot be
+   * permission-gated either, which means the Firestore write is the ONLY
+   * enforceable step in the whole photo feature. A UI-only permission control
+   * would be cosmetic, and these tests are what make the rules block load-bearing
+   * rather than decorative.
+   */
+  const developer = (over: Record<string, unknown> = {}) => ({
+    name: 'Kenn Karlo Umadhay',
+    roles: ['Main Project Lead', 'QA'],
+    accent: '#CFE4F2',
+    photoURL: null,
+    order: 1,
+    ...over,
+  });
+
+  // ── Read ────────────────────────────────────────────────────────────────
+
+  test('a signed-OUT visitor may read the credits', async () => {
+    // Required, not a leak: the storefront links /developers and the page has no
+    // authGuard. Gating the read would blank the credits for every visitor.
+    await seed('developers/kenn', developer());
+    const snap = await getDoc(doc(env.unauthenticatedContext().firestore(), 'developers/kenn'));
+    assert.equal(snap.exists(), true);
+  });
+
+  test('a customer may list the credits', async () => {
+    await seed('developers/kenn', developer());
+    const snap = await getDocs(collection(asUser(CUSTOMER), 'developers'));
+    assert.equal(snap.size, 1);
+  });
+
+  // ── Write: manager and owner ─────────────────────────────────────────────
+
+  test('a manager MAY create a credit', async () => {
+    await assertSucceeds(setDoc(doc(asManager(), 'developers/new'), developer()));
+  });
+
+  test('an owner MAY create a credit', async () => {
+    await assertSucceeds(setDoc(doc(asOwner(), 'developers/new'), developer()));
+  });
+
+  test('a manager MAY edit an existing credit', async () => {
+    await seed('developers/kenn', developer());
+    await assertSucceeds(
+      updateDoc(doc(asManager(), 'developers/kenn'), { name: 'Kenn U. Umadhay' }),
+    );
+  });
+
+  // ── Write: everyone else, including ADMIN ───────────────────────────────
+
+  test('a customer may NOT create a credit', async () => {
+    await assertFails(setDoc(doc(asUser(CUSTOMER), 'developers/new'), developer()));
+  });
+
+  test('a staff account may NOT create a credit', async () => {
+    // The one regression worth stating: `staff` works the fulfilment queue and
+    // can move an order, which is exactly the argument someone would make for
+    // letting them edit the credits. Rewriting who built the app is not a queue task.
+    await assertFails(setDoc(doc(asStaff(), 'developers/new'), developer()));
+  });
+
+  test('an ADMIN may NOT create a credit — the manager/owner line is deliberate', async () => {
+    // `canRunShop()` would have allowed this, since it is manager+admin+owner.
+    // Rewriting the credits is the one page where admin is excluded, so
+    // `canManageTeam()` is manager+owner only and this test is what holds it there.
+    await assertFails(setDoc(doc(asAdmin(), 'developers/new'), developer()));
+  });
+
+  test('an admin may NOT edit an existing credit', async () => {
+    await seed('developers/kenn', developer());
+    await assertFails(updateDoc(doc(asAdmin(), 'developers/kenn'), { name: 'Someone Else' }));
+  });
+
+  // ── Delete: owner only ───────────────────────────────────────────────────
+
+  test('an owner MAY delete a credit', async () => {
+    await seed('developers/kenn', developer());
+    await assertSucceeds(deleteDoc(doc(asOwner(), 'developers/kenn')));
+  });
+
+  test('a manager may NOT delete a credit', async () => {
+    await seed('developers/kenn', developer());
+    await assertFails(deleteDoc(doc(asManager(), 'developers/kenn')));
+  });
+
+  test('an admin may NOT delete a credit', async () => {
+    await seed('developers/kenn', developer());
+    await assertFails(deleteDoc(doc(asAdmin(), 'developers/kenn')));
+  });
+
+  // ── Shape ────────────────────────────────────────────────────────────────
+
+  test('an accent outside the palette is refused', async () => {
+    // The initials are plum on a PASTEL disc, which clears AA on each of the five.
+    // A free colour value would put unreadable text on a dark disc, and
+    // check:contrast validates design tokens rather than a value typed at runtime.
+    await assertFails(setDoc(doc(asOwner(), 'developers/dark'), developer({ accent: '#101010' })));
+  });
+
+  test('each of the five palette accents IS accepted', async () => {
+    for (const [i, hex] of ['#CFE4F2', '#CDEAD9', '#F8D2DD', '#FBE9BE', '#D3DDF7'].entries()) {
+      await assertSucceeds(
+        setDoc(doc(asOwner(), `developers/a${i}`), developer({ accent: hex, order: i })),
+      );
+    }
+  });
+
+  test('an empty name is refused', async () => {
+    await assertFails(setDoc(doc(asOwner(), 'developers/x'), developer({ name: '' })));
+  });
+
+  test('a non-integer order is refused', async () => {
+    await assertFails(setDoc(doc(asOwner(), 'developers/x'), developer({ order: 1.5 })));
+  });
+
+  test('an unknown field may NOT be smuggled in', async () => {
+    // A photo URL is not the only thing a field could smuggle: a `role` here would
+    // be inert, but the point is that the whitelist is a whitelist.
+    await assertFails(setDoc(doc(asOwner(), 'developers/x'), { ...developer(), isAdmin: true }));
+  });
+
+  test('a credit may NOT be created with a photo URL that is not a string', async () => {
+    await assertFails(setDoc(doc(asOwner(), 'developers/x'), developer({ photoURL: 42 })));
+  });
+
+  test('roles must be a list', async () => {
+    await assertFails(setDoc(doc(asOwner(), 'developers/x'), developer({ roles: 'QA' })));
+  });
+
+  test('a credit with NO roles is refused', async () => {
+    // A card with a name and no roles says nothing, and the client already blocks
+    // saving one; the rules agree rather than leaving it to the UI.
+    await assertFails(setDoc(doc(asOwner(), 'developers/x'), developer({ roles: [] })));
+  });
+
+  test('a photo URL of null is ACCEPTED — that is what the seed and the clear button write', async () => {
+    // Regression: the helper first required `photoURL is string`, which refused the
+    // exact shape the app itself produces with no photo uploaded.
+    await assertSucceeds(
+      setDoc(doc(asOwner(), 'developers/nophoto'), developer({ photoURL: null })),
+    );
+  });
+
+  test('a photo URL string is accepted', async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asOwner(), 'developers/photo'),
+        developer({
+          photoURL: 'https://res.cloudinary.com/demo/image/upload/five-orites-scoop/avatars/x.jpg',
+        }),
+      ),
+    );
+  });
+});
+
 describe('stock movements (the ledger)', () => {
   const movement = () => ({
     productId: '1_rocky_road',

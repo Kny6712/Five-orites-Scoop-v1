@@ -609,6 +609,44 @@ describe('CI runs `verify` rather than a second copy of it', () => {
     );
   });
 
+  it('the developers palette matches the rules, which is the only thing enforcing it', () => {
+    // `check:contrast` validates design tokens. It cannot see a hex typed into a
+    // runtime colour picker, which is exactly why the rules constrain the value:
+    // the initials are plum on a PASTEL disc and a dark disc would make them
+    // unreadable. So the client vocabulary and the rules list must be the same list,
+    // or a swatch the UI offers is a value the database refuses.
+    const modelSrc = readFileSync(
+      join(__dirname, '..', 'src', 'app', 'core', 'models', 'developer.model.ts'),
+      'utf8',
+    );
+    const hexes = [...modelSrc.matchAll(/hex: '(#[0-9A-Fa-f]{6})'/g)].map((m) => m[1]);
+    assert.ok(hexes.length > 0, 'DEVELOPER_ACCENTS must declare at least one colour');
+
+    // Read the rules here rather than borrowing the drift-lint suite's `rules`
+    // local, so this test stands alone.
+    const rulesSrc = readFileSync(join(__dirname, '..', 'firestore.rules'), 'utf8');
+    for (const hex of hexes) {
+      assert.ok(
+        rulesSrc.includes(`'${hex}'`),
+        `${hex} is offered by DEVELOPER_ACCENTS but developerIsWellFormed() in ` +
+          'firestore.rules does not list it — the picker would offer a value every save is refused for',
+      );
+    }
+  });
+
+  it('the developers accent set cannot shrink without the rules following', () => {
+    // Five, because that is the set the pastels were chosen as. A silent removal is
+    // the kind of change that reads as a cleanup and strands a stored document whose
+    // accent is no longer writable.
+    const modelSrc = readFileSync(
+      join(__dirname, '..', 'src', 'app', 'core', 'models', 'developer.model.ts'),
+      'utf8',
+    );
+    const hexes = [...modelSrc.matchAll(/hex: '(#[0-9A-Fa-f]{6})'/g)].map((m) => m[1]);
+    assert.equal(hexes.length, 5, 'DEVELOPER_ACCENTS should still hold the five palette discs');
+    assert.equal(new Set(hexes).size, 5, 'the palette must not contain a duplicate');
+  });
+
   it('includes every test suite in verify', () => {
     // The suites that found real bugs, named explicitly. `test:integration` is
     // the one that caught three severe defects while 308 other tests passed.
