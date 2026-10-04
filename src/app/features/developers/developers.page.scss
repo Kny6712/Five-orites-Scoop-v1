@@ -141,10 +141,54 @@ ion-col {
   gap: 5px;
 }
 
+/*
+  Role chips. Background AND foreground are both declared here, per tint.
+
+  They used to be `[color]="getRoleColor(role)"` in the template, which handed Ionic
+  one name and let it pick both halves. The measured result on the live page was
+  five unreadable chips — the label and the pill behind it landing within a few
+  percent of the same lightness (1.11:1 to 3.67:1). `color` is built for tints, not
+  for text contrast.
+
+  Each foreground is `--color-ink`, which `check-contrast.mjs` already asserts
+  against every one of these surfaces at 4.5:1 or better, so these pairs are guarded
+  by the existing gate rather than by a comment. The admin credits page styles its
+  identical chips the same way.
+
+  `--tile-*` rather than the raw brand pastels: the tiles are the lighter surfaces
+  intended for small text, and using them keeps the chips legible at 11px.
+*/
 .role-chip {
   font-size: 11px;
   height: 24px;
   margin: 0;
+  --color: var(--color-ink);
+
+  ion-label {
+    color: var(--color-ink);
+  }
+}
+
+.role-lead {
+  background: var(--tile-powder);
+}
+
+.role-dev {
+  background: var(--tile-mint);
+}
+
+.role-design {
+  background: var(--tile-blush);
+}
+
+.role-qa {
+  background: var(--tile-lemon);
+}
+
+/* An unrecognised role gets a neutral chip rather than a hue of its own. */
+.role-plain {
+  background: var(--ion-color-light);
+  border: 1px solid var(--color-border, #dfe4ec);
 }
 
 // ── Credit ────────────────────────────────────────────────

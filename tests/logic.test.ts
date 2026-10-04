@@ -75,8 +75,8 @@ import {
   type Capability,
   type UserRole,
 } from '../src/app/core/models/user.model';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import * as fnConfig from '../functions/src/config';
 // ── Role / capability model ───────────────────────────────────────────────
 // THE PRODUCTION INCIDENT: a user document's `role` read `"owner\n"` (a
@@ -1325,6 +1325,130 @@ describe('reconcileSize: the anchor is an EPOCH, not the oldest row', () => {
       // the denominator the coverage line divides by without any error surfacing.
       assert.deepEqual([...RECONCILE_SIZES], [...SIZE_VARIANTS]);
     });
+  });
+});
+
+/**
+ * The brand hues must not become foregrounds again.
+ *
+ * `--color-brand-primary` is powder (#8ECAE6) — a SURFACE. Measured off the live
+ * DOM it reads 1.03:1 on mint, 1.79:1 on white and 1.71:1 on cream, so as a
+ * foreground it fails WCAG AA for text and fails the 3:1 floor for a meaningful
+ * icon. The project already has the right answer and already asserts it: plum on
+ * every pastel is in `check-contrast.mjs`, and there are `-Ink` tokens for the
+ * cases where text should read as the brand rather than as the page.
+ *
+ * Eighteen instances were measured and fixed. The nineteen below sit behind
+ * `authGuard` and cannot be measured without credentials, so rather than a blanket
+ * ban — which would be routinely `--force`d and therefore worthless — this is a
+ * ratchet. A new usage fails; a fixed one whose line is not deleted from this list
+ * also fails; and the list is a to-do with owners on it.
+ *
+ * Each entry is `file | selector`, so renaming a selector leaves a stale entry that
+ * fails rather than quietly widening the hole.
+ */
+describe('brand hues are not used as foregrounds (ratchet)', () => {
+  /**
+   * Every `color: var(--color-brand-primary)`-shaped declaration under src/.
+   *
+   * Walks the directory rather than shelling out to `git ls-files`. The first
+   * version used `execSync` without importing it, so the suite threw at
+   * CONSTRUCTION: node marked the suite failed, none of its tests ran, and the
+   * file's totals still read 228/228. A suite that cannot execute is invisible in
+   * the tally, which is the worst possible failure mode for a guard.
+   */
+  function currentUsages(): string[] {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.(scss|css|ts)$/.test(entry.name)) continue;
+        const rel = relative(join(__dirname, '..'), full).replace(/\\/g, '/');
+        const lines = readFileSync(full, 'utf8').split(/\r?\n/);
+        lines.forEach((line, i) => {
+          const m = line.match(
+            /^\s*(color|--color)\s*:\s*var\((--color-brand-primary|--ion-color-primary)\)/,
+          );
+          if (!m) return;
+          // Owning selector: walk back to the nearest line that opens a block.
+          let sel = '';
+          for (let j = i; j >= 0; j--) {
+            if (/[{}]/.test(lines[j])) {
+              sel = lines[j].replace(/[{}]/g, '').trim();
+              break;
+            }
+          }
+          out.push(`${rel.replace('src/app/', '')} | ${sel.slice(0, 40)}`);
+        });
+      }
+    };
+    walk(join(__dirname, '..', 'src'));
+    return out.sort();
+  }
+
+  /**
+   * The reviewed remainder. DELETE AN ENTRY ONLY WHEN YOU FIXED IT.
+   *
+   * Literal strings rather than a count, so a rename cannot silently widen the
+   * hole: a stale entry fails just as loudly as a new one.
+   */
+  const KNOWN_REMAINING = new Set([
+    'admin/inventory/edit-product-modal.component.ts | ion-button.save-btn',
+    'app.component.scss | &.admin-label',
+    'app.component.scss | .admin-nav-icon',
+    'features/auth/auth.page.scss | .toggle-link',
+    'features/cart/cart.page.scss | .item-subtotal',
+    'features/cart/cart.page.scss | .review-item-price',
+    'features/cart/cart.page.scss | .review-label',
+    'features/cart/cart.page.scss | .total-amount',
+    'features/dashboard/dashboard.page.scss | .promo-banner',
+    'features/dashboard/dashboard.page.scss | .see-all-btn',
+    'features/dashboard/voucher-cards/voucher-cards.component.scss | .voucher-empty app-icon',
+    'features/dashboard/voucher-cards/voucher-cards.component.scss | .voucher-mark',
+    'features/orders/order-tracker/order-tracker.page.scss | .grand',
+    'features/orders/order-tracker/order-tracker.page.scss | .info-label',
+    'features/orders/order-tracker/order-tracker.page.scss | .item-price',
+    'features/orders/order-tracker/order-tracker.page.scss | .step-label',
+    'features/products/product-detail/product-detail.page.scss | .line-total',
+    'features/products/product-detail/product-detail.page.scss | .tile-price',
+    'shared/components/product-card/product-card.component.scss | .price',
+  ]);
+
+  it('finds the usages the ratchet is tracking', () => {
+    // If this is 0 the scan stopped matching, which would make both assertions
+    // below vacuously true — a guard that guards nothing while reporting success.
+    assert.ok(
+      currentUsages().length > 0,
+      'the brand-hue scan found nothing; has the pattern or the token names changed?',
+    );
+  });
+
+  it('no NEW brand-hue foreground has been introduced', () => {
+    const fresh = currentUsages().filter((u) => !KNOWN_REMAINING.has(u));
+    assert.deepEqual(
+      fresh,
+      [],
+      'these use a brand hue as a foreground and are not on the reviewed list. Use ' +
+        '--color-ink (plum) on a pastel, or the matching --color-*-ink token when ' +
+        'the text should read as the brand: ' +
+        fresh.join(' | '),
+    );
+  });
+
+  it('every listed usage still exists, so the list is not lying', () => {
+    const found = new Set(currentUsages());
+    const stale = [...KNOWN_REMAINING].filter((u) => !found.has(u)).sort();
+    assert.deepEqual(
+      stale,
+      [],
+      'these are on the reviewed list but no longer exist — you fixed one. Delete ' +
+        'its entry so the ratchet tightens: ' +
+        stale.join(' | '),
+    );
   });
 });
 

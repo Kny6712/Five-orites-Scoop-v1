@@ -150,11 +150,29 @@
                 <h2 class="dev-name">{{ dev.name }}</h2>
                 <div class="dev-roles">
                   @for (role of dev.roles; track role) {
-                    <ion-chip
-                      [color]="getRoleColor(role)"
-                      class="role-chip"
-                      [outline]="getRoleColor(role) === 'medium'"
-                    >
+                    <!--
+                      Explicit colours, NOT `[color]="getRoleColor(role)"`.
+
+                      Ionic's `color` input derives a foreground AND a background
+                      from the same name, with no contrast relationship between
+                      them. Measured on the live DOM it produced:
+
+                        #64B6DD on #8ECAE6   1.27:1   Main Project Lead
+                        #36CFA1 on #5FD9B4   1.14:1   Full Stack Dev
+                        #FFB60A on #FFC53D   1.11:1   UI/UX Designer
+                        #974608 on #B45309   1.31:1   QA
+                        #808289 on #FFF9F4   3.67:1   Documentation
+
+                      Five of five role chips were unreadable, and `color` is the
+                      wrong tool for text contrast — it is built for tints. The
+                      admin version of these same chips already does it correctly
+                      (explicit background plus an ink), so this brings the public
+                      page in line with a pattern already in the codebase.
+
+                      It also drops the double `getRoleColor()` call per chip that
+                      the `[outline]` binding was making.
+                    -->
+                    <ion-chip class="role-chip" [ngClass]="roleClass(role)">
                       <ion-label>{{ role }}</ion-label>
                     </ion-chip>
                   }

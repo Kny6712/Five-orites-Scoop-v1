@@ -92,6 +92,17 @@ const PAIRS = [
   [P.success, P.cream, 3, 'success border on cream'],
   [P.warning, P.cream, 3, 'warning border on cream'],
   [P.danger, P.cream, 3, 'danger border on cream'],
+  // Inks on the PASTEL TILE surfaces. The tiles are what small text is actually
+  // set on - role chips, badges, selected chips - so they need the same treatment
+  // as the brand pastels.
+  //
+  // Added with the commit that fixed the credits role chips, which measured
+  // 1.11:1 to 1.31:1: Ionic's `color` input chose the foreground and the
+  // background independently and never compared them.
+  [P.plum, '#E4F1F8', 4.5, 'plum on powder tile'],
+  [P.plum, '#E4F6EA', 4.5, 'plum on mint tile'],
+  [P.plum, '#FDE8EE', 4.5, 'plum on blush tile'],
+  [P.plum, '#FFF3D6', 4.5, 'plum on lemon tile'],
   // A tinted banner background must be distinguishable from the white card it
   // sits on, or the banner has no edge at all.
   [TONES.successBg, P.white, 1.15, 'success banner bg vs white card'],

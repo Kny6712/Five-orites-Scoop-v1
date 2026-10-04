@@ -69,12 +69,31 @@ export class DevelopersPage implements OnInit, OnDestroy {
    * than white, which clears AA on every one of them.
    */
 
-  getRoleColor(role: string): string {
-    if (role.includes('Lead')) return 'primary';
-    if (role.includes('Full Stack')) return 'secondary';
-    if (role.includes('UI/UX')) return 'tertiary';
-    if (role === 'QA') return 'warning';
-    return 'medium';
+  /**
+   * The tint a role's chip wears, as a class rather than an Ionic colour name.
+   *
+   * This used to return an Ionic colour name — `primary`, `secondary`,
+   * `tertiary`, `warning`, `medium` — which the template passed to `[color]`. Ionic
+   * then derived BOTH the chip background and the label colour from that one name,
+   * choosing among its own tint shades with no contrast relationship between them.
+   * Measured off the live page, all five role chips came out between 1.11:1 and
+   * 3.67:1: the text was the same lightness as the pill behind it.
+   *
+   * A class hands the SCSS both halves at once, so the pair is a decision someone
+   * can read next to the palette instead of an Ionic lookup nobody sees. Every
+   * foreground here is `--color-ink`, which `check-contrast.mjs` already asserts
+   * against each of these surfaces at 4.5:1 or better.
+   *
+   * Unknown roles fall through to `role-plain` rather than getting a hue of their
+   * own — a neutral chip is legible, and inventing a fifth tint would put a new
+   * unchecked pair into the page every time somebody adds a role.
+   */
+  roleClass(role: string): string {
+    if (role.includes('Lead')) return 'role-lead';
+    if (role.includes('Full Stack')) return 'role-dev';
+    if (role.includes('UI/UX')) return 'role-design';
+    if (role === 'QA') return 'role-qa';
+    return 'role-plain';
   }
 
   /**

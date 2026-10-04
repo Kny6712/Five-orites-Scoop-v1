@@ -98,13 +98,25 @@
   transition: background 0.15s ease;
 
   &.active-nav-item {
+    // PLUM, not the brand hue. This row was powder (#8ECAE6) on mint (#5FD9B4),
+    // which measures 1.03:1 — the label and its own background sat at the same
+    // lightness, so the ACTIVE page was the one row in the drawer you could not
+    // read. Measured off the live DOM, not eyeballed.
+    //
+    // Plum on mint is 7.41:1, and it is the convention the rest of the app already
+    // follows: `check-contrast.mjs` asserts plum against every pastel surface, and
+    // the idle rows are plum on cream at 12.34:1. The powder/mint pair was simply
+    // absent from that list, so the gate passed a broken row — the same shape as
+    // every other drift here: two correct halves, nothing asserting they agree.
     --background: var(--color-brand-light);
-    --color: var(--color-brand-primary);
+    --color: var(--color-ink);
     --cart-badge-ring: var(--color-brand-light);
     font-weight: 600;
 
     .nav-icon {
-      color: var(--color-brand-primary);
+      // The icon carries the same label, so it takes the same ink. Powder on mint
+      // is 1.03:1 for the glyph too, and a 1:1 glyph is not an affordance.
+      color: var(--color-ink);
     }
   }
 }
