@@ -162,7 +162,7 @@ above are not mistaken for more than they are.
   written per line alongside the decrement. That path is rule-gated —
   `firestore.rules` has **no** customer branch on `/products` any more, so a
   signed-in customer cannot write a stock level at all, in the app or with the
-  raw SDK. `npm run test:rules` is **120/120** on that, and `npm run verify` is
+  raw SDK. `npm run test:rules` is **172/172** on that, and `npm run verify` is
   green.
   **The one thing this changes for a customer:** an order can be placed, and then
   declined by staff, because nothing was held for it between checkout and
@@ -301,7 +301,7 @@ npm start
 ### 6. Verify the Build
 
 ```bash
-npm run verify        # typecheck + typecheck:scripts + lint + test:logic
+npm run verify        # the whole gate, 11 steps - see `scripts.verify` for the order
                       # + test:rules + check:contrast + build
 ```
 
@@ -320,14 +320,18 @@ Or individually:
 npm run typecheck        # tsc --noEmit against the app tsconfig
 npm run typecheck:scripts# tsc --noEmit against scripts/ — the seeders are outside
                          #   tsconfig.app.json, so nothing else checks them
+npm run typecheck:functions # tsc in functions/ (undeployable on Spark, still typechecked)
+npm run typecheck:templates # ngc. tsc does NOT read templates, so without this no
+                          #   binding, @if/@for block or icon name was ever checked
 npm run lint             # ESLint over src/, scripts/, tests/ and functions/
 npm run lint:fix         # same, with --fix
 npm run format           # Prettier, in place
-npm run format:check     # Prettier, check only (non-blocking in CI)
+npm run format:check     # Prettier, check only
 npm run check:contrast   # WCAG contrast check over the theme tokens
-npm run test:logic       # business-logic unit tests (node:test via tsx) — ~165 cases
-npm run test:rules       # Firestore security rules tests, via the emulator - 143 cases
-npm run test             # Both suites in sequence
+npm run test:logic       # business-logic unit tests (node:test via tsx) — 198 cases
+npm run test:rules       # Firestore security rules tests, via the emulator - 172 cases
+npm run test:integration # stock movement end-to-end, via the emulator - 23 cases
+npm run test             # All three suites in sequence
 npm run build            # production bundle -> www/browser
 ```
 
@@ -403,31 +407,35 @@ npm run build:ios
 
 ## Project Commands
 
-| Command                     | What it does                                                                                                                       |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `npm start`                 | Dev server                                                                                                                         |
-| `npm run build`             | Production bundle to `www/browser`                                                                                                 |
-| `npm run typecheck`         | `tsc --noEmit` against `tsconfig.app.json`                                                                                         |
-| `npm run typecheck:scripts` | `tsc --noEmit` against `scripts/tsconfig.json` — the seeders live outside the app tsconfig, so nothing else checks them            |
-| `npm run lint`              | ESLint over `src/`, `scripts/`, `tests/` and `functions/`                                                                          |
-| `npm run lint:fix`          | The same, with `--fix`                                                                                                             |
-| `npm run format`            | Prettier, in place                                                                                                                 |
-| `npm run format:check`      | Prettier, check only — non-blocking in CI                                                                                          |
-| `npm run check:contrast`    | WCAG contrast check over the theme tokens                                                                                          |
-| `npm run test:logic`        | Unit tests for pricing, delivery, vouchers, stock, ratings — ~165 cases                                                            |
-| `npm run test:rules`        | Security rules tests against the Firestore emulator — 143 cases, all passing (Java required)                                       |
-| `npm run test`              | Both suites in sequence                                                                                                            |
-| `npm run verify`            | `typecheck` + `typecheck:scripts` + `lint` + `test:logic` + `test:rules` + `check:contrast` + `build` — run this before any deploy |
-| `npm run emulators`         | Start the emulator UI to inspect rules interactively                                                                               |
-| `npm run seed`              | Seed 64 products (add `seed:preserve-stock` to keep stock)                                                                         |
-| `npm run seed:admin`        | Promote an account: `npm run seed:admin -- <uid> owner`                                                                            |
-| `npm run images:generate`   | Generate one placeholder SVG per flavor                                                                                            |
-| `npm run images:seed`       | Re-seed with those images, so products are not imageless                                                                           |
-| `npm run upload:images`     | Upload product photos to Cloudinary (`--dir=<folder> --upload --write`)                                                            |
-| `npm run deploy:firestore`  | Deploy rules + indexes                                                                                                             |
-| `npm run deploy:hosting`    | `npm run build` then `firebase deploy --only hosting`                                                                              |
-| `npm run deploy`            | Chained `firestore → hosting`. Works. Functions are **not** in it — see below.                                                     |
-| `npm run deploy:functions`  | Deploy the Cloud Functions. **Always fails here** — Spark cannot deploy functions. Keep it out of any release path.                |
+| Command                       | What it does                                                                                                                                                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm start`                   | Dev server                                                                                                                                                                                                                         |
+| `npm run build`               | Production bundle to `www/browser`                                                                                                                                                                                                 |
+| `npm run typecheck`           | `tsc --noEmit` against `tsconfig.app.json`                                                                                                                                                                                         |
+| `npm run typecheck:scripts`   | `tsc --noEmit` against `scripts/tsconfig.json` — the seeders live outside the app tsconfig, so nothing else checks them                                                                                                            |
+| `npm run typecheck:functions` | `tsc` inside `functions/` - undeployable on Spark, still typechecked                                                                                                                                                               |
+| `npm run typecheck:templates` | `ngc`. `tsc` does not read templates, so without this no binding or icon name was ever type-checked                                                                                                                                |
+| `npm run lint`                | ESLint over `src/`, `scripts/`, `tests/` and `functions/`                                                                                                                                                                          |
+| `npm run lint:fix`            | The same, with `--fix`                                                                                                                                                                                                             |
+| `npm run format`              | Prettier, in place                                                                                                                                                                                                                 |
+| `npm run format:check`        | Prettier, check only. Blocking, in CI as well as locally                                                                                                                                                                           |
+| `npm run check:contrast`      | WCAG contrast check over the theme tokens                                                                                                                                                                                          |
+| `npm run test:logic`          | Unit tests for pricing, delivery, vouchers, stock, ratings — 198 cases                                                                                                                                                             |
+| `npm run test:rules`          | Security rules tests against the Firestore emulator — 172 cases, all passing (Java required)                                                                                                                                       |
+| `npm run test:integration`    | Stock movement end-to-end against the emulator - 23 cases                                                                                                                                                                          |
+| `npm run test`                | `test:logic` + `test:rules` + `test:integration` in sequence                                                                                                                                                                       |
+| `npm run verify`              | 11 steps, in order: `typecheck`, `typecheck:scripts`, `typecheck:functions`, `typecheck:templates`, `lint`, `test:logic`, `test:rules`, `test:integration`, `check:contrast`, `format:check`, `build` - run this before any deploy |
+| `npm run emulators`           | Start the emulator UI to inspect rules interactively                                                                                                                                                                               |
+| `npm run seed`                | Seed 64 products (add `seed:preserve-stock` to keep stock)                                                                                                                                                                         |
+| `npm run seed:admin`          | Promote an account: `npm run seed:admin -- <uid> owner`                                                                                                                                                                            |
+| `npm run seed:developers`     | Publish the five team credits to Firestore. Refuses a second run without `--force`, which would discard edits made in the app                                                                                                      |
+| `npm run images:generate`     | Generate one placeholder SVG per flavor                                                                                                                                                                                            |
+| `npm run images:seed`         | Re-seed with those images, so products are not imageless                                                                                                                                                                           |
+| `npm run upload:images`       | Upload product photos to Cloudinary (`--dir=<folder> --upload --write`)                                                                                                                                                            |
+| `npm run deploy:firestore`    | Deploy rules + indexes                                                                                                                                                                                                             |
+| `npm run deploy:hosting`      | `npm run build` then `firebase deploy --only hosting`                                                                                                                                                                              |
+| `npm run deploy`              | Chained `firestore → hosting`. Works. Functions are **not** in it — see below.                                                                                                                                                     |
+| `npm run deploy:functions`    | Deploy the Cloud Functions. **Always fails here** — Spark cannot deploy functions. Keep it out of any release path.                                                                                                                |
 
 `npm run deploy:hosting` exists so the hosting half can be run on its own after
 `deploy:firestore` — the reason `deploy` chains them is that hosting does not
@@ -446,12 +454,11 @@ now runs both halves in that order, so the usual command is `npm run deploy`.
   reintroduce formatting that prettier would undo. Note that `verify` does **not**
   cover the hook.
 - **`.editorconfig`** — indentation and newline policy for every editor.
-- **GitHub Actions** (`.github/workflows/ci.yml`) — runs the same gates as
-  `verify`, plus a Cloud Functions typecheck, and uploads `www/browser` as an
-  artifact on every run. It is a gate, never a deployment: nothing in it touches
-  Firebase.
+- **GitHub Actions** (`.github/workflows/ci.yml`) — runs `npm run verify`, the same
+  command you run locally, and uploads `www/browser` as an artifact on every run.
+  It is a gate, never a deployment: nothing in it touches Firebase.
 - **Dependabot** (`.github/dependabot.yml`) — dependency update PRs.
-- **Firestore indexes** — 7 composite indexes in `firestore.indexes.json`,
+- **Firestore indexes** — 4 composite indexes in `firestore.indexes.json`,
   deployed by `deploy:firestore`. Hosting deploys do not carry them.
 
 ---
@@ -566,12 +573,10 @@ Angular and Firebase imports.
 
 `npm run test:rules` runs the Firestore security-rules suite against the local
 emulator (requires Java). It needs no credentials and touches no live project,
-and it is **143 cases, all passing** — including the assertions that a customer
-cannot write a product's stock at all. `npm run test` runs both.
+and it is **172 cases, all passing** — including the assertions that a customer
+cannot write a product's stock at all. `npm run test` runs all three suites.
 
-`npm run verify` is the gate, and CI runs the same chain: `typecheck` →
-`typecheck:scripts` → `lint` → `test:logic` → `test:rules` → `check:contrast` →
-`build`.
+`npm run verify` is the gate, and CI runs that same command rather than its own copy
 
 These rules tests exist because a real defect shipped unnoticed: the rules
 reserved product writes for admins while checkout decremented stock as the

@@ -658,6 +658,99 @@ describe('CI runs `verify` rather than a second copy of it', () => {
       );
     }
   });
+
+  /**
+   * The README documents the gate by enumerating it, and that copy was four steps
+   * out of date — it claimed seven, the chain has eleven.
+   *
+   * Worth a guard rather than a fix, because a README that lists the gate is a
+   * copy of the gate in exactly the way ci.yml was, and it had drifted in the same
+   * direction: `typecheck:functions`, `typecheck:templates`, `test:integration`
+   * and `format:check` were all missing, and `format:check` was separately
+   * described as "non-blocking in CI" after `verify` had started blocking on it.
+   *
+   * It costs a reader something specific and hard to notice: someone deciding
+   * whether they need the emulator before pushing reads a list that does not
+   * mention `test:integration`, concludes the 23 stock tests are optional, and
+   * skips them.
+   *
+   * The row is compared against package.json rather than a hand-written list, so
+   * the assertion cannot itself become the stale copy it is checking.
+   */
+  describe('the README documents the same gate', () => {
+    const readme = readFileSync(join(__dirname, '..', 'README.md'), 'utf8');
+
+    const verifySteps = pkg.scripts.verify
+      .split('&&')
+      .map((s) => s.trim().replace(/^npm run /, ''))
+      .filter(Boolean);
+
+    it('names every step the verify chain runs', () => {
+      const row = readme.split(/\r?\n/).find((l) => l.includes('| `npm run verify`'));
+      assert.ok(row, 'README must document `npm run verify`');
+      const missing = verifySteps.filter((s) => !row.includes(`\`${s}\``));
+      assert.deepEqual(
+        missing,
+        [],
+        `verify runs these but the README row omits them: ${missing.join(', ')}`,
+      );
+    });
+
+    it('does not describe format:check as non-blocking', () => {
+      // It stopped being non-blocking when `verify` chained it, and CI runs
+      // `verify`. A reader told it is advisory will not fix formatting locally.
+      const row = readme.split(/\r?\n/).find((l) => l.includes('| `npm run format:check`'));
+      assert.ok(row, 'README must document `npm run format:check`');
+      assert.ok(
+        !/non-blocking/i.test(row),
+        'format:check blocks inside `verify` and CI runs `verify`, so it is not non-blocking',
+      );
+    });
+
+    it('documents every script the gate runs', () => {
+      // The reverse direction, scoped to the GATE rather than to every script in
+      // package.json. A first attempt asserted that for the whole file and
+      // reported `ng`, `watch`, `prepare`, `build:android`, `build:ios`,
+      // `fix:encoding` and `icons:generate` as undocumented — all of them either
+      // Angular scaffolding or one-shot dev utilities that were never part of the
+      // gate, and padding the assertion with exceptions for each would have made
+      // it weaker rather than stronger.
+      //
+      // What matters is narrower: anything you are told to run before pushing must
+      // be findable. That is exactly the verify chain.
+      //
+      // Scoped to the reference TABLE, and matched on the FULL invocation.
+      //
+      // Two weaker versions of this assertion both passed while a canary had
+      // renamed the row, and each failure is instructive:
+      //
+      //   1. A whole-document `includes` was satisfied by a PROSE sentence - six
+      //      places in this file mention `npm run test:rules` outside the table.
+      //   2. Scoping to table rows was still not enough, because the
+      //      `npm run test` row legitimately reads
+      //      "`test:logic` + `test:rules` + `test:integration`", which contains
+      //      the bare backticked name. So the check has to be for
+      //      `npm run <script>` - the thing a reader would actually type.
+      //
+      // Neither was caught by reading the assertion. Both were caught by a canary
+      // that renamed the row and checking that the test went red.
+      //
+      // While doing that, the file turned out to carry FOUR copies of the chain
+      // (a quick-commands block, two prose paragraphs and the verify row). Three
+      // were already wrong. They were replaced with a reference to the single
+      // copy rather than refreshed, so the same drift cannot recur.
+      const tableRows = readme
+        .split(/\r?\n/)
+        .filter((l) => l.trimStart().startsWith('|'))
+        .join('\n');
+      const undocumented = verifySteps.filter((s) => !tableRows.includes(`\`npm run ${s}\``));
+      assert.deepEqual(
+        undocumented,
+        [],
+        `verify runs these and the README command table has no row invoking them: ${undocumented.join(', ')}`,
+      );
+    });
+  });
 });
 
 describe('voucher discount: client and function copies agree', () => {
