@@ -23,6 +23,7 @@ import {
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { DeveloperService } from '../../core/services/developer.service';
 import { initialsOf } from '../../core/logic/flavor';
 import type { Developer } from '../../core/models/developer.model';
@@ -49,6 +50,7 @@ import type { Developer } from '../../core/models/developer.model';
     CartButtonComponent,
     AppIconComponent,
     AppFooterComponent,
+    CloudinaryPipe,
   ],
   templateUrl: './developers.page.html',
   styleUrls: ['./developers.page.scss'],

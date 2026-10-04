@@ -119,6 +119,23 @@ export class AdminSettingsPage implements OnInit {
    */
   scannedRows = signal(0);
   scannedWindow = signal(0);
+  /**
+   * The two counts that stop this panel lying.
+   *
+   * `verified` is the number of stock values actually compared and found to agree.
+   * `unverifiable` is the number with no ledger anchor at all — never compared, so
+   * never cleared.
+   *
+   * Previously the panel reported drift alone and said "1 stock value does not
+   * match the ledger", which reads as though the other 264 were checked and are
+   * fine. They were not: `createProduct` wrote stock without logging a movement,
+   * so 65 of 66 products had no history to check against. A pass that finds one
+   * real problem while silently skipping everything else is worse than useless —
+   * it trains the reader to trust a number that was never computed.
+   */
+  verifiedCount = signal(0);
+  unverifiableCount = signal(0);
+  totalStockValues = signal(0);
   movements = signal<StockMovement[]>([]);
   movementsLoading = signal(false);
 
@@ -198,17 +215,45 @@ export class AdminSettingsPage implements OnInit {
       this.drift.set(report.changes);
       this.scannedRows.set(report.rowsScanned);
       this.scannedWindow.set(report.window);
+      this.verifiedCount.set(report.verified);
+      this.unverifiableCount.set(report.unverifiable);
+      this.totalStockValues.set(report.totalStockValues);
       this.checked.set(true);
       // A new report replaces the old list, which can be shorter.
       this.driftPage.set(1);
-      await this.toast(
-        report.changes.length
-          ? `${report.changes.length} stock ${
-              report.changes.length === 1 ? 'value does' : 'values do'
-            } not match the ledger.`
-          : 'Every stock value checked matches the ledger.',
-        report.changes.length ? 'warning' : 'success',
-      );
+
+      /**
+       * The toast leads with what was ACTUALLY verified, not with what went wrong.
+       *
+       * "No drift found" is not a clean bill of health on its own: with 65 of 66
+       * products having no ledger history, a pass could report zero drift while
+       * having checked almost nothing. Naming the verified count makes the size of
+       * the gap impossible to miss, and when nothing at all could be checked the
+       * toast says THAT rather than implying success.
+       */
+      if (report.verified === 0 && report.changes.length === 0) {
+        await this.toast(
+          `Nothing could be checked — all ${report.unverifiable} stock values have no ` +
+            'ledger history. Run the baseline script to start recording.',
+          'warning',
+        );
+      } else if (report.changes.length) {
+        await this.toast(
+          `${report.changes.length} of ${report.verified + report.changes.length} checked ` +
+            `stock values do not match the ledger${
+              report.unverifiable ? `, ${report.unverifiable} unchecked` : ''
+            }.`,
+          'warning',
+        );
+      } else {
+        await this.toast(
+          `All ${report.verified} checked stock values match the ledger` +
+            (report.unverifiable
+              ? `, but ${report.unverifiable} have no history and were not checked.`
+              : '.'),
+          report.unverifiable ? 'warning' : 'success',
+        );
+      }
     } catch (err: unknown) {
       await this.toast(describeFirestoreError('the stock ledger', err), 'danger');
     } finally {

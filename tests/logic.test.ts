@@ -22,7 +22,14 @@ import {
   clampToStock,
   normaliseStockLines,
   totalStock,
+  SIZE_VARIANTS,
 } from '../src/app/core/logic/stock';
+import {
+  reconcileSize,
+  RESET_REASONS,
+  RECONCILE_SIZES,
+  STOCK_REASON_LABELS,
+} from '../src/app/core/logic/ledger-reconcile';
 import { flavourOf, initialsOf } from '../src/app/core/logic/flavor';
 import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
 import {
@@ -963,6 +970,146 @@ describe('initialsOf', () => {
 
   it('ignores punctuation-only words', () => {
     assert.equal(initialsOf('  ,  .  '), '?');
+  });
+});
+
+describe('reconcileSize: the anchor is an EPOCH, not the oldest row', () => {
+  /**
+   * The real production data this rule exists for. Four rows, all for one flavour,
+   * and they contradict each other: the oldest says the level became 2, the newest
+   * says 48.
+   *
+   * They got that way because `createProduct` wrote stock onto the product
+   * document with no movement row at all, and the CSV importer calls the same
+   * method — so 65 of 66 products had no history, and the four rows that existed
+   * were anchored to a level nothing else agreed with.
+   */
+  const INCOHERENT: Array<{ delta: number; balanceAfter: number; reason: string; size: string }> = [
+    // NEWEST FIRST — the order `orderBy('createdAt','desc')` returns.
+    { delta: -1, balanceAfter: 48, reason: 'manual_adjust', size: 'cup' },
+    { delta: -2, balanceAfter: 49, reason: 'sale', size: 'cup' },
+    { delta: 1, balanceAfter: 51, reason: 'admin_restock', size: 'cup' },
+    { delta: 1, balanceAfter: 2, reason: 'admin_restock', size: 'cup' },
+  ];
+
+  it('reproduces the +48 false positive WITHOUT a reset row', () => {
+    // The bug, pinned. Anchoring on the oldest row gives opening = 2 - 1 = 1, the
+    // deltas sum to -1, so expected = 0 against a stored 48. The check was right
+    // about the arithmetic and wrong about the premise.
+    const r = reconcileSize(INCOHERENT);
+    assert.equal(r.anchored, true);
+    assert.equal(r.expected, 0);
+  });
+
+  it('a baseline row supersedes the incoherent history above it', () => {
+    // The repair. `balanceAfter: 48, delta: +48` asserts "as of now it is 48";
+    // everything above it describes a level that assertion has replaced.
+    const withBaseline = [
+      { delta: 48, balanceAfter: 48, reason: 'baseline', size: 'cup' },
+      ...INCOHERENT,
+    ];
+    const r = reconcileSize(withBaseline);
+    assert.equal(r.anchored, true);
+    assert.equal(r.expected, 48, 'the baseline must win over the incoherent rows');
+    assert.equal(r.supersededRows, 4, 'all four incoherent rows are superseded');
+  });
+
+  it('a stock_intake row works identically — the two reset reasons agree', () => {
+    const withIntake = [
+      { delta: 48, balanceAfter: 48, reason: 'stock_intake', size: 'cup' },
+      ...INCOHERENT,
+    ];
+    assert.equal(reconcileSize(withIntake).expected, 48);
+  });
+
+  it('returns null, NOT zero, when there is no history at all', () => {
+    // The single most damaging thing this function could do is answer 0 here: a
+    // product born with 48 cups and no opening movement would be indistinguishable
+    // from real tampering. Null means "cannot be checked".
+    const r = reconcileSize([]);
+    assert.equal(r.anchored, false);
+    assert.equal(r.expected, null);
+  });
+
+  it('a coherent chain still anchors on the oldest row when there is no reset', () => {
+    const coherent = [
+      { delta: -2, balanceAfter: 8, reason: 'sale', size: 'cup' },
+      { delta: -1, balanceAfter: 10, reason: 'sale', size: 'cup' },
+      { delta: 20, balanceAfter: 11, reason: 'admin_restock', size: 'cup' },
+    ];
+    // opening = 11 - 20 = -9; deltas -2 -1 +20 = 17; expected 8.
+    assert.equal(reconcileSize(coherent).expected, 8);
+    assert.equal(reconcileSize(coherent).supersededRows, 0);
+  });
+
+  it('detects real drift AFTER a reset, which is the whole point', () => {
+    // Baseline says 48, then someone moved it to 45 through no app path.
+    const rows = [
+      { delta: -3, balanceAfter: 45, reason: 'manual_adjust', size: 'cup' },
+      { delta: 48, balanceAfter: 48, reason: 'baseline', size: 'cup' },
+    ];
+    assert.equal(reconcileSize(rows).expected, 45, 'expected must follow real movements');
+  });
+
+  it('uses the OLDEST reset when there are several', () => {
+    const rows = [
+      { delta: -1, balanceAfter: 19, reason: 'manual_adjust', size: 'cup' },
+      { delta: 5, balanceAfter: 20, reason: 'baseline', size: 'cup' },
+      { delta: 10, balanceAfter: 15, reason: 'baseline', size: 'cup' },
+      { delta: 2, balanceAfter: 5, reason: 'admin_restock', size: 'cup' },
+    ];
+    // Newest-first, so the OLDEST reset is the LAST one: delta 10, balanceAfter
+    // 15. The opening is that row's OWN pair, 15 - 10 = 5 — not its predecessor's
+    // delta, which is the mistake this test was first written with. Everything at
+    // or after the anchor sums -1 + 5 + 10 = 14, so the level is 19.
+    //
+    // Anchoring on the NEWEST reset would give 20, so this distinguishes the two.
+    // The oldest `admin_restock` row is superseded and ignored.
+    assert.equal(reconcileSize(rows).expected, 19);
+    assert.equal(reconcileSize(rows).supersededRows, 1);
+  });
+
+  it('a reset row with delta 0 is a pure assertion of the level', () => {
+    assert.equal(
+      reconcileSize([{ delta: 0, balanceAfter: 33, reason: 'baseline', size: 'cup' }]).expected,
+      33,
+    );
+  });
+
+  describe('the reset-reason list cannot drift from the service', () => {
+    it('every reason in the union has a label', () => {
+      // A reason added to the union without a label renders as a blank chip in the
+      // movements table, which reads as a rendering bug rather than missing copy.
+      const labelled = Object.keys(STOCK_REASON_LABELS);
+      for (const reason of RESET_REASONS) {
+        assert.ok(
+          labelled.includes(reason),
+          `${reason} resets the epoch but has no entry in STOCK_REASON_LABELS`,
+        );
+      }
+      // And the other direction: a label with no reason is dead copy.
+      for (const label of labelled) {
+        assert.ok(
+          (Object.keys(STOCK_REASON_LABELS) as string[]).includes(label),
+          `${label} has a label`,
+        );
+      }
+    });
+
+    it('the reset set holds only real reasons', () => {
+      for (const reason of RESET_REASONS) {
+        assert.ok(
+          reason in STOCK_REASON_LABELS,
+          `${reason} resets the epoch but is not a member of the reason vocabulary`,
+        );
+      }
+    });
+
+    it('the reconcile size list matches the app size list', () => {
+      // `totalStockValues` is products x sizes.length, so a stale copy would change
+      // the denominator the coverage line divides by without any error surfacing.
+      assert.deepEqual([...RECONCILE_SIZES], [...SIZE_VARIANTS]);
+    });
   });
 });
 

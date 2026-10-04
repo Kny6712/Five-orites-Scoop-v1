@@ -83,10 +83,24 @@ ion-col {
   width: 72px;
   height: 72px;
   border-radius: 50%;
+  /* Clips the photo to the circle. Without it a square upload shows its corners
+     outside the disc, and the initials branch has no equivalent problem — which
+     is exactly why the omission is invisible until someone uploads a photo. */
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+}
+
+/* Covers the same disc as .dev-initials, so the card is one size whether a
+   person has a photo or not. `cover` rather than `contain` so an off-centre
+   upload is cropped to the face instead of shrinking to a letterboxed stamp. */
+.dev-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .dev-initials {

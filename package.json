@@ -37,7 +37,8 @@
     "test:integration": "firebase emulators:exec --only firestore --project five-orites-scoop-stock-test \"tsx --test tests/order-stock.integration.test.ts\"",
     "typecheck:functions": "npm --prefix functions run build",
     "typecheck:templates": "node scripts/check-templates.mjs templates",
-    "seed:developers": "npx ts-node --project scripts/tsconfig.json scripts/seed-developers.ts"
+    "seed:developers": "npx ts-node --project scripts/tsconfig.json scripts/seed-developers.ts",
+    "baseline:ledger": "npx ts-node --project scripts/tsconfig.json scripts/baseline-ledger.ts"
   },
   "private": true,
   "//engines": "Angular 17 is built and tested against Node 18.13.x / 20.9.x (see .nvmrc = 20). Its `engines` field is a floor, not a ceiling, so npm silently accepts Node 22/24 and you get failures with no diagnostic pointing at the version. This upper bound fails fast instead. `node -v` before blaming the build.",

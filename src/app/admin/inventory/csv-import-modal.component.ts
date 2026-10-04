@@ -83,11 +83,44 @@ import { csvFilename } from '../../core/logic/csv';
         </div>
         <details class="help">
           <summary>Which columns?</summary>
+          <table class="col-table">
+            <thead>
+              <tr>
+                <th scope="col">Column</th>
+                <th scope="col">Required</th>
+                <th scope="col">Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (col of columnHelp; track col.key) {
+                <tr>
+                  <td class="col-names">
+                    @for (name of col.columns; track name) {
+                      <code>{{ name }}</code>
+                    }
+                  </td>
+                  <td>
+                    @if (col.required) {
+                      <span class="col-yes">Required</span>
+                    } @else {
+                      <span class="col-no">Optional</span>
+                    }
+                  </td>
+                  <td>{{ col.notes }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
           <p>
-            <code>set_number, set_name, variant_name</code> are required. <code>description</code>,
-            <code>category</code> (flavor / sundae / cone) and the four price and stock columns are
-            optional. Names are matched loosely, so <code>Price (Half Gallon)</code> works as well
-            as <code>half_gallon_price</code>. Lines starting with <code>#</code> are ignored.
+            Headers are matched loosely — case, spaces, underscores, hyphens and parentheses are
+            ignored on both sides, so <code>Price (Half Gallon)</code> and
+            <code>half_gallon_price</code> are the same column. Anything unrecognised is listed
+            after you pick a file rather than dropped in silence.
+          </p>
+          <p>
+            A line whose first cell starts with <code>#</code> is a comment and is skipped. Two rows
+            sharing a <code>set_number</code> and <code>variant_name</code> would be the same
+            product, so the second is rejected — as is any row already in the catalog.
           </p>
         </details>
       } @else {
@@ -191,6 +224,54 @@ import { csvFilename } from '../../core/logic/csv';
         line-height: 1.6;
         opacity: 0.8;
       }
+      /* A table, not a sentence. The prose version buried the only decision an
+         admin actually has to make — which three columns are required — inside a
+         run-on paragraph with monospace column names in it, which read as
+         developer output rather than as UI. */
+      .col-table {
+        width: 100%;
+        margin: 10px 0;
+        border-collapse: collapse;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .col-table th,
+      .col-table td {
+        text-align: left;
+        vertical-align: top;
+        padding: 6px 8px 6px 0;
+        border-bottom: 1px solid var(--ion-color-light, #eef2f7);
+      }
+      .col-table th {
+        /* Small, wide-tracked and quiet: the header row is a label for the three
+           columns below it, not content competing with them. */
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--ion-color-medium, #999);
+      }
+      .col-table tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      /* Each accepted spelling on its own line, so the four price or stock
+         columns read as the set they are rather than one long unbreakable run. */
+      .col-names {
+        white-space: nowrap;
+      }
+      .col-names code {
+        display: block;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        word-break: break-all;
+      }
+      .col-yes {
+        font-weight: 700;
+        color: var(--color-primary-ink);
+      }
+      .col-no {
+        opacity: 0.55;
+      }
     `,
   ],
 })
@@ -212,6 +293,74 @@ export class CsvImportModalComponent {
   readonly valid = computed(() => this.plan()?.valid ?? []);
   readonly errors = computed(() => this.plan()?.errors ?? []);
   readonly unknown = computed(() => this.plan()?.unknownColumns ?? []);
+
+  /**
+   * The parser's column contract, as a table.
+   *
+   * Every row here is derived from `parseProductCsv`, because the parser is the
+   * contract and this text only describes it — a help panel that drifts from the
+   * code is worse than none, because it gets trusted.
+   *
+   * Three rules the old prose left out are now explicit, and they are the ones
+   * that cost an admin a failed import: the four price columns are individually
+   * optional but the FILE is refused when no price parses anywhere (`hasPrices`
+   * in the parser); a blank description is not stored blank, it is written from
+   * the two name columns in commit() below; and header matching strips case,
+   * spaces, underscores, hyphens and parentheses from BOTH sides, so
+   * `Price (Half Gallon)` really does reach the same key as `half_gallon_price`.
+   *
+   * The four sizes are two rows rather than eight: the size is the only thing
+   * that differs between them, and a phone-width modal cannot show thirteen.
+   */
+  readonly columnHelp: readonly {
+    key: string;
+    columns: readonly string[];
+    required: boolean;
+    notes: string;
+  }[] = [
+    {
+      key: 'setNumber',
+      columns: ['set_number'],
+      required: true,
+      notes: 'Whole number of 1 or more. Also read as set, set_no or flavor_set.',
+    },
+    {
+      key: 'setName',
+      columns: ['set_name'],
+      required: true,
+      notes: 'Which set this flavor belongs to. Also read as name or collection.',
+    },
+    {
+      key: 'variantName',
+      columns: ['variant_name'],
+      required: true,
+      notes: 'The flavor name itself. Also read as variant, flavor, flavour or flavor_name.',
+    },
+    {
+      key: 'description',
+      columns: ['description'],
+      required: false,
+      notes: 'Leave it blank and one is written from the two names above.',
+    },
+    {
+      key: 'category',
+      columns: ['category'],
+      required: false,
+      notes: 'flavor, sundae or cone — blank means flavor. Also read as type or catalog_type.',
+    },
+    {
+      key: 'price',
+      columns: ['cup_price', 'pint_price', 'half_gallon_price', 'gallon_price'],
+      required: false,
+      notes: 'Rounded to whole pesos; blank is 0. A file with no usable price anywhere is refused.',
+    },
+    {
+      key: 'stock',
+      columns: ['cup_stock', 'pint_stock', 'half_gallon_stock', 'gallon_stock'],
+      required: false,
+      notes: 'Whole number of 0 or more; blank is 0.',
+    },
+  ];
 
   async onCsvPicked(event: Event): Promise<void> {
     const input = event.target as HTMLInputElement;

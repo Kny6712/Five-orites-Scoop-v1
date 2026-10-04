@@ -17,21 +17,12 @@ import {
   IonItem,
   IonInput,
   IonTextarea,
-  IonSelect,
-  IonSelectOption,
   ModalController,
   ToastController,
 } from '@ionic/angular/standalone';
 import { InventoryService } from '../../core/services/inventory.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import {
-  Product,
-  ProductCategory,
-  SizePricing,
-  SizeVariant,
-  PRODUCT_CATEGORIES,
-  productCategory,
-} from '../../core/models/product.model';
+import { Product, SizePricing, SizeVariant } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 import { flavourOf } from '../../core/logic/flavor';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
@@ -52,8 +43,6 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
     IonItem,
     IonInput,
     IonTextarea,
-    IonSelect,
-    IonSelectOption,
     IonFooter,
     CloudinaryPipe,
   ],
@@ -80,12 +69,6 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
               ></ion-input>
             </ion-item>
             <!--
-              Catalog type. Shown pre-filled from the stored value, defaulting to
-              'flavor' for a product seeded before the field existed — so opening
-              this modal on one of the original 64 and saving does not silently
-              relabel it.
-            -->
-            <!--
               Flavor, derived — not a control.
 
               Read-only because there is nothing to choose: the flavour IS the
@@ -100,8 +83,12 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
               answer "Chocolate" for every one of them. core/logic/flavor.ts lists
               them.
 
-              Distinct from Type, which answers a different question. Type is what
-              FORM the product is (flavor / sundae / cone); Flavor is which FLAVOUR.
+              This used to be described as distinct from a Type control answering a
+              different question (what FORM the product is, vs which FLAVOUR).
+              There is no Type control in this modal any more: it was removed
+              because nothing here can change a product's form, and the one
+              non-flavor in the catalog was never edited from here. See the note on
+              category in save().
             -->
             <ion-item>
               <ion-input
@@ -111,19 +98,6 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
                 readonly
                 aria-label="Flavor, derived from the product's set"
               ></ion-input>
-            </ion-item>
-            <ion-item>
-              <ion-select
-                label="Type"
-                labelPlacement="stacked"
-                interface="popover"
-                [(ngModel)]="category"
-                aria-label="Product type"
-              >
-                @for (opt of categoryOptions; track opt.value) {
-                  <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-                }
-              </ion-select>
             </ion-item>
             <ion-item>
               <ion-textarea
@@ -424,12 +398,6 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
 
   variantName = '';
   description = '';
-  /** Catalog type, pre-filled from the stored value in ngOnInit. */
-  category: string = 'flavor';
-  readonly categoryOptions: { label: string; value: string }[] = PRODUCT_CATEGORIES.map((c) => ({
-    label: c.label,
-    value: c.value,
-  }));
   isSaving = false;
 
   /**
@@ -477,10 +445,6 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
     if (this.product) {
       this.variantName = this.product.variantName;
       this.description = this.product.description ?? '';
-      // productCategory() maps a missing field to 'flavor', so a product seeded
-      // before categories existed opens with the right value selected rather
-      // than an empty control that would overwrite it on save.
-      this.category = productCategory(this.product);
       // Seed the price boxes from what is stored, and remember that value so
       // `priceChanged` can tell a real edit from a form that was merely opened.
       const p = this.product.pricing;
@@ -581,9 +545,9 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
         imageUrl = '';
       }
 
-      // Stock is deliberately not touched here — it is edited from the
-      // inventory list's steppers, so this modal only owns the descriptive
-      // fields and the price.
+      // Stock is deliberately not touched here — it is entered when a product is
+      // created and adjusted from the inventory list's steppers, so this modal
+      // only owns the descriptive fields and the price.
       const patch: Parameters<InventoryService['updateProductDetails']>[1] = {
         variantName: name,
         description: this.description.trim(),
@@ -592,14 +556,22 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
       // rewrite the pricing map on every rename, which is how an unrelated edit
       // turns into a silent price change.
       if (this.priceChanged) patch.pricing = { ...this.price };
-      // Only send category when it actually differs from what is stored, so
-      // renaming a flavor of a category-less product does not backfill the field
-      // as a side effect of an unrelated edit.
-      if (this.category !== productCategory(this.product)) {
-        patch.category = this.category as ProductCategory;
-      }
-      // Only send imageUrl when it actually changes, so an unrelated rename
-      // never rewrites the photo field.
+      // `category` is absent from this patch ON PURPOSE, and it is the one field
+      // whose absence is load-bearing rather than merely untidy.
+      //
+      // `updateProductDetails` calls `updateDoc`, which is a field-level merge:
+      // keys the patch does not mention are left exactly as they are. Omitting
+      // `category` therefore means the sundae in the catalog keeps its
+      // `category: 'sundae'`, and the sixty-five products written before the
+      // field existed keep having no field at all — neither group can be
+      // flattened by renaming a flavor here.
+      //
+      // The alternative was to carry the loaded value through on every save,
+      // which would BACKFILL `category: 'flavor'` onto all sixty-five as a side
+      // effect of an unrelated edit. There is no Type control left in this modal
+      // to make that a deliberate act, so there is nothing to send.
+      // Only imageUrl is written when it actually changes, so an unrelated
+      // rename never rewrites the photo field.
       if (imageUrl !== undefined) patch.imageUrl = imageUrl;
 
       await this.inventoryService.updateProductDetails(this.product.id, patch);

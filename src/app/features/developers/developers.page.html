@@ -127,8 +127,23 @@
         <ion-col size="12" size-md="6" size-lg="4">
           <ion-card class="dev-card">
             <ion-card-content class="dev-card-content">
+              <!--
+                The photo when there is one, the initials when there is not, on the
+                same accent disc — so a card is the same size in both states and the
+                grid does not reflow the moment an owner uploads a photo.
+
+                256 here rather than the admin list's 128, and the difference is not
+                an inconsistency: these are the page's focal images at 72px CSS,
+                which is ~216 device px on a 3x phone, so 128 is already under 1:1
+                and visibly soft. 128 is correct for the admin row's 56px thumbnail
+                and should stay there.
+              -->
               <ion-avatar class="dev-avatar" [style.background]="dev.accent">
-                <div class="dev-initials">{{ initialsFor(dev) }}</div>
+                @if (dev.photoURL) {
+                  <img class="dev-photo" [src]="dev.photoURL | cloudinary: 256" [alt]="dev.name" />
+                } @else {
+                  <div class="dev-initials">{{ initialsFor(dev) }}</div>
+                }
               </ion-avatar>
 
               <div class="dev-info">

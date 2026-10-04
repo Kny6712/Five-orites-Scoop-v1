@@ -10,7 +10,6 @@ import {
   limit,
   onSnapshot,
   doc,
-  addDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
@@ -337,21 +336,74 @@ export class InventoryService {
   }): Promise<string> {
     if (!input.variantName.trim()) throw new Error('Variant name is required.');
     const productsCol = collection(this.firestore, 'products');
-    const ref = await addDoc(productsCol, {
-      setNumber: input.setNumber,
-      setName: input.setName.trim(),
-      variantName: input.variantName.trim(),
-      description: (input.description || '').trim(),
-      imageUrl: (input.imageUrl || '').trim(),
-      // Always written, defaulting to 'flavor', so new documents are complete.
-      // Existing documents without the field remain valid — the rule only
-      // constrains the value when it is present.
-      category: input.category ?? 'flavor',
-      pricing: input.pricing,
-      stock: input.stock,
-      isActive: true,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+
+    /**
+     * THE OPENING MOVEMENT, AND WHY IT IS IN THE SAME TRANSACTION.
+     *
+     * This used to write the product with its stock and log NOTHING. That is the
+     * root cause of the reconciliation panel reporting nonsense: a product whose
+     * stock never entered the ledger has no anchor to compare against, so it
+     * cannot be verified — and the pass used to skip it in silence rather than say
+     * so. In the live catalogue 65 of 66 products were in exactly that state,
+     * with four movement rows in the entire project.
+     *
+     * Logging the opening level fixes it at the source for every product created
+     * from now on, and it is what makes reconciliation meaningful rather than
+     * decorative: a flavour born at 20 cups now has an anchor saying 20, so a
+     * later out-of-band change to 48 is real drift and is reported as such.
+     *
+     * `reason: 'stock_intake'` rather than `admin_restock`, because it is not a
+     * restock — it is the assertion that establishes the chain. Reconciliation
+     * treats that reason as an EPOCH START (`STOCK_REASON_RESET`), which is what
+     * lets a baseline repair a product without deleting the incoherent rows above
+     * it.
+     *
+     * Same transaction as the product write, following `adjustStock`: a movement
+     * can never exist for a product that was not created, nor a product created
+     * with stock the ledger has never heard of.
+     *
+     * Zero sizes are skipped rather than logged as zero rows — an opening balance
+     * of 0 says nothing, and 64 products x 4 sizes would be 256 writes to record
+     * nothing. `scripts/baseline-ledger.ts` does the same for the existing
+     * catalogue.
+     */
+    const ref = doc(productsCol);
+    await runTransaction(this.firestore, async (tx) => {
+      tx.set(ref, {
+        setNumber: input.setNumber,
+        setName: input.setName.trim(),
+        variantName: input.variantName.trim(),
+        description: (input.description || '').trim(),
+        imageUrl: (input.imageUrl || '').trim(),
+        // Always written, defaulting to 'flavor', so new documents are complete.
+        // Existing documents without the field remain valid — the rule only
+        // constrains the value when it is present.
+        category: input.category ?? 'flavor',
+        pricing: input.pricing,
+        stock: input.stock,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      const actorUid = this.authService.currentUserSnapshot?.uid ?? null;
+      for (const size of SIZE_VARIANTS) {
+        const level = input.stock[size] ?? 0;
+        if (level === 0) continue;
+        tx.set(doc(collection(this.firestore, 'stockMovements')), {
+          productId: ref.id,
+          variantName: input.variantName.trim(),
+          size,
+          // The whole level is the delta, because before this row the level was
+          // implicitly zero — there was no product.
+          delta: level,
+          balanceAfter: level,
+          reason: 'stock_intake',
+          orderId: null,
+          actorUid,
+          createdAt: serverTimestamp(),
+        });
+      }
     });
     return ref.id;
   }

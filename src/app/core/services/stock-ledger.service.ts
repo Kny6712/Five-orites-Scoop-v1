@@ -46,14 +46,28 @@ import {
  * ledger can tell a real sale apart from a staff member's manual restock — the
  * two used to be indistinguishable, which is the whole reason the ledger exists.
  */
-export type StockReason = 'manual_adjust' | 'admin_restock' | 'sale' | 'cancel_restock';
+import {
+  RECONCILE_SIZES,
+  reconcileSize,
+  RESET_REASONS,
+  STOCK_REASON_LABELS,
+  type StockReason,
+} from '../logic/ledger-reconcile';
 
-export const STOCK_REASON_LABELS: Record<StockReason, string> = {
-  manual_adjust: 'Adjusted in inventory',
-  admin_restock: 'Restocked',
-  sale: 'Sold',
-  cancel_restock: 'Cancelled order returned',
-};
+/**
+ * Re-exported, not redefined.
+ *
+ * The reason vocabulary and the epoch rule are pure data and belong in
+ * `core/logic`, where `tests/logic.test.ts` can import them — importing them from
+ * here instead made the whole suite fail to load, because this service calls
+ * `inject()` and imports AngularFire. Keeping the definitions there and
+ * re-exporting means every existing consumer of these names keeps working and
+ * there is still exactly one copy. See `ledger-reconcile.ts`.
+ */
+export { STOCK_REASON_LABELS, type StockReason };
+
+/** Alias kept for callers that want to be explicit about what the set means. */
+export const STOCK_REASON_RESET = RESET_REASONS;
 
 export interface StockMovement {
   id: string;
@@ -97,11 +111,37 @@ export interface UnloggedChange {
  * ledger it looked at, which is why the report carries both numbers instead of
  * returning a bare array: `rowsScanned >= window` means the ledger is longer
  * than the pass covered.
+ *
+ * WHY `unverifiable` AND `verified` EXIST, and this is the second honesty bug in
+ * this feature.
+ *
+ * The pass previously returned only `changes`, and any product/size with no
+ * movement rows was skipped without a word. The panel then read "1 stock value
+ * does not match the ledger" — which implies the other 65 products were compared
+ * and are clean. They were never compared. `createProduct` writes stock straight
+ * onto the product document with no movement row, and the CSV importer calls the
+ * same method, so in the live catalogue 65 of 66 products had NO history at all
+ * and only 4 movement rows existed in the entire project.
+ *
+ * So the pass was reporting one real finding while implying 65 clean bills of
+ * health it had never checked. `verified` counts the stock values actually
+ * compared and found to agree; `unverifiable` counts those with no anchor to
+ * compare against. A reader can then see that "1 drifted" sits inside a much
+ * larger "0 verified".
+ *
+ * `totalStockValues` is the denominator: products x sizes. It is what makes the
+ * three counts add up, so the panel cannot quietly under-report.
  */
 export interface ReconciliationReport {
   changes: UnloggedChange[];
   rowsScanned: number;
   window: number;
+  /** Stock values with a usable anchor whose stored level AGREES with the ledger. */
+  verified: number;
+  /** Stock values with no anchor at all — never compared, so never cleared. */
+  unverifiable: number;
+  /** products x sizes, the denominator the other two counts sit inside. */
+  totalStockValues: number;
 }
 
 /**
@@ -179,18 +219,34 @@ export class StockLedgerService {
    * `record()` — in practice, a signed-in customer with the raw SDK, which the
    * rules cannot prevent.
    *
-   * Compares `stored` against the sum of deltas plus an opening balance, and the
-   * opening balance is taken as the first row's `balanceAfter - delta`. That
-   * works even though only the most recent `RECONCILE_WINDOW` rows are read: the
-   * anchor is derived rather than assumed, so a truncated history does not report
-   * every product as drifted.
+   * THE ANCHOR IS AN EPOCH, NOT "THE OLDEST ROW".
    *
-   * COVERAGE IS THE WINDOW, NOT THE CATALOGUE. One ordered read of the newest
-   * `RECONCILE_WINDOW` rows replaces the old query-per-product sweep (up to 12,800
-   * reads per press), and a flavor with no movement inside that window is not
-   * compared. That is a real reduction in coverage, which is why this returns a
-   * `ReconciliationReport` carrying `rowsScanned` and `window` — the caller has
-   * to display the window it actually inspected.
+   * The opening balance is taken as `balanceAfter - delta` of an anchor row, and
+   * everything at or after that row is summed. Previously the anchor was simply
+   * the oldest row visible, which is correct only while the history is coherent
+   * from the very beginning.
+   *
+   * It was not. `createProduct` writes stock onto the product document with no
+   * movement row, and the CSV importer calls the same method, so seeded stock
+   * never entered the ledger. In the live catalogue that produced exactly this:
+   * four movement rows for one flavour, whose oldest said `balanceAfter: 2` and
+   * whose newest said `48` — a chain that contradicts itself, which the old
+   * anchor faithfully reconstructed as 0 and reported as "+48 drift".
+   *
+   * So the anchor is now the oldest row whose reason is in `STOCK_REASON_RESET`
+   * (`stock_intake` or `baseline`), falling back to the oldest row overall when
+   * there is none. A row that asserts "as of now this is N" supersedes
+   * everything before it, which is what makes `scripts/baseline-ledger.ts`
+   * actually repair a product — without deleting the incoherent rows above it,
+   * which `firestore.rules` rightly forbids and which would throw away history.
+   *
+   * COVERAGE IS THE WINDOW, NOT THE CATALOGUE, and it is now COUNTED. One
+   * ordered read of the newest `RECONCILE_WINDOW` rows replaces the old
+   * query-per-product sweep (up to 12,800 reads per press). A flavour whose
+   * movements all predate the window has no anchor inside it and is counted as
+   * `unverifiable` — never as clean. Returning `verified` and `unverifiable`
+   * alongside `changes` is what stops the panel implying that silence means
+   * agreement; see `ReconciliationReport`.
    */
   async findUnloggedChanges(
     products: {
@@ -200,7 +256,9 @@ export class StockLedgerService {
       stock?: Record<string, number>;
     }[],
   ): Promise<ReconciliationReport> {
-    const sizes = ['cup', 'pint', 'halfGallon', 'gallon'] as const;
+    // The shared list, not a second literal: `totalStockValues` is derived from it,
+    // so a copy here would silently change the denominator the panel divides by.
+    const sizes = RECONCILE_SIZES;
     const out: UnloggedChange[] = [];
 
     // ONE query for the whole pass, not one per product. `recent()` is already
@@ -208,10 +266,9 @@ export class StockLedgerService {
     // single-field index serves it and no composite index is involved.
     const rows = await this.recent(RECONCILE_WINDOW);
 
-    // Grouped in QUERY ORDER (newest first) and never re-sorted: the
-    // opening-balance anchor below reads the LAST row of each size group as the
-    // oldest, and a Map preserves insertion order, so each group stays
-    // newest-first for free.
+    // Grouped in QUERY ORDER (newest first) and never re-sorted: the anchor
+    // lookup below reads the LAST matching row as the oldest, and a Map preserves
+    // insertion order, so each group stays newest-first for free.
     const byProduct = new Map<string, StockMovement[]>();
     for (const row of rows) {
       const group = byProduct.get(row.productId);
@@ -219,21 +276,31 @@ export class StockLedgerService {
       else byProduct.set(row.productId, [row]);
     }
 
-    const catalogue = new Map(products.map((p) => [p.id, p]));
-    for (const [productId, productRows] of byProduct) {
-      // A movement for a flavor that is no longer in the catalogue has no stored
-      // level to be compared against, so it is not drift and is not reported.
-      const p = catalogue.get(productId);
-      if (!p) continue;
+    let verified = 0;
+    let unverifiable = 0;
+
+    for (const p of products) {
+      const productRows = byProduct.get(p.id);
       for (const size of sizes) {
-        const forSize = productRows.filter((r) => r.size === size);
-        if (forSize.length === 0) continue;
-        const loggedSum = forSize.reduce((s, r) => s + (r.delta ?? 0), 0);
-        // Rows arrive newest-first, so the LAST one is the oldest.
-        const oldest = forSize[forSize.length - 1];
-        const opening = (oldest.balanceAfter ?? 0) - (oldest.delta ?? 0);
-        const expected = opening + loggedSum;
+        // Scoped to the CATALOGUE, not to the groups: a product with no movement
+        // rows never appears as a key in `byProduct`, so iterating the map instead
+        // would silently skip it — which is precisely the 65 products this pass
+        // used to pretend it had cleared.
+        //
+        // Rows arrive newest-first, which `reconcileSize` requires: the anchor is
+        // the LAST matching row, so the order is load-bearing, not incidental.
+        const forSize = (productRows ?? []).filter((r) => r.size === size);
+        const { expected, anchored } = reconcileSize(forSize);
+        if (!anchored || expected === null) {
+          // Never compared, so never cleared. Counting it is what stops the report
+          // implying that silence means agreement — `reconcileSize` returns null
+          // rather than 0 precisely so "no history" cannot be mistaken for drift.
+          unverifiable++;
+          continue;
+        }
+
         const stored = p.stock?.[size] ?? 0;
+
         if (expected !== stored) {
           out.push({
             productId: p.id,
@@ -243,9 +310,23 @@ export class StockLedgerService {
             logged: expected,
             drift: stored - expected,
           });
+        } else {
+          verified++;
         }
       }
     }
-    return { changes: out, rowsScanned: rows.length, window: RECONCILE_WINDOW };
+
+    // Movements for a flavour that has since been deleted from the catalogue are
+    // read but never compared — there is no stored level to compare them against.
+    // They are deliberately NOT added to `unverifiable`, which counts stock
+    // values in the catalogue; a deleted flavour has no stock value left to check.
+    return {
+      changes: out,
+      rowsScanned: rows.length,
+      window: RECONCILE_WINDOW,
+      verified,
+      unverifiable,
+      totalStockValues: products.length * sizes.length,
+    };
   }
 }

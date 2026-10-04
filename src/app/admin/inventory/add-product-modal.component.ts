@@ -23,14 +23,9 @@ import {
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { InventoryService } from '../../core/services/inventory.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import { SET_NAMES, getPricingForSet } from '../../core/config/pricing.config';
-import { PRODUCT_CATEGORIES, ProductCategory } from '../../core/models/product.model';
-
-/** Minimal shape for a select option; avoids a dependency on a UI types file. */
-interface SelectOption {
-  label: string;
-  value: string;
-}
+import { SET_NAMES, SIZE_DISPLAY_LABELS, getPricingForSet } from '../../core/config/pricing.config';
+import { SizeVariant } from '../../core/models/product.model';
+import { SIZE_VARIANTS, totalStock } from '../../core/logic/stock';
 
 @Component({
   selector: 'app-add-product-modal',
@@ -129,23 +124,11 @@ interface SelectOption {
         }
 
         <!--
-          Catalog type. Defaults to Flavor, which is what every one of the 64
-          seeded products is, so an admin adding another flavor does not have to
-          think about it. Scones and cones exist because the plan names them.
+          No Type control. Everything this form can create is a flavor, so the
+          dropdown was a decision the admin almost never needed to make and had
+          no good answer for in the one case that mattered. See the category field
+          in create() for why the value is still written.
         -->
-        <ion-item>
-          <ion-select
-            label="Type"
-            labelPlacement="stacked"
-            interface="popover"
-            [(ngModel)]="category"
-            aria-label="Product type"
-          >
-            @for (opt of categoryOptions; track opt.value) {
-              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-            }
-          </ion-select>
-        </ion-item>
 
         <ion-item>
           <ion-textarea
@@ -156,6 +139,43 @@ interface SelectOption {
             [(ngModel)]="description"
           ></ion-textarea>
         </ion-item>
+
+        <!--
+          Initial stock, entered at creation instead of afterwards.
+
+          It used to be hardcoded to zero and the success toast said "Set its
+          stock next", so every new product started unbuyable and had to be
+          hunted down on the inventory card. Zeros are still the default — a
+          flavor catalogued before it is stocked is an ordinary case — but the
+          count can now be typed once instead of dialled in one tap at a time.
+
+          Plain number boxes, deliberately NOT steppers: a stepper is right for
+          nudging a live figure by one (that is what the inventory card is for)
+          and wrong for entering twenty. The split is intentional, not an
+          oversight.
+        -->
+        <h3 class="section-title">Initial stock</h3>
+        <p class="section-note">Units on hand right now. Leave at 0 to fill it in later.</p>
+        <div class="stock-grid">
+          @for (f of stockFields; track f.key) {
+            <ion-item>
+              <ion-input
+                [label]="f.label"
+                labelPlacement="stacked"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                step="1"
+                placeholder="0"
+                [ngModel]="stockInput[f.key]"
+                (ngModelChange)="onStockInput(f.key, $event)"
+              ></ion-input>
+            </ion-item>
+          }
+        </div>
+        @if (stockError) {
+          <p class="field-error">{{ stockError }}</p>
+        }
 
         <h3 class="section-title">Product Image (optional)</h3>
         <div
@@ -217,6 +237,31 @@ interface SelectOption {
         font-weight: 800;
         color: var(--ion-color-dark);
         margin: 18px 2px 4px;
+      }
+      .section-note {
+        margin: 0 2px 4px;
+        font-size: 12px;
+        line-height: 1.4;
+        color: var(--ion-color-medium);
+      }
+      /* Two columns of stock boxes rather than four stacked rows — the four
+         sizes are a set the admin reads ACROSS, not a list they read down.
+         Same treatment as the pricing grid in the edit modal. */
+      .stock-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 8px;
+      }
+      @media (max-width: 380px) {
+        .stock-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .field-error {
+        margin: 8px 2px 0;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--color-danger, #c62828);
       }
       .img-box {
         position: relative;
@@ -322,21 +367,77 @@ export class AddProductModalComponent {
   newSetName = '';
   variantName = '';
   description = '';
-  /**
-   * Catalog type. Defaults to 'flavor' so the common case needs no decision.
-   * Typed as a string rather than ProductCategory because it round-trips
-   * through ngModel, and ProductCategory is imported for the options list and
-   * for the cast at save time.
-   */
-  category: string = 'flavor';
-  readonly categoryOptions: SelectOption[] = PRODUCT_CATEGORIES.map((c) => ({
-    label: c.label,
-    value: c.value,
-  }));
   pendingFile: File | null = null;
   previewObjectUrl = '';
   isSaving = false;
   isUploading = false;
+
+  /**
+   * The four stock boxes, labelled from `SIZE_DISPLAY_LABELS` and ORDERED BY
+   * `SIZE_VARIANTS`.
+   *
+   * Driving both from the shared source is what keeps this section from
+   * becoming a third place that has to be edited when a size is added or
+   * reordered. (The owner asked for Cup, Pint, Gallon, Half Gallon; that order
+   * was not adopted, because it disagrees with the canonical one used by the
+   * pricing matrix, the cart and the inventory card.)
+   */
+  readonly stockFields: readonly { key: SizeVariant; label: string }[] = SIZE_VARIANTS.map((k) => ({
+    key: k,
+    label: SIZE_DISPLAY_LABELS[k],
+  }));
+
+  /**
+   * The stock boxes as raw text, not numbers.
+   *
+   * A `number` model cannot represent what the admin is partway through typing
+   * — "" while the field is empty, "-2" while a mistake is being corrected —
+   * and coercing on the way in would silently rewrite their typing into
+   * something they never wrote. Held raw here, validated on the way out.
+   */
+  stockInput: Record<SizeVariant, string> = { cup: '', pint: '', halfGallon: '', gallon: '' };
+
+  /**
+   * The message for the first size that cannot be written, or null.
+   *
+   * `sizeIsSane` in firestore.rules is the actual guarantee — a negative or
+   * fractional count is rejected server-side whatever this form sends. This
+   * exists so the admin gets "Half Gallon must be a whole number of 0 or more"
+   * next to the box they typed it into, rather than a rules error after the
+   * fact. It is a readable message, not a security boundary.
+   *
+   * Only the first offending size is named: which box is wrong is a one-glance
+   * read, and four simultaneous messages would bury it.
+   *
+   * An empty box is 0, not an error. A flavor catalogued before it is stocked
+   * is an ordinary product, and clearing a box while retyping must not light
+   * the form up red.
+   */
+  get stockError(): string | null {
+    for (const { key, label } of this.stockFields) {
+      const raw = this.stockInput[key].trim();
+      if (raw === '') continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+        return `${label} must be a whole number of 0 or more.`;
+      }
+    }
+    return null;
+  }
+
+  onStockInput(key: SizeVariant, value: unknown): void {
+    this.stockInput[key] = value === null || value === undefined ? '' : String(value);
+  }
+
+  /** The raw text as the four numbers to write. Only called once validated. */
+  private stockLevels(): Record<SizeVariant, number> {
+    const out = {} as Record<SizeVariant, number>;
+    for (const { key } of this.stockFields) {
+      const raw = this.stockInput[key].trim();
+      out[key] = raw === '' ? 0 : Number(raw);
+    }
+    return out;
+  }
 
   get isNewSet(): boolean {
     return this.selectedSet === 'new';
@@ -442,6 +543,18 @@ export class AddProductModalComponent {
       }
     }
 
+    // Checked after the names rather than before: the boxes sit lower in the
+    // form, so a form that is wrong in both places should complain about the
+    // thing above first. Toasted as well as shown inline because the button
+    // lives at the bottom of a scrolling sheet — the admin may be looking at it,
+    // not at the box.
+    const stockError = this.stockError;
+    if (stockError) {
+      await this.toast(stockError, 'danger');
+      return;
+    }
+    const stock = this.stockLevels();
+
     this.isSaving = true;
     try {
       // Device image → Cloudinary URL first; empty when no image was picked.
@@ -460,14 +573,28 @@ export class AddProductModalComponent {
         variantName: variant,
         description: this.description.trim() || 'New Five-orites flavor.',
         imageUrl: finalImageUrl,
-        category: this.category as ProductCategory,
+        // Always 'flavor', and no longer a control.
+        //
+        // The form used to offer a Type dropdown. Of the 66 products in
+        // production, 65 carry no `category` at all and the one that does is a
+        // sundae — so the dropdown asked a question with one overwhelmingly
+        // obvious answer, and an admin adding a cone or a sundae had to be told
+        // that this is where you do that. The VALUE is still written, because
+        // what was removed is the control, not the field: a new document should
+        // be complete, and categoryIsValid() only constrains the field when it
+        // is present.
+        category: 'flavor',
         pricing: getPricingForSet(setNumber),
-        stock: { cup: 0, pint: 0, halfGallon: 0, gallon: 0 },
+        stock,
       });
+      // The "Set its stock next" nudge is gone now that stock is entered above,
+      // but only the part that was wrong. A product that really did go in at
+      // zero still needs saying: it is live and unbuyable until someone fills it
+      // from the inventory list.
+      const zeroStockNote = totalStock(stock) === 0 ? ' It starts at zero stock.' : '';
       await this.toast(
-        this.isNewSet
-          ? `✅ Set ${setNumber} · ${setName} created. Set its stock next.`
-          : '✅ Product created. Set its stock next.',
+        (this.isNewSet ? `✅ Set ${setNumber} · ${setName} created.` : '✅ Product created.') +
+          zeroStockNote,
         'success',
       );
       await this.modalCtrl.dismiss({ created: true });

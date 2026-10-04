@@ -73,6 +73,49 @@ import { ImageReplaceSheetComponent } from './image-replace-sheet.component';
   ],
   templateUrl: './inventory.page.html',
   styleUrls: ['./inventory.page.scss'],
+  /*
+    The set-filter chip row, copied verbatim from admin/users
+    (.role-chips / .role-chip / .role-chip.active) rather than written fresh, so
+    the two admin surfaces look like one app instead of a shared design system
+    with two implementations of it.
+
+    In the decorator and not in inventory.page.scss because that file is outside
+    the ownership boundary of this change; the rules are the same three blocks,
+    and they can move next to .inv-header in the stylesheet whenever the file is
+    next opened. No `.active` rule of its own is needed on top of these — the
+    pressed state is the filled pill, exactly as on /admin/users.
+  */
+  styles: [
+    `
+      .role-chips {
+        display: flex;
+        gap: var(--space-2);
+        margin-top: var(--space-3);
+        flex-wrap: wrap;
+      }
+
+      .role-chip {
+        min-height: 38px;
+        padding: 0 var(--space-4);
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--color-primary-ink);
+        background: transparent;
+        color: var(--color-primary-ink);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          color 0.15s ease;
+      }
+
+      .role-chip.active {
+        background: var(--color-brand-primary);
+        color: var(--color-ink);
+      }
+    `,
+  ],
 })
 export class InventoryPage implements OnInit, OnDestroy {
   private inventoryService = inject(InventoryService);
@@ -94,7 +137,6 @@ export class InventoryPage implements OnInit, OnDestroy {
   readonly PAGE_SIZE = 8;
 
   products = signal<Product[]>([]);
-  filteredProducts = signal<Product[]>([]);
   isLoading = signal(true);
   /**
    * Set when the catalog read fails. An empty list here used to mean two very
@@ -103,7 +145,108 @@ export class InventoryPage implements OnInit, OnDestroy {
    */
   loadError = signal('');
 
-  /** 1-based. Reset to 1 on search, so a filtered set never opens on a page 4. */
+  /**
+   * The search text, held as a signal rather than folded straight into a list.
+   *
+   * `onSearch` used to push the narrowed array straight into `filteredProducts`,
+   * which left nothing behind to ask the question the set chips are answered
+   * from: what does the search admit, ignoring the set filter?
+   */
+  searchTerm = signal('');
+
+  /**
+   * The set filter: `'all'`, or one `setNumber` from the loaded catalog.
+   *
+   * A number and not a name, because `setNumber` is what every product actually
+   * carries, and it is what the cards already show beside the set name.
+   */
+  readonly setFilter = signal<number | 'all'>('all');
+
+  /**
+   * Everything the SEARCH admits, with the set filter deliberately not applied.
+   *
+   * This intermediate step exists only so `setChips` can be counted against it.
+   * A chip counting the whole catalog makes a promise the click cannot keep:
+   * search "mint", read "Chocolates (8)", tap it, and get nothing back — because
+   * none of those eight match "mint". A count is a forecast of what clicking
+   * will yield, so it has to be computed from the narrower of the two inputs.
+   */
+  readonly searchScoped = computed(() => {
+    const q = this.searchTerm().trim().toLowerCase();
+    return q
+      ? this.products().filter(
+          (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q),
+        )
+      : this.products();
+  });
+
+  /**
+   * What the grid renders: the search, then the set filter on top of it.
+   *
+   * Derived, not written by two handlers into one signal — the count line, the
+   * pager and the empty state all read this, and there is now no way for them to
+   * describe a different list from the rows.
+   */
+  readonly filteredProducts = computed(() => {
+    const set = this.setFilter();
+    return set === 'all'
+      ? this.searchScoped()
+      : this.searchScoped().filter((p) => p.setNumber === set);
+  });
+
+  /**
+   * One chip per set in the catalog, each labelled with how many of its flavors
+   * the current SEARCH admits.
+   *
+   * Derived from the loaded products, and NOT from `SET_NAMES` in
+   * core/config/pricing.config.ts, which is the obvious thing to reach for and is
+   * wrong here: that constant defines sets 1–8 only, while the live catalog
+   * carries a ninth — set 9, Pistachio — that it has never heard of. A chip row
+   * built from it would list eight of the nine sets and hide Pistachio from the
+   * one admin whose entire job is to restock it. Which sets exist is data, and
+   * the honest source for it is the data.
+   *
+   * Two passes because there are two questions. `products()` says which sets
+   * exist at all; `searchScoped` says how many of each the search admits. A set
+   * the search misses keeps its chip at "(0)" instead of disappearing: a chip row
+   * that rearranged itself under a search would drop the ACTIVE chip out of view
+   * at the exact moment the grid went empty, leaving no pressed chip to explain
+   * the empty grid.
+   */
+  readonly setChips = computed(() => {
+    const counts = new Map<number, number>();
+    for (const p of this.searchScoped()) {
+      counts.set(p.setNumber, (counts.get(p.setNumber) ?? 0) + 1);
+    }
+    const names = new Map<number, string>();
+    for (const p of this.products()) {
+      // First name seen wins, so a doc renamed after its set-mates still yields
+      // one chip rather than two. The `||` is the same defence loadProducts
+      // applies to a partial doc: a missing setName must not render a chip with
+      // nothing in it but a count.
+      if (!names.has(p.setNumber)) names.set(p.setNumber, p.setName || `Set ${p.setNumber}`);
+    }
+    return [...names]
+      .map(([setNumber, label]) => ({ setNumber, label, count: counts.get(setNumber) ?? 0 }))
+      .sort((a, b) => a.setNumber - b.setNumber);
+  });
+
+  /**
+   * The active set's name, for the empty state.
+   *
+   * Needed because a "(0)" chip can be the active one: the grid is then empty,
+   * with no card left to show which set is narrowing it, and "no product matches
+   * that search" sends the admin to the searchbar over a search that was fine.
+   */
+  readonly activeSetLabel = computed(
+    () => this.setChips().find((c) => c.setNumber === this.setFilter())?.label ?? '',
+  );
+
+  /**
+   * 1-based. Reset to 1 on search AND on a set chip, so a filtered set never
+   * opens on a page 4 — or, worse, stays on page 7 after being narrowed to one
+   * page of results.
+   */
   readonly page = signal(1);
 
   readonly totalCount = computed(() => this.filteredProducts().length);
@@ -212,7 +355,6 @@ export class InventoryPage implements OnInit, OnDestroy {
           },
         }));
         this.products.set(normalised);
-        this.filteredProducts.set(normalised);
         this.page.set(1);
         this.isLoading.set(false);
       },
@@ -222,7 +364,6 @@ export class InventoryPage implements OnInit, OnDestroy {
         // catalog rather than a failed read.
         console.error('Load products error:', err);
         this.products.set([]);
-        this.filteredProducts.set([]);
         this.loadError.set(describeFirestoreError('the catalog', err));
         this.isLoading.set(false);
       },
@@ -230,16 +371,26 @@ export class InventoryPage implements OnInit, OnDestroy {
   }
 
   onSearch(event: CustomEvent): void {
-    const q = (event.detail.value ?? '').toLowerCase();
-    this.filteredProducts.set(
-      q
-        ? this.products().filter(
-            (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q),
-          )
-        : this.products(),
-    );
+    this.searchTerm.set(event.detail.value ?? '');
     // A search can shrink the result set below the current page, which would
     // otherwise leave the list blank with the pager on page 4 of 1.
+    this.page.set(1);
+  }
+
+  /**
+   * Apply a set chip.
+   *
+   * A method rather than `(click)="setFilter.set(chip.setNumber)"` in the
+   * template, solely for the reset — and it resets for the reason onSearch does:
+   * narrowing to a set shrinks the result set, and the grid would otherwise sit
+   * empty with the pager on page 7 of 1.
+   *
+   * The filter itself survives a search, and vice versa: they are two facets of
+   * the same question, and clearing the searchbar should not silently discard a
+   * set the admin chose.
+   */
+  onSetFilter(set: number | 'all'): void {
+    this.setFilter.set(set);
     this.page.set(1);
   }
 
