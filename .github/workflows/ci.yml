@@ -85,7 +85,7 @@ jobs:
       # developer's own machine (Java 24) kept passing. It is a floor, and 21 is
       # the floor: the lowest version that works, which is the opposite of
       # chasing the newest.
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '21'
