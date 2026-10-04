@@ -39,8 +39,21 @@
 
     <div class="price-stock-row">
       <span class="price">{{ currentPrice() | peso }}</span>
+      <!--
+        Explicit tone classes, NOT [color].
+        Ionic's color input derives a foreground AND a background from one name with no
+        relationship between them, which is why "In Stock" measured 1.12:1 - the label
+        and the pill within a percent of the same lightness. color is built for tints,
+        not for text contrast. Same defect already fixed on /developers.
+      -->
       <ion-chip
-        [color]="currentStock() === 0 ? 'danger' : currentStock() < lowStockThreshold() ? 'warning' : 'success'"
+        [ngClass]="
+          currentStock() === 0
+            ? 'stock-chip-out'
+            : currentStock() < lowStockThreshold()
+              ? 'stock-chip-low'
+              : 'stock-chip-ok'
+        "
         class="stock-chip"
       >
         <ion-label>

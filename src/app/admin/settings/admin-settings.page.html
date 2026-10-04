@@ -112,16 +112,62 @@
         rules cannot prevent. It reads a window of recent movements rather than the whole ledger, and the window it used
         is printed under the results.
       </p>
-      <ion-button expand="block" fill="outline" (click)="reconcile()" [disabled]="checking()">
+      <ion-button expand="block" fill="outline" class="reconcile-btn" (click)="reconcile()" [disabled]="checking()">
         {{ checking() ? 'Checking…' : 'Run reconciliation check' }}
       </ion-button>
 
       @if (checked() && drift().length === 0) {
-        <app-alert-banner
-          tone="success"
-          title="Everything reconciles"
-          message="Every stock value checked matches its logged movements."
-        />
+        <!--
+          "Everything reconciles" is only true of what was COMPARED, and the
+          banner says how much that was. It used to read "Every stock value
+          checked matches its logged movements" over a pass where 260 of 264
+          values had no ledger history to check against at all — a green banner
+          over an almost-empty check. The count is now in the message, and the
+          `warning` branch fires when nothing was verifiable, because "we checked
+          nothing" is not good news.
+        -->
+        @if (verifiedCount() === 0) {
+          <app-alert-banner
+            tone="warning"
+            title="Nothing could be checked"
+            [message]="
+              'All ' +
+              totalStockValues() +
+              ' stock values have no ledger history, so none of them were compared. This is expected for products created before opening movements were recorded — run the baseline script to start tracking them.'
+            "
+          />
+        } @else {
+          <app-alert-banner
+            tone="success"
+            title="Everything checked reconciles"
+            [message]="
+              'All ' +
+              verifiedCount() +
+              ' checked stock values match their logged movements.' +
+              (unverifiableCount() ? ' ' + unverifiableCount() + ' have no ledger history and were NOT checked.' : '')
+            "
+          />
+        }
+      }
+
+      <!--
+        THE COVERAGE LINE — the most important sentence in this panel.
+
+        Drift, agreement and silence are three different results, and the panel
+        used to report only the first while implying the second covered everything.
+        Printing all three against the catalogue total makes the gap between
+        "checked and correct" and "never looked at" impossible to miss, which is
+        the difference between a useful integrity check and a green tick that
+        means nothing.
+      -->
+      @if (checked()) {
+        <p class="panel-note coverage-note">
+          <strong>{{ drift().length }}</strong> drifted · <strong>{{ verifiedCount() }}</strong> checked and correct ·
+          <strong>{{ unverifiableCount() }}</strong> with no ledger history, not checked
+          @if (totalStockValues() > 0) {
+            · of {{ totalStockValues() }} stock values in total
+          }
+        </p>
       }
 
       <!--

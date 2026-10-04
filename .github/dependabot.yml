@@ -52,6 +52,11 @@ updates:
           - "tsx"
           - "ts-node"
           - "eslint"
+          # Scoped, not named: @typescript-eslint/parser was absent from this list
+          # entirely, so it fell through UNGROUPED and was offered 7 -> 8 as a major
+          # (PR #11, red). Bare "typescript" above does not match it - the patterns are
+          # exact names or globs, not prefixes.
+          - "@typescript-eslint/*"
           - "prettier"
           - "husky"
           - "lint-staged"
@@ -66,12 +71,57 @@ updates:
           - "firebase"
           - "@angular/fire"
           - "@firebase/*"
+        # The comment above this group says majors are "surfaced individually rather
+        # than batched" - but with no cap here they were batched into a single PR (#10)
+        # and it went red. The config contradicted itself. Capping the group is the
+        # part that matches the stated intent; the ignore block below is stronger still
+        # and is called out in the commit message.
+        update-types:
+          - minor
+          - patch
     ignore:
       # firebase-tools is pinned deliberately. @angular/fire@17 declares an
       # OPTIONAL peer on firebase-tools@^13, but this project needs v15 for
       # `firebase emulators:exec` and the v1 Firestore emulator it ships.
       # See the `overrides` block in package.json.
       - dependency-name: firebase-tools
+        update-types:
+          - version-update:semver-major
+
+      # ── Majors are migrations. Ignore them rather than deleting the branch ──
+      #
+      # All six of these produced a RED pull request on 2026-10-04, and four of them
+      # were already inside a group capped to minor+patch - so the group caps alone
+      # are not load-bearing and `ignore` is applied as well. It is the older, stable
+      # mechanism and it applies per dependency without depending on whether a pattern
+      # happened to match a group, so a future rename cannot silently reopen this.
+      #
+      # Each is a migration rather than an upgrade:
+      #   @angular/*        17 -> 22 is a framework migration with its own release
+      #                      cadence, not a version bump
+      #   @capacitor/*      plugins are locked to @capacitor/core
+      #   firebase, @firebase/*, @angular/fire
+      #                      majors move the rules tooling and emulator behaviour
+      #   @typescript-eslint/*  a major often tightens rules this repo would then fail
+      #
+      # Minors and patches still arrive, grouped - including the six patches and
+      # action bumps that are currently green.
+      - dependency-name: "@angular/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@angular/fire"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@capacitor/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@firebase/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "firebase"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "@typescript-eslint/*"
         update-types:
           - version-update:semver-major
 
@@ -95,6 +145,26 @@ updates:
       firebase-admin:
         patterns:
           - "firebase-admin"
+        update-types:
+          - minor
+          - patch
+      # Ungrouped before this, so it was offered 5 -> 7 as a major (PR #8, red).
+      tooling:
+        patterns:
+          - "typescript"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Same reasoning as the app entry: majors here are migrations, and both of
+      # these produced red PRs (typescript 5 -> 7, firebase-admin to a version that
+      # reads like a git hash). Minors and patches still arrive.
+      - dependency-name: "typescript"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: "firebase-admin"
+        update-types:
+          - version-update:semver-major
 
   # ── GitHub Actions ──────────────────────────────────────────────────────
   # actions/checkout@v4 and setup-node@v4 are pinned to a major, so a supply

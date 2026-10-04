@@ -295,7 +295,8 @@ npm run deploy:firestore
 ### 5. Run in Browser
 
 ```bash
-npm start
+npm start              # ng serve against the LOCAL EMULATOR (safe default)
+npm run start:prod     # ng serve against PRODUCTION - every control there writes
 ```
 
 ### 6. Verify the Build
@@ -405,11 +406,48 @@ npm run build:ios
 
 ---
 
+## Local development
+
+`npm start` runs against the **local Firebase emulators**. That is the safe
+default on purpose, and it was the opposite until recently: `environment.ts`
+hard-coded `projectId: 'five-orites-scoop'` and the `development` build
+configuration did not replace it, so `npm start` served a fully working admin app
+backed by the real database. Every control in that app writes — stock levels,
+products, roles, order cancellations — and exercising a UI change against live
+data fills the stock ledger with rows describing changes nobody made.
+
+| Command                 | What it does                                                      |
+| ----------------------- | ----------------------------------------------------------------- |
+| `npm run dev:emulator`  | **Start here.** Emulators + seed + dev server, in the right order |
+| `npm run emulators`     | Just the emulators (Firestore 8080, Auth 9099, UI 4000)           |
+| `npm run seed:emulator` | Seed products into the emulator — **no credentials needed**       |
+| `npm start`             | Dev server against the emulator                                   |
+| `npm run start:prod`    | Dev server against **production**                                 |
+
+To sign in, create an account in the Auth emulator UI at
+<http://localhost:4000/auth> and give it a role — the emulator enforces the same
+`firestore.rules` as production, so an account with no role sees nothing.
+
+Two things the sandbox does **not** isolate, both deliberate:
+
+- **Cloudinary is real.** There is no Cloudinary emulator, so a photo uploaded in
+  local development still lands in the actual media library. The Firestore row
+  referencing it is local; the asset is not.
+- **Nothing persists.** Emulator data is in-memory, so stopping it discards
+  everything. That is the point.
+
+`tests/logic.test.ts` asserts that `npm start` names the emulator configuration
+and that `environment.ts` states `useEmulator: false`. The failure that guard
+exists for is invisible: nothing breaks if someone adds `--configuration
+production` to `start` — the app just quietly writes to the real database.
+
+---
+
 ## Project Commands
 
 | Command                       | What it does                                                                                                                                                                                                                       |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm start`                   | Dev server                                                                                                                                                                                                                         |
+| `npm start`                   | Dev server against the LOCAL emulator. `start:prod` is the explicit opt-in to production                                                                                                                                           |
 | `npm run build`               | Production bundle to `www/browser`                                                                                                                                                                                                 |
 | `npm run typecheck`           | `tsc --noEmit` against `tsconfig.app.json`                                                                                                                                                                                         |
 | `npm run typecheck:scripts`   | `tsc --noEmit` against `scripts/tsconfig.json` — the seeders live outside the app tsconfig, so nothing else checks them                                                                                                            |

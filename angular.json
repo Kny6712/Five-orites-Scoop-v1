@@ -83,6 +83,30 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            // The SAFE development configuration, and the one `npm start` uses.
+            //
+            // It exists because `development` above resolves to `environment.ts`,
+            // which hard-codes the production projectId — so plain `npm start`
+            // served a fully working admin app backed by the real database. Every
+            // control there writes.
+            //
+            // Swapping in `environment.emulator.ts` is what makes the app connect to
+            // the Firestore and Auth emulators that `firebase.json` has been
+            // configuring all along. Reachable explicitly as `npm run serve:prod`,
+            // because someone occasionally does need to look at real data, and
+            // because a deliberately-requested production connection is defensible
+            // in a way an accidental one is not.
+            "emulator": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.emulator.ts"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -94,6 +118,13 @@
               "buildTarget": "app:build:production"
             },
             "development": {
+              "buildTarget": "app:build:development"
+            },
+            "emulator": {
+              "buildTarget": "app:build:emulator"
+            },
+            // Explicit opt-in to talking to the real project from a dev server.
+            "prod": {
               "buildTarget": "app:build:development"
             }
           },

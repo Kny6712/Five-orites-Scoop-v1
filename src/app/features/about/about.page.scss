@@ -82,6 +82,14 @@
 }
 
 // ── Story: copy beside the shop ──────────────────────────
+/* Every other section in .about-body owns the space below it (.mv-section and
+   .features-section --space-6, .how-section --space-4, .tech-section
+   --space-3), and .about-body is a plain block flow with no gap — so without
+   this the name triptych runs straight into the Mission & Vision grid. */
+.story-section {
+  margin-bottom: var(--space-6);
+}
+
 /* Below 900px the aside stacks under the text. Above it, they sit side by side,
    because a founding story with the location next to it is the pairing that
    makes the section worth the space. */
@@ -407,6 +415,14 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
+
+  // The chip LABELS measured #64B6DD on cream — 2.17:1. Ionic picks a chip label's
+  // colour from its own tint shades, and this one landed barely darker than the
+  // ground. Declaring the foreground here overrides that derivation, and ink on
+  // cream is 12.34:1.
+  ion-label {
+    color: var(--color-ink);
+  }
 }
 
 // ── CTA ─────────────────────────────────────────────────
@@ -425,6 +441,11 @@
 
 .team-cta-btn {
   --border-radius: var(--radius-pill);
+  // Declared because an `ion-button` with `fill="outline"` otherwise inherits
+  // `--ion-color-primary` — the powder brand hue — which measured 1.71:1 on this
+  // page's cream ground. At 14px/800 it is NOT WCAG large text, so it needs the
+  // full 4.5:1, and primary-ink clears it.
+  --color: var(--color-primary-ink);
   font-weight: 800;
   min-height: 44px;
 }

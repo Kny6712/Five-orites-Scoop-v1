@@ -127,19 +127,52 @@
         <ion-col size="12" size-md="6" size-lg="4">
           <ion-card class="dev-card">
             <ion-card-content class="dev-card-content">
+              <!--
+                The photo when there is one, the initials when there is not, on the
+                same accent disc — so a card is the same size in both states and the
+                grid does not reflow the moment an owner uploads a photo.
+
+                256 here rather than the admin list's 128, and the difference is not
+                an inconsistency: these are the page's focal images at 72px CSS,
+                which is ~216 device px on a 3x phone, so 128 is already under 1:1
+                and visibly soft. 128 is correct for the admin row's 56px thumbnail
+                and should stay there.
+              -->
               <ion-avatar class="dev-avatar" [style.background]="dev.accent">
-                <div class="dev-initials">{{ initialsFor(dev) }}</div>
+                @if (dev.photoURL) {
+                  <img class="dev-photo" [src]="dev.photoURL | cloudinary: 256" [alt]="dev.name" />
+                } @else {
+                  <div class="dev-initials">{{ initialsFor(dev) }}</div>
+                }
               </ion-avatar>
 
               <div class="dev-info">
                 <h2 class="dev-name">{{ dev.name }}</h2>
                 <div class="dev-roles">
                   @for (role of dev.roles; track role) {
-                    <ion-chip
-                      [color]="getRoleColor(role)"
-                      class="role-chip"
-                      [outline]="getRoleColor(role) === 'medium'"
-                    >
+                    <!--
+                      Explicit colours, NOT `[color]="getRoleColor(role)"`.
+
+                      Ionic's `color` input derives a foreground AND a background
+                      from the same name, with no contrast relationship between
+                      them. Measured on the live DOM it produced:
+
+                        #64B6DD on #8ECAE6   1.27:1   Main Project Lead
+                        #36CFA1 on #5FD9B4   1.14:1   Full Stack Dev
+                        #FFB60A on #FFC53D   1.11:1   UI/UX Designer
+                        #974608 on #B45309   1.31:1   QA
+                        #808289 on #FFF9F4   3.67:1   Documentation
+
+                      Five of five role chips were unreadable, and `color` is the
+                      wrong tool for text contrast — it is built for tints. The
+                      admin version of these same chips already does it correctly
+                      (explicit background plus an ink), so this brings the public
+                      page in line with a pattern already in the codebase.
+
+                      It also drops the double `getRoleColor()` call per chip that
+                      the `[outline]` binding was making.
+                    -->
+                    <ion-chip class="role-chip" [ngClass]="roleClass(role)">
                       <ion-label>{{ role }}</ion-label>
                     </ion-chip>
                   }

@@ -1,0 +1,35 @@
+# Line endings are decided here, once, rather than in each developer's checkout.
+#
+# The symptom this fixes: `core.autocrlf=true` with no `.gitattributes`, on Windows.
+# Git checked files out as CRLF, Prettier wanted LF, and `npm run verify` failed on
+# 35 files that nobody had edited - including README.md, firebase.json and files
+# untouched for months. Every fix was the same non-fix: run `prettier --write`, which
+# writes LF, which git converts back to CRLF on the next checkout. A gate that fails
+# for a reason unrelated to your change is a gate people learn to ignore, or to
+# `--force` past.
+#
+# `eol=lf` is the important half. With only `text=auto`, git still applies the local
+# autocrlf on checkout; `eol=lf` pins the working tree to LF regardless of the
+# developer's OS, which is also what the containerised build and CI see.
+#
+# `text=auto` lets git detect binary content rather than being told, so the SVG icons
+# stay text (and stay diffable) without a rule per asset.
+
+* text=auto eol=lf
+
+# Genuinely binary. Marked `-text` so git neither scans nor converts it.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+
+# package-lock.json is deliberately NOT listed. npm writes it as text on every
+# platform, so it wants the same normalisation as everything else - marking it
+# `-text` would exempt it and let whatever a single machine emitted become the
+# committed truth.

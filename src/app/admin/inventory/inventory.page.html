@@ -31,8 +31,8 @@
 
   <!--
     A failed catalog read must not look like an empty one. The error branch
-    replaces the count, the search bar, and the bulk actions, because all three
-    act on data that never arrived â€” Add Product in particular builds its
+    replaces the count, the search bar, the set filter, and the bulk actions, because all
+    four act on data that never arrived â€” Add Product in particular builds its
     set-number options from the loaded catalog, so over a failed read it would
     silently fall back to a hardcoded default.
   -->
@@ -54,6 +54,41 @@
         class="inv-search"
         aria-label="Search inventory"
       ></ion-searchbar>
+      <!--
+        The set filter, in the same chip idiom as the role chips on /admin/users.
+
+        Inside this branch rather than below the loadError branch on purpose: like
+        the search bar and the bulk actions, the chips are built out of the loaded
+        catalog, and over a failed read there is no catalog to build them from.
+
+        `All` counts every search hit, not what the grid is showing, so it reads as
+        "how wide can I go" next to a set chip's "how much is this one worth".
+        The per-set counts are scoped to the SEARCH rather than to the whole
+        catalog — see setChips in the page for why that distinction is the whole
+        point of the number.
+      -->
+      <div class="role-chips" role="group" aria-label="Filter by set">
+        <button
+          type="button"
+          class="role-chip"
+          [class.active]="setFilter() === 'all'"
+          [attr.aria-pressed]="setFilter() === 'all'"
+          (click)="onSetFilter('all')"
+        >
+          All ({{ searchScoped().length }})
+        </button>
+        @for (chip of setChips(); track chip.setNumber) {
+          <button
+            type="button"
+            class="role-chip"
+            [class.active]="setFilter() === chip.setNumber"
+            [attr.aria-pressed]="setFilter() === chip.setNumber"
+            (click)="onSetFilter(chip.setNumber)"
+          >
+            {{ chip.label }} ({{ chip.count }})
+          </button>
+        }
+      </div>
       <p class="inv-count">
         @if (totalCount() === 0) {
           No products
@@ -65,7 +100,9 @@
       </p>
       <div class="inv-actions">
         <ion-button size="small" (click)="addProduct()">+ Add Product</ion-button>
-        <ion-button size="small" fill="outline" (click)="bulkRestock()">Bulk Restock</ion-button>
+        <ion-button size="small" fill="outline" class="bulk-restock-btn" (click)="bulkRestock()">
+          Bulk Restock
+        </ion-button>
       </div>
     </div>
   }
@@ -120,7 +157,7 @@
               <ion-card-header class="inv-card-header">
                 <div class="inv-card-title-row">
                   <div class="inv-ident">
-                    <ion-chip color="primary" class="set-chip-sm">Set {{ product.setNumber }}</ion-chip>
+                    <ion-chip class="set-chip-sm set-chip-powder">Set {{ product.setNumber }}</ion-chip>
                     <p class="inv-set-name">{{ product.setName }}</p>
                     <!--
                       The family total, so an owner scanning the grid gets one
@@ -128,7 +165,7 @@
                       four steppers below remain the authoritative per-size
                       figures and the only editable ones; this is a read-out.
                     -->
-                    <ion-chip color="secondary" class="set-chip-sm stock-total-chip">
+                    <ion-chip class="set-chip-sm stock-total-chip set-chip-mint">
                       {{ totalStock(product.stock) }} units
                     </ion-chip>
                   </div>
@@ -252,10 +289,25 @@
     </div>
 
     @if (totalCount() === 0) {
+      <!--
+        One empty state for both reasons the grid can be empty — nothing matches
+        the search, or nothing matches it WITHIN the chosen set — because a filter
+        that renders a blank grid reads as a broken page rather than as a filter.
+
+        The copy names the set when one is active. The grid is empty with no card
+        left to say which set is narrowing it, and "no product matches that
+        search" would point an admin at a searchbar that was doing its job.
+      -->
       <app-empty-state
         icon="search"
         title="No matching flavors"
-        message="No product matches that search. Try a different name or clear the search."
+        [message]="
+          setFilter() === 'all'
+            ? 'No product matches that search. Try a different name or clear the search.'
+            : 'No product matches that search in ' +
+              activeSetLabel() +
+              '. Try a different name, or tap All to widen the filter.'
+        "
         [compact]="true"
       />
     } @else {

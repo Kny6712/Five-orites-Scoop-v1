@@ -87,7 +87,10 @@
 
 .avatar-email {
   font-size: 12px;
-  color: var(--ion-color-medium);
+  // ink-soft, not --ion-color-medium. This sits on a powder tile where medium
+  // measures 4.28:1 - a whisker under the 4.5 that 12px text needs, and therefore
+  // invisible to any eyeball check while still being a real WCAG failure.
+  color: var(--color-ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -375,4 +378,22 @@
   margin-top: var(--space-3);
   --border-radius: var(--radius-pill);
   font-weight: 700;
+  // White on the danger fill. The label was inheriting plum, which on #C62828
+  // measured 2.29:1 - the destructive action was the least readable button on the
+  // page. White is 5.62:1.
+  --color: var(--color-white);
+}
+
+/* Ionic sets a bare `a` to --ion-color-primary, so this link inherited the powder
+   brand hue: measured 1.55:1 on the powder tile it sits on. It had no colour rule of
+   its own - only `.toggle-hint .inline-link`, which sets white-space and nothing
+   else - so the base rule genuinely did not exist and had to be added here.
+
+   Note for the next editor: `.inline-link` DOES appear in this file, but only inside
+   `.toggle-hint .inline-link`. An `includes('.inline-link {')` guard reports true
+   and silently skips this fix, which is exactly what happened on the first attempt. */
+.inline-link {
+  color: var(--color-primary-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

@@ -22,7 +22,14 @@ import {
   clampToStock,
   normaliseStockLines,
   totalStock,
+  SIZE_VARIANTS,
 } from '../src/app/core/logic/stock';
+import {
+  reconcileSize,
+  RESET_REASONS,
+  RECONCILE_SIZES,
+  STOCK_REASON_LABELS,
+} from '../src/app/core/logic/ledger-reconcile';
 import { flavourOf, initialsOf } from '../src/app/core/logic/flavor';
 import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
 import {
@@ -68,8 +75,9 @@ import {
   type Capability,
   type UserRole,
 } from '../src/app/core/models/user.model';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { join, relative } from 'node:path';
 import * as fnConfig from '../functions/src/config';
 // ── Role / capability model ───────────────────────────────────────────────
 // THE PRODUCTION INCIDENT: a user document's `role` read `"owner\n"` (a
@@ -647,6 +655,221 @@ describe('CI runs `verify` rather than a second copy of it', () => {
     assert.equal(new Set(hexes).size, 5, 'the palette must not contain a duplicate');
   });
 
+  /**
+   * THE LOCAL-DEVELOPMENT SAFETY INVARIANT.
+   *
+   * `npm start` used to serve the admin app against the PRODUCTION database:
+   * `environment.ts` hard-codes `projectId: 'five-orites-scoop'` and the
+   * `development` build configuration does not replace it. Every control in that app
+   * writes — stock levels, products, roles, order cancellations — so exercising a UI
+   * change mutated live data and appended rows to the stock ledger describing
+   * changes nobody made, which is exactly the corruption the reconciliation panel
+   * exists to detect.
+   *
+   * `npm start` now selects the `emulator` build configuration, and reaching
+   * production takes the explicit `npm run start:prod`.
+   *
+   * This is asserted rather than documented because the failure mode is INVISIBLE.
+   * Nothing breaks if someone adds `--configuration production` to `start`: the app
+   * builds, boots, looks perfect, and quietly writes to the real database. A README
+   * line saying "start is safe" would not survive the first well-meaning tweak, and
+   * the cost of that tweak is measured in corrupted production data rather than a
+   * red build.
+   */
+  describe('local development cannot reach production by accident', () => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    const angularSrc = readFileSync(join(__dirname, '..', 'angular.json'), 'utf8');
+    const envSrc = readFileSync(
+      join(__dirname, '..', 'src', 'environments', 'environment.ts'),
+      'utf8',
+    );
+    const emulatorEnvSrc = readFileSync(
+      join(__dirname, '..', 'src', 'environments', 'environment.emulator.ts'),
+      'utf8',
+    );
+
+    it('`npm start` selects the emulator configuration', () => {
+      assert.match(
+        pkg.scripts.start,
+        /--configuration emulator\b/,
+        '`npm start` must build with the emulator configuration, or it serves the admin ' +
+          'app against production — every control there writes',
+      );
+    });
+
+    it('`npm start` names no production configuration', () => {
+      // Belt and braces against the first assertion: a script could satisfy the check
+      // above and still add a second configuration.
+      assert.ok(
+        !/--configuration\s+(production|prod)\b/.test(pkg.scripts.start),
+        '`npm start` must not name a production configuration',
+      );
+    });
+
+    it('reaching production requires a differently-named script', () => {
+      // The opt-in has to exist, or `npm start` being redirected would leave no way
+      // to look at real data and the change would get reverted.
+      assert.match(pkg.scripts['start:prod'] ?? '', /--configuration prod\b/);
+    });
+
+    it('the emulator build configuration replaces the environment file', () => {
+      // Without the fileReplacement the `emulator` configuration is just a name: it
+      // would compile environment.ts and connect to production while appearing to
+      // be the safe one.
+      assert.match(
+        angularSrc,
+        /"emulator"[\s\S]{0,400}?fileReplacements[\s\S]{0,400}?environment\.emulator\.ts/,
+        'the `emulator` build configuration must swap environment.ts for environment.emulator.ts',
+      );
+    });
+
+    it('the default environment states useEmulator: false, not an absent key', () => {
+      // `undefined` is falsy so the runtime behaves correctly either way, but an
+      // absent key means nobody decided — and the emulator file is swapped in by
+      // angular.json, so TypeScript only ever sees THIS file's shape.
+      assert.match(
+        envSrc,
+        /useEmulator:\s*false/,
+        'environment.ts must state `useEmulator: false` so the property type is settled ' +
+          'by the file TypeScript actually compiles',
+      );
+    });
+
+    it('the emulator environment opts in and does not name the real project', () => {
+      assert.match(emulatorEnvSrc, /useEmulator:\s*true/);
+
+      // Match ASSIGNMENTS, not prose. The first version of this assertion was a plain
+      // regex over the whole file and it failed on the very reasoning that justifies
+      // it: environment.emulator.ts's own header comment quotes
+      // `projectId: 'five-orites-scoop'` while explaining why that value must not
+      // appear, so the test flagged its own explanation. Anchoring to a line that
+      // actually assigns the key is what makes this about code.
+      const assignments = [...emulatorEnvSrc.matchAll(/^\s*projectId:\s*'([^']+)'/gm)].map(
+        (m) => m[1],
+      );
+      assert.ok(assignments.length > 0, 'expected at least one projectId assignment');
+      for (const id of assignments) {
+        assert.notEqual(
+          id,
+          'five-orites-scoop',
+          'environment.emulator.ts must not carry the production projectId - the ' +
+            'emulators ignore it, but naming it would make an accidental live call ' +
+            'succeed quietly',
+        );
+        assert.match(id, /^demo-/, `emulator projectId "${id}" should use the demo- prefix`);
+      }
+    });
+
+    it('the seeded price matrix covers every set the live catalogue has', () => {
+      // Set 9 exists in production and was missing here, in `SET_NAMES`, and in the
+      // inventory page's empty-catalogue fallback — three copies of the same list, all
+      // stopping at 8, none of which could notice the others were short.
+      const seedSrc = readFileSync(join(__dirname, '..', 'scripts', 'seed-products.ts'), 'utf8');
+      const matrix = seedSrc.match(/const PRICING_MATRIX[\s\S]*?\n};/)?.[0] ?? '';
+      assert.ok(matrix, 'PRICING_MATRIX not found in scripts/seed-products.ts');
+      const sets = [...matrix.matchAll(/^\s*(\d+):\s*\{/gm)].map((m) => Number(m[1]));
+      assert.ok(
+        sets.includes(9),
+        'PRICING_MATRIX must include set 9 — it exists in the live catalogue',
+      );
+    });
+  });
+
+  /**
+   * The SPA shell must not be cached, or a fix ships and nobody sees it.
+   *
+   * `index.html` was served with Firebase's default `max-age=3600` while the
+   * content-hashed bundles under it were cached for a year. So after any deploy a
+   * browser that already held the shell kept requesting the PREVIOUS deploy's chunk
+   * hashes for up to an hour — and those chunks still resolve, so the app booted
+   * cleanly and simply ran the old code.
+   *
+   * That is not a theoretical annoyance. It is how the `/developers` photo fix kept
+   * looking broken: the code was deployed, correct, and verified working, and the
+   * reported symptom was still the pre-fix page for up to an hour afterwards.
+   *
+   * The rule has to be `**` rather than `/index.html`, which is the non-obvious part.
+   * Firebase matches headers against the REQUEST path, and every route here —
+   * `/developers`, `/admin/users`, `/checkout` — is served by the `**` rewrite to
+   * index.html. A rule scoped to `/index.html` would leave every deep link cached for
+   * an hour while looking correct in the config.
+   *
+   * The ORDER is load-bearing too, and that is what makes it worth asserting: Firebase
+   * merges every matching rule and the LAST one to set a header wins. The `**` rule
+   * has to come first and the hashed-asset rule second, or every bundle silently
+   * loses its year-long cache and nobody notices.
+   */
+  describe('the SPA shell is not cached, and the hashed bundles still are', () => {
+    const firebaseJson = readFileSync(join(__dirname, '..', 'firebase.json'), 'utf8');
+
+    /** The header rules in the order firebase.json declares them. */
+    function headerRules(): Array<{ source: string; cacheControl: string | null }> {
+      const rules: Array<{ source: string; cacheControl: string | null }> = [];
+      // Each entry is a `{ "source": ..., "headers": [ ... ] }` object. Splitting on
+      // the source key is enough — the array is small and flat.
+      // Scope to the `headers` array FIRST. Parsing the whole file also matched the
+      // `"source": "**"` inside `rewrites` - which is the SPA catch-all, not a header
+      // rule - so the first `**` found carried no Cache-Control and the assertion
+      // failed against a config that was in fact correct.
+      const headerBlock = firebaseJson.match(/"headers"\s*:\s*\[([\s\S]*?)\n\s{4}\]/)?.[1] ?? '';
+      assert.ok(headerBlock, 'firebase.json must declare a `headers` array');
+      for (const chunk of headerBlock.split(/"source"\s*:/).slice(1)) {
+        const source = (chunk.match(/^\s*"([^"]+)"/) ?? [])[1] ?? '?';
+        // Only the Cache-Control belonging to THIS rule, i.e. before the next source.
+        const cc = (chunk.match(/"Cache-Control"\s*,\s*"value"\s*:\s*"([^"]+)"/) ?? [])[1] ?? null;
+        rules.push({ source, cacheControl: cc });
+      }
+      return rules;
+    }
+
+    it('the broad rule covers every path, not just /index.html', () => {
+      // A `/index.html`-scoped rule would leave every rewritten SPA route cached.
+      assert.ok(
+        /"source"\s*:\s*"\*\*"/.test(firebaseJson),
+        'a `**` header rule is required — Firebase matches the REQUEST path, and every ' +
+          'route is served by the rewrite to index.html',
+      );
+    });
+
+    it('the broad rule forbids caching the shell', () => {
+      const broad = headerRules().find((r) => r.source === '**');
+      assert.ok(broad?.cacheControl, 'the `**` rule must set Cache-Control');
+      assert.match(
+        broad!.cacheControl!,
+        /no-store|no-cache/,
+        `the SPA shell must not be cached; found "${broad!.cacheControl!}"`,
+      );
+    });
+
+    it('the hashed-asset rule still gets the long cache', () => {
+      const assets = headerRules().find((r) => /\*\*/.test(r.source) && /js\|css/.test(r.source));
+      assert.ok(assets?.cacheControl, 'the js/css rule must set Cache-Control');
+      assert.match(
+        assets!.cacheControl!,
+        /max-age=31536000/,
+        'content-hashed bundles must keep the year-long cache',
+      );
+    });
+
+    it('the long-cache rule comes AFTER the no-store rule, because last wins', () => {
+      // Firebase merges all matching rules and the LAST to set a header wins, so this
+      // ordering is the only thing keeping the bundles cached. Reversed, every JS file
+      // inherits no-store and the app re-downloads 1.66 MB on every navigation —
+      // which looks like a performance regression rather than a config mistake.
+      const rules = headerRules();
+      const broadIdx = rules.findIndex((r) => r.source === '**');
+      const assetsIdx = rules.findIndex((r) => /js\|css/.test(r.source));
+      assert.ok(broadIdx !== -1 && assetsIdx !== -1, 'both rules must exist');
+      assert.ok(
+        broadIdx < assetsIdx,
+        'the `**` no-store rule must come FIRST and the js/css long-cache rule SECOND — ' +
+          'Firebase applies the last matching value for a header',
+      );
+    });
+  });
+
   it('includes every test suite in verify', () => {
     // The suites that found real bugs, named explicitly. `test:integration` is
     // the one that caught three severe defects while 308 other tests passed.
@@ -963,6 +1186,553 @@ describe('initialsOf', () => {
 
   it('ignores punctuation-only words', () => {
     assert.equal(initialsOf('  ,  .  '), '?');
+  });
+});
+
+describe('reconcileSize: the anchor is an EPOCH, not the oldest row', () => {
+  /**
+   * The real production data this rule exists for. Four rows, all for one flavour,
+   * and they contradict each other: the oldest says the level became 2, the newest
+   * says 48.
+   *
+   * They got that way because `createProduct` wrote stock onto the product
+   * document with no movement row at all, and the CSV importer calls the same
+   * method — so 65 of 66 products had no history, and the four rows that existed
+   * were anchored to a level nothing else agreed with.
+   */
+  const INCOHERENT: Array<{ delta: number; balanceAfter: number; reason: string; size: string }> = [
+    // NEWEST FIRST — the order `orderBy('createdAt','desc')` returns.
+    { delta: -1, balanceAfter: 48, reason: 'manual_adjust', size: 'cup' },
+    { delta: -2, balanceAfter: 49, reason: 'sale', size: 'cup' },
+    { delta: 1, balanceAfter: 51, reason: 'admin_restock', size: 'cup' },
+    { delta: 1, balanceAfter: 2, reason: 'admin_restock', size: 'cup' },
+  ];
+
+  it('reproduces the +48 false positive WITHOUT a reset row', () => {
+    // The bug, pinned. Anchoring on the oldest row gives opening = 2 - 1 = 1, the
+    // deltas sum to -1, so expected = 0 against a stored 48. The check was right
+    // about the arithmetic and wrong about the premise.
+    const r = reconcileSize(INCOHERENT);
+    assert.equal(r.anchored, true);
+    assert.equal(r.expected, 0);
+  });
+
+  it('a baseline row supersedes the incoherent history above it', () => {
+    // The repair. `balanceAfter: 48, delta: +48` asserts "as of now it is 48";
+    // everything above it describes a level that assertion has replaced.
+    const withBaseline = [
+      { delta: 48, balanceAfter: 48, reason: 'baseline', size: 'cup' },
+      ...INCOHERENT,
+    ];
+    const r = reconcileSize(withBaseline);
+    assert.equal(r.anchored, true);
+    assert.equal(r.expected, 48, 'the baseline must win over the incoherent rows');
+    assert.equal(r.supersededRows, 4, 'all four incoherent rows are superseded');
+  });
+
+  it('a stock_intake row works identically — the two reset reasons agree', () => {
+    const withIntake = [
+      { delta: 48, balanceAfter: 48, reason: 'stock_intake', size: 'cup' },
+      ...INCOHERENT,
+    ];
+    assert.equal(reconcileSize(withIntake).expected, 48);
+  });
+
+  it('returns null, NOT zero, when there is no history at all', () => {
+    // The single most damaging thing this function could do is answer 0 here: a
+    // product born with 48 cups and no opening movement would be indistinguishable
+    // from real tampering. Null means "cannot be checked".
+    const r = reconcileSize([]);
+    assert.equal(r.anchored, false);
+    assert.equal(r.expected, null);
+  });
+
+  it('a coherent chain still anchors on the oldest row when there is no reset', () => {
+    const coherent = [
+      { delta: -2, balanceAfter: 8, reason: 'sale', size: 'cup' },
+      { delta: -1, balanceAfter: 10, reason: 'sale', size: 'cup' },
+      { delta: 20, balanceAfter: 11, reason: 'admin_restock', size: 'cup' },
+    ];
+    // opening = 11 - 20 = -9; deltas -2 -1 +20 = 17; expected 8.
+    assert.equal(reconcileSize(coherent).expected, 8);
+    assert.equal(reconcileSize(coherent).supersededRows, 0);
+  });
+
+  it('detects real drift AFTER a reset, which is the whole point', () => {
+    // Baseline says 48, then someone moved it to 45 through no app path.
+    const rows = [
+      { delta: -3, balanceAfter: 45, reason: 'manual_adjust', size: 'cup' },
+      { delta: 48, balanceAfter: 48, reason: 'baseline', size: 'cup' },
+    ];
+    assert.equal(reconcileSize(rows).expected, 45, 'expected must follow real movements');
+  });
+
+  it('uses the OLDEST reset when there are several', () => {
+    const rows = [
+      { delta: -1, balanceAfter: 19, reason: 'manual_adjust', size: 'cup' },
+      { delta: 5, balanceAfter: 20, reason: 'baseline', size: 'cup' },
+      { delta: 10, balanceAfter: 15, reason: 'baseline', size: 'cup' },
+      { delta: 2, balanceAfter: 5, reason: 'admin_restock', size: 'cup' },
+    ];
+    // Newest-first, so the OLDEST reset is the LAST one: delta 10, balanceAfter
+    // 15. The opening is that row's OWN pair, 15 - 10 = 5 — not its predecessor's
+    // delta, which is the mistake this test was first written with. Everything at
+    // or after the anchor sums -1 + 5 + 10 = 14, so the level is 19.
+    //
+    // Anchoring on the NEWEST reset would give 20, so this distinguishes the two.
+    // The oldest `admin_restock` row is superseded and ignored.
+    assert.equal(reconcileSize(rows).expected, 19);
+    assert.equal(reconcileSize(rows).supersededRows, 1);
+  });
+
+  it('a reset row with delta 0 is a pure assertion of the level', () => {
+    assert.equal(
+      reconcileSize([{ delta: 0, balanceAfter: 33, reason: 'baseline', size: 'cup' }]).expected,
+      33,
+    );
+  });
+
+  describe('the reset-reason list cannot drift from the service', () => {
+    it('every reason in the union has a label', () => {
+      // A reason added to the union without a label renders as a blank chip in the
+      // movements table, which reads as a rendering bug rather than missing copy.
+      const labelled = Object.keys(STOCK_REASON_LABELS);
+      for (const reason of RESET_REASONS) {
+        assert.ok(
+          labelled.includes(reason),
+          `${reason} resets the epoch but has no entry in STOCK_REASON_LABELS`,
+        );
+      }
+      // And the other direction: a label with no reason is dead copy.
+      for (const label of labelled) {
+        assert.ok(
+          (Object.keys(STOCK_REASON_LABELS) as string[]).includes(label),
+          `${label} has a label`,
+        );
+      }
+    });
+
+    it('the reset set holds only real reasons', () => {
+      for (const reason of RESET_REASONS) {
+        assert.ok(
+          reason in STOCK_REASON_LABELS,
+          `${reason} resets the epoch but is not a member of the reason vocabulary`,
+        );
+      }
+    });
+
+    it('the reconcile size list matches the app size list', () => {
+      // `totalStockValues` is products x sizes.length, so a stale copy would change
+      // the denominator the coverage line divides by without any error surfacing.
+      assert.deepEqual([...RECONCILE_SIZES], [...SIZE_VARIANTS]);
+    });
+  });
+});
+
+/**
+ * The brand hues must not become foregrounds again.
+ *
+ * `--color-brand-primary` is powder (#8ECAE6) — a SURFACE. Measured off the live
+ * DOM it reads 1.03:1 on mint, 1.79:1 on white and 1.71:1 on cream, so as a
+ * foreground it fails WCAG AA for text and fails the 3:1 floor for a meaningful
+ * icon. The project already has the right answer and already asserts it: plum on
+ * every pastel is in `check-contrast.mjs`, and there are `-Ink` tokens for the
+ * cases where text should read as the brand rather than as the page.
+ *
+ * Eighteen instances were measured and fixed. The nineteen below sit behind
+ * `authGuard` and cannot be measured without credentials, so rather than a blanket
+ * ban — which would be routinely `--force`d and therefore worthless — this is a
+ * ratchet. A new usage fails; a fixed one whose line is not deleted from this list
+ * also fails; and the list is a to-do with owners on it.
+ *
+ * Each entry is `file | selector`, so renaming a selector leaves a stale entry that
+ * fails rather than quietly widening the hole.
+ */
+describe('brand hues are not used as foregrounds (ratchet)', () => {
+  /**
+   * Every `color: var(--color-brand-primary)`-shaped declaration under src/.
+   *
+   * Walks the directory rather than shelling out to `git ls-files`. The first
+   * version used `execSync` without importing it, so the suite threw at
+   * CONSTRUCTION: node marked the suite failed, none of its tests ran, and the
+   * file's totals still read 228/228. A suite that cannot execute is invisible in
+   * the tally, which is the worst possible failure mode for a guard.
+   */
+  function currentUsages(): string[] {
+    const out: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.(scss|css|ts)$/.test(entry.name)) continue;
+        const rel = relative(join(__dirname, '..'), full).replace(/\\/g, '/');
+        const lines = readFileSync(full, 'utf8').split(/\r?\n/);
+        lines.forEach((line, i) => {
+          const m = line.match(
+            /^\s*(color|--color)\s*:\s*var\((--color-brand-primary|--ion-color-primary)\)/,
+          );
+          if (!m) return;
+          // Owning selector: walk back to the nearest line that opens a block.
+          let sel = '';
+          for (let j = i; j >= 0; j--) {
+            if (/[{}]/.test(lines[j])) {
+              sel = lines[j].replace(/[{}]/g, '').trim();
+              break;
+            }
+          }
+          out.push(`${rel.replace('src/app/', '')} | ${sel.slice(0, 40)}`);
+        });
+      }
+    };
+    walk(join(__dirname, '..', 'src'));
+    return out.sort();
+  }
+
+  /**
+   * The reviewed remainder. DELETE AN ENTRY ONLY WHEN YOU FIXED IT.
+   *
+   * Literal strings rather than a count, so a rename cannot silently widen the
+   * hole: a stale entry fails just as loudly as a new one.
+   */
+  const KNOWN_REMAINING = new Set([
+    'features/auth/auth.page.scss | .toggle-link',
+    'features/dashboard/voucher-cards/voucher-cards.component.scss | .voucher-empty app-icon',
+  ]);
+
+  it('finds the usages the ratchet is tracking', () => {
+    // If this is 0 the scan stopped matching, which would make both assertions
+    // below vacuously true — a guard that guards nothing while reporting success.
+    assert.ok(
+      currentUsages().length > 0,
+      'the brand-hue scan found nothing; has the pattern or the token names changed?',
+    );
+  });
+
+  it('no NEW brand-hue foreground has been introduced', () => {
+    const fresh = currentUsages().filter((u) => !KNOWN_REMAINING.has(u));
+    assert.deepEqual(
+      fresh,
+      [],
+      'these use a brand hue as a foreground and are not on the reviewed list. Use ' +
+        '--color-ink (plum) on a pastel, or the matching --color-*-ink token when ' +
+        'the text should read as the brand: ' +
+        fresh.join(' | '),
+    );
+  });
+
+  it('every listed usage still exists, so the list is not lying', () => {
+    const found = new Set(currentUsages());
+    const stale = [...KNOWN_REMAINING].filter((u) => !found.has(u)).sort();
+    assert.deepEqual(
+      stale,
+      [],
+      'these are on the reviewed list but no longer exist — you fixed one. Delete ' +
+        'its entry so the ratchet tightens: ' +
+        stale.join(' | '),
+    );
+  });
+});
+
+/**
+ * An emulator-backed test suite must close what it opens.
+ *
+ * `initializeTestEnvironment` hands out a NEW Firestore client every time you ask
+ * for a context - `env.authenticatedContext(uid).firestore()` is a constructor
+ * call, not a cache lookup - and each client owns a gRPC channel. This project
+ * opens them through five helpers across 172 rules tests and once per integration
+ * test, and until this guard existed not one of them was ever closed.
+ *
+ * The cost was an intermittent, undiagnosable CI failure. A channel settling after
+ * the root test context closed made Node's runner throw
+ * `ERR_INTERNAL_ASSERTION: Unknown worker message type` from an uncaught exception,
+ * which it reports as a bare file-level `'test failed'` - no assertion, no stack, no
+ * name of the test that broke. Every assertion had passed. It reproduced about once
+ * in twenty runs, so it could never be pinned down by re-running.
+ *
+ * Two halves, both checked:
+ *   - a file that creates an emulator environment terminates its clients
+ *   - a file that builds an Angular `Injector` destroys it
+ *
+ * A new suite that skips either fails here rather than in CI, twenty runs later,
+ * with a message that names nothing.
+ */
+describe('emulator-backed test suites close what they open', () => {
+  const SELF = 'logic.test.ts';
+
+  /**
+   * Remove comments before matching, because a COMMENT CAN SATISFY A REGEX.
+   *
+   * The first version of this guard read raw source, and a canary that deleted
+   * `injector.destroy()` left it GREEN - because the integration suite has a doc
+   * comment containing the literal text `.destroy()`. The check was being satisfied
+   * by prose describing the fix rather than by the fix. Every assertion here
+   * therefore runs against comment-stripped code.
+   *
+   * Over-stripping is the safe direction for these particular patterns: a URL in a
+   * string literal cannot contain `.terminate()`, `afterEach(` or `Injector.create(`.
+   */
+  function code(src: string): string {
+    return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, ' ');
+  }
+
+  const suites = readdirSync(__dirname)
+    .filter((f) => f.endsWith('.test.ts'))
+    // This guard quotes `initializeTestEnvironment` in its own prose, so without this
+    // it detects ITSELF as an emulator suite and asserts things about its own source.
+    .filter((f) => f !== SELF)
+    .map((f) => {
+      const src = readFileSync(join(__dirname, f), 'utf8');
+      return { name: f, src, code: code(src) };
+    });
+
+  const emulated = suites.filter((s) => /initializeTestEnvironment\s*\(/.test(s.code));
+
+  it('there ARE emulator-backed suites, so the checks below are not vacuous', () => {
+    // If the helper is ever renamed, every assertion below would pass trivially
+    // against an empty set. Guard the guard.
+    assert.ok(
+      emulated.length >= 2,
+      `expected at least 2 suites using initializeTestEnvironment, found ${emulated.length}: ` +
+        emulated.map((s) => s.name).join(', '),
+    );
+  });
+
+  it('this guard excludes itself, and its comment stripper actually strips', () => {
+    assert.ok(
+      !suites.some((s) => s.name === SELF),
+      'the teardown guard must exclude itself, or it asserts things about its own text',
+    );
+    // Prove the stripper works, because every check below leans on it. If this
+    // fails, all of them are decorative again.
+    for (const probe of ['// x.terminate()\nconst a = 1;', '/* x.terminate() */\nconst a = 1;']) {
+      assert.ok(
+        !/\.terminate\(\)/.test(code(probe)),
+        `comment stripping failed on: ${JSON.stringify(probe)}`,
+      );
+    }
+    assert.ok(
+      /\.terminate\(\)/.test(code('f().terminate();')),
+      'comment stripping removed real code',
+    );
+  });
+
+  for (const suite of emulated) {
+    it(`${suite.name} terminates every Firestore client it opens`, () => {
+      // `authenticatedContext(uid).firestore()` is a constructor call, not a cache
+      // lookup: every invocation builds a client and a gRPC channel.
+      if (!/authenticatedContext\([^)]*\)\.firestore\(\)/.test(suite.code)) return;
+      assert.ok(
+        /\.terminate\(\)/.test(suite.code),
+        `${suite.name} calls authenticatedContext(...).firestore() but never ` +
+          `.terminate(). A client outliving its test makes Node's runner raise ` +
+          `ERR_INTERNAL_ASSERTION from a late worker message, which it reports as a ` +
+          `file-level 'test failed' with no stack and no failing test name.`,
+      );
+    });
+
+    it(`${suite.name} destroys any Angular Injector it builds`, () => {
+      if (!/Injector\.create\(/.test(suite.code)) return;
+      assert.ok(
+        /\.destroy\(\)/.test(suite.code),
+        `${suite.name} calls Injector.create() but never .destroy(). An R3Injector ` +
+          `holds its providers - including the Firestore instance - alive until it is ` +
+          `explicitly destroyed.`,
+      );
+    });
+
+    it(`${suite.name} closes clients per-test, not only after the last one`, () => {
+      if (!/authenticatedContext\([^)]*\)\.firestore\(\)/.test(suite.code)) return;
+
+      // STRUCTURAL, not positional. The first attempt at this check asserted that a
+      // `.terminate()` appears somewhere AFTER the `afterEach(` registration, which
+      // is wrong: the sweep function is necessarily DEFINED before it is registered.
+      // That version failed against correct code, which is its own kind of lie.
+      //
+      // What actually matters is that the thing registered with afterEach is a
+      // defined function whose body terminates clients. So resolve the name, find
+      // its definition, and require the terminate inside it.
+      const registered = suite.code.match(/afterEach\(\s*([A-Za-z_$][\w$]*)/);
+      assert.ok(
+        registered,
+        `${suite.name} opens Firestore clients but registers no afterEach hook. The ` +
+          `failure this guards is specifically activity arriving AFTER a test ended, ` +
+          `so closing only in after() still leaves a live channel between tests.`,
+      );
+
+      const sweep = registered![1];
+      const defined = new RegExp(
+        `(function\\s+${sweep}\\s*\\(|const\\s+${sweep}\\s*=|let\\s+${sweep}\\s*=)`,
+      ).test(suite.code);
+      assert.ok(
+        defined,
+        `${suite.name} registers afterEach(${sweep}) but no function or const named ` +
+          `${sweep} is defined, so the hook resolves to nothing.`,
+      );
+
+      // Function declaration form: name ... ) { ...body... }
+      const body = suite.code.match(
+        new RegExp(`function\\s+${sweep}\\s*\\([^)]*\\)\\s*(?::[^{]+)?\\{([\\s\\S]*?)\\n\\}`),
+      );
+      // NOTE the single backslashes below: this is a regex LITERAL, not a string.
+      // It was first written with doubled backslashes, which made it match a literal
+      // backslash followed by any character, so it never matched the real body and
+      // the assertion failed against correct code.
+      assert.ok(
+        body && /\.terminate\(\)/.test(body[1]),
+        `${suite.name} registers afterEach(${sweep}), but ${sweep} does not call ` +
+          `.terminate() -- so the per-test sweep closes nothing.`,
+      );
+    });
+  }
+});
+
+/**
+ * firestore.rules must not dot-access a field on the caller's user document.
+ *
+ * A dot access to an absent key in the rules language is an EVALUATION ERROR, not
+ * `false`. The difference matters: `false` denies this clause and lets the next one
+ * decide, whereas an error aborts the whole expression - so a role check sitting on
+ * the left of an `||` would stop the right-hand clause from ever granting access.
+ *
+ * This is not a style preference. This file already knows it:
+ * `developerIsWellFormed()` guards every field with `in` and says why in a
+ * comment, and `isNotChangingOwnRole()` uses `.get(key, default)` with the note that
+ * "a null access is a HARD reject - it would fail unrelated profile edits".
+ * `myRole()` was left reading `.data.role`, so three sites shared one idea, two
+ * were documented, and nothing connected them.
+ *
+ * REACHABLE. An admin's non-merged `setDoc` on a user document takes the
+ * `isAdmin()` branch, which short-circuits with no field validation and drops the
+ * role. Measured, not assumed: with the dot access such an account gets
+ * "Property role is undefined on object"; with `.get('role', '')` it gets the same
+ * plain denial every other non-staff account gets. The outcome was correct either
+ * way - it was a crash instead of a decision, and a misleading log.
+ */
+describe('firestore.rules reads user fields defensively', () => {
+  const RULES = join(__dirname, '..', 'firestore.rules');
+  const src = readFileSync(RULES, 'utf8');
+
+  // Comments are stripped for the same reason as everywhere else in this file: a
+  // comment quoting the bad pattern would otherwise satisfy a search for it.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, ' ');
+
+  it('the rules file is actually being read', () => {
+    // Guard the guard: if the path or the fixture ever moves, every assertion below
+    // would pass against an empty string.
+    assert.ok(
+      code.includes('function myRole'),
+      'firestore.rules no longer defines myRole(); this guard needs updating',
+    );
+  });
+
+  it('no dot access to a field on the caller user document', () => {
+    // Matches `.data.<identifier>` directly after the caller user-document get,
+    // with a lookahead excluding `.data.get(`.
+    //
+    // The lookahead is not decoration. Without it, the first run flagged
+    // `data.get('role', '')` - the SAFE form - as a violation, because `.data.get`
+    // also matches `.data.<identifier>`. A guard that cannot tell the fix from the
+    // bug is worse than no guard: it would be disabled on first contact.
+    const unguarded = code.match(
+      /users\/\$\(request\.auth\.uid\)\)\.data\.(?!get\()[A-Za-z_$][\w$]*/g,
+    );
+    assert.equal(
+      unguarded,
+      null,
+      'these read a field of the caller user document by dot access, which is an ' +
+        'evaluation error when the field is absent rather than a plain false. Use ' +
+        "data.get('field', default) or an 'in' guard, as developerIsWellFormed() " +
+        'and isNotChangingOwnRole() already do: ' +
+        (unguarded ?? []).join(', '),
+    );
+  });
+
+  it('myRole() fails closed when the role field is missing', () => {
+    const body = code.match(/function myRole\s*\([^)]*\)\s*\{[\s\S]*?\n {4}\}/);
+    assert.ok(body, 'could not locate the body of myRole()');
+    assert.match(
+      body![0],
+      /data\.get\(\s*'role'\s*,\s*''\s*\)/,
+      "myRole() must read the role with data.get('role', '') so that a missing role " +
+        "is an empty string - which is 'in' no role list - rather than an evaluation " +
+        'error that aborts the whole rule.',
+    );
+  });
+});
+
+/**
+ * No tracked file may contain U+FFFD, the Unicode replacement character.
+ *
+ * U+FFFD is what a decoder emits when handed bytes it cannot interpret. The original
+ * character is GONE once it is written - there is no recovery procedure, and the only
+ * fix is a human deciding what was meant. In this repo it reached
+ * functions/src/index.ts twice, both times an em-dash that had become a bare question
+ * mark inside a sentence that read perfectly well without it. That is why nothing
+ * caught it: the file compiled, the function deployed, and the damage was a comment.
+ *
+ * `npm run fix:encoding` does NOT cover this. That script reverses cp1252 read as UTF-8
+ * and looks for the `a<U+FFFD>` shapes such damage produces. These two had no
+ * `a` in front of them - the em-dash was replaced wholesale rather than mangled into a
+ * neighbouring glyph - so the heuristic returned false, the repair never ran, and the
+ * script exited successfully having fixed nothing. A tool that reports success while
+ * missing the case in front of it is exactly why this is an assertion and not a
+ * convention.
+ *
+ * Scoped to git-tracked files with a source extension, so a binary asset cannot fail
+ * the build for containing the byte sequence by accident.
+ */
+describe('no tracked file contains a Unicode replacement character', () => {
+  const TEXT_EXT = /\.(ts|tsx|js|mjs|cjs|scss|css|html|json|md|txt|yml|yaml|xml)$/;
+  const REPLACEMENT = '\uFFFD';
+
+  const tracked = execSync('git ls-files', { encoding: 'utf8' })
+    .split('\n')
+    .filter(Boolean)
+    .filter((f) => TEXT_EXT.test(f));
+
+  it('the file list is not empty, so the scan below is not vacuous', () => {
+    // If git ls-files ever breaks, every assertion below would pass against an empty
+    // list and the guard would report clean forever.
+    assert.ok(
+      tracked.length > 50,
+      `expected a real file list, got ${tracked.length} text files - has git ls-files broken?`,
+    );
+  });
+
+  it('the detector actually detects, before it is trusted to report clean', () => {
+    // A guard that cannot fail is worse than no guard.
+    assert.ok(
+      ('a' + REPLACEMENT + 'b').includes(REPLACEMENT),
+      'the replacement character did not survive string handling in this very test',
+    );
+    assert.ok(!'a clean sentence with an em-dash — in it'.includes(REPLACEMENT));
+  });
+
+  const offenders = tracked
+    .map((f) => {
+      const full = join(__dirname, '..', f);
+      if (!existsSync(full)) return null;
+      const text = readFileSync(full, 'utf8');
+      if (!text.includes(REPLACEMENT)) return null;
+      const line = text.split(/\r?\n/).findIndex((l) => l.includes(REPLACEMENT)) + 1;
+      return `${f}:${line}`;
+    })
+    .filter(Boolean);
+
+  it('no tracked text file contains U+FFFD', () => {
+    assert.deepEqual(
+      offenders,
+      [],
+      'these files contain U+FFFD, a character lost in decoding and not recoverable ' +
+        'automatically. Read the line and put back what was meant - usually an ' +
+        'em-dash or a curly quote. Note that npm run fix:encoding will NOT catch ' +
+        'this: it repairs cp1252 mojibake, and its heuristic does not match a wholly ' +
+        'replaced character. Offenders: ' +
+        offenders.join(', '),
+    );
   });
 });
 
@@ -1696,6 +2466,51 @@ describe('product csv import', () => {
     assert.match(plan.errors[0].message, /price column/i);
   });
 
+  it('resolves an absent price column to 0 rather than to a tier default', () => {
+    // The shape a shop that only sells two sizes actually exports: the other two
+    // columns are simply not in the file. Both must land at ₱0 — neither an error
+    // nor DEFAULT_SET_PRICING, which is the create form's business.
+    const plan = parseProductCsv(
+      'set_number,set_name,variant_name,category,cup_price,pint_price\n1,Chocolates,Rocky Road,flavor,65,200',
+    );
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.deepEqual(plan.valid[0].pricing, { cup: 65, pint: 200, halfGallon: 0, gallon: 0 });
+  });
+
+  it('treats a present-but-blank price cell exactly like an absent column', () => {
+    // `get` returns '' for both, so the tier is ₱0 either way. They must not
+    // drift apart, or the same catalog exported two ways would import two ways.
+    const plan = parseProductCsv(`${HEADER}\n1,Chocolates,Rocky Road,,flavor,65,200,,950,,,,`);
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.deepEqual(plan.valid[0].pricing, { cup: 65, pint: 200, halfGallon: 0, gallon: 950 });
+  });
+
+  it('refuses a file whose price columns are present but entirely blank', () => {
+    // The other half of the same guard: the columns ARE there, so anything
+    // checking only the header waves this through — yet nothing parses, and the
+    // result would be every product at ₱0, which the rules allow.
+    const plan = parseProductCsv(`${HEADER}\n1,Chocolates,Rocky Road,,flavor,,,,,,,,`);
+    assert.equal(plan.valid.length, 0);
+    assert.match(plan.errors[0].message, /price column/i);
+  });
+
+  it('rounds a fractional price to whole pesos instead of refusing the row', () => {
+    // firestore.rules requires `pricing.* is int`, so a 65.4999 from a spreadsheet
+    // division has to be rounded here or the server rejects the whole import with
+    // no line number. Contrast the stock case above: half a scoop is a mistake,
+    // half a peso is arithmetic.
+    const plan = parseProductCsv(
+      `${HEADER}\n1,Chocolates,Rocky Road,,flavor,65.5,200.4999,500,950,,,,`,
+    );
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.deepEqual(plan.valid[0].pricing, {
+      cup: 66,
+      pint: 200,
+      halfGallon: 500,
+      gallon: 950,
+    });
+  });
+
   it('reports the missing required columns when the header is wrong', () => {
     const plan = parseProductCsv('a,b,c\n1,2,3');
     assert.match(plan.errors[0].message, /Missing required column/);
@@ -1719,6 +2534,20 @@ describe('product csv import', () => {
       const plan = parseProductCsv(`${header}\n1,Chocolates,Rocky Road,flavor,65,200,500,950`);
       assert.equal(plan.valid.length, 1, `header not understood: ${header}`);
       assert.equal(plan.valid[0].pricing.gallon, 950);
+    }
+  });
+
+  it('still understands a stock column written either way round', () => {
+    // Each stock alias list carried a duplicate of its own first element, which
+    // was pruned as dead text. This pins the survivors, both orderings, for all
+    // four sizes — the prune must not cost a header shape a human would write.
+    for (const header of [
+      'set_number,set_name,variant_name,category,cup_price,cup_stock,pint_stock,half_gallon_stock,gallon_stock',
+      'set_number,set_name,variant_name,category,cup_price,stock_cup,stock_pint,stock_half_gallon,stock_gallon',
+    ]) {
+      const plan = parseProductCsv(`${header}\n1,Chocolates,Rocky Road,flavor,65,1,2,3,4`);
+      assert.equal(plan.valid.length, 1, `header not understood: ${header}`);
+      assert.deepEqual(plan.valid[0].stock, { cup: 1, pint: 2, halfGallon: 3, gallon: 4 });
     }
   });
 

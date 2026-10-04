@@ -83,7 +83,9 @@
 .item-subtotal {
   font-size: 15px;
   font-weight: 700;
-  color: var(--color-brand-primary);
+  // MONEY, and plum is the only value verified on every surface a cart row uses:
+  // 12.88 on white, 12.34 on cream, 7.41 on mint. Measured 1.79:1 as powder on white.
+  color: var(--color-ink);
   margin: 0;
 }
 .remove-btn {
@@ -111,6 +113,22 @@
   font-size: 14px;
   color: var(--ion-color-dark);
 }
+/* The free-delivery nudge, sitting between the Delivery row and the Total row.
+
+   margin: 0 is load-bearing: .order-summary is a flex column with an 8px gap, and
+   the UA default of 1em top and bottom on a <p> would blow the panel apart and
+   leave a second, uneven gap under the gap.
+
+   --ion-color-dark rather than --ion-color-medium, which is the page's usual
+   secondary ink: this text is on the mint summary panel, where medium measures
+   about 1.7:1 and is unreadable. Size is what makes it secondary here. */
+.free-delivery-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ion-color-dark);
+}
+
 .total-row {
   border-top: 1px solid var(--ion-color-light-shade);
   padding-top: 8px;
@@ -119,7 +137,11 @@
 .total-amount {
   font-size: 20px;
   font-weight: 800;
-  color: var(--color-brand-primary);
+  // Measured 1.03:1 - powder on the mint total tile, the worst pair still standing.
+  // Plum is 7.41:1 there. primary-ink was the obvious candidate and FAILS at 4.09:1
+  // on mint, which is why the money rows in this file take plum rather than the ink
+  // token used elsewhere.
+  color: var(--color-ink);
 }
 
 // ── Checkout Form ────────────────────────────────────────
@@ -161,6 +183,11 @@
 .clear-btn {
   margin-top: 4px;
   font-size: 14px;
+  /* `color="danger"` did not set the foreground; the label came out as the app
+     primary, powder on cream at 1.71:1. Third instance of this in the session - the
+     Cancel buttons on /orders and on the order tracker needed the same declaration.
+     Danger on this ground is 5.38:1. */
+  --color: var(--color-danger);
 }
 
 // ── Review ────────────────────────────────────────────────
@@ -189,7 +216,7 @@
 }
 .review-item-price {
   font-weight: 700;
-  color: var(--color-brand-primary);
+  color: var(--color-ink);
 }
 
 .review-address-box {
@@ -203,7 +230,9 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--color-brand-primary);
+  // 11px is small text and owes the full 4.5:1; primary-ink is 6.82:1 on the cream
+  // review panel.
+  color: var(--color-primary-ink);
   margin: 0 0 4px;
 }
 .review-value {
@@ -262,4 +291,20 @@
   color: var(--ion-color-medium);
   margin: 0;
   max-width: 280px;
+}
+/* The two actions of the confirmation screen. .confirmed-state centres its flex
+   items, so without a width of its own this wrapper shrinks to the buttons'
+   content width and `expand="block"` has nothing to expand into — the pair reads
+   as two small buttons floating mid-screen instead of the full-width pair the
+   checkout step shows. Capped so it stays the width of the rest of the screen
+   on a desktop split pane rather than stretching the length of the panel. */
+.confirmed-actions {
+  width: 100%;
+  max-width: 320px;
+}
+
+/* An outline ion-button inherits --ion-color-primary - the powder brand hue - which
+   measured #8ECAE6 on cream at 1.71:1. */
+.apply-voucher-btn {
+  --color: var(--color-primary-ink);
 }

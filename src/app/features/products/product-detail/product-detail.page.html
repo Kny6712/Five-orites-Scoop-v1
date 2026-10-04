@@ -49,7 +49,7 @@
         </div>
       }
       <app-star-rating [rating]="avgRating()" [showCount]="true" [reviewCount]="reviewCount()"></app-star-rating>
-      <ion-button fill="outline" size="small" (click)="toggleWishlist()">
+      <ion-button fill="outline" size="small" class="wishlist-btn" (click)="toggleWishlist()">
         <app-icon name="heart" slot="start" class="wishlist-icon" [class.wished]="isWished()" />
         {{ isWished() ? 'Wishlisted' : 'Wishlist' }}
       </ion-button>

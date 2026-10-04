@@ -247,7 +247,11 @@
   padding: 8px;
   background: none;
   border: 0;
-  color: var(--ion-color-primary);
+  // `--color-primary-ink`, not `--ion-color-primary`. The latter is the powder
+  // brand hue (#8ECAE6), which measured 1.79:1 on this page's white card — a
+  // "forgot your password?" link you cannot read. primary-ink (#1B5E7E) on white
+  // is already asserted at 4.5:1 in `check-contrast.mjs`.
+  color: var(--color-primary-ink);
   font: inherit;
   font-size: 14px;
   text-align: center;

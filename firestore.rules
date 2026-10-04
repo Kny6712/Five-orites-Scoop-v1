@@ -23,7 +23,35 @@ service cloud.firestore {
     // role tiers existed keeps working untouched. A shop that upgrades does not
     // lose its owner's access to anything.
     function myRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      // `.get('role', '')` rather than `.data.role`.
+      //
+      // A dot access to an ABSENT key is an EVALUATION ERROR, not `false`. That is
+      // not a distinction the rules language makes casually: `developerIsWellFormed()`
+      // further down guards every single field with `in` for this reason, and
+      // `isNotChangingOwnRole()` uses this exact `.get(key, default)` form, with a
+      // comment saying "a null access is a HARD reject - it would fail unrelated
+      // profile edits". This file had already diagnosed the hazard twice and applied
+      // the guard twice; `myRole()` was the one function left reading a user field
+      // by dot access.
+      //
+      // REACHABLE, not hypothetical. An admin's non-merged `setDoc` on a user
+      // document takes the `isAdmin()` branch of `/users/{uid}`, which short-circuits
+      // with no field validation, succeeds, and DROPS the role. That is recorded as
+      // accepted at tests/firestore.rules.test.ts ("a UI responsibility - always
+      // merge"), but the rules are the layer a UI bug cannot talk out of.
+      //
+      // WHAT THIS CHANGES, measured rather than asserted. With the dot access, a
+      // role-less account produced:
+      //     evaluation error at ... Property role is undefined on object.
+      // With `.get('role', '')` it produces the same denial every other non-staff
+      // account produces. So the OUTCOME is unchanged - a role-less account was
+      // refused before and is refused now - and what is fixed is that the refusal is
+      // a decision instead of a crash, and the log names the situation rather than
+      // blaming an internal fault.
+      //
+      // The empty string is the fail-closed default: `'' in ['staff', 'manager',
+      // 'admin', 'owner']` is false, so a role-less account is not staff.
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '');
     }
 
     // Any staff tier at all — i.e. this person reaches the admin area.

@@ -10,6 +10,15 @@
   padding: 10px 12px 6px;
 }
 
+/* ion-searchbar's own radius is a hard-coded 28px on a white field, which is not
+   the shape of anything else on this page. Matches .track-search on /admin/tracking
+   and .voucher-search on /admin/vouchers. */
+.inv-search {
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  padding: 0;
+}
+
 .inv-count {
   margin: 0 0 8px;
   font-size: 12px;
@@ -97,18 +106,6 @@
   display: block;
 }
 
-.inv-thumb-veil {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(36 24 51 / 0.5);
-  color: var(--color-white);
-  font-size: 11px;
-  font-weight: 700;
-}
-
 /* The "you can change this" affordance, bottom-right of the frame. */
 .inv-thumb-badge {
   position: absolute;
@@ -152,6 +149,49 @@
 
 .inv-ident {
   min-width: 0;
+}
+
+/* The two read-out chips above the flavour name: the set, and the family stock
+   total. ion-chip ships min-height 32px plus 4px of margin on every side, which
+   is a chip sized for a filter row and not for a card header that already carries
+   an 11px label underneath it — so both are pulled in here.
+
+   min-height, not height: :host sets min-height, and min-height always beats
+   height, so the original `height` in this rule could never have taken effect. */
+.set-chip-sm {
+  font-size: 11px;
+  min-height: 22px;
+  margin: 0 0 2px;
+  --color: var(--color-ink);
+
+  ion-label {
+    color: var(--color-ink);
+  }
+}
+
+/* These carried color="primary" and color="secondary", which Ionic turns into a
+   foreground AND a background chosen independently: measured at 1.27:1 and 1.14:1,
+   the label and the pill at nearly the same lightness. Explicit backgrounds plus plum
+   ink, the treatment the credits page already uses. */
+.set-chip-powder {
+  background: var(--tile-powder);
+}
+
+.set-chip-mint {
+  background: var(--tile-mint);
+}
+
+/* An outline ion-button inherits --ion-color-primary - the powder brand hue - which
+   measured 1.71:1 on this page's cream ground. */
+.bulk-restock-btn {
+  --color: var(--color-primary-ink);
+}
+
+/* The family total is the one figure on the card that changes in place while an
+   admin steps stock, so it is tabular for the same reason .stock-qty is: without
+   it the label slides sideways on every tap. */
+.stock-total-chip {
+  font-variant-numeric: tabular-nums;
 }
 
 .inv-set-name {
@@ -363,134 +403,4 @@
 }
 .stock-alert-warning {
   color: var(--color-warning);
-}
-
-// ── Empty / error ──────────────────────────────────────
-/* The catalog can legitimately be empty after a search, which is a different
-   screen from "no products exist". The old page showed a bare blank list. */
-.inv-empty {
-  padding: var(--space-7) var(--space-4);
-  text-align: center;
-}
-
-.inv-empty p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--ion-color-medium);
-}
-
-/* -- Bulk CSV import ------------------------------------------ */
-.import-panel {
-  margin: 12px;
-  padding: 16px;
-  background: var(--color-white);
-  border: 1px solid var(--tone-info-border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-}
-
-.import-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.import-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--color-ink);
-}
-
-.import-close {
-  appearance: none;
-  border: none;
-  background: none;
-  padding: 8px;
-  border-radius: var(--radius-xs);
-  color: var(--ion-color-medium);
-  cursor: pointer;
-  min-width: 40px;
-  min-height: 40px;
-}
-.import-close:hover {
-  background: var(--tile-powder);
-  color: var(--color-ink);
-}
-.import-close-icon {
-  --icon-size: 18px;
-}
-
-.import-note {
-  margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--ion-color-medium);
-}
-
-.import-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
-}
-
-.import-help {
-  margin-top: 12px;
-  font-size: 13px;
-  color: var(--color-ink-soft);
-}
-.import-help summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--color-primary-ink);
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-}
-.import-help p {
-  margin: 8px 0 0;
-  line-height: 1.6;
-}
-.import-help code {
-  background: var(--tile-powder);
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 12px;
-}
-
-.import-errors {
-  margin: 12px 0;
-  padding-left: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--color-ink);
-}
-.import-errors li {
-  overflow-wrap: anywhere;
-}
-
-.import-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 12px 0;
-}
-
-.import-pill {
-  background: var(--tile-mint);
-  color: var(--color-mint-ink);
-  border-radius: var(--radius-pill);
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.import-pill--more {
-  background: var(--tile-powder);
-  color: var(--color-primary-ink);
 }

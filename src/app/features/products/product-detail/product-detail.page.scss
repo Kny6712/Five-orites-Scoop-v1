@@ -106,17 +106,24 @@
 .tile-price {
   font-size: 18px;
   font-weight: 800;
-  color: var(--color-brand-primary);
+  // Plum, and specifically NOT primary-ink: this price sits on a MINT tile, where
+  // primary-ink is 4.09:1 - a fail. Measured 1.03:1 here, powder on mint. Plum is
+  // 7.41:1 on mint and 12.88:1 on the white tiles beside it.
+  color: var(--color-ink);
 }
 
 .tile-stock {
   font-size: 11px;
   font-weight: 500;
+  // All three stock states take plum on the mint tile. tone-success-ink was the
+  // obvious candidate and measures 4.28:1 there - still a fail. The state keeps its
+  // colour on the tile and the icon; the TEXT takes the one value verified on every
+  // surface this component sits on.
   &.stock-in-stock {
-    color: var(--color-success);
+    color: var(--color-ink);
   }
   &.stock-low-stock {
-    color: var(--color-warning);
+    color: var(--color-ink);
   }
   &.stock-out-of-stock {
     color: var(--color-danger);
@@ -155,7 +162,9 @@
   margin-left: auto;
   font-size: 20px;
   font-weight: 800;
-  color: var(--color-brand-primary);
+  // 20px/800 is still not WCAG large text - that needs 24px. Plum rather than
+  // primary-ink because this line sits on the mint summary tile.
+  color: var(--color-ink);
 }
 
 // ── CTA ──────────────────────────────────────────────────
@@ -194,4 +203,67 @@
   justify-content: center;
   padding: 40px 20px;
   color: var(--color-danger);
+}
+
+/* The review LIST was in the template and in no stylesheet at all, so it rendered
+   at the UA default: stars, author and comment all at body size with 1em of
+   margin between them and nothing separating one review from the next.
+
+   .review-author and .review-comment are the definitions from the moderation
+   queue (admin/reviews) copied verbatim — the same review should not look like
+   two different reviews because it is being read in a different place. */
+.reviews-truncated {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.review-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ion-color-light);
+}
+
+.review-author {
+  margin: 4px 0 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.review-comment {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+/* A text action, not a control. fill="clear" at size="small" keeps 0.9em of
+   inline padding plus 2px of inline margin, which is what left "Withdraw"
+   hanging a dozen pixels right of the review it belongs to. */
+.withdraw-review-btn {
+  --padding-start: 0;
+  --padding-end: 0;
+  margin-inline-start: 0;
+}
+
+/* Writing a review is a different job from reading them, so the form opens its
+   own block instead of continuing the list's hairline rows. */
+.review-form {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--ion-color-light-shade);
+}
+
+.review-form-note {
+  margin: 0 0 var(--space-2);
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+/* An outline ion-button inherits --ion-color-primary, the powder brand hue: measured
+   #8ECAE6 on this page's cream ground at 1.71:1. The one action on a product page
+   that a returning customer reaches for was the least readable control on it. */
+.wishlist-btn {
+  --color: var(--color-primary-ink);
 }

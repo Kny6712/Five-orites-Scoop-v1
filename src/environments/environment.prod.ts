@@ -1,5 +1,14 @@
 export const environment = {
   production: true,
+
+  /**
+   * The deployed build talks to production. Stated rather than omitted so the
+   * property's type comes from a file that is actually compiled in this
+   * configuration, and so there is no reading of "absent" that could mean the
+   * opposite. See the note in `environment.ts`.
+   */
+  useEmulator: false,
+
   firebase: {
     apiKey: 'AIzaSyB0c5002bCaZfhU5an0X3wzq9qEoC98Bl4',
     authDomain: 'five-orites-scoop.firebaseapp.com',

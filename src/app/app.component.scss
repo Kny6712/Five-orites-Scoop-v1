@@ -80,7 +80,11 @@
   padding-bottom: 4px;
 
   &.admin-label {
-    color: var(--color-brand-primary);
+    // Measured 1.71:1 on the drawer cream, and only once the drawer was actually
+    // OPENED - a closed drawer renders nothing, so no audit of a default page view
+    // could see it. This is the heading that separates the customer menu from the
+    // admin one, so it is the last thing that should be hard to find.
+    color: var(--color-primary-ink);
   }
 }
 
@@ -98,13 +102,25 @@
   transition: background 0.15s ease;
 
   &.active-nav-item {
+    // PLUM, not the brand hue. This row was powder (#8ECAE6) on mint (#5FD9B4),
+    // which measures 1.03:1 — the label and its own background sat at the same
+    // lightness, so the ACTIVE page was the one row in the drawer you could not
+    // read. Measured off the live DOM, not eyeballed.
+    //
+    // Plum on mint is 7.41:1, and it is the convention the rest of the app already
+    // follows: `check-contrast.mjs` asserts plum against every pastel surface, and
+    // the idle rows are plum on cream at 12.34:1. The powder/mint pair was simply
+    // absent from that list, so the gate passed a broken row — the same shape as
+    // every other drift here: two correct halves, nothing asserting they agree.
     --background: var(--color-brand-light);
-    --color: var(--color-brand-primary);
+    --color: var(--color-ink);
     --cart-badge-ring: var(--color-brand-light);
     font-weight: 600;
 
     .nav-icon {
-      color: var(--color-brand-primary);
+      // The icon carries the same label, so it takes the same ink. Powder on mint
+      // is 1.03:1 for the glyph too, and a 1:1 glyph is not an affordance.
+      color: var(--color-ink);
     }
   }
 }
@@ -134,7 +150,11 @@
 }
 
 .admin-nav-icon {
-  color: var(--color-brand-primary);
+  // Measured 1.71:1 as a glyph on the drawer cream, and the 0.7 opacity made the
+  // painted result dimmer still. An icon owes 3:1 under WCAG 1.4.11 and primary-ink is
+  // 6.82:1, so the de-emphasis is now carried by the opacity alone - which is what it
+  // was there for in the first place.
+  color: var(--color-primary-ink);
   opacity: 0.7;
 }
 

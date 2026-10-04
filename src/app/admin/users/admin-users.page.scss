@@ -161,6 +161,19 @@
 .users-table tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* The right-aligned, tabular column — here, Spent. Analytics, Tracking and
+   Settings each declare this for their own numeric columns; without it the
+   header sorts on the left of a column of figures and the amounts jitter as they
+   are read. width: 1% is the same collapse .col-actions uses below, so the
+   flexible space goes to the columns whose content actually varies. */
+.num {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .user-row:hover {
   background: var(--tile-powder);
 }
@@ -368,7 +381,13 @@
 }
 
 .is-empty {
-  color: var(--ion-color-light-shade);
+  /* --ion-color-medium, not --ion-color-light-shade. This placeholder is the ONLY
+     thing in the cell when an account has no phone number, so "no value" is itself
+     information - and light-shade (#E4EDF3) measured 1.19:1 on white, i.e. it looked
+     like a rendering glitch rather than a deliberate dash. It is a BORDER token; this
+     is the first place it was used as a foreground. medium is 4.93:1 here and matches
+     the muted text in the sibling columns. */
+  color: var(--ion-color-medium);
 }
 
 .col-actions {

@@ -11,14 +11,26 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css)",
-        "headers": [{ "key": "Cache-Control", "value": "max-age=31536000" }]
-      },
-      {
+        "//": "ORDER IS LOAD-BEARING. Firebase combines the headers of every matching rule, and where two rules set the same header the LAST one wins. The broad `**` rule therefore declares no-store FIRST and the hashed-asset rule overrides it SECOND. Reverse them and every bundle silently loses its year-long cache.",
         "source": "**",
         "headers": [
+          {
+            "//": "The SPA shell must never be cached, and this rule is deliberately `**` rather than `/index.html`. Firebase matches headers on the REQUEST path, and every route here (`/developers`, `/admin/users`, `/checkout`) is served by the `**` rewrite to index.html - so a rule scoped to `/index.html` would leave every deep link cached. Firebase's default for an unconfigured path is max-age=3600, which is exactly what was happening: index.html carried an hour-long cache while the content-hashed bundles under it carried a year. A browser holding a cached shell therefore kept requesting the PREVIOUS deploy's chunk hashes for up to an hour after a release. That is not theoretical - it is how a shipped fix to /developers kept looking broken on a real device.",
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          },
           { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
           { "key": "X-Content-Type-Options", "value": "nosniff" }
+        ]
+      },
+      {
+        "//": "These filenames are content-hashed by the Angular build (`main-3THZSKJH.js`), so the bytes at a given URL can never change. `immutable` also stops browsers revalidating them on reload.",
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
         ]
       }
     ]

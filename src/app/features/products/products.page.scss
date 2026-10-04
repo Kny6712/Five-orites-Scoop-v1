@@ -45,6 +45,25 @@
   flex-shrink: 0;
   font-size: 13px;
   height: 30px;
+  --color: var(--color-ink);
+
+  ion-label {
+    color: var(--color-ink);
+  }
+}
+
+/* The SELECTED chip keeps the brand powder - powder is a surface, and that is what
+   brand hues are for. Plum on powder is 7.20:1, so the label becomes readable without
+   changing what the chip looks like at all. */
+.set-chip-active {
+  background: var(--color-brand-primary);
+}
+
+/* The idle chip keeps the outline shape it used to get from [outline], now declared.
+   Its label measured #808289 on white at 3.84:1; ink is far above that. */
+.set-chip-idle {
+  background: transparent;
+  border: 1px solid var(--color-border, #dfe4ec);
 }
 
 .filter-label {
