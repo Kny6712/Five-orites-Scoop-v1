@@ -1605,6 +1605,80 @@ describe('emulator-backed test suites close what they open', () => {
   }
 });
 
+/**
+ * firestore.rules must not dot-access a field on the caller's user document.
+ *
+ * A dot access to an absent key in the rules language is an EVALUATION ERROR, not
+ * `false`. The difference matters: `false` denies this clause and lets the next one
+ * decide, whereas an error aborts the whole expression - so a role check sitting on
+ * the left of an `||` would stop the right-hand clause from ever granting access.
+ *
+ * This is not a style preference. This file already knows it:
+ * `developerIsWellFormed()` guards every field with `in` and says why in a
+ * comment, and `isNotChangingOwnRole()` uses `.get(key, default)` with the note that
+ * "a null access is a HARD reject - it would fail unrelated profile edits".
+ * `myRole()` was left reading `.data.role`, so three sites shared one idea, two
+ * were documented, and nothing connected them.
+ *
+ * REACHABLE. An admin's non-merged `setDoc` on a user document takes the
+ * `isAdmin()` branch, which short-circuits with no field validation and drops the
+ * role. Measured, not assumed: with the dot access such an account gets
+ * "Property role is undefined on object"; with `.get('role', '')` it gets the same
+ * plain denial every other non-staff account gets. The outcome was correct either
+ * way - it was a crash instead of a decision, and a misleading log.
+ */
+describe('firestore.rules reads user fields defensively', () => {
+  const RULES = join(__dirname, '..', 'firestore.rules');
+  const src = readFileSync(RULES, 'utf8');
+
+  // Comments are stripped for the same reason as everywhere else in this file: a
+  // comment quoting the bad pattern would otherwise satisfy a search for it.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, ' ');
+
+  it('the rules file is actually being read', () => {
+    // Guard the guard: if the path or the fixture ever moves, every assertion below
+    // would pass against an empty string.
+    assert.ok(
+      code.includes('function myRole'),
+      'firestore.rules no longer defines myRole(); this guard needs updating',
+    );
+  });
+
+  it('no dot access to a field on the caller user document', () => {
+    // Matches `.data.<identifier>` directly after the caller user-document get,
+    // with a lookahead excluding `.data.get(`.
+    //
+    // The lookahead is not decoration. Without it, the first run flagged
+    // `data.get('role', '')` - the SAFE form - as a violation, because `.data.get`
+    // also matches `.data.<identifier>`. A guard that cannot tell the fix from the
+    // bug is worse than no guard: it would be disabled on first contact.
+    const unguarded = code.match(
+      /users\/\$\(request\.auth\.uid\)\)\.data\.(?!get\()[A-Za-z_$][\w$]*/g,
+    );
+    assert.equal(
+      unguarded,
+      null,
+      'these read a field of the caller user document by dot access, which is an ' +
+        'evaluation error when the field is absent rather than a plain false. Use ' +
+        "data.get('field', default) or an 'in' guard, as developerIsWellFormed() " +
+        'and isNotChangingOwnRole() already do: ' +
+        (unguarded ?? []).join(', '),
+    );
+  });
+
+  it('myRole() fails closed when the role field is missing', () => {
+    const body = code.match(/function myRole\s*\([^)]*\)\s*\{[\s\S]*?\n {4}\}/);
+    assert.ok(body, 'could not locate the body of myRole()');
+    assert.match(
+      body![0],
+      /data\.get\(\s*'role'\s*,\s*''\s*\)/,
+      "myRole() must read the role with data.get('role', '') so that a missing role " +
+        "is an empty string - which is 'in' no role list - rather than an evaluation " +
+        'error that aborts the whole rule.',
+    );
+  });
+});
+
 describe('clampToStock', () => {
   it('caps the requested quantity at available stock', () => {
     assert.equal(clampToStock(9, 4), 4);

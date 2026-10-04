@@ -1626,6 +1626,55 @@ describe('role tiers', () => {
   // to the catalog, the money, or the user directory. Under the single-role
   // model the minimum useful privilege was full control over every account.
 
+  // A user document that EXISTS but carries no `role` field. Not hypothetical:
+  // an admin's non-merged `setDoc` on a user document takes the `isAdmin()` branch,
+  // which short-circuits with no field validation and succeeds, dropping the role.
+  // See the "regression: a non-merged write must not strip a role" test above.
+  //
+  // `myRole()` therefore reads the role with `.get('role', '')`. Dot access to an
+  // absent key is an EVALUATION ERROR rather than `false`, which aborts the whole
+  // rule expression instead of just denying - so the same account would be locked
+  // out by a crash rather than by a decision, and the emulator log would blame an
+  // internal fault instead of naming the missing field.
+  //
+  // HONEST SCOPE: today this changes no outcome. Every role check in the file sits
+  // on the RIGHT of its `||`, where "threw" and "false" deny identically. The value
+  // is that it removes a trap: the first `isStaff() || <permissive clause>` added
+  // to this file would behave differently under an evaluation error, and silently.
+  test('an account whose document has no role gets no staff access', async () => {
+    await seed('users/roleless-uid', { uid: 'roleless-uid', displayName: 'No Role' });
+
+    // The staff-only catalog write.
+    await assertFails(
+      updateDoc(doc(authed('roleless-uid'), 'products/p1'), {
+        pricing: { cup: 1, pint: 1, halfGallon: 1, gallon: 1 },
+      }),
+    );
+    // And the staff-only reads: the order queue and the user directory.
+    await assertFails(getDocs(collection(authed('roleless-uid'), 'orders')));
+    await assertFails(getDocs(collection(authed('roleless-uid'), 'users')));
+  });
+
+  test('a role-less account is not blanket-denied: it keeps what a customer keeps', async () => {
+    await seed('users/roleless-uid', { uid: 'roleless-uid', displayName: 'No Role' });
+    await seed('products/p1', PRODUCT);
+
+    // The counterpart to the test above. Refusing a role-less account everywhere
+    // would ALSO satisfy every assertFails there, and would be a far worse bug than
+    // the one being fixed: a customer who somehow lost their role field would find
+    // the app entirely dead rather than merely staff-less.
+    //
+    // What a signed-in customer may still do: read the catalogue (`allow read: if
+    // isSignedIn()`), and read their own user document (`isOwner(uid)`). A
+    // role-less account must keep both.
+    await assertSucceeds(getDoc(doc(authed('roleless-uid'), 'products/p1')));
+    await assertSucceeds(getDoc(doc(authed('roleless-uid'), `users/roleless-uid`)));
+
+    // And it must still be refused the stock write, exactly as a customer is: there
+    // is no customer branch on the products rule at all.
+    await assertFails(updateDoc(doc(authed('roleless-uid'), 'products/p1'), { 'stock.cup': 99 }));
+  });
+
   test('staff may read the order queue', async () => {
     await assertSucceeds(getDocs(collection(asStaff(), 'orders')));
   });
