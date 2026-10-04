@@ -776,6 +776,99 @@ describe('CI runs `verify` rather than a second copy of it', () => {
     });
   });
 
+  /**
+   * The SPA shell must not be cached, or a fix ships and nobody sees it.
+   *
+   * `index.html` was served with Firebase's default `max-age=3600` while the
+   * content-hashed bundles under it were cached for a year. So after any deploy a
+   * browser that already held the shell kept requesting the PREVIOUS deploy's chunk
+   * hashes for up to an hour — and those chunks still resolve, so the app booted
+   * cleanly and simply ran the old code.
+   *
+   * That is not a theoretical annoyance. It is how the `/developers` photo fix kept
+   * looking broken: the code was deployed, correct, and verified working, and the
+   * reported symptom was still the pre-fix page for up to an hour afterwards.
+   *
+   * The rule has to be `**` rather than `/index.html`, which is the non-obvious part.
+   * Firebase matches headers against the REQUEST path, and every route here —
+   * `/developers`, `/admin/users`, `/checkout` — is served by the `**` rewrite to
+   * index.html. A rule scoped to `/index.html` would leave every deep link cached for
+   * an hour while looking correct in the config.
+   *
+   * The ORDER is load-bearing too, and that is what makes it worth asserting: Firebase
+   * merges every matching rule and the LAST one to set a header wins. The `**` rule
+   * has to come first and the hashed-asset rule second, or every bundle silently
+   * loses its year-long cache and nobody notices.
+   */
+  describe('the SPA shell is not cached, and the hashed bundles still are', () => {
+    const firebaseJson = readFileSync(join(__dirname, '..', 'firebase.json'), 'utf8');
+
+    /** The header rules in the order firebase.json declares them. */
+    function headerRules(): Array<{ source: string; cacheControl: string | null }> {
+      const rules: Array<{ source: string; cacheControl: string | null }> = [];
+      // Each entry is a `{ "source": ..., "headers": [ ... ] }` object. Splitting on
+      // the source key is enough — the array is small and flat.
+      // Scope to the `headers` array FIRST. Parsing the whole file also matched the
+      // `"source": "**"` inside `rewrites` - which is the SPA catch-all, not a header
+      // rule - so the first `**` found carried no Cache-Control and the assertion
+      // failed against a config that was in fact correct.
+      const headerBlock = firebaseJson.match(/"headers"\s*:\s*\[([\s\S]*?)\n\s{4}\]/)?.[1] ?? '';
+      assert.ok(headerBlock, 'firebase.json must declare a `headers` array');
+      for (const chunk of headerBlock.split(/"source"\s*:/).slice(1)) {
+        const source = (chunk.match(/^\s*"([^"]+)"/) ?? [])[1] ?? '?';
+        // Only the Cache-Control belonging to THIS rule, i.e. before the next source.
+        const cc = (chunk.match(/"Cache-Control"\s*,\s*"value"\s*:\s*"([^"]+)"/) ?? [])[1] ?? null;
+        rules.push({ source, cacheControl: cc });
+      }
+      return rules;
+    }
+
+    it('the broad rule covers every path, not just /index.html', () => {
+      // A `/index.html`-scoped rule would leave every rewritten SPA route cached.
+      assert.ok(
+        /"source"\s*:\s*"\*\*"/.test(firebaseJson),
+        'a `**` header rule is required — Firebase matches the REQUEST path, and every ' +
+          'route is served by the rewrite to index.html',
+      );
+    });
+
+    it('the broad rule forbids caching the shell', () => {
+      const broad = headerRules().find((r) => r.source === '**');
+      assert.ok(broad?.cacheControl, 'the `**` rule must set Cache-Control');
+      assert.match(
+        broad!.cacheControl!,
+        /no-store|no-cache/,
+        `the SPA shell must not be cached; found "${broad!.cacheControl!}"`,
+      );
+    });
+
+    it('the hashed-asset rule still gets the long cache', () => {
+      const assets = headerRules().find((r) => /\*\*/.test(r.source) && /js\|css/.test(r.source));
+      assert.ok(assets?.cacheControl, 'the js/css rule must set Cache-Control');
+      assert.match(
+        assets!.cacheControl!,
+        /max-age=31536000/,
+        'content-hashed bundles must keep the year-long cache',
+      );
+    });
+
+    it('the long-cache rule comes AFTER the no-store rule, because last wins', () => {
+      // Firebase merges all matching rules and the LAST to set a header wins, so this
+      // ordering is the only thing keeping the bundles cached. Reversed, every JS file
+      // inherits no-store and the app re-downloads 1.66 MB on every navigation —
+      // which looks like a performance regression rather than a config mistake.
+      const rules = headerRules();
+      const broadIdx = rules.findIndex((r) => r.source === '**');
+      const assetsIdx = rules.findIndex((r) => /js\|css/.test(r.source));
+      assert.ok(broadIdx !== -1 && assetsIdx !== -1, 'both rules must exist');
+      assert.ok(
+        broadIdx < assetsIdx,
+        'the `**` no-store rule must come FIRST and the js/css long-cache rule SECOND — ' +
+          'Firebase applies the last matching value for a header',
+      );
+    });
+  });
+
   it('includes every test suite in verify', () => {
     // The suites that found real bugs, named explicitly. `test:integration` is
     // the one that caught three severe defects while 308 other tests passed.
