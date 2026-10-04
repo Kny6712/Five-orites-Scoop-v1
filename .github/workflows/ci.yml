@@ -119,7 +119,7 @@ jobs:
       # of `verify` and will be present even when an earlier step failed.
       - name: Upload build output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: www-browser
           path: www/browser
