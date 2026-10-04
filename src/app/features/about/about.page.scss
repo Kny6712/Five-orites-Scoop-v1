@@ -82,6 +82,14 @@
 }
 
 // ── Story: copy beside the shop ──────────────────────────
+/* Every other section in .about-body owns the space below it (.mv-section and
+   .features-section --space-6, .how-section --space-4, .tech-section
+   --space-3), and .about-body is a plain block flow with no gap — so without
+   this the name triptych runs straight into the Mission & Vision grid. */
+.story-section {
+  margin-bottom: var(--space-6);
+}
+
 /* Below 900px the aside stacks under the text. Above it, they sit side by side,
    because a founding story with the location next to it is the pairing that
    makes the section worth the space. */

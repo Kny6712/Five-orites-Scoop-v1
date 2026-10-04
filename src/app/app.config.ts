@@ -6,6 +6,8 @@ import { provideRouter, withPreloading, PreloadingStrategy, Route } from '@angul
 import { provideHttpClient } from '@angular/common/http';
 import { provideIonicAngular } from '@ionic/angular/standalone';
 import { getApp, initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import { connectAuthEmulator, type Auth } from '@angular/fire/auth';
+import { connectFirestoreEmulator, type Firestore } from '@angular/fire/firestore';
 import {
   initializeFirestore,
   persistentLocalCache,
@@ -97,6 +99,56 @@ class AdminAwarePreloadingStrategy implements PreloadingStrategy {
   }
 }
 
+/**
+ * Redirects a freshly-created Firebase service at its local emulator.
+ *
+ * Called from inside each service's own provider factory rather than from one
+ * shared place, and that placement is deliberate. `connectFirestoreEmulator`
+ * throws if the Firestore instance has already started, so connecting to an
+ * instance obtained from `getFirestore()` would race the `provideFirestore`
+ * factory that owns the real one — and if `getFirestore()` won the race it would
+ * hand back an in-memory instance, breaking the persistence this app relies on.
+ * Connecting immediately after each instance is created removes the ordering
+ * question entirely.
+ *
+ * No-ops unless `environment.useEmulator` is set, which today is only
+ * `environment.emulator.ts`. Production sets it to `false` explicitly, so a
+ * mistake here cannot silently redirect a live build.
+ *
+ * WHY IT MATTERS. Until this existed, `npm start` served the admin app against the
+ * REAL database. Every control in that app writes — stock, products, roles,
+ * cancellations — so exercising a UI change mutated live data and filled the stock
+ * ledger with rows describing changes nobody made, which is exactly the corruption
+ * the reconciliation panel exists to detect. The Firestore emulator had been
+ * configured in `firebase.json` since long before; nothing pointed the app at it.
+ */
+function announceEmulator(): void {
+  // Unmissable in the console. The failure this guards against is a developer
+  // believing they are on a sandbox, so the evidence belongs where they will
+  // actually look — and it is deliberately loud rather than a polite notice.
+  console.warn(
+    '%cEMULATOR MODE',
+    'background:#a3232b;color:#fff;font-weight:700;padding:2px 6px;border-radius:4px',
+    '\n  Firestore -> localhost:8080   Auth -> localhost:9099' +
+      '\n  Nothing here touches production. Writes are discarded when the emulator stops.' +
+      '\n  Cloudinary is NOT emulated: photo uploads still reach the real media library.',
+  );
+}
+
+function connectFirestoreEmulatorIfEnabled(firestore: Firestore): void {
+  if (!environment.useEmulator) return;
+  // AngularFire's wrapper takes the INSTANCE, unlike the Firebase SDK's
+  // `connectFirestoreEmulator(app, …)`. Passing the app is a compile error, which
+  // is a better outcome than a runtime one.
+  connectFirestoreEmulator(firestore, 'localhost', 8080);
+  announceEmulator();
+}
+
+function connectAuthEmulatorIfEnabled(auth: Auth): void {
+  if (!environment.useEmulator) return;
+  connectAuthEmulator(auth, 'http://localhost:9099', { disableWarnings: true });
+}
+
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes, withPreloading(AdminAwarePreloadingStrategy)),
@@ -123,13 +175,19 @@ export const appConfig: ApplicationConfig = {
     //
     // It MUST be initializeFirestore: persistence cannot be attached after the
     // instance exists, so getFirestore() here would silently do nothing.
-    provideFirestore(() =>
-      initializeFirestore(getApp(), {
+    provideFirestore(() => {
+      const firestore = initializeFirestore(getApp(), {
         localCache: persistentLocalCache({
           tabManager: persistentMultipleTabManager(),
         }),
-      }),
-    ),
-    provideAuth(() => getAuth()),
+      });
+      connectFirestoreEmulatorIfEnabled(firestore);
+      return firestore;
+    }),
+    provideAuth(() => {
+      const auth = getAuth();
+      connectAuthEmulatorIfEnabled(auth);
+      return auth;
+    }),
   ],
 };

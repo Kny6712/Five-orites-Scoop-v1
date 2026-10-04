@@ -43,6 +43,21 @@ import { AddProductModalComponent } from './add-product-modal.component';
 import { EditProductModalComponent } from './edit-product-modal.component';
 import { ImageReplaceSheetComponent } from './image-replace-sheet.component';
 
+/**
+ * `maxSetNumber` for an EMPTY catalogue — zero sets exist.
+ *
+ * The modal numbers a new set `maxSetNumber + 1` (AddProductModalComponent
+ * .create), so 0 is not "no sets to offer" but "the first set an owner creates is
+ * Set 1", which is the only thing an empty catalogue can honestly mean.
+ *
+ * Deliberately not 8. That is the ceiling of SET_NAMES in
+ * core/config/pricing.config.ts — sets 1–8 only, blind to the ninth set the live
+ * catalogue has carried since Pistachio — and hardcoding it here would make a
+ * fresh catalogue's first product Set 9 while sets 1–8 sat permanently
+ * unreachable. Same blind spot `setChips` refuses to inherit; see its comment.
+ */
+const EMPTY_CATALOGUE_MAX_SET = 0;
+
 @Component({
   selector: 'app-inventory',
   standalone: true,
@@ -540,12 +555,21 @@ export class InventoryPage implements OnInit, OnDestroy {
   }
 
   // ── Add Product: dropdown form (flavor-set list + New), with description ───
+  /**
+   * The modal offers every set it already knows about plus a "New flavor set…"
+   * option numbered one past the highest that exists, so `maxSetNumber` is the
+   * only thing standing between an owner and the next set number. Computed from
+   * the loaded catalog rather than a constant, because which sets exist is data
+   * (see `setChips`), with the empty-catalog case falling back to
+   * EMPTY_CATALOGUE_MAX_SET so the "new set" path stays reachable.
+   */
   async addProduct(): Promise<void> {
     const loaded = this.products();
     const modal = await this.modalCtrl.create({
       component: AddProductModalComponent,
       componentProps: {
-        maxSetNumber: loaded.length > 0 ? Math.max(...loaded.map((p) => p.setNumber)) : 8,
+        maxSetNumber:
+          loaded.length > 0 ? Math.max(...loaded.map((p) => p.setNumber)) : EMPTY_CATALOGUE_MAX_SET,
         // isActive travels with each variant so the modal can list deactivated
         // flavors as unavailable rather than silently omitting them — otherwise
         // the only way to bring one back is to create a duplicate.

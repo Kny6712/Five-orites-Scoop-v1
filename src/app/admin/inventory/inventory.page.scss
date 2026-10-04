@@ -10,6 +10,15 @@
   padding: 10px 12px 6px;
 }
 
+/* ion-searchbar's own radius is a hard-coded 28px on a white field, which is not
+   the shape of anything else on this page. Matches .track-search on /admin/tracking
+   and .voucher-search on /admin/vouchers. */
+.inv-search {
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  padding: 0;
+}
+
 .inv-count {
   margin: 0 0 8px;
   font-size: 12px;
@@ -152,6 +161,26 @@
 
 .inv-ident {
   min-width: 0;
+}
+
+/* The two read-out chips above the flavour name: the set, and the family stock
+   total. ion-chip ships min-height 32px plus 4px of margin on every side, which
+   is a chip sized for a filter row and not for a card header that already carries
+   an 11px label underneath it — so both are pulled in here.
+
+   min-height, not height: :host sets min-height, and min-height always beats
+   height, so the original `height` in this rule could never have taken effect. */
+.set-chip-sm {
+  font-size: 11px;
+  min-height: 22px;
+  margin: 0 0 2px;
+}
+
+/* The family total is the one figure on the card that changes in place while an
+   admin steps stock, so it is tabular for the same reason .stock-qty is: without
+   it the label slides sideways on every tap. */
+.stock-total-chip {
+  font-variant-numeric: tabular-nums;
 }
 
 .inv-set-name {

@@ -324,7 +324,18 @@ export class AddProductModalComponent {
   private toastCtrl = inject(ToastController);
   readonly uploadService = inject(ImageUploadService);
 
-  @Input() maxSetNumber: number = 8;
+  /**
+   * The highest set number currently in use; the new product gets `+ 1`.
+   *
+   * The default is 0, not 8. This was 8, which was wrong twice over: the live
+   * catalogue has NINE sets — `SET_NAMES` in pricing.config.ts stops at 8 and so
+   * does `PRICING_MATRIX` in scripts/seed-products.ts — and an empty catalogue
+   * honestly means "no sets yet", so a first product should be Set 1 rather than
+   * Set 9. `inventory.page.ts` always passes this prop, so the default is only ever
+   * seen if the modal is rendered somewhere else; it is a third copy of the same
+   * ceiling and it should not be a fourth.
+   */
+  @Input() maxSetNumber = 0;
   @Input() variants: {
     setNumber: number;
     setName: string;

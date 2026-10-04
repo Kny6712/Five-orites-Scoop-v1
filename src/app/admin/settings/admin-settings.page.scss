@@ -44,6 +44,43 @@
   color: var(--ion-color-medium);
 }
 
+/*
+  The reconciliation coverage line - "1 drifted · 260 checked and correct · 3 with
+  no ledger history, not checked".
+
+  It is the most important sentence in that panel and it arrived with no rule at
+  all, which made it render identically to the two `.panel-note` paragraphs above
+  and below it. That is the wrong outcome for a number whose whole purpose is to
+  stop a reader treating "1 drifted" as "the other 263 are fine".
+
+  The emphasis is on the COUNTS, not the whole line: `.panel-note` is body copy at
+  `--ion-color-medium`, and overriding that would put the entire sentence at
+  heading weight. Toning the figures to the ink colour while the labels stay
+  secondary keeps the sentence readable and makes the numbers the thing you read
+  first.
+*/
+.coverage-note {
+  color: var(--ion-color-medium);
+
+  strong {
+    color: var(--color-ink);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* The qualifier under a panel's headline number - "12 older cancelled orders have
+   no stock marker at all". The other three pages that use this name (admin/users,
+   admin/vouchers, profile) each declare it in their own stylesheet, and the same
+   declarations are repeated here rather than promoted to global.scss, which is
+   where a class used by four unrelated screens belongs. */
+.field-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ion-color-medium);
+}
+
 /* Toggle row inside a panel. */
 .row {
   display: flex;

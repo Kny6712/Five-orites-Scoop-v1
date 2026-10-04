@@ -52,13 +52,39 @@ function syncAssetImages(): void {
 let firestore: any;
 function getDb() {
   if (!firestore) {
-    const serviceAccount = require(SERVICE_ACCOUNT_PATH);
-    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    // THE EMULATOR BRANCH. When `FIRESTORE_EMULATOR_HOST` is set, firebase-admin
+    // connects to the local emulator and needs NO credentials — and must not be
+    // given any. Requiring `serviceAccountKey.json` unconditionally is what made
+    // the emulator unusable for local development: that file is deliberately
+    // absent from most checkouts, so `npm run seed` could not populate a sandbox
+    // even once the app was pointed at one.
+    //
+    // Same reasoning as the `emulator` build configuration: local development
+    // should not require production credentials to be useful.
+    if (process.env.FIRESTORE_EMULATOR_HOST) {
+      admin.initializeApp({
+        projectId: process.env.FIREBASE_PROJECT_ID ?? 'demo-five-orites-scoop',
+      });
+    } else {
+      const serviceAccount = require(SERVICE_ACCOUNT_PATH);
+      admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    }
     firestore = admin.firestore();
   }
   return firestore;
 }
 
+// Prices per set, in pesos.
+//
+// SET 9 IS HERE, and its absence was a third instance of the same blind spot:
+// `SET_NAMES` in pricing.config.ts stops at 8, `addProduct()` in the inventory
+// page fell back to 8 on an empty catalogue, and this table did too. The live
+// catalogue carries a set 9 (Pistachio), so all three were quietly wrong about a
+// set that actually exists — and a seeded set 9 would have landed with no pricing
+// at all rather than failing loudly.
+//
+// The numbers are the owner's, not derived from a formula; sets 1, 3, 4, 6 and 8
+// genuinely do share a price.
 const PRICING_MATRIX: Record<number, any> = {
   1: { cup: 65, pint: 200, halfGallon: 500, gallon: 950 },
   2: { cup: 60, pint: 190, halfGallon: 480, gallon: 900 },
@@ -68,6 +94,7 @@ const PRICING_MATRIX: Record<number, any> = {
   6: { cup: 65, pint: 200, halfGallon: 500, gallon: 950 },
   7: { cup: 70, pint: 210, halfGallon: 520, gallon: 980 },
   8: { cup: 65, pint: 200, halfGallon: 500, gallon: 950 },
+  9: { cup: 70, pint: 210, halfGallon: 520, gallon: 980 },
 };
 
 /**

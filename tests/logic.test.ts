@@ -654,6 +654,128 @@ describe('CI runs `verify` rather than a second copy of it', () => {
     assert.equal(new Set(hexes).size, 5, 'the palette must not contain a duplicate');
   });
 
+  /**
+   * THE LOCAL-DEVELOPMENT SAFETY INVARIANT.
+   *
+   * `npm start` used to serve the admin app against the PRODUCTION database:
+   * `environment.ts` hard-codes `projectId: 'five-orites-scoop'` and the
+   * `development` build configuration does not replace it. Every control in that app
+   * writes — stock levels, products, roles, order cancellations — so exercising a UI
+   * change mutated live data and appended rows to the stock ledger describing
+   * changes nobody made, which is exactly the corruption the reconciliation panel
+   * exists to detect.
+   *
+   * `npm start` now selects the `emulator` build configuration, and reaching
+   * production takes the explicit `npm run start:prod`.
+   *
+   * This is asserted rather than documented because the failure mode is INVISIBLE.
+   * Nothing breaks if someone adds `--configuration production` to `start`: the app
+   * builds, boots, looks perfect, and quietly writes to the real database. A README
+   * line saying "start is safe" would not survive the first well-meaning tweak, and
+   * the cost of that tweak is measured in corrupted production data rather than a
+   * red build.
+   */
+  describe('local development cannot reach production by accident', () => {
+    const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    const angularSrc = readFileSync(join(__dirname, '..', 'angular.json'), 'utf8');
+    const envSrc = readFileSync(
+      join(__dirname, '..', 'src', 'environments', 'environment.ts'),
+      'utf8',
+    );
+    const emulatorEnvSrc = readFileSync(
+      join(__dirname, '..', 'src', 'environments', 'environment.emulator.ts'),
+      'utf8',
+    );
+
+    it('`npm start` selects the emulator configuration', () => {
+      assert.match(
+        pkg.scripts.start,
+        /--configuration emulator\b/,
+        '`npm start` must build with the emulator configuration, or it serves the admin ' +
+          'app against production — every control there writes',
+      );
+    });
+
+    it('`npm start` names no production configuration', () => {
+      // Belt and braces against the first assertion: a script could satisfy the check
+      // above and still add a second configuration.
+      assert.ok(
+        !/--configuration\s+(production|prod)\b/.test(pkg.scripts.start),
+        '`npm start` must not name a production configuration',
+      );
+    });
+
+    it('reaching production requires a differently-named script', () => {
+      // The opt-in has to exist, or `npm start` being redirected would leave no way
+      // to look at real data and the change would get reverted.
+      assert.match(pkg.scripts['start:prod'] ?? '', /--configuration prod\b/);
+    });
+
+    it('the emulator build configuration replaces the environment file', () => {
+      // Without the fileReplacement the `emulator` configuration is just a name: it
+      // would compile environment.ts and connect to production while appearing to
+      // be the safe one.
+      assert.match(
+        angularSrc,
+        /"emulator"[\s\S]{0,400}?fileReplacements[\s\S]{0,400}?environment\.emulator\.ts/,
+        'the `emulator` build configuration must swap environment.ts for environment.emulator.ts',
+      );
+    });
+
+    it('the default environment states useEmulator: false, not an absent key', () => {
+      // `undefined` is falsy so the runtime behaves correctly either way, but an
+      // absent key means nobody decided — and the emulator file is swapped in by
+      // angular.json, so TypeScript only ever sees THIS file's shape.
+      assert.match(
+        envSrc,
+        /useEmulator:\s*false/,
+        'environment.ts must state `useEmulator: false` so the property type is settled ' +
+          'by the file TypeScript actually compiles',
+      );
+    });
+
+    it('the emulator environment opts in and does not name the real project', () => {
+      assert.match(emulatorEnvSrc, /useEmulator:\s*true/);
+
+      // Match ASSIGNMENTS, not prose. The first version of this assertion was a plain
+      // regex over the whole file and it failed on the very reasoning that justifies
+      // it: environment.emulator.ts's own header comment quotes
+      // `projectId: 'five-orites-scoop'` while explaining why that value must not
+      // appear, so the test flagged its own explanation. Anchoring to a line that
+      // actually assigns the key is what makes this about code.
+      const assignments = [...emulatorEnvSrc.matchAll(/^\s*projectId:\s*'([^']+)'/gm)].map(
+        (m) => m[1],
+      );
+      assert.ok(assignments.length > 0, 'expected at least one projectId assignment');
+      for (const id of assignments) {
+        assert.notEqual(
+          id,
+          'five-orites-scoop',
+          'environment.emulator.ts must not carry the production projectId - the ' +
+            'emulators ignore it, but naming it would make an accidental live call ' +
+            'succeed quietly',
+        );
+        assert.match(id, /^demo-/, `emulator projectId "${id}" should use the demo- prefix`);
+      }
+    });
+
+    it('the seeded price matrix covers every set the live catalogue has', () => {
+      // Set 9 exists in production and was missing here, in `SET_NAMES`, and in the
+      // inventory page's empty-catalogue fallback — three copies of the same list, all
+      // stopping at 8, none of which could notice the others were short.
+      const seedSrc = readFileSync(join(__dirname, '..', 'scripts', 'seed-products.ts'), 'utf8');
+      const matrix = seedSrc.match(/const PRICING_MATRIX[\s\S]*?\n};/)?.[0] ?? '';
+      assert.ok(matrix, 'PRICING_MATRIX not found in scripts/seed-products.ts');
+      const sets = [...matrix.matchAll(/^\s*(\d+):\s*\{/gm)].map((m) => Number(m[1]));
+      assert.ok(
+        sets.includes(9),
+        'PRICING_MATRIX must include set 9 — it exists in the live catalogue',
+      );
+    });
+  });
+
   it('includes every test suite in verify', () => {
     // The suites that found real bugs, named explicitly. `test:integration` is
     // the one that caught three severe defects while 308 other tests passed.
@@ -1843,6 +1965,51 @@ describe('product csv import', () => {
     assert.match(plan.errors[0].message, /price column/i);
   });
 
+  it('resolves an absent price column to 0 rather than to a tier default', () => {
+    // The shape a shop that only sells two sizes actually exports: the other two
+    // columns are simply not in the file. Both must land at ₱0 — neither an error
+    // nor DEFAULT_SET_PRICING, which is the create form's business.
+    const plan = parseProductCsv(
+      'set_number,set_name,variant_name,category,cup_price,pint_price\n1,Chocolates,Rocky Road,flavor,65,200',
+    );
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.deepEqual(plan.valid[0].pricing, { cup: 65, pint: 200, halfGallon: 0, gallon: 0 });
+  });
+
+  it('treats a present-but-blank price cell exactly like an absent column', () => {
+    // `get` returns '' for both, so the tier is ₱0 either way. They must not
+    // drift apart, or the same catalog exported two ways would import two ways.
+    const plan = parseProductCsv(`${HEADER}\n1,Chocolates,Rocky Road,,flavor,65,200,,950,,,,`);
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.deepEqual(plan.valid[0].pricing, { cup: 65, pint: 200, halfGallon: 0, gallon: 950 });
+  });
+
+  it('refuses a file whose price columns are present but entirely blank', () => {
+    // The other half of the same guard: the columns ARE there, so anything
+    // checking only the header waves this through — yet nothing parses, and the
+    // result would be every product at ₱0, which the rules allow.
+    const plan = parseProductCsv(`${HEADER}\n1,Chocolates,Rocky Road,,flavor,,,,,,,,`);
+    assert.equal(plan.valid.length, 0);
+    assert.match(plan.errors[0].message, /price column/i);
+  });
+
+  it('rounds a fractional price to whole pesos instead of refusing the row', () => {
+    // firestore.rules requires `pricing.* is int`, so a 65.4999 from a spreadsheet
+    // division has to be rounded here or the server rejects the whole import with
+    // no line number. Contrast the stock case above: half a scoop is a mistake,
+    // half a peso is arithmetic.
+    const plan = parseProductCsv(
+      `${HEADER}\n1,Chocolates,Rocky Road,,flavor,65.5,200.4999,500,950,,,,`,
+    );
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.deepEqual(plan.valid[0].pricing, {
+      cup: 66,
+      pint: 200,
+      halfGallon: 500,
+      gallon: 950,
+    });
+  });
+
   it('reports the missing required columns when the header is wrong', () => {
     const plan = parseProductCsv('a,b,c\n1,2,3');
     assert.match(plan.errors[0].message, /Missing required column/);
@@ -1866,6 +2033,20 @@ describe('product csv import', () => {
       const plan = parseProductCsv(`${header}\n1,Chocolates,Rocky Road,flavor,65,200,500,950`);
       assert.equal(plan.valid.length, 1, `header not understood: ${header}`);
       assert.equal(plan.valid[0].pricing.gallon, 950);
+    }
+  });
+
+  it('still understands a stock column written either way round', () => {
+    // Each stock alias list carried a duplicate of its own first element, which
+    // was pruned as dead text. This pins the survivors, both orderings, for all
+    // four sizes — the prune must not cost a header shape a human would write.
+    for (const header of [
+      'set_number,set_name,variant_name,category,cup_price,cup_stock,pint_stock,half_gallon_stock,gallon_stock',
+      'set_number,set_name,variant_name,category,cup_price,stock_cup,stock_pint,stock_half_gallon,stock_gallon',
+    ]) {
+      const plan = parseProductCsv(`${header}\n1,Chocolates,Rocky Road,flavor,65,1,2,3,4`);
+      assert.equal(plan.valid.length, 1, `header not understood: ${header}`);
+      assert.deepEqual(plan.valid[0].stock, { cup: 1, pint: 2, halfGallon: 3, gallon: 4 });
     }
   });
 

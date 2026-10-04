@@ -111,6 +111,22 @@
   font-size: 14px;
   color: var(--ion-color-dark);
 }
+/* The free-delivery nudge, sitting between the Delivery row and the Total row.
+
+   margin: 0 is load-bearing: .order-summary is a flex column with an 8px gap, and
+   the UA default of 1em top and bottom on a <p> would blow the panel apart and
+   leave a second, uneven gap under the gap.
+
+   --ion-color-dark rather than --ion-color-medium, which is the page's usual
+   secondary ink: this text is on the mint summary panel, where medium measures
+   about 1.7:1 and is unreadable. Size is what makes it secondary here. */
+.free-delivery-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ion-color-dark);
+}
+
 .total-row {
   border-top: 1px solid var(--ion-color-light-shade);
   padding-top: 8px;
@@ -262,4 +278,14 @@
   color: var(--ion-color-medium);
   margin: 0;
   max-width: 280px;
+}
+/* The two actions of the confirmation screen. .confirmed-state centres its flex
+   items, so without a width of its own this wrapper shrinks to the buttons'
+   content width and `expand="block"` has nothing to expand into — the pair reads
+   as two small buttons floating mid-screen instead of the full-width pair the
+   checkout step shows. Capped so it stays the width of the rest of the screen
+   on a desktop split pane rather than stretching the length of the panel. */
+.confirmed-actions {
+  width: 100%;
+  max-width: 320px;
 }

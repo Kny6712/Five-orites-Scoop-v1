@@ -61,12 +61,12 @@ const COLUMN_ALIASES: Record<string, string[]> = {
   category: ['category', 'type', 'catalogtype'],
   cupPrice: ['cupprice', 'pricecup', 'cup'],
   pintPrice: ['pintprice', 'pricepint', 'pint'],
-  halfGallonPrice: ['halfgallonprice', 'pricehalfgallon', 'halfgallon', 'halfgallonprice'],
+  halfGallonPrice: ['halfgallonprice', 'pricehalfgallon', 'halfgallon'],
   gallonPrice: ['gallonprice', 'pricegallon', 'gallon'],
-  cupStock: ['cupstock', 'stockcup', 'cupstock'],
-  pintStock: ['pintstock', 'stockpint', 'pintstock'],
-  halfGallonStock: ['halfgallonstock', 'stockhalfgallon', 'halfgallonstock'],
-  gallonStock: ['gallonstock', 'stockgallon', 'gallonstock'],
+  cupStock: ['cupstock', 'stockcup'],
+  pintStock: ['pintstock', 'stockpint'],
+  halfGallonStock: ['halfgallonstock', 'stockhalfgallon'],
+  gallonStock: ['gallonstock', 'stockgallon'],
 };
 
 function normaliseHeader(h: string): string {
@@ -199,9 +199,24 @@ export function parseProductCsv(text: string, existingIds: Set<string> = new Set
     for (const size of SIZES) {
       const priceRaw = get(`${size}Price`);
       const stockRaw = get(`${size}Stock`);
-      // An absent price column leaves the tier default alone; a PRESENT but
-      // unparseable one is an error, because 0 and "not set" are different and
-      // only the second one is acceptable.
+      // A blank price becomes ₱0 for that tier rather than an error, and that
+      // covers an absent column and an empty cell alike because `get` cannot
+      // tell them apart: a shop that prices only the two sizes it sells is a
+      // legitimate file, and refusing it over the other two is pedantry. No
+      // default tier pricing is consulted — `DEFAULT_SET_PRICING` is the create
+      // form's business, and a CSV row carries whatever the admin wrote in it.
+      //
+      // The check below is what makes ₱0 safe to write: it refuses any file
+      // where NO price parsed anywhere, so "every tier at ₱0" cannot reach
+      // Firestore, whose rules would admit it (`pricing.cup is int` and `>= 0`).
+      // A price that is present and unreadable is the opposite case and stays an
+      // error — a typo the admin has to see, not a size they chose not to sell.
+      //
+      // Rounded, and given more latitude than stock, because the rules require
+      // `pricing.* is int`: a 65.4999 left by a spreadsheet division would bounce
+      // the whole import off the server with no line number and a cell that
+      // looks correct on screen. Half a scoop is a mistake; half a peso is
+      // arithmetic.
       if (priceRaw) {
         const price = Number(priceRaw);
         if (!Number.isFinite(price) || price < 0) {

@@ -161,6 +161,19 @@
 .users-table tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* The right-aligned, tabular column — here, Spent. Analytics, Tracking and
+   Settings each declare this for their own numeric columns; without it the
+   header sorts on the left of a column of figures and the amounts jitter as they
+   are read. width: 1% is the same collapse .col-actions uses below, so the
+   flexible space goes to the columns whose content actually varies. */
+.num {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .user-row:hover {
   background: var(--tile-powder);
 }

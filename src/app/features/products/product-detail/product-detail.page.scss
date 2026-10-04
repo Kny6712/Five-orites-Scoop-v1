@@ -195,3 +195,59 @@
   padding: 40px 20px;
   color: var(--color-danger);
 }
+
+/* The review LIST was in the template and in no stylesheet at all, so it rendered
+   at the UA default: stars, author and comment all at body size with 1em of
+   margin between them and nothing separating one review from the next.
+
+   .review-author and .review-comment are the definitions from the moderation
+   queue (admin/reviews) copied verbatim — the same review should not look like
+   two different reviews because it is being read in a different place. */
+.reviews-truncated {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.review-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ion-color-light);
+}
+
+.review-author {
+  margin: 4px 0 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.review-comment {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+/* A text action, not a control. fill="clear" at size="small" keeps 0.9em of
+   inline padding plus 2px of inline margin, which is what left "Withdraw"
+   hanging a dozen pixels right of the review it belongs to. */
+.withdraw-review-btn {
+  --padding-start: 0;
+  --padding-end: 0;
+  margin-inline-start: 0;
+}
+
+/* Writing a review is a different job from reading them, so the form opens its
+   own block instead of continuing the list's hairline rows. */
+.review-form {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--ion-color-light-shade);
+}
+
+.review-form-note {
+  margin: 0 0 var(--space-2);
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
