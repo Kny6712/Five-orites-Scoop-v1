@@ -64,7 +64,7 @@ jobs:
       # and then failed the build with no diagnostic pointing at the version. npm
       # only *warns* on an engine mismatch unless engine-strict is set, so the
       # explicit setup-node version here is what actually pins it.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'
