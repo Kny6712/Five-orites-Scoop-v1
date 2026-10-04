@@ -1,7 +1,9 @@
 // src/app/features/dashboard/voucher-cards/voucher-cards.component.scss
 // Sizes icons via --icon-size: app-icon is inline SVG, not a font glyph.
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
 .voucher-grid {
   display: grid;
@@ -16,13 +18,16 @@
 .voucher-card {
   position: relative;
   background: var(--color-white);
-  border: 2px dashed var(--color-brand-primary);
+  border: 2px dashed var(--color-primary-ink);
   border-radius: var(--radius-md);
   padding: var(--space-4);
   box-shadow: var(--shadow-card);
 }
 
-.skeleton-card { display: flex; flex-direction: column; }
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+}
 
 .voucher-head {
   display: flex;
@@ -37,7 +42,7 @@
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.5px;
-  color: var(--color-strawberry-ink);
+  color: var(--color-primary-ink);
   /* Long codes must not push the card wider than its track. */
   overflow-wrap: anywhere;
 }
@@ -120,15 +125,17 @@
   color: var(--color-brand-primary);
 }
 
-.voucher-empty p { margin: 0; }
+.voucher-empty p {
+  margin: 0;
+}
 
 .voucher-error {
   margin: 0 var(--space-4) var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  background: #fde8ee;
-  border: 1px solid #f5b8c8;
-  color: #8f1f38;
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-border);
+  color: var(--tone-danger-ink);
   font-size: 13px;
   font-weight: 600;
 }

@@ -1,31 +1,72 @@
 // src/app/features/products/products.page.ts
 
 import {
-  Component, OnInit, OnDestroy, ElementRef, ViewChild, inject, signal, computed,
+  Component,
+  OnInit,
+  OnDestroy,
+  ElementRef,
+  ViewChild,
+  inject,
+  signal,
+  computed,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonSearchbar, IonChip, IonLabel, IonGrid, IonRow, IonCol,
-  IonSkeletonText, IonCard, IonCardContent, IonText, IonRefresher, IonRefresherContent,
-  IonButtons, IonMenuButton, IonToggle, IonItem,
-  IonInfiniteScroll, IonInfiniteScrollContent,
-  IonSelect, IonSelectOption, IonSegment, IonSegmentButton, IonButton,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonSearchbar,
+  IonChip,
+  IonLabel,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonSkeletonText,
+  IonCard,
+  IonCardContent,
+  IonText,
+  IonRefresher,
+  IonRefresherContent,
+  IonButtons,
+  IonMenuButton,
+  IonToggle,
+  IonSelect,
+  IonSelectOption,
+  IonSegment,
+  IonSegmentButton,
+  IonButton,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { Subscription } from 'rxjs';
 import { catchError, of } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
 import { WishlistService } from '../../core/services/wishlist.service';
-import { Product, FlavorSet, SizeVariant, ProductSort, ProductCategory, PRODUCT_CATEGORIES, productCategory } from '../../core/models/product.model';
+import {
+  Product,
+  FlavorSet,
+  SizeVariant,
+  ProductSort,
+  ProductCategory,
+  PRODUCT_CATEGORIES,
+  productCategory,
+} from '../../core/models/product.model';
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { SET_NAMES, SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
 
-interface SetChip { label: string; value: FlavorSet | null; }
-interface SelectOption<T> { label: string; value: T; }
+interface SetChip {
+  label: string;
+  value: FlavorSet | null;
+}
+interface SelectOption<T> {
+  label: string;
+  value: T;
+}
 
 /**
  * Price ceiling presets, in pesos.
@@ -40,22 +81,46 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
   { label: '₱100 or less', value: 100 },
   { label: '₱250 or less', value: 250 },
   { label: '₱550 or less', value: 550 },
-  { label: '₱1,000 or less', value: 1000 }];
+  { label: '₱1,000 or less', value: 1000 },
+];
 
 @Component({
   selector: 'app-products',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonSearchbar, IonChip, IonLabel, IonGrid, IonRow, IonCol,
-    IonSkeletonText, IonCard, IonCardContent, IonText,
-    IonRefresher, IonRefresherContent,
-    IonButtons, IonMenuButton, IonToggle, IonItem,
-    IonInfiniteScroll, IonInfiniteScrollContent,
-    IonSelect, IonSelectOption, IonSegment, IonSegmentButton, IonButton,
-    ProductCardComponent, CartButtonComponent,
-    AppIconComponent, EmptyStateComponent],
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonSearchbar,
+    IonChip,
+    IonLabel,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonSkeletonText,
+    IonCard,
+    IonCardContent,
+    IonText,
+    IonRefresher,
+    IonRefresherContent,
+    IonButtons,
+    IonMenuButton,
+    IonToggle,
+    IonSelect,
+    IonSelectOption,
+    IonSegment,
+    IonSegmentButton,
+    IonButton,
+    ProductCardComponent,
+    CartButtonComponent,
+    AppIconComponent,
+    EmptyStateComponent,
+    PaginationComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './products.page.html',
   styleUrls: ['./products.page.scss'],
 })
@@ -73,8 +138,6 @@ export class ProductsPage implements OnInit, OnDestroy {
   inStockOnly = signal(false);
   wishlistOnly = signal(false);
   wishlistIds = signal<string[]>([]);
-  PAGE_SIZE = 20;
-  displayedCount = signal(this.PAGE_SIZE);
 
   /** Size the shopper is shopping for. null = "any size". */
   readonly selectedSize = signal<SizeVariant | null>(null);
@@ -94,7 +157,8 @@ export class ProductsPage implements OnInit, OnDestroy {
   readonly selectedCategory = signal<ProductCategory | null>(null);
   readonly categoryOptions: SelectOption<ProductCategory | null>[] = [
     { label: 'All types', value: null },
-    ...PRODUCT_CATEGORIES.map((c) => ({ label: c.label, value: c.value }))];
+    ...PRODUCT_CATEGORIES.map((c) => ({ label: c.label, value: c.value })),
+  ];
 
   /** The size a price is read from; falls back to the cup (see filteredProducts). */
   readonly priceBasisSize = computed<SizeVariant>(() => this.selectedSize() ?? 'cup');
@@ -104,7 +168,8 @@ export class ProductsPage implements OnInit, OnDestroy {
     ...(Object.keys(SIZE_DISPLAY_LABELS) as SizeVariant[]).map((s) => ({
       label: SIZE_DISPLAY_LABELS[s],
       value: s,
-    }))];
+    })),
+  ];
   readonly maxPriceOptions = MAX_PRICE_OPTIONS;
   /**
    * `label` is the full phrase and is what the segment button's aria-label
@@ -115,7 +180,8 @@ export class ProductsPage implements OnInit, OnDestroy {
     { label: 'Sort by featured order', short: 'Featured', value: 'featured' },
     { label: 'Sort by price, low to high', short: 'Price ↑', value: 'price-asc' },
     { label: 'Sort by price, high to low', short: 'Price ↓', value: 'price-desc' },
-    { label: 'Sort by name, A to Z', short: 'A–Z', value: 'name' }];
+    { label: 'Sort by name, A to Z', short: 'A–Z', value: 'name' },
+  ];
 
   /**
    * Any non-default filter state — drives the "Clear filters" button, which
@@ -134,7 +200,7 @@ export class ProductsPage implements OnInit, OnDestroy {
       this.selectedSize() !== null ||
       this.maxPrice() !== null ||
       this.selectedCategory() !== null ||
-      this.sortBy() !== 'featured'
+      this.sortBy() !== 'featured',
   );
 
   @ViewChild('searchbar') searchbar?: ElementRef<HTMLIonSearchbarElement>;
@@ -157,14 +223,15 @@ export class ProductsPage implements OnInit, OnDestroy {
       if (labelByNumber.has(p.setNumber)) continue;
       labelByNumber.set(
         p.setNumber,
-        p.setName?.trim() || SET_NAMES[p.setNumber] || `Set ${p.setNumber}`
+        p.setName?.trim() || SET_NAMES[p.setNumber] || `Set ${p.setNumber}`,
       );
     }
     return [
       { label: 'All', value: null },
       ...[...labelByNumber.entries()]
         .sort((a, b) => a[0] - b[0])
-        .map(([value, label]) => ({ label, value: value as FlavorSet }))];
+        .map(([value, label]) => ({ label, value: value as FlavorSet })),
+    ];
   });
 
   /**
@@ -194,12 +261,14 @@ export class ProductsPage implements OnInit, OnDestroy {
     const category = this.selectedCategory();
     if (category !== null) products = products.filter((p) => productCategory(p) === category);
 
-    if (q) products = products.filter(
-      (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q)
-    );
-    if (this.inStockOnly()) products = products.filter(
-      (p) => p.stock.cup > 0 || p.stock.pint > 0 || p.stock.halfGallon > 0 || p.stock.gallon > 0
-    );
+    if (q)
+      products = products.filter(
+        (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q),
+      );
+    if (this.inStockOnly())
+      products = products.filter(
+        (p) => p.stock.cup > 0 || p.stock.pint > 0 || p.stock.halfGallon > 0 || p.stock.gallon > 0,
+      );
     if (this.wishlistOnly()) {
       const ids = new Set(this.wishlistIds());
       products = products.filter((p) => ids.has(p.id));
@@ -245,7 +314,7 @@ export class ProductsPage implements OnInit, OnDestroy {
           (a, b) =>
             this.priceOf(a, size) - this.priceOf(b, size) ||
             a.setNumber - b.setNumber ||
-            a.variantName.localeCompare(b.variantName)
+            a.variantName.localeCompare(b.variantName),
         );
         break;
       case 'price-desc':
@@ -253,39 +322,63 @@ export class ProductsPage implements OnInit, OnDestroy {
           (a, b) =>
             this.priceOf(b, size) - this.priceOf(a, size) ||
             a.setNumber - b.setNumber ||
-            a.variantName.localeCompare(b.variantName)
+            a.variantName.localeCompare(b.variantName),
         );
         break;
       case 'name':
-        out.sort(
-          (a, b) =>
-            a.variantName.localeCompare(b.variantName) ||
-            a.setNumber - b.setNumber
-        );
+        out.sort((a, b) => a.variantName.localeCompare(b.variantName) || a.setNumber - b.setNumber);
         break;
     }
     return out;
   }
 
-  displayedProducts = computed(() =>
-    this.filteredProducts().slice(0, this.displayedCount())
-  );
+  /**
+   * Twelve flavors a page.
+   *
+   * This was an infinite scroll that grew the grid by twenty as the user reached
+   * the bottom. On a catalog that filters down to a handful of results, that read
+   * as a list that had simply stopped — there was no page to go back to, nothing
+   * said how many matched, and after narrowing a filter the user landed on a
+   * short grid with no way to tell "that is all of them" from "that is where the
+   * scroll ran out".
+   *
+   * The pager fixes all three at once: it says how many matched, it makes any
+   * match reachable in a known number of taps, and it survives a filter change.
+   *
+   * The full filtered set stays in `filteredProducts` — this only decides what is
+   * rendered, so the filter logic, the sort and the set chips are unaffected.
+   */
+  readonly PAGE_SIZE = 12;
+  readonly page = signal(1);
+
+  readonly pagedProducts = computed(() => {
+    const start = (this.page() - 1) * this.PAGE_SIZE;
+    return this.filteredProducts().slice(start, start + this.PAGE_SIZE);
+  });
 
   skeletonItems = Array(8).fill(0);
 
-
-  ngOnInit(): void { this.loadProducts(); this.wishlistSub = this.wishlistService.wishlist$.subscribe((ids) => this.wishlistIds.set(ids)); }
-  ngOnDestroy(): void { this.sub?.unsubscribe(); this.wishlistSub?.unsubscribe(); }
+  ngOnInit(): void {
+    this.loadProducts();
+    this.wishlistSub = this.wishlistService.wishlist$.subscribe((ids) => this.wishlistIds.set(ids));
+  }
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+    this.wishlistSub?.unsubscribe();
+  }
 
   loadProducts(): void {
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.sub?.unsubscribe();
-    this.sub = this.inventoryService.getProducts()
-      .pipe(catchError(() => {
-        this.errorMessage.set('Failed to load products. Pull to refresh.');
-        return of([]);
-      }))
+    this.sub = this.inventoryService
+      .getProducts()
+      .pipe(
+        catchError(() => {
+          this.errorMessage.set('Failed to load products. Pull to refresh.');
+          return of([]);
+        }),
+      )
       .subscribe((products) => {
         this.allProducts.set(products);
         this.isLoading.set(false);
@@ -335,12 +428,13 @@ export class ProductsPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Back to the first page. Every filter handler calls this: without it a user
-   * who scrolled page 3 and then narrowed the list would be left staring at an
-   * empty tail of the grid with the infinite scroll already disabled.
+   * Back to the first page. Every filter handler calls this, and it is the only
+   * place the page moves: a filter change usually shrinks the result set, so
+   * without it a user who was on page 3 would be left on an empty tail of the
+   * grid with the pager pointing at pages that no longer exist.
    */
   private resetPagination(): void {
-    this.displayedCount.set(this.PAGE_SIZE);
+    this.page.set(1);
   }
 
   /**
@@ -366,12 +460,7 @@ export class ProductsPage implements OnInit, OnDestroy {
     setTimeout(() => (event.target as HTMLIonRefresherElement).complete(), 1000);
   }
 
-  loadMore(event: CustomEvent): void {
-    setTimeout(() => {
-      this.displayedCount.update((n) => n + this.PAGE_SIZE);
-      (event.target as HTMLIonInfiniteScrollElement).complete();
-    }, 500);
+  trackProduct(_: number, p: Product): string {
+    return p.id;
   }
-
-  trackProduct(_: number, p: Product): string { return p.id; }
 }

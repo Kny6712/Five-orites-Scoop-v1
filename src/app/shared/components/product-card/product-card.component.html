@@ -1,7 +1,6 @@
 <!-- src/app/shared/components/product-card/product-card.component.html -->
 
 <ion-card class="product-card" [routerLink]="['/products', product.id]">
-
   <div class="card-image-wrap">
     @if (!imageLoaded()) {
       <ion-skeleton-text animated class="image-skeleton"></ion-skeleton-text>
@@ -15,27 +14,22 @@
       (error)="onImageError($event)"
     />
     <div class="set-badge">Set {{ product.setNumber }} · {{ product.setName }}</div>
-    <button type="button" class="wishlist-btn" (click)="toggleWishlist($event)" [attr.aria-label]="isWished() ? 'Remove from wishlist' : 'Save to wishlist'">
+    <button
+      type="button"
+      class="wishlist-btn"
+      (click)="toggleWishlist($event)"
+      [attr.aria-label]="isWished() ? 'Remove from wishlist' : 'Save to wishlist'"
+    >
       <!-- One Lucide glyph for both states; the filled look comes from
            .wished setting `fill: currentColor`, so there is no second icon. -->
-      <app-icon
-        name="heart"
-        class="wishlist-icon"
-        [class.wished]="isWished()"
-      />
+      <app-icon name="heart" class="wishlist-icon" [class.wished]="isWished()" />
     </button>
   </div>
 
   <ion-card-content class="card-body" (click)="$event.stopPropagation()">
-
     <h3 class="variety-name">{{ product.variantName }}</h3>
 
-    <ion-segment
-      [value]="selectedSize()"
-      (ionChange)="onSizeChange($event)"
-      class="size-segment"
-      mode="md"
-    >
+    <ion-segment [value]="selectedSize()" (ionChange)="onSizeChange($event)" class="size-segment" mode="md">
       @for (size of sizes; track size) {
         <ion-segment-button [value]="size" class="size-btn">
           <ion-label>{{ sizeLabels[size] }}</ion-label>
@@ -46,24 +40,18 @@
     <div class="price-stock-row">
       <span class="price">{{ currentPrice() | peso }}</span>
       <ion-chip
-        [color]="currentStock() === 0 ? 'danger' : currentStock() < lowStockThreshold ? 'warning' : 'success'"
+        [color]="currentStock() === 0 ? 'danger' : currentStock() < lowStockThreshold() ? 'warning' : 'success'"
         class="stock-chip"
       >
         <ion-label>
-          {{ currentStock() === 0 ? 'Out of Stock' : currentStock() < lowStockThreshold ? 'Low Stock' : 'In Stock' }}
+          {{ currentStock() === 0 ? 'Out of Stock' : currentStock() < lowStockThreshold() ? 'Low Stock' : 'In Stock' }}
         </ion-label>
       </ion-chip>
     </div>
 
-    <ion-button
-      expand="block"
-      class="add-to-cart-btn"
-      [disabled]="isOutOfStock() || isAdding()"
-      (click)="addToCart()"
-    >
+    <ion-button expand="block" class="add-to-cart-btn" [disabled]="isOutOfStock() || isAdding()" (click)="addToCart()">
       <app-icon name="cart" slot="start" />
       {{ isAdding() ? 'Adding...' : isOutOfStock() ? 'Out of Stock' : 'Add to Cart' }}
     </ion-button>
-
   </ion-card-content>
 </ion-card>

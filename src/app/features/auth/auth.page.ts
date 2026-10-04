@@ -1,14 +1,20 @@
 // src/app/features/auth/auth.page.ts
 // Five-orites Scoop — Login / Register / Admin Register Page
 
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import {
-  IonContent, IonInput, IonButton, IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
+  IonContent,
+  IonInput,
+  IonButton,
+  IonText,
+  IonSpinner,
+  IonLabel,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { AuthService } from '../../core/services/auth.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -20,14 +26,22 @@ type AuthMode = 'login' | 'register';
   selector: 'app-auth',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonContent, IonInput, IonButton,
-    IonText, IonSpinner, IonSegment, IonSegmentButton, IonLabel,
-    AppIconComponent, AlertBannerComponent],
+    CommonModule,
+    FormsModule,
+    IonContent,
+    IonInput,
+    IonButton,
+    IonText,
+    IonSpinner,
+    IonLabel,
+    AppIconComponent,
+    AlertBannerComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './auth.page.html',
   styleUrls: ['./auth.page.scss'],
 })
-export class AuthPage implements OnInit {
+export class AuthPage {
   private authService = inject(AuthService);
   private router = inject(Router);
 
@@ -43,13 +57,13 @@ export class AuthPage implements OnInit {
   isSendingReset = signal(false);
 
   constructor() {
-
     this.authService.currentUser$
-      .pipe(takeUntilDestroyed(), filter((user) => user !== null))
+      .pipe(
+        takeUntilDestroyed(),
+        filter((user) => user !== null),
+      )
       .subscribe(() => this.router.navigate(['/dashboard']));
   }
-
-  ngOnInit(): void {}
 
   setMode(mode: AuthMode): void {
     this.mode.set(mode);
@@ -68,15 +82,12 @@ export class AuthPage implements OnInit {
     try {
       if (this.mode() === 'login') {
         await this.authService.signInWithEmail(this.email, this.password);
-
       } else {
         if (!this.displayName.trim()) {
           this.errorMessage.set('Please enter your full name.');
           return;
         }
-        await this.authService.registerWithEmail(
-          this.email, this.password, this.displayName
-        );
+        await this.authService.registerWithEmail(this.email, this.password, this.displayName);
       }
 
       await this.router.navigate(['/dashboard']);
@@ -105,7 +116,7 @@ export class AuthPage implements OnInit {
     try {
       await this.authService.sendPasswordResetEmail(this.email);
       this.resetMessage.set(
-        'If an account exists for that address, a reset link is on its way. Check your spam folder if it does not arrive.'
+        'If an account exists for that address, a reset link is on its way. Check your spam folder if it does not arrive.',
       );
     } catch {
       this.errorMessage.set('Could not send the reset email. Please try again later.');

@@ -2,15 +2,8 @@
 // Five-orites Scoop — Voucher lookup
 
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  collection,
-  query,
-  where,
-  limit,
-  getDocs,
-} from '@angular/fire/firestore';
-import { Voucher, calculateDiscount } from '../models/voucher.model';
+import { Firestore, collection, query, where, limit, getDocs } from '@angular/fire/firestore';
+import { Voucher, calculateDiscount, voucherUsability } from '../models/voucher.model';
 
 @Injectable({ providedIn: 'root' })
 export class VoucherService {
@@ -45,11 +38,14 @@ export class VoucherService {
     }
 
     return snap.docs
-      .map((d) => ({ id: d.id, ...d.data() } as Voucher))
+      .map((d) => ({ id: d.id, ...d.data() }) as Voucher)
       .sort((a, b) => a.code.localeCompare(b.code));
   }
 
-  async validateVoucher(code: string, subtotal: number): Promise<{ voucher: Voucher; discount: number }> {
+  async validateVoucher(
+    code: string,
+    subtotal: number,
+  ): Promise<{ voucher: Voucher; discount: number }> {
     const normalized = code.trim().toUpperCase();
     if (!normalized) throw new Error('Enter a voucher code.');
 
@@ -71,11 +67,46 @@ export class VoucherService {
       throw new Error('Could not reach the voucher service. Please try again.');
     }
 
-    if (snap.empty) throw new Error(`Voucher "${normalized}" not found. or is no longer active.`);
+    // The query filters on BOTH code and isActive, so an empty result is
+    // genuinely ambiguous — the code does not exist, or it does and is switched
+    // off. The message says so rather than guessing, and it had a stray period
+    // mid-sentence ("not found. or is no longer active.") that made the two cases
+    // look like one badly punctuated sentence.
+    if (snap.empty)
+      throw new Error(`Voucher "${normalized}" was not found, or is no longer active.`);
 
     const voucher = { id: snap.docs[0].id, ...snap.docs[0].data() } as Voucher;
+
+    /**
+     * Window and cap checks, in the order a shopper would hit them.
+     *
+     * The query above already filtered `isActive == true`, so a deactivated code
+     * never reaches here. The remaining three reasons are new with redemption
+     * tracking: a code can be active, inside its window, and still be spent out.
+     * Previously "usable" meant exactly "isActive", so `maxRedemptions` could be
+     * displayed on the admin page while checkout happily honoured the code past
+     * its cap — the limit was decoration.
+     */
+    const usability = voucherUsability(voucher);
+    if (!usability.usable) {
+      switch (usability.reason) {
+        case 'inactive':
+          throw new Error(`Voucher "${normalized}" is no longer active.`);
+        case 'not_started':
+          throw new Error(`Voucher "${normalized}" is not available yet.`);
+        case 'expired':
+          throw new Error(`Voucher "${normalized}" has expired.`);
+        case 'exhausted':
+          throw new Error(`Voucher "${normalized}" has reached its redemption limit.`);
+      }
+    }
+
     const discount = calculateDiscount(subtotal, voucher);
-    if (discount <= 0) throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
+    // calculateDiscount returns 0 for two reasons — inactive, or below minOrder.
+    // The `inactive` case is already excluded by the query and the switch above,
+    // so below-minimum is the only one left, and this message is accurate.
+    if (discount <= 0)
+      throw new Error(`Code ${normalized} needs a minimum order of ₱${voucher.minOrder ?? 0}.`);
     return { voucher, discount };
   }
 }

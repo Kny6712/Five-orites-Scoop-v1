@@ -1,0 +1,191 @@
+<!-- src/app/admin/reviews/admin-reviews.page.html -->
+<!-- Five-orites Scoop — Review moderation queue -->
+
+<ion-header>
+  <ion-toolbar color="primary">
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Reviews</ion-title>
+    <ion-buttons slot="end">
+      <ion-button size="small" (click)="exportCsv()" aria-label="Export reviews as CSV">
+        <app-icon name="download" slot="icon-only" />
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="reviews-body">
+    @if (errorMessage()) {
+      <app-alert-banner
+        type="danger"
+        title="Could not load reviews"
+        [message]="errorMessage()"
+        actionLabel="Try again"
+        (action)="ngOnInit()"
+      />
+    }
+
+    <!--
+      Filters. "Low" and "Unanswered" carry live counts because the number of
+      things needing attention is the whole reason to open this page — a chip
+      that says "Low" without saying how many is just a filter.
+    -->
+    <div class="filter-row" role="group" aria-label="Filter reviews">
+      <button
+        type="button"
+        class="filter-chip"
+        [class.is-on]="filter() === 'all'"
+        [attr.aria-pressed]="filter() === 'all'"
+        (click)="onFilterChange('all')"
+      >
+        All <span class="chip-num">{{ reviews_().length }}</span>
+      </button>
+      <button
+        type="button"
+        class="filter-chip"
+        [class.is-on]="filter() === 'low'"
+        [attr.aria-pressed]="filter() === 'low'"
+        (click)="onFilterChange('low')"
+      >
+        1–2 stars <span class="chip-num">{{ lowCount() }}</span>
+      </button>
+      <button
+        type="button"
+        class="filter-chip"
+        [class.is-on]="filter() === 'unanswered'"
+        [attr.aria-pressed]="filter() === 'unanswered'"
+        (click)="onFilterChange('unanswered')"
+      >
+        Unanswered <span class="chip-num">{{ unansweredCount() }}</span>
+      </button>
+      <button
+        type="button"
+        class="filter-chip"
+        [class.is-on]="filter() === 'answered'"
+        [attr.aria-pressed]="filter() === 'answered'"
+        (click)="onFilterChange('answered')"
+      >
+        Answered
+      </button>
+    </div>
+
+    <ion-searchbar
+      class="review-search"
+      placeholder="Search comment, author or product id"
+      [value]="search()"
+      (ionInput)="onSearch($any($event).detail?.value)"
+      aria-label="Search reviews"
+    ></ion-searchbar>
+
+    @if (isLoading()) {
+      <div class="review-list">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="review-row">
+            <ion-skeleton-text class="sk-line" [animated]="true"></ion-skeleton-text>
+            <ion-skeleton-text class="sk-line sk-short" [animated]="true"></ion-skeleton-text>
+          </div>
+        }
+      </div>
+    } @else if (!filtered().length) {
+      <app-empty-state
+        icon="star"
+        [title]="reviews_().length ? 'No reviews match that filter' : 'No reviews yet'"
+        [message]="
+          reviews_().length
+            ? 'Try a different filter or clear the search.'
+            : 'When customers leave reviews they will appear here for you to read and reply to.'
+        "
+      />
+    } @else {
+      <p class="queue-note">
+        {{ filtered().length }} review{{ filtered().length === 1 ? '' : 's' }}, newest first. Replying is public — the
+        customer sees it on their product page.
+      </p>
+
+      <div class="review-list">
+        @for (review of paged(); track review.id) {
+          <article class="review-row" [class.is-busy]="busyId() === review.id">
+            <header class="review-head">
+              <span class="stars" [attr.aria-label]="review.rating + ' out of 5 stars'">
+                {{ starsFor(review.rating) }}
+              </span>
+              <span class="review-author">{{ review.displayName || 'Anonymous' }}</span>
+              <span class="review-date">{{ formatDate(review.createdAt) }}</span>
+            </header>
+
+            <p class="review-product">
+              <app-icon name="ice-cream" class="row-icon" />
+              <span class="visually-hidden">Product id:</span>{{ review.productId }}
+            </p>
+
+            <p class="review-comment">{{ review.comment }}</p>
+
+            @if (review.adminResponse) {
+              <div class="staff-reply">
+                <span class="reply-tag"> {{ review.adminResponderName || 'Five-orites Scoop' }} replied </span>
+                <p class="reply-text">{{ review.adminResponse }}</p>
+                <button
+                  type="button"
+                  class="link-btn"
+                  [disabled]="busyId() === review.id"
+                  (click)="removeReply(review)"
+                >
+                  Remove reply
+                </button>
+              </div>
+            }
+
+            <div class="review-actions">
+              @if (replyingTo() !== review.id) {
+                <button type="button" class="act-btn" (click)="openReply(review)">
+                  <app-icon name="mail" class="act-icon" />
+                  {{ review.adminResponse ? 'Edit reply' : 'Reply' }}
+                </button>
+              }
+              <button
+                type="button"
+                class="act-btn act-btn--danger"
+                [disabled]="busyId() === review.id"
+                (click)="confirmDelete(review)"
+              >
+                <app-icon name="trash" class="act-icon" />
+                Delete
+              </button>
+            </div>
+
+            @if (replyingTo() === review.id) {
+              <div class="reply-box">
+                <ion-textarea
+                  label="Public reply"
+                  labelPlacement="stacked"
+                  rows="3"
+                  maxlength="500"
+                  [ngModel]="replyDraft()"
+                  (ngModelChange)="replyDraft.set($event)"
+                  placeholder="Thanks for the feedback…"
+                ></ion-textarea>
+                <div class="reply-actions">
+                  <ion-button size="small" fill="clear" (click)="cancelReply()">Cancel</ion-button>
+                  <ion-button size="small" [disabled]="busyId() === review.id" (click)="saveReply(review)">
+                    Publish
+                  </ion-button>
+                </div>
+              </div>
+            }
+          </article>
+        }
+      </div>
+
+      <app-pagination
+        [page]="page()"
+        [total]="filtered().length"
+        [pageSize]="pageSize"
+        itemLabel="reviews"
+        (pageChange)="page.set($event)"
+      />
+    }
+  </div>
+  <app-footer></app-footer>
+</ion-content>

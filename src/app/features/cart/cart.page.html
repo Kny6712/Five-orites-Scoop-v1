@@ -7,17 +7,21 @@
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>
-      @if (checkoutStep() === 1) { My Cart }
-      @if (checkoutStep() === 2) { Review Order }
-      @if (checkoutStep() === 3) { Order Placed! }
+      @if (checkoutStep() === 1) {
+        My Cart
+      }
+      @if (checkoutStep() === 2) {
+        Review Order
+      }
+      @if (checkoutStep() === 3) {
+        Order Placed!
+      }
     </ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content fullscreen>
-
   @if (checkoutStep() === 1) {
-
     @if (cart().items.length === 0) {
       <!-- Was a fourth bespoke empty-state variant, on top of the three the
            audit found already. An empty screen gets one shape now. -->
@@ -45,7 +49,12 @@
         @for (item of cart().items; track trackItem($index, item)) {
           <div class="cart-item">
             <div class="item-image-wrap">
-              <img [src]="(item.imageUrl | cloudinary: 200) || 'assets/placeholder-scoop.svg'" [alt]="item.variantName" class="item-image" onerror="this.src='assets/placeholder-scoop.svg'" />
+              <img
+                [src]="(item.imageUrl | cloudinary: 200) || 'assets/placeholder-scoop.svg'"
+                [alt]="item.variantName"
+                class="item-image"
+                onerror="this.src = 'assets/placeholder-scoop.svg'"
+              />
             </div>
             <div class="item-info">
               <p class="item-name">{{ item.variantName }}</p>
@@ -58,12 +67,8 @@
                 — the worst touch target in the app, at 64% of the 44px
                 guidance, on the control people tap most.
               -->
-              <app-qty-stepper
-                [value]="item.quantity"
-                [max]="maxFor(item)"
-                (changed)="setQty(item, $event)"
-              />
-              <p class="item-subtotal">{{ (item.unitPrice * item.quantity) | peso }}</p>
+              <app-qty-stepper [value]="item.quantity" [max]="maxFor(item)" (changed)="setQty(item, $event)" />
+              <p class="item-subtotal">{{ item.unitPrice * item.quantity | peso }}</p>
               <button
                 type="button"
                 class="remove-btn"
@@ -93,7 +98,10 @@
           <span>{{ isFreeDelivery() ? 'FREE' : (deliveryFee() | peso) }}</span>
         </div>
         @if (!isFreeDelivery()) {
-          <p class="free-delivery-hint">Add {{ amountAwayFromFreeDelivery() | peso }} more for FREE delivery (over {{ freeDeliveryThreshold | peso }}).</p>
+          <p class="free-delivery-hint">
+            Add {{ amountAwayFromFreeDelivery() | peso }} more for FREE delivery (over
+            {{ freeDeliveryThreshold | peso }}).
+          </p>
         } @else {
           <p class="free-delivery-hint">🎉 You've unlocked FREE delivery!</p>
         }
@@ -107,7 +115,7 @@
         <h3 class="form-title">Voucher</h3>
         @if (!appliedVoucher()) {
           <div class="input-wrap">
-            <label class="field-label" for="voucher-input">Promo code (try SCOOP10)</label>
+            <label class="field-label" for="voucher-input">Promo code</label>
             <ion-textarea
               id="voucher-input"
               [(ngModel)]="voucherCode"
@@ -186,7 +194,7 @@
         <div class="review-item">
           <span class="review-item-name">{{ item.variantName }} ({{ sizeLabels[item.size] }})</span>
           <span class="review-item-qty">×{{ item.quantity }}</span>
-          <span class="review-item-price">{{ (item.unitPrice * item.quantity) | peso }}</span>
+          <span class="review-item-price">{{ item.unitPrice * item.quantity | peso }}</span>
         </div>
       }
 
@@ -224,13 +232,13 @@
       }
 
       <ion-button expand="block" class="place-order-btn" (click)="placeOrder()" [disabled]="isPlacingOrder()">
-        @if (isPlacingOrder()) { <ion-spinner name="crescent" slot="start"></ion-spinner> }
+        @if (isPlacingOrder()) {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+        }
         {{ isPlacingOrder() ? 'Placing Order...' : 'Place Order' }}
       </ion-button>
 
-      <ion-button expand="block" fill="outline" (click)="backToCart()" class="back-btn">
-        Back to Cart
-      </ion-button>
+      <ion-button expand="block" fill="outline" (click)="backToCart()" class="back-btn"> Back to Cart </ion-button>
     </div>
   }
 
@@ -241,14 +249,13 @@
       <p class="confirmed-sub">Your scoops are on the way. Redirecting to your order tracker...</p>
       <ion-spinner name="dots"></ion-spinner>
       <div class="confirmed-actions">
-        <ion-button expand="block" class="place-order-btn" (click)="viewTracker()">
-          View Order Tracker
-        </ion-button>
+        <ion-button expand="block" class="place-order-btn" (click)="viewTracker()"> View Order Tracker </ion-button>
         <ion-button expand="block" fill="outline" (click)="orderMore()" class="back-btn">
           Order More Flavors
         </ion-button>
       </div>
     </div>
   }
-
 </ion-content>
+
+<app-footer></app-footer>

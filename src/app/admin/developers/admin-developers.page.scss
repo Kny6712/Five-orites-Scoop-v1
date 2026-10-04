@@ -1,0 +1,235 @@
+// src/app/admin/developers/admin-developers.page.scss
+// Five-orites Scoop — credits management
+//
+// Layout only. Every colour here is a design token, so the page follows the
+// project's contrast guarantees rather than introducing values of its own —
+// `npm run check:contrast` validates tokens, and a literal hex here would be
+// invisible to it.
+
+.page-body {
+  padding: 16px;
+  max-width: 780px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid var(--color-border, #dfe4ec);
+  border-radius: var(--radius-md, 12px);
+  background: var(--color-surface, #fff);
+  padding: 14px;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink, #22252b);
+}
+
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--tile-powder, #cfe4f2);
+  color: var(--color-primary-ink, #2c1a45);
+  font-size: 12px;
+  font-weight: 600;
+
+  button {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    display: inline-flex;
+    cursor: pointer;
+    color: inherit;
+  }
+}
+
+.role-empty {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.suggestion {
+  border: 1px solid var(--color-border, #dfe4ec);
+  background: transparent;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--color-ink, #22252b);
+}
+
+.swatches {
+  display: flex;
+  gap: 8px;
+}
+
+.swatch {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.swatch.selected {
+  border-color: var(--color-primary-ink, #2c1a45);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+.initials {
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--color-primary-ink, #2c1a45);
+}
+
+/*
+  The overlay control. A real <label> wrapping a real file input rather than a div
+  with a click handler, so it is focusable, keyboard-operable and announced
+  correctly — the pattern the profile page already uses.
+*/
+.avatar-btn {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--color-primary-ink, #2c1a45);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  border: 2px solid var(--color-surface, #fff);
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  &.disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.row-title {
+  margin: 0 0 5px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.row-actions {
+  display: flex;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.icon-btn {
+  border: 0;
+  background: transparent;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--color-ink, #22252b);
+  display: inline-flex;
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  &.danger {
+    color: var(--color-danger, #a3232b);
+  }
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}

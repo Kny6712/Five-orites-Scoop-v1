@@ -10,7 +10,7 @@
 // Bars are sorted descending by the caller, not here, so a page can choose its
 // own ordering without fighting the component.
 
-import { Component, computed, input, signal } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
 
 export interface BarDatum {
   label: string;
@@ -55,88 +55,96 @@ const TONE_FILL: Record<NonNullable<BarDatum['tone']>, string> = {
       <p class="no-data">{{ emptyMessage() }}</p>
     }
   `,
-  styles: [`
-    :host { display: block; }
+  styles: [
+    `
+      :host {
+        display: block;
+      }
 
-    .bars {
-      list-style: none;
-      margin: 0;
-      padding: 0;
-      display: grid;
-      gap: var(--space-3);
-    }
+      .bars {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: var(--space-3);
+      }
 
-    .bar-row {
-      display: grid;
-      /* label | track | value | note — the note collapses when absent, so the
+      .bar-row {
+        display: grid;
+        /* label | track | value | note — the note collapses when absent, so the
          track absorbs the difference and the value column stays aligned. */
-      grid-template-columns: minmax(80px, 34%) 1fr auto;
-      align-items: center;
-      gap: var(--space-2);
-    }
+        grid-template-columns: minmax(80px, 34%) 1fr auto;
+        align-items: center;
+        gap: var(--space-2);
+      }
 
-    .bar-label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--color-ink);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
+      .bar-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--color-ink);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
-    .bar-track {
-      /* 10px tall with a full pill radius: the brief asks for soft, rounded
+      .bar-track {
+        /* 10px tall with a full pill radius: the brief asks for soft, rounded
          shapes, and a square bar reads as a different design language. */
-      height: 10px;
-      border-radius: var(--radius-pill);
-      background: var(--ion-color-light);
-      overflow: hidden;
-    }
+        height: 10px;
+        border-radius: var(--radius-pill);
+        background: var(--ion-color-light);
+        overflow: hidden;
+      }
 
-    .bar-fill {
-      height: 100%;
-      border-radius: var(--radius-pill);
-      min-width: 4px;
-    }
+      .bar-fill {
+        height: 100%;
+        border-radius: var(--radius-pill);
+        min-width: 4px;
+      }
 
-    .bar-fill.animated {
-      /* Grows from zero on first paint. Width is the only animated property, and
+      .bar-fill.animated {
+        /* Grows from zero on first paint. Width is the only animated property, and
          it is a composited-friendly layout change on a fixed-height track. */
-      animation: grow 0.45s ease-out both;
-    }
+        animation: grow 0.45s ease-out both;
+      }
 
-    @keyframes grow {
-      from { width: 0; }
-    }
+      @keyframes grow {
+        from {
+          width: 0;
+        }
+      }
 
-    .bar-value {
-      font-size: 13px;
-      font-weight: 800;
-      color: var(--color-ink);
-      white-space: nowrap;
-    }
+      .bar-value {
+        font-size: 13px;
+        font-weight: 800;
+        color: var(--color-ink);
+        white-space: nowrap;
+      }
 
-    .bar-note {
-      grid-column: 3;
-      font-size: 12px;
-      color: var(--ion-color-medium);
-      white-space: nowrap;
-    }
+      .bar-note {
+        grid-column: 3;
+        font-size: 12px;
+        color: var(--ion-color-medium);
+        white-space: nowrap;
+      }
 
-    .no-data {
-      margin: 0;
-      padding: var(--space-5) 0;
-      text-align: center;
-      font-size: 14px;
-      color: var(--ion-color-medium);
-    }
+      .no-data {
+        margin: 0;
+        padding: var(--space-5) 0;
+        text-align: center;
+        font-size: 14px;
+        color: var(--ion-color-medium);
+      }
 
-    /* Respect the global reduced-motion block: this is one of the animations it
+      /* Respect the global reduced-motion block: this is one of the animations it
        collapses, so the bars appear at full width rather than never appearing. */
-    @media (prefers-reduced-motion: reduce) {
-      .bar-fill.animated { animation: none; }
-    }
-  `],
+      @media (prefers-reduced-motion: reduce) {
+        .bar-fill.animated {
+          animation: none;
+        }
+      }
+    `,
+  ],
 })
 export class BarChartComponent {
   readonly data = input.required<BarDatum[]>();
@@ -145,9 +153,7 @@ export class BarChartComponent {
   readonly emptyMessage = input<string>('No data yet.');
   readonly animate = input<boolean>(true);
 
-  protected readonly max = computed(() =>
-    this.data().reduce((m, d) => Math.max(m, d.value), 0)
-  );
+  protected readonly max = computed(() => this.data().reduce((m, d) => Math.max(m, d.value), 0));
 
   protected readonly bars = computed(() => {
     const max = this.max();

@@ -1,8 +1,13 @@
 // src/app/features/products/product-detail/product-detail.page.scss
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
-.hero-skeleton { display: block; height: 260px; }
+.hero-skeleton {
+  display: block;
+  height: 260px;
+}
 
 .hero-wrap {
   position: relative;
@@ -26,7 +31,8 @@
 
 .set-badge-hero {
   background: var(--color-brand-primary);
-  color: #fff;
+  /* Plum on the powder fill: 7.20:1. */
+  color: var(--color-ink);
   font-size: 12px;
   font-weight: 600;
   padding: 4px 12px;
@@ -81,7 +87,7 @@
   text-align: center;
 
   &.selected {
-    border-color: var(--color-brand-primary);
+    border-color: var(--color-primary-ink);
     background: var(--color-brand-light);
   }
 
@@ -106,9 +112,15 @@
 .tile-stock {
   font-size: 11px;
   font-weight: 500;
-  &.stock-in-stock { color: var(--color-success); }
-  &.stock-low-stock { color: var(--color-warning); }
-  &.stock-out-of-stock { color: var(--color-danger); }
+  &.stock-in-stock {
+    color: var(--color-success);
+  }
+  &.stock-low-stock {
+    color: var(--color-warning);
+  }
+  &.stock-out-of-stock {
+    color: var(--color-danger);
+  }
 }
 
 // ── Quantity Row ─────────────────────────────────────────
@@ -125,15 +137,6 @@
   color: var(--ion-color-dark);
 }
 
-.qty-controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--ion-color-light);
-  border-radius: 12px;
-  padding: 4px 8px;
-}
-
 /* One Lucide heart serves both states: .wished fills it with currentColor and
    switches the colour, replacing the ionicons heart / heart-outline pair that
    used to be swapped in via a template ternary. */
@@ -148,32 +151,6 @@
   fill: currentColor;
 }
 
-.qty-btn {
-  background: none;
-  border: none;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 8px;
-  color: var(--color-brand-primary);
-  --icon-size: 20px;
-  transition: background 0.1s;
-
-  &:disabled { color: var(--ion-color-light-shade); cursor: not-allowed; }
-  &:not(:disabled):hover { background: var(--color-brand-light); }
-}
-
-.qty-value {
-  font-size: 18px;
-  font-weight: 700;
-  min-width: 24px;
-  text-align: center;
-  color: var(--ion-color-dark);
-}
-
 .line-total {
   margin-left: auto;
   font-size: 20px;
@@ -182,9 +159,10 @@
 }
 
 // ── CTA ──────────────────────────────────────────────────
+/* Plum, not white: white on the sunny accent measures 1.58:1. */
 .add-to-cart-cta {
   --background: var(--color-brand-accent);
-  --color: #fff;
+  --color: var(--color-ink);
   --border-radius: 14px;
   --padding-top: 16px;
   --padding-bottom: 16px;

@@ -1,0 +1,108 @@
+# Five-orites Scoop — Dependabot
+#
+# WHY THIS IS HERE
+# There were 21 direct dependencies, every one on a `^` range, with zero
+# monitoring. That is how a project ends up three majors behind without anyone
+# deciding to stay there: nobody chose Angular 17, it just never became 18.
+#
+# `npm` here also covers `functions/`, which is a separate package with its own
+# lockfile and is deployed independently — so it needs its own entry or its
+# firebase-admin and firebase-functions drift unnoticed.
+version: 2
+
+updates:
+  # ── The Angular app ────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - app
+    commit-message:
+      prefix: "deps(app)"
+    groups:
+      # Angular's packages must move together — mixing v17 and v18 @angular/*
+      # is a broken install, not a partial upgrade.
+      angular:
+        patterns:
+          - "@angular/*"
+          - "@angular-eslint/*"
+          - "@ionic/*"
+        update-types:
+          - minor
+          - patch
+      # Capacitor plugins are version-locked to the core; a plugin one major
+      # ahead of @capacitor/core will not resolve at runtime.
+      capacitor:
+        patterns:
+          - "@capacitor/*"
+        update-types:
+          - minor
+          - patch
+      # Testing and linting tooling can move independently and are the cheapest
+      # upgrades to review.
+      tooling:
+        patterns:
+          - "typescript"
+          - "tsx"
+          - "ts-node"
+          - "eslint"
+          - "prettier"
+          - "husky"
+          - "lint-staged"
+        update-types:
+          - minor
+          - patch
+      # Firebase major versions carry breaking changes to the security rules
+      # tooling and to emulator behaviour, so they are surfaced individually
+      # rather than batched.
+      firebase:
+        patterns:
+          - "firebase"
+          - "@angular/fire"
+          - "@firebase/*"
+    ignore:
+      # firebase-tools is pinned deliberately. @angular/fire@17 declares an
+      # OPTIONAL peer on firebase-tools@^13, but this project needs v15 for
+      # `firebase emulators:exec` and the v1 Firestore emulator it ships.
+      # See the `overrides` block in package.json.
+      - dependency-name: firebase-tools
+        update-types:
+          - version-update:semver-major
+
+  # ── Cloud Functions ─────────────────────────────────────────────────────
+  # Deployed as its own unit on its own schedule, so its firebase-admin /
+  # firebase-functions pair must not be left behind when the app upgrades.
+  - package-ecosystem: npm
+    directory: /functions
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - functions
+    commit-message:
+      prefix: "deps(functions)"
+    groups:
+      firebase-admin:
+        patterns:
+          - "firebase-admin"
+
+  # ── GitHub Actions ──────────────────────────────────────────────────────
+  # actions/checkout@v4 and setup-node@v4 are pinned to a major, so a supply
+  # chain compromise in a minor is what this catches.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+      - ci

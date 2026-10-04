@@ -7,14 +7,10 @@
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>Dashboard</ion-title>
-    <ion-buttons slot="end">
-      <app-cart-button></app-cart-button>
-    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content fullscreen>
-
   <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
@@ -29,19 +25,13 @@
     device — so a deploy problem no longer presents to the user as a wifi fault.
   -->
   @if (loadError()) {
-    <app-alert-banner
-      tone="danger"
-      [message]="loadError()"
-      actionLabel="Try again"
-      (action)="loadDashboard()"
-    />
+    <app-alert-banner tone="danger" [message]="loadError()" actionLabel="Try again" (action)="loadDashboard()" />
   }
 
   <!-- ═══════════════════════════════════════
        CUSTOMER DASHBOARD
   ═══════════════════════════════════════ -->
   @if (!isAdmin()) {
-
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-text">
@@ -55,29 +45,59 @@
 
     <!--
       Notification control. This used to be a div with role="button" and a click
-      handler that re-prompted for permission on every tap — so it could not show
+      handler that re-prompted for permission on every tap - so it could not show
       a real state, and tapping it twice did nothing different.
 
       It is now a genuine toggle bound to `notificationsEnabled` on the user
       document, which means the preference follows the user to another device
-      rather than living in one browser's localStorage. Turning it ON still has to
-      ask the browser, because a permission can only be requested from a user
-      gesture; turning it OFF is a plain preference write with no prompt.
+      rather than living in one browser's localStorage.
+
+      Turning it ON no longer asks the browser anything. The app used to register
+      for FCM push, which needed an OS permission and could leave the switch
+      reading "on" while nothing was ever delivered. Notifications are in-app
+      only now, so there is no permission to grant and the stored preference is
+      the whole truth - see NotificationService.
     -->
+    <!--
+      The admin-written announcement. Nothing renders unless an admin has saved a
+      headline AND switched it on, so this costs no layout on a shop that never
+      uses it.
+
+      Note the class name: the block below also carries `promo-banner`, which is
+      the notification toggle. `feature-alignment.md:119-123` warned that anyone
+      auditing by class name would tick "admin-editable promo banner" as
+      implemented off that block alone. This one is the real thing.
+    -->
+    @if (shop.promo(); as p) {
+      <div class="announce-banner" role="status">
+        <app-icon name="zap" class="promo-icon" />
+        <div class="promo-text">
+          <span class="promo-title">{{ p.promoTitle }}</span>
+          @if (p.promoBody) {
+            <span class="promo-sub">{{ p.promoBody }}</span>
+          }
+        </div>
+      </div>
+    }
+
     <div class="promo-banner">
       <app-icon name="bell" class="promo-icon" />
       <div class="promo-text">
         <span class="promo-title">Track your orders live</span>
         <span class="promo-sub">
-          @switch (notificationState()) {
-            @case ('blocked') { Your browser is blocking notifications for this site. }
-            @case ('granted') { You'll get an alert when your order's status changes. }
-            @default { Turn on alerts for status changes. }
+          @if (updatesOn()) {
+            You'll see an alert in the app when your order's status changes.
+          } @else {
+            Turn on alerts for status changes.
           }
         </span>
+        <!-- The feed, so the banner is a way INTO the history rather than only a
+             switch. Someone who wants to know what happened to their order should
+             not have to find the menu for it. -->
+        <a routerLink="/notifications" class="promo-link">View notifications</a>
       </div>
       <ion-toggle
-        [checked]="notificationState() !== 'off'"
+        [checked]="updatesOn()"
         (ionChange)="onNotificationsToggle($event)"
         aria-label="Order update notifications"
       ></ion-toggle>
@@ -92,21 +112,19 @@
     <!-- Featured Flavors -->
     <div class="section-header">
       <h3 class="section-title">Featured Flavors</h3>
-      <ion-button fill="clear" size="small" [routerLink]="'/products'" class="see-all-btn">
-        See All
-      </ion-button>
+      <ion-button fill="clear" size="small" [routerLink]="'/products'" class="see-all-btn"> See All </ion-button>
     </div>
 
     @if (isLoading()) {
       <ion-grid>
         <ion-row>
-          @for (s of [1,2,3,4]; track s) {
+          @for (s of [1, 2, 3, 4]; track s) {
             <ion-col size="6">
               <ion-card class="skeleton-card">
-                <ion-skeleton-text animated style="height:120px;"></ion-skeleton-text>
+                <ion-skeleton-text animated style="height: 120px"></ion-skeleton-text>
                 <ion-card-content>
-                  <ion-skeleton-text animated style="height:14px; margin-bottom:8px;"></ion-skeleton-text>
-                  <ion-skeleton-text animated style="height:36px;"></ion-skeleton-text>
+                  <ion-skeleton-text animated style="height: 14px; margin-bottom: 8px"></ion-skeleton-text>
+                  <ion-skeleton-text animated style="height: 36px"></ion-skeleton-text>
                 </ion-card-content>
               </ion-card>
             </ion-col>
@@ -129,9 +147,7 @@
     @if (recentOrders().length > 0) {
       <div class="section-header">
         <h3 class="section-title">Recent Orders</h3>
-        <ion-button fill="clear" size="small" [routerLink]="'/orders'" class="see-all-btn">
-          View All
-        </ion-button>
+        <ion-button fill="clear" size="small" [routerLink]="'/orders'" class="see-all-btn"> View All </ion-button>
       </div>
       <div class="recent-orders">
         @for (order of recentOrders(); track trackOrder($index, order)) {
@@ -151,7 +167,6 @@
        ADMIN DASHBOARD
   ═══════════════════════════════════════ -->
   @if (isAdmin()) {
-
     <div class="admin-welcome">
       <h2 class="admin-title">Admin Dashboard</h2>
       <p class="admin-sub">{{ formatDate(null) || 'Today' }}</p>
@@ -163,9 +178,11 @@
     @if (isLoading()) {
       <ion-grid>
         <ion-row>
-          @for (s of [1,2,3,4]; track s) {
+          @for (s of [1, 2, 3, 4]; track s) {
             <ion-col size="6">
-              <ion-card class="kpi-skeleton"><ion-skeleton-text animated style="height:80px;"></ion-skeleton-text></ion-card>
+              <ion-card class="kpi-skeleton"
+                ><ion-skeleton-text animated style="height: 80px"></ion-skeleton-text
+              ></ion-card>
             </ion-col>
           }
         </ion-row>
@@ -173,79 +190,123 @@
     } @else if (!loadError()) {
       <ion-grid>
         <ion-row>
-          <ion-col size="6">
+          <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-revenue">
-              <app-icon name="banknote" class="kpi-icon" />
+              <span class="kpi-badge"><app-icon name="banknote" class="kpi-icon" /></span>
               <p class="kpi-label">Today's Revenue</p>
               <p class="kpi-value">{{ todayRevenue() | peso }}</p>
             </div>
           </ion-col>
-          <ion-col size="6">
+          <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-pending">
-              <app-icon name="clock" class="kpi-icon" />
+              <span class="kpi-badge"><app-icon name="clock" class="kpi-icon" /></span>
               <p class="kpi-label">Pending Orders</p>
               <p class="kpi-value">{{ pendingOrderCount() }}</p>
             </div>
           </ion-col>
-          <ion-col size="6">
+          <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-lowstock">
-              <app-icon name="circle-alert" class="kpi-icon" />
+              <span class="kpi-badge"><app-icon name="circle-alert" class="kpi-icon" /></span>
               <p class="kpi-label">Low Stock Alerts</p>
               <p class="kpi-value">{{ lowStockCount() }}</p>
             </div>
           </ion-col>
-          <ion-col size="6">
+          <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-total">
-              <app-icon name="receipt" class="kpi-icon" />
+              <span class="kpi-badge"><app-icon name="receipt" class="kpi-icon" /></span>
               <p class="kpi-label">Total Orders</p>
               <p class="kpi-value">{{ totalOrderCount() }}</p>
             </div>
           </ion-col>
         </ion-row>
       </ion-grid>
+
+      <!--
+        Admin actions, right-aligned under the toolbar.
+
+        These were full-width stacked buttons sitting in the middle of the page,
+        between the metrics and the content. They are navigation, not content, so
+        they now sit at the top-right — the same visual corner as the toolbar
+        controls they lead to, which is where a person looks for "go somewhere
+        else". Two compact tiles rather than two bars, so the row costs ~64px
+        instead of ~110px.
+      -->
+      <div class="admin-actions">
+        <a class="action-tile" [routerLink]="'/admin/inventory'">
+          <span class="action-icon"><app-icon name="layers" /></span>
+          <span class="action-label">Inventory</span>
+        </a>
+        <a class="action-tile" [routerLink]="'/admin/orders'">
+          <span class="action-icon"><app-icon name="clipboard" /></span>
+          <span class="action-label">Fulfillment</span>
+        </a>
+      </div>
     }
 
-    <!-- Quick Links -->
-    <div class="quick-links">
-      <ion-button expand="block" [routerLink]="'/admin/inventory'" class="quick-link-btn">
-        <app-icon name="layers" slot="start" />
-        Manage Inventory
-      </ion-button>
-      <ion-button expand="block" fill="outline" [routerLink]="'/admin/orders'" class="quick-link-btn">
-        <app-icon name="clipboard" slot="start" />
-        Order Fulfillment
-      </ion-button>
-    </div>
+    <!--
+      Low stock, in its own container.
 
-    <!-- Low Stock Alerts -->
+      This was a bare section heading followed by a column of loose rows, so it
+      read as body content rather than as a warning. It is now a single tinted
+      panel with a header, so the one thing on this page that needs acting on is
+      visibly separate from the two things that are merely informational.
+    -->
     @if (lowStockProducts().length > 0) {
-      <div class="section-header">
-        <h3 class="section-title alert-title">⚠️ Low Stock Alerts</h3>
-      </div>
-      <div class="low-stock-list">
-        @for (product of lowStockProducts(); track product.id) {
-          <div class="low-stock-item">
-            <div class="low-stock-info">
-              <p class="low-stock-name">{{ product.variantName }}</p>
-              <p class="low-stock-set">{{ product.setName }}</p>
-            </div>
-            <div class="low-stock-levels">
-              @if (product.stock.cup < lowStockThreshold) {
-                <ion-chip color="warning" class="stock-chip-sm">Cup: {{ product.stock.cup }}</ion-chip>
-              }
-              @if (product.stock.pint < lowStockThreshold) {
-                <ion-chip color="warning" class="stock-chip-sm">Pint: {{ product.stock.pint }}</ion-chip>
-              }
-              @if (product.stock.halfGallon < lowStockThreshold) {
-                <ion-chip color="warning" class="stock-chip-sm">Half Gal: {{ product.stock.halfGallon }}</ion-chip>
-              }
-              @if (product.stock.gallon < lowStockThreshold) {
-                <ion-chip color="warning" class="stock-chip-sm">Gallon: {{ product.stock.gallon }}</ion-chip>
-              }
-            </div>
+      <section class="low-stock-panel">
+        <header class="low-stock-head">
+          <span class="low-stock-badge"><app-icon name="triangle-alert" /></span>
+          <div class="low-stock-head-text">
+            <h3 class="low-stock-title">Low Stock Alerts</h3>
+            <p class="low-stock-count">
+              {{ lowStockCount() }} flavor{{ lowStockCount() === 1 ? '' : 's' }} below {{ lowStockThreshold() }} units
+            </p>
           </div>
-        }
-      </div>
+        </header>
+
+        <ul class="low-stock-list">
+          @for (product of pagedLowStock(); track product.id) {
+            <li class="low-stock-item">
+              <div class="low-stock-info">
+                <span class="low-stock-name">{{ product.variantName }}</span>
+                <span class="low-stock-set">{{ product.setName }}</span>
+              </div>
+              <div class="low-stock-levels">
+                @if (product.stock.cup < lowStockThreshold()) {
+                  <ion-chip color="warning" class="stock-chip-sm">Cup: {{ product.stock.cup }}</ion-chip>
+                }
+                @if (product.stock.pint < lowStockThreshold()) {
+                  <ion-chip color="warning" class="stock-chip-sm">Pint: {{ product.stock.pint }}</ion-chip>
+                }
+                @if (product.stock.halfGallon < lowStockThreshold()) {
+                  <ion-chip color="warning" class="stock-chip-sm">½ Gal: {{ product.stock.halfGallon }}</ion-chip>
+                }
+                @if (product.stock.gallon < lowStockThreshold()) {
+                  <ion-chip color="warning" class="stock-chip-sm">Gal: {{ product.stock.gallon }}</ion-chip>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+
+        <a class="low-stock-cta" [routerLink]="'/admin/inventory'">
+          Restock
+          <app-icon name="arrow-right" />
+        </a>
+
+        <!--
+          Paged from the panel's own total, not the slice above, so the pager
+          survives a restock landing while the reader is on a later page — which
+          is exactly when they need to get back to page 1. Below the CTA because
+          "Restock" is what the panel is for; the pager is chrome for the list.
+        -->
+        <app-pagination
+          [page]="lowStockPage()"
+          [total]="lowStockProducts().length"
+          [pageSize]="LOW_STOCK_PAGE_SIZE"
+          itemLabel="low-stock flavors"
+          (pageChange)="lowStockPage.set($event)"
+        />
+      </section>
     }
 
     <!-- Recent Orders Table -->
@@ -255,7 +316,7 @@
     </div>
     @if (adminRecentOrders().length > 0) {
       <div class="admin-orders-list">
-        @for (order of adminRecentOrders(); track trackOrder($index, order)) {
+        @for (order of pagedRecentOrders(); track trackOrder($index, order)) {
           <div class="admin-order-row" [routerLink]="['/orders', order.id]">
             <div class="admin-order-left">
               <span class="admin-order-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
@@ -268,7 +329,15 @@
           </div>
         }
       </div>
+      <app-pagination
+        [page]="recentPage()"
+        [total]="adminRecentOrders().length"
+        [pageSize]="RECENT_PAGE_SIZE"
+        itemLabel="recent orders"
+        (pageChange)="recentPage.set($event)"
+      />
     }
   }
-
 </ion-content>
+
+<app-footer></app-footer>

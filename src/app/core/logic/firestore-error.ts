@@ -89,3 +89,24 @@ export function describeFirestoreError(what: string, err: unknown): string {
 export function isMissingIndexError(err: unknown): boolean {
   return bareCode((err as FirestoreErrorLike | null)?.code) === 'failed-precondition';
 }
+
+/**
+ * Did the security rules refuse this?
+ *
+ * Needed on the WRITE path, which `describeFirestoreError` above cannot serve.
+ * Its `permission-denied` branch reads "We do not have permission to load …",
+ * which is simply wrong for a write: nothing was being loaded, something was
+ * being changed, and the remedy is not "sign in again".
+ *
+ * The case that made this necessary is the stock transition in `OrderService`.
+ * Moving an order off `pending` writes the product documents inside the same
+ * transaction, and that write is gated on `canRunShop()` — manager and above.
+ * A staff shift lead can open the fulfilment queue and press the button, and
+ * the transaction fails as a whole with an opaque `permission-denied` that
+ * names no field, no role and no next step. See the note in
+ * `transitionOrderStatus` for why the gate cannot simply be lowered instead.
+ */
+export function isPermissionDeniedError(err: unknown): boolean {
+  const code = bareCode((err as FirestoreErrorLike | null)?.code);
+  return code === 'permission-denied' || code === 'unauthenticated';
+}

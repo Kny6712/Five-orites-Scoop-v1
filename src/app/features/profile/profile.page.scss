@@ -4,49 +4,106 @@
 // Sizes icons via the --icon-size custom property rather than font-size, because
 // app-icon is inline SVG and is not affected by font-size.
 
-:host { display: block; }
+:host {
+  display: block;
+}
 
+/* 720px rather than 640px. The email and password fields were the narrowest
+   thing on a desktop screen at 640px, and the extra 80px costs nothing on a
+   phone because the wrapper is width-constrained, not fixed. */
 .profile-wrap {
-  max-width: 640px;
+  max-width: 720px;
   margin: 0 auto;
-  padding: var(--space-4) var(--space-4) var(--space-7);
+  padding: var(--space-4) var(--space-4) var(--space-5);
+}
+
+/* ── The single container ─────────────────────────────────
+   One surface holding four groups. It replaces three separate white cards plus
+   an unsurfaced avatar block: four rounded corners, three drop shadows, two
+   cards' worth of padding between boxes and almost no content between them.
+
+   The groups are still separated — by a hairline, not by 24px of padding and a
+   second shadow. The page is roughly a third shorter and the eye follows the
+   rules rather than the gaps. */
+.profile-card {
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+  overflow: hidden;
+}
+
+.group {
+  padding: var(--space-4) var(--space-4) var(--space-5);
+  border-top: 1px solid var(--ion-color-light);
 }
 
 // ── Avatar ───────────────────────────────────────────────
+/* A header row rather than a centred stack: photo, identity, then the two photo
+   controls on the right. It was a 108px circle above a 24px-gap row of buttons,
+   which is ~200px of vertical space for one picture and two actions. */
 .avatar-section {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-5) 0 var(--space-6);
+  padding: var(--space-4);
+  background: var(--tile-powder);
 }
 
 .avatar-frame {
   position: relative;
-  width: 108px;
-  height: 108px;
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
   border-radius: 50%;
   overflow: hidden;
-  background: var(--color-brand-light);
-  /* A 4px ring in the primary hue rather than a hairline border: it separates
-     the photo from a cream page without the heaviness of a real frame. */
-  box-shadow: 0 0 0 4px var(--color-white), 0 0 0 8px var(--color-brand-primary);
+  background: var(--color-white);
+  /* A 3px ring rather than the old 4px+8px double ring: at 72px the double ring
+     ate a third of the diameter. */
+  box-shadow:
+    0 0 0 3px var(--color-white),
+    0 0 0 5px var(--color-primary-ink);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.avatar-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.avatar-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-email {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.avatar-initials {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--color-ink);
 }
 
 .avatar-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.avatar-initials {
-  font-family: var(--font-display);
-  font-size: 38px;
-  font-weight: 600;
-  color: var(--color-ink);
 }
 
 .avatar-busy {
@@ -61,29 +118,44 @@
 .avatar-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-2);
+  flex: 0 0 auto;
 }
 
 /* A label wrapping a real file input: keyboard-reachable and announced as a
    control, unlike a div with a click handler. The input itself is visually
-   hidden but NOT display:none, which would drop it out of the tab order. */
+   hidden but NOT display:none, which would drop it out of the tab order.
+
+   Now an outline button rather than a filled one, and labelled "Change" instead
+   of "Change photo": the control sits directly under the photograph, so the
+   object of the verb is obvious, and a filled primary pill in a header row
+   out-shouted the page's actual primary action (Save changes). */
 .file-label {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: 10px 18px;
-  min-height: 44px;
+  gap: 5px;
+  padding: 7px 13px;
+  min-height: 36px;
+  border: 1px solid var(--color-primary-ink);
   border-radius: var(--radius-pill);
-  background: var(--color-brand-primary);
-  color: var(--color-ink);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
   font-weight: 700;
-  font-size: 14px;
+  font-size: 12px;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
 }
-.file-label:hover { transform: translateY(-1px); }
-.file-label.disabled { opacity: 0.6; cursor: default; }
-.file-label app-icon { --icon-size: 18px; }
+.file-label:hover {
+  background: var(--color-brand-primary);
+}
+.file-label.disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.file-label app-icon {
+  --icon-size: 15px;
+}
 
 .file-input {
   position: absolute;
@@ -100,36 +172,31 @@
 .link-btn {
   background: none;
   border: none;
-  padding: 10px 4px;
-  min-height: 44px;
+  padding: 7px 4px;
+  min-height: 36px;
   font: inherit;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--ion-color-danger);
   text-decoration: underline;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-// ── Panels ───────────────────────────────────────────────
-.panel {
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
-  padding: var(--space-5);
-  margin-bottom: var(--space-4);
-}
-
+// ── Groups inside the single card ────────────────────────
+/* The .panel class is gone: three of them became three .group sections inside
+   .profile-card, separated by hairlines rather than by separate cards. */
 .panel-title {
   font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 600;
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-3);
   color: var(--color-ink);
 }
 
 .field {
   display: block;
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-3);
 }
 
 .field-label {
@@ -148,44 +215,74 @@
   line-height: 1.4;
 }
 
-.standalone-hint { margin-top: var(--space-2); }
+.standalone-hint {
+  margin-top: var(--space-2);
+}
 
 .save-btn {
   --background: var(--color-brand-primary);
   --color: var(--color-ink);
-  margin-top: var(--space-2);
-  min-height: 48px;
+  --border-radius: var(--radius-sm);
+  margin-top: var(--space-1);
+  min-height: 44px;
+  font-weight: 700;
+}
+
+/* "Change email" is a secondary action on the same group as Save changes, so it
+   no longer claims the full width of the card — it was a full-width outline
+   button directly under a full-width filled one, which made the group's two
+   actions look equally weighted. */
+.change-email-btn {
+  --border-radius: var(--radius-sm);
+  --border-color: var(--color-primary-ink);
+  --color: var(--color-primary-ink);
+  min-height: 44px;
   font-weight: 700;
 }
 
 // ── Notices ──────────────────────────────────────────────
+/* The same two tones as the global alert banner, applied directly. The banner
+   component cannot be reused here because both notices carry a title and a
+   paragraph each and sit inline in a form, not above it — but the colours are
+   the tokens, not private copies, so a high-contrast session reaches them. */
 .locked-note,
-.blocked-note {
+.toggle-hint {
   display: flex;
-  gap: var(--space-3);
+  gap: var(--space-2);
   align-items: flex-start;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
 .locked-note {
-  background: #e6f1fb;
-  border: 1px solid #a8cbe8;
-  color: #17456f;
+  background: var(--tone-info-bg);
+  border: 1px solid var(--tone-info-border);
+  color: var(--tone-info-ink);
 }
 
-.blocked-note {
+/* Replaces the old `.blocked-note` warning panel. Notifications are in-app only
+   now, so there is no OS permission that can be refused and nothing to warn
+   about — but the SCOPE still has to be stated where the user reads it, because
+   "nothing arrives while the app is closed" is the single most surprising thing
+   about this feature and it is not discoverable from a toggle. */
+.toggle-hint {
   margin-top: var(--space-3);
-  background: #fff3dc;
-  border: 1px solid #f2d49a;
-  color: #7a4b00;
+  background: var(--tone-info-bg);
+  border: 1px solid var(--tone-info-border);
+  color: var(--tone-info-ink);
+  /* Not a flex row: this is a paragraph of prose with a link inside it, and
+     making it a flex container would put the link on its own line. */
+  display: block;
 }
 
-.locked-note app-icon,
-.blocked-note app-icon {
-  --icon-size: 18px;
+.toggle-hint .inline-link {
+  white-space: nowrap;
+}
+
+.locked-note app-icon {
+  --icon-size: 16px;
   flex: 0 0 auto;
   margin-top: 1px;
 }
@@ -207,7 +304,9 @@
   gap: var(--space-4);
 }
 
-.toggle-text { min-width: 0; }
+.toggle-text {
+  min-width: 0;
+}
 
 .toggle-title {
   margin: 0;
@@ -230,4 +329,50 @@
   font-size: 14px;
   font-weight: 700;
   color: var(--color-success);
+}
+
+/* -- Delete account ----------------------------------------------------
+     Kept visually distinct from every other group on this page. The other
+     groups are all "change something"; this one is the one action that cannot
+     be undone, and it should not look like a peer of "Save changes".
+
+     Danger red on the border and the heading only. A solid red filled panel
+     would compete with the alert banner at the top for the eye, and a solid
+     red button invites a tap before it has been read.
+
+     The delete button is outline rather than solid for the same reason: the
+     fill is reserved for the one thing on this page a user should have to
+     aim at deliberately. */
+.danger-group {
+  border: 1px solid var(--ion-color-danger);
+  border-radius: var(--radius-card, 16px);
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.danger-group .panel-title {
+  color: var(--ion-color-danger);
+}
+
+.danger-copy {
+  margin: 0 0 var(--space-2);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink-soft);
+}
+
+.danger-error {
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs, 8px);
+  background: var(--ion-color-danger-light, rgba(var(--ion-color-danger-rgb), 0.1));
+  color: var(--ion-color-danger-shade, var(--ion-color-danger));
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.delete-account-btn {
+  margin-top: var(--space-3);
+  --border-radius: var(--radius-pill);
+  font-weight: 700;
 }

@@ -1,0 +1,196 @@
+/* src/app/features/notifications/notifications.page.scss */
+/* Five-orites Scoop — notification feed styling */
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) var(--space-7);
+}
+
+/* ── Day sections ─────────────────────────────────────────────────────── */
+
+.day-label {
+  margin: var(--space-5) 0 var(--space-2);
+  padding-inline: var(--space-1);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* ── Feed ─────────────────────────────────────────────────────────────── */
+
+.feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  width: 100%;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-ink);
+  border-radius: var(--radius-control);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
+}
+
+.entry:hover {
+  background: var(--color-cream);
+}
+
+/* A visible focus ring is mandatory here: the whole row is a button, so without
+   it a keyboard user cannot tell where they are. Ionic's own focus utilities do
+   not apply to a plain <button>. */
+.entry:focus-visible {
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The dot is a layout placeholder, not the unread indicator: it reserves the
+   gutter so a read row and an unread row keep identical text alignment, and the
+   unread state is carried by fill + weight instead. */
+.entry-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  border: 2px solid var(--color-ink-soft);
+}
+
+.entry--unread {
+  background: var(--color-cream);
+  border-color: var(--color-primary-ink);
+}
+
+.entry--unread .entry-dot {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+}
+
+.entry--unread .entry-title {
+  font-weight: 700;
+}
+
+/* A cancelled order is the one status worth interrupting the calm palette for.
+   Using --color-danger for the border rather than a fill keeps the text contrast
+   that check:contrast already verifies elsewhere, instead of introducing a new
+   pair that nothing has measured. */
+.entry--alert {
+  border-color: var(--color-danger);
+}
+
+.entry--alert .entry-dot {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.entry-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.entry-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.entry-time {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  color: var(--color-ink-soft);
+  /* Kept out of the accessible name on purpose — see the aria-label below. */
+}
+
+.entry-text {
+  font-size: 0.875rem;
+  color: var(--color-ink-soft);
+}
+
+.entry-order {
+  margin-top: var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-primary-ink);
+}
+
+.entry-chevron {
+  flex: 0 0 auto;
+  align-self: center;
+  color: var(--color-ink-soft);
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────── */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
+  border: 1px solid var(--color-ink);
+  border-radius: var(--radius-card);
+  background: var(--color-white);
+}
+
+.empty-icon {
+  display: inline-flex;
+  color: var(--color-ink-soft);
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.empty-text {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--color-ink-soft);
+}
+
+.empty-note {
+  margin: 0;
+  max-width: 52ch;
+  font-size: 0.8125rem;
+  color: var(--color-ink-soft);
+}
+
+.empty-action {
+  margin-top: var(--space-2);
+}
+
+/* ── Footnotes ────────────────────────────────────────────────────────── */
+
+.scope-note {
+  margin: var(--space-5) 0 0;
+  font-size: 0.8125rem;
+  color: var(--color-ink-soft);
+}

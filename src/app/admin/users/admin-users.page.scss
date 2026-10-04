@@ -1,4 +1,6 @@
-:host { display: block; }
+:host {
+  display: block;
+}
 
 // ── Filters ─────────────────────────────────────────────
 .filters {
@@ -35,14 +37,16 @@
   min-height: 38px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-pill);
-  border: 1px solid var(--color-brand-primary);
+  border: 1px solid var(--color-primary-ink);
   background: transparent;
-  color: var(--color-strawberry-ink);
+  color: var(--color-primary-ink);
   font: inherit;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.15s ease, color 0.15s ease;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .role-chip.active {
@@ -57,7 +61,7 @@
   background: var(--color-white);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-raised);
-  border: 2px solid var(--color-brand-primary);
+  border: 2px solid var(--color-primary-ink);
 }
 
 .editor-title {
@@ -111,25 +115,71 @@
   min-height: 46px;
 }
 
-// ── List ────────────────────────────────────────────────
-.list { padding: var(--space-2) var(--space-4) var(--space-6); }
+// ── Table ───────────────────────────────────────────────
+// The row-per-user card is gone. It was 46px of avatar plus five stacked fields
+// in a 46px-tall box, and the two things an admin scans this page for — who is
+// an admin, and who has no phone number — were not in any consistent position
+// down the list. One line each, with the role in its own column, is the fix.
+.table-wrap {
+  padding: var(--space-2) var(--space-4) 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 
-.user-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
+.users-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--color-white);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  padding: var(--space-3);
-  margin-bottom: var(--space-3);
+  overflow: hidden;
 }
 
+.users-table thead th {
+  background: var(--ion-color-light);
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+
+.users-table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ion-color-light);
+  vertical-align: middle;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+.users-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.user-row:hover {
+  background: var(--tile-powder);
+}
+
+.user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* 32px rather than 46px. A face is still recognisable at this size, and the row
+   drops from ~62px to ~46px, which is the difference between 14 and 19 users on
+   a phone screen. */
 .user-avatar {
-  width: 46px;
-  height: 46px;
+  width: 32px;
+  height: 32px;
   flex: 0 0 auto;
-  background: var(--color-brand-light);
+  background: var(--tile-mint);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -137,100 +187,270 @@
 
 .avatar-initials {
   font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   color: var(--color-ink);
-}
-
-.user-info { flex: 1; min-width: 0; }
-
-.user-top {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
 }
 
 .user-name {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--color-ink);
-  /* Long names must not push the row wider than its track. */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 100%;
 }
 
 .role-badge,
 .self-badge {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  padding: 2px 8px;
+  padding: 2px 7px;
   border-radius: var(--radius-pill);
+  white-space: nowrap;
   flex: 0 0 auto;
 }
 
-.role-badge {
-  background: var(--color-brand-accent);
+/* The admin badge is the one saturated thing in the table, which is correct:
+   it is the answer to the question this page is usually opened to ask. */
+/* ── Role tiers ──────────────────────────────────────────── */
+/* Four tiers need four readable treatments, but the ESCALATING ramp is only
+   right if it also escalates visibly — the point of the tiers is that a `manager`
+   can tell at a glance that they are not the top of the ladder. */
+.role-chip--tier {
+  font-size: 12px;
+}
+
+.role-badge--owner {
+  background: var(--color-ink);
+  color: var(--color-white);
+  border-color: var(--color-ink);
+}
+
+.role-badge--admin {
+  background: var(--tone-warning-bg);
+  color: var(--tone-warning-ink);
+  border-color: var(--tone-warning-border);
+}
+
+.field-hint.warn {
+  color: var(--tone-warning-ink);
+  font-weight: 600;
+}
+
+/* ── Spend column ────────────────────────────────────────── */
+.col-spent {
+  white-space: nowrap;
+}
+
+.spent-amount {
+  display: block;
+  font-weight: 700;
+  font-size: 13px;
   color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.spent-orders {
+  display: block;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
+
+/* "3 orders, none delivered" is a real state and must not read as zero spend
+   with no explanation — those mean different things to the person reading. */
+.spent-none {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+/* A sort control that is a real button, so it is reachable by keyboard and
+   announces the current direction. */
+.sort-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.sort-btn:hover {
+  color: var(--color-primary-ink);
+}
+.sort-icon {
+  --icon-size: 13px;
+}
+
+/* ── Suspension ──────────────────────────────────────────── */
+/* A danger treatment that is still a BADGE, not a banner: it sits beside the
+   role badge so "who is blocked" is answerable from the role column alone. */
+.role-badge--suspended {
+  background: var(--tone-danger-bg);
+  color: var(--tone-danger-ink);
+  border-color: var(--tone-danger-border);
+}
+
+.role-chip--danger {
+  color: var(--color-danger);
+}
+.role-chip--danger.active {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: #fff;
+}
+.chip-icon {
+  --icon-size: 13px;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
+.suspend-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.suspend-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  line-height: 1.4;
+}
+
+.role-badge {
+  background: var(--ion-color-light);
+  color: var(--ion-color-medium);
+}
+
+/* Replaced by the tier ramp above (staff → manager → admin → owner), which is
+   four treatments rather than one. */
+.role-badge--staff {
+  background: var(--tile-powder);
+  color: var(--color-primary-ink);
+}
+
+.role-badge--manager {
+  background: var(--tone-success-bg);
+  color: var(--tone-success-ink);
+  border-color: var(--tone-success-border);
 }
 
 .self-badge {
-  background: var(--color-brand-light);
+  background: var(--tile-mint);
   color: var(--color-mint-ink);
 }
 
 .user-email,
-.user-meta {
+.user-phone,
+.user-joined {
   display: block;
   font-size: 12px;
   color: var(--ion-color-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 24ch;
 }
 
-.user-meta { margin-top: 1px; }
+.is-empty {
+  color: var(--ion-color-light-shade);
+}
+
+.col-actions {
+  text-align: right;
+  width: 1%;
+  white-space: nowrap;
+}
 
 .user-actions {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: flex-end;
+  gap: 2px;
   flex: 0 0 auto;
 }
 
-.user-actions app-icon { --icon-size: 20px; }
-
-// ── Empty ───────────────────────────────────────────────
-.empty {
-  display: flex;
-  flex-direction: column;
+/* Real <button>s at 28px, not 40px ion-buttons. Two full-size buttons per row
+   made the actions column the widest thing on the page for what is a rare
+   operation; these are 30px square, icon-only, and each carries a full
+   aria-label, so the accessible name is unchanged. */
+.icon-btn {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-7) var(--space-5);
-  text-align: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--color-primary-ink);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
 }
 
-.empty app-icon {
-  --icon-size: 52px;
-  color: var(--color-brand-primary);
+.icon-btn app-icon {
+  --icon-size: 16px;
+}
+.icon-btn:hover:not(:disabled) {
+  background: var(--tile-powder);
+  border-color: var(--ion-color-light-shade);
 }
 
-.empty h2 {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 600;
-  margin: var(--space-2) 0 0;
-  color: var(--color-ink);
+.icon-btn--danger {
+  color: var(--tone-warning-ink);
+}
+.icon-btn--danger:hover:not(:disabled) {
+  background: var(--tile-lemon);
 }
 
-.empty p {
-  margin: 0;
-  font-size: 14px;
-  color: var(--ion-color-medium);
-  max-width: 34ch;
-  line-height: 1.5;
+.icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+// ── Skeleton ─────────────────────────────────────────────
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 24% 28% 14% 12% 14%;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: var(--color-white);
+  border-bottom: 1px solid var(--ion-color-light);
+}
+.skeleton-row:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.skeleton-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+// Available to assistive tech, invisible on screen.
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }

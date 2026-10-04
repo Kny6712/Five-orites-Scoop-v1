@@ -1,44 +1,76 @@
 // src/app/admin/inventory/inventory.page.ts
 // Five-orites Scoop — Admin Inventory Manager
 
-import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { Component, OnInit, OnDestroy, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonSearchbar, IonLabel, IonInput,
-  IonButton, IonSkeletonText, IonRefresher, IonRefresherContent,
-  IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-  IonChip, AlertController, ToastController, ModalController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonSearchbar,
+  IonButton,
+  IonSkeletonText,
+  IonRefresher,
+  IonRefresherContent,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
+  IonChip,
+  AlertController,
+  ToastController,
+  ModalController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
 import { Subscription } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
 import { Product, SizeVariant, StockLevel } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
-import { LOW_STOCK_THRESHOLD } from '../../core/config/stock.config';
+import { totalStock } from '../../core/logic/stock';
+import { ShopSettingsService } from '../../core/services/shop-settings.service';
+import { slug } from '../../core/logic/csv-import';
+import { CsvImportModalComponent } from './csv-import-modal.component';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { AddProductModalComponent } from './add-product-modal.component';
 import { EditProductModalComponent } from './edit-product-modal.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-
-interface EditableStock { cup: number; pint: number; halfGallon: number; gallon: number; }
+import { ImageReplaceSheetComponent } from './image-replace-sheet.component';
 
 @Component({
   selector: 'app-inventory',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonSearchbar, IonLabel, IonInput,
+    CommonModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonSearchbar,
     IonButton,
-    IonSkeletonText, IonRefresher, IonRefresherContent,
-    IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-    IonChip, CartButtonComponent,
-    AppIconComponent, EmptyStateComponent],
+    IonSkeletonText,
+    IonRefresher,
+    IonRefresherContent,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
+    IonChip,
+    AppIconComponent,
+    EmptyStateComponent,
+    PaginationComponent,
+    CloudinaryPipe,
+    AppFooterComponent,
+    AlertBannerComponent,
+  ],
   templateUrl: './inventory.page.html',
   styleUrls: ['./inventory.page.scss'],
 })
@@ -49,6 +81,18 @@ export class InventoryPage implements OnInit, OnDestroy {
   private modalCtrl = inject(ModalController);
   private sub?: Subscription;
 
+  /**
+   * Eight cards a page.
+   *
+   * The catalog is 64 flavor variants, and rendering all of them meant a scroll
+   * long enough that the Active pill and the quantity steppers — the two things
+   * this page exists for — were below the fold on a phone. The live Firestore
+   * snapshot still holds every product; only the RENDER is paged, so a stock
+   * change arriving from a customer checkout on page 3 still repaints
+   * correctly, and a search still spans the whole catalog.
+   */
+  readonly PAGE_SIZE = 8;
+
   products = signal<Product[]>([]);
   filteredProducts = signal<Product[]>([]);
   isLoading = signal(true);
@@ -58,18 +102,92 @@ export class InventoryPage implements OnInit, OnDestroy {
    * could not reach Firestore" — and the page showed the same screen for both.
    */
   loadError = signal('');
-  editingId = signal<string | null>(null);
-  savingId = signal<string | null>(null);
-  editStock: Record<string, EditableStock> = {};
+
+  /** 1-based. Reset to 1 on search, so a filtered set never opens on a page 4. */
+  readonly page = signal(1);
+
+  readonly totalCount = computed(() => this.filteredProducts().length);
+
+  readonly totalPages = computed(() => Math.max(1, Math.ceil(this.totalCount() / this.PAGE_SIZE)));
+
+  readonly pagedProducts = computed(() => {
+    const start = (this.page() - 1) * this.PAGE_SIZE;
+    return this.filteredProducts().slice(start, start + this.PAGE_SIZE);
+  });
+
+  /**
+   * Product id whose stock steppers are mid-write, if any.
+   *
+   * One id rather than a set: at most one adjust is in flight, and both
+   * stepper buttons on EVERY card are disabled while it runs — so the global
+   * early-return in adjustStock() can never be reached via an enabled-looking
+   * button. Matches the `busySizeId() !== null` disable summary in the template.
+   */
+  readonly busySizeId = signal<string | null>(null);
 
   readonly sizes: SizeVariant[] = ['cup', 'pint', 'halfGallon', 'gallon'];
+
+  /**
+   * Exposed for the template's family-total chip. A thin alias rather than a
+   * second sum in the template, so the card and the delete confirmation cannot
+   * drift apart.
+   */
+  readonly totalStock = totalStock;
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
-  readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
+  /**
+   * The admin-editable threshold.
+   *
+   * `watch()` rather than `load()`: this page renders stock pills against the
+   * threshold, so a change made on the Shop Settings page should repaint the
+   * list rather than needing a reload.
+   */
+  private readonly shop = inject(ShopSettingsService);
+  readonly lowStockThreshold = computed(() => this.shop.lowStockThreshold());
   skeletonItems = Array(6).fill(0);
 
+  // ── Bulk CSV import ────────────────────────────────────────────────────────
+  /* README and REFACTOR_PLAN.md both deferred "CSV bulk product import". The
+     validation lives in `core/logic/csv-import.ts` and is all-or-nothing: one
+     bad row rejects the whole file, because a partial import is the one outcome
+     an admin cannot recover from — 40 of 64 flavors written with no record of
+     which 40 leaves a catalog nothing else can describe as correct. */
+  /**
+   * Opens the bulk-import modal.
+   *
+   * It used to be an inline panel rendered at the very bottom of the page, after
+   * the product grid and the pagination, behind a trigger near the top of the
+   * viewport — so tapping it changed something well below the fold and nothing
+   * appeared to happen. As a modal it opens in the centre of the screen.
+   *
+   * The existing product keys are handed over so the CSV parser can report a row
+   * that would silently overwrite a live flavor. The modal dismisses with what it
+   * actually wrote, and the list is refreshed only then — so a cancelled or
+   * failed import costs no reads and shows no phantom change.
+   */
+  async openImport(): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: CsvImportModalComponent,
+      componentProps: {
+        existingKeys: this.products().map((p) => `${p.setNumber}_${slug(p.variantName)}`),
+      },
+      cssClass: 'large-sheet-modal',
+    });
+    await modal.present();
+    const result = (await modal.onDidDismiss())?.data as
+      { imported: number; failures: string[] } | undefined;
+    if (!result || result.imported === 0) return;
+    await this.loadProducts();
+    await this.toast(`Imported ${result.imported} flavors.`, 'success');
+  }
 
-  ngOnInit(): void { this.loadProducts(); }
-  ngOnDestroy(): void { this.sub?.unsubscribe(); }
+  ngOnInit(): void {
+    this.shop.watch();
+    this.loadProducts();
+  }
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+    this.shop.stop();
+  }
 
   loadProducts(): void {
     this.isLoading.set(true);
@@ -79,8 +197,23 @@ export class InventoryPage implements OnInit, OnDestroy {
     // otherwise there is no card to edit their stock or flip them back on.
     this.sub = this.inventoryService.getAllProducts().subscribe({
       next: (products) => {
-        this.products.set(products);
-        this.filteredProducts.set(products);
+        const normalised = products.map((p) => ({
+          ...p,
+          // Defence: a legacy/partial doc may lack some or all of `stock`, and
+          // the template dereferences product.stock[size] directly. Normalise to a
+          // full four-key map here so the page renders the product instead of
+          // throwing on the first partial doc.
+          stock: {
+            cup: 0,
+            pint: 0,
+            halfGallon: 0,
+            gallon: 0,
+            ...((p.stock as Partial<StockLevel>) ?? {}),
+          },
+        }));
+        this.products.set(normalised);
+        this.filteredProducts.set(normalised);
+        this.page.set(1);
         this.isLoading.set(false);
       },
       error: (err: unknown) => {
@@ -99,84 +232,58 @@ export class InventoryPage implements OnInit, OnDestroy {
   onSearch(event: CustomEvent): void {
     const q = (event.detail.value ?? '').toLowerCase();
     this.filteredProducts.set(
-      q ? this.products().filter(
-        (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q)
-      ) : this.products()
+      q
+        ? this.products().filter(
+            (p) => p.variantName.toLowerCase().includes(q) || p.setName.toLowerCase().includes(q),
+          )
+        : this.products(),
     );
+    // A search can shrink the result set below the current page, which would
+    // otherwise leave the list blank with the pager on page 4 of 1.
+    this.page.set(1);
   }
 
-  startEdit(product: Product): void {
-    this.editingId.set(product.id);
-    // Deep copy current stock values into editStock
-    this.editStock[product.id] = {
-      cup: product.stock?.cup ?? 0,
-      pint: product.stock?.pint ?? 0,
-      halfGallon: product.stock?.halfGallon ?? 0,
-      gallon: product.stock?.gallon ?? 0,
-    };
-  }
-
-  cancelEdit(): void {
-    this.editingId.set(null);
-  }
-
-  validateStock(productId: string, size: SizeVariant): void {
-    const val = Number(this.editStock[productId]?.[size]);
-    if (isNaN(val) || val < 0) {
-      this.editStock[productId][size] = 0;
-    } else {
-      this.editStock[productId][size] = Math.floor(val);
+  /**
+   * Move one size's stock by +/- 1.
+   *
+   * The write is a transaction (see InventoryService.adjustStock), so two admins
+   * adjusting the same size at the same time both land rather than one increment
+   * being lost to a read-modify-write race. The value on screen comes from the
+   * live snapshot, so the displayed number updates when Firestore confirms — not
+   * when the click is handled. That is why there is no optimistic local
+   * increment here: it would be overwritten a moment later by the snapshot, and
+   * if the write failed the flash would have to be walked back.
+   */
+  async adjustStock(product: Product, size: SizeVariant, delta: number): Promise<void> {
+    if (this.busySizeId()) return;
+    this.busySizeId.set(product.id);
+    try {
+      await this.inventoryService.adjustStock(product.id, size, delta);
+    } catch (err: unknown) {
+      await this.toast(describeFirestoreError('stock levels', err), 'danger');
+    } finally {
+      this.busySizeId.set(null);
     }
   }
 
   /**
-   * Live sum of the four inputs for the row being edited.
+   * Open the photo replacement sheet for a product.
    *
-   * Clamped the same way saveStock() clamps on the way out, so the number on
-   * screen is always what a save would actually persist. validateStock() only
-   * runs on blur, so a half-typed negative would otherwise drag the total down.
+   * No reload on dismiss: the Firestore snapshot is live, so the card behind the
+   * sheet repaints by itself the moment the URL lands. Reloading would throw away
+   * the scroll position and the current page number for a one-field change.
+   *
+   * busyImageId is therefore no longer needed here — the sheet owns its own
+   * uploading state and dismisses itself on success, so there is never a state
+   * left behind on the card to clear.
    */
-  totalStock(productId: string): number {
-    const stock = this.editStock[productId];
-    if (!stock) return 0;
-    return this.sizes.reduce(
-      (sum, size) => sum + Math.max(Math.floor(Number(stock[size])) || 0, 0),
-      0
-    );
-  }
-
-  async saveStock(product: Product): Promise<void> {
-    const newStock = this.editStock[product.id];
-    if (!newStock) return;
-
-    this.savingId.set(product.id);
-    try {
-      // One atomic write for all four sizes. This used to fire four separate
-      // per-size transactions in a loop, so a failure halfway through
-      // left the product with a half-applied edit.
-      const stock: StockLevel = {
-        cup: Math.max(Math.floor(Number(newStock.cup)) || 0, 0),
-        pint: Math.max(Math.floor(Number(newStock.pint)) || 0, 0),
-        halfGallon: Math.max(Math.floor(Number(newStock.halfGallon)) || 0, 0),
-        gallon: Math.max(Math.floor(Number(newStock.gallon)) || 0, 0),
-      };
-      await this.inventoryService.updateStocks(product.id, stock);
-
-      const toast = await this.toastCtrl.create({
-        message: `✅ Stock updated for ${product.variantName}!`,
-        color: 'success', duration: 2500, position: 'top',
-      });
-      await toast.present();
-      this.editingId.set(null);
-    } catch (err: any) {
-      const toast = await this.toastCtrl.create({
-        message: `❌ Failed to update stock: ${err?.message ?? 'Please try again.'}`,
-        color: 'danger', duration: 4000, position: 'top',
-      });
-      await toast.present();
-    } finally {
-      this.savingId.set(null);
-    }
+  async replaceImage(product: Product): Promise<void> {
+    const sheet = await this.modalCtrl.create({
+      component: ImageReplaceSheetComponent,
+      componentProps: { product },
+      cssClass: 'large-sheet-modal',
+    });
+    await sheet.present();
   }
 
   async toggleActive(product: Product): Promise<void> {
@@ -191,20 +298,59 @@ export class InventoryPage implements OnInit, OnDestroy {
           handler: async () => {
             try {
               await this.inventoryService.updateProductActive(product.id, !product.isActive);
-              const toast = await this.toastCtrl.create({
-                message: `Product ${action}d successfully.`,
-                color: 'success', duration: 2000, position: 'top',
-              });
-              await toast.present();
-            } catch (err: any) {
-              const toast = await this.toastCtrl.create({
-                message: `Failed to update product: ${err?.message ?? 'Try again.'}`,
-                color: 'danger', duration: 3000, position: 'top',
-              });
-              await toast.present();
+              await this.toast(`Product ${action}d.`, 'success');
+            } catch (err: unknown) {
+              await this.toast(describeFirestoreError('that product', err), 'danger');
             }
           },
-        }],
+        },
+      ],
+    });
+    await alert.present();
+  }
+
+  /**
+   * Confirm and perform a permanent delete.
+   *
+   * The dialog states the consequence in the message rather than only in the
+   * button label, because "Delete" on a confirm dialog is ambiguous about
+   * whether it is reversible — and here it is not. To take a flavor off the
+   * shelf without losing it, the Active pill is the control; the two do very
+   * different things and the copy says so.
+   *
+   * The flavor's total stock is named in the message so an admin about to lose
+   * 40 units of inventory can see the size of the mistake first.
+   */
+  async confirmDelete(product: Product): Promise<void> {
+    // `totalStock` rather than a local reduce, so this figure and the total shown
+    // on the card come from one place and cannot quote different numbers for the
+    // same product.
+    const total = totalStock(product.stock);
+    const alert = await this.alertCtrl.create({
+      header: `Delete ${product.variantName}?`,
+      cssClass: 'alert-danger',
+      message:
+        `This permanently removes the flavor and its ${total} units of stock. ` +
+        `It cannot be undone. To take it off the shelf without losing it, use the ` +
+        `Active pill instead.`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Delete permanently',
+          cssClass: 'alert-danger-button',
+          handler: async () => {
+            try {
+              await this.inventoryService.deleteProduct(product.id);
+              await this.toast(`${product.variantName} deleted.`, 'success');
+              // If the deleted card was the only one on the last page, step back
+              // rather than leaving the pager on a page that no longer exists.
+              if (this.page() > this.totalPages()) this.page.set(this.totalPages());
+            } catch (err: unknown) {
+              await this.toast(describeFirestoreError('that flavor', err), 'danger');
+            }
+          },
+        },
+      ],
     });
     await alert.present();
   }
@@ -231,12 +377,13 @@ export class InventoryPage implements OnInit, OnDestroy {
             }
             try {
               const count = await this.inventoryService.bulkRestock(amount);
-              await this.toast(`✅ Restocked ${count} products (+${amount} each size).`, 'success');
+              await this.toast(`Restocked ${count} products (+${amount} each size).`, 'success');
             } catch (err: unknown) {
-              await this.toast(err instanceof Error ? err.message : 'Bulk restock failed.', 'danger');
+              await this.toast(describeFirestoreError('the catalog', err), 'danger');
             }
           },
-        }],
+        },
+      ],
     });
     await alert.present();
   }

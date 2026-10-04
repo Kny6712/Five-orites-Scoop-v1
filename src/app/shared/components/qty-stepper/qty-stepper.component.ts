@@ -47,58 +47,75 @@ import { AppIconComponent } from '../app-icon/app-icon.component';
       </button>
     </div>
   `,
-  styles: [`
-    :host { display: inline-block; }
+  styles: [
+    `
+      :host {
+        display: inline-block;
+      }
 
-    .stepper {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-1);
-    }
+      .stepper {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
+      }
 
-    /* 44×44 — the whole reason this component exists. The 18px glyph inside reads
+      /* 44×44 — the whole reason this component exists. The 18px glyph inside reads
        as a compact control; the 44px box is what a thumb can actually hit. */
-    .qty-btn {
-      width: 44px;
-      height: 44px;
-      border-radius: var(--radius-pill);
-      border: 1px solid var(--color-brand-primary);
-      background: var(--color-white);
-      color: var(--color-strawberry-ink);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      /* A tap highlight makes the press feel instant, which matters more on this
+      .qty-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--color-primary-ink);
+        background: var(--color-white);
+        color: var(--color-primary-ink);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        /* A tap highlight makes the press feel instant, which matters more on this
          control than on any other — it is tapped repeatedly. */
-      transition: background-color 0.12s ease, transform 0.12s ease;
-    }
+        transition:
+          background-color 0.12s ease,
+          transform 0.12s ease;
+      }
 
-    .qty-btn:hover:not(:disabled) { background: #fde8ee; }
-    .qty-btn:active:not(:disabled) { transform: scale(0.94); }
+      .qty-btn:hover:not(:disabled) {
+        background: var(--tile-blush);
+      }
+      .qty-btn:active:not(:disabled) {
+        transform: scale(0.94);
+      }
 
-    .qty-btn:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
+      .qty-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
 
-    .qty-btn app-icon { --icon-size: 18px; }
+      .qty-btn app-icon {
+        --icon-size: 18px;
+      }
 
-    /* The compact variant shrinks the GLYPH and the text but never the hit area.
+      /* The compact variant shrinks the GLYPH and the text but never the hit area.
        Dropping below 44px is exactly the bug this replaced. */
-    .small .qty-btn { width: 40px; height: 40px; }
-    .small .qty-btn app-icon { --icon-size: 16px; }
+      .small .qty-btn {
+        width: 40px;
+        height: 40px;
+      }
+      .small .qty-btn app-icon {
+        --icon-size: 16px;
+      }
 
-    .qty-value {
-      min-width: 28px;
-      text-align: center;
-      font-size: 15px;
-      font-weight: 800;
-      color: var(--color-ink);
-      /* Tabular figures so the number does not jitter as it changes width. */
-      font-variant-numeric: tabular-nums;
-    }
-  `],
+      .qty-value {
+        min-width: 28px;
+        text-align: center;
+        font-size: 15px;
+        font-weight: 800;
+        color: var(--color-ink);
+        /* Tabular figures so the number does not jitter as it changes width. */
+        font-variant-numeric: tabular-nums;
+      }
+    `,
+  ],
 })
 export class QtyStepperComponent {
   /** Two-way bindable. `model` so a page can read the value back without a

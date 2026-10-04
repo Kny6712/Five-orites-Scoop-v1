@@ -1,28 +1,63 @@
-:host { display: block; }
+// src/app/admin/vouchers/admin-vouchers.page.scss
+// Five-orites Scoop — Admin voucher management
 
+:host {
+  display: block;
+}
+
+.new-btn {
+  --font-size: 13px;
+  font-weight: 700;
+}
+
+// ── Editor ───────────────────────────────────────────────
 .editor {
-  margin: var(--space-4);
-  padding: var(--space-5);
   background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-raised);
-  /* A hint of the primary hue, to mark this as the thing currently being worked
-     on — the same trick as a focused form, but for a whole panel. */
-  border: 2px solid var(--color-brand-primary);
+  border-left: 4px solid var(--color-primary-ink);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  box-shadow: var(--shadow-card);
+  padding: var(--space-4);
+  margin: var(--space-3) var(--space-4) 0;
+}
+
+.editor-head {
+  margin-bottom: var(--space-3);
 }
 
 .editor-title {
+  margin: 0;
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
-  margin: 0 0 var(--space-4);
   color: var(--color-ink);
+}
+
+.editor-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ion-color-medium);
 }
 
 .field {
   display: block;
-  margin-bottom: var(--space-4);
-  min-width: 0;
+  margin-bottom: var(--space-3);
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  margin-bottom: 5px;
+}
+
+.field-hint {
+  display: block;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .field-row {
@@ -31,119 +66,379 @@
   gap: var(--space-3);
 }
 
-.field-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-ink-soft);
-  margin-bottom: 6px;
+// ── Worked example ───────────────────────────────────────
+/* The one genuinely new thing on this page. "10% off" is not a discount, it is
+   an input — the question is what the customer pays, so that is what is
+   answered, in words, live. Turned to the warning tone when the sample basket
+   falls under the minimum order, because that is the case where the voucher
+   silently does nothing and the admin needs to see it before saving. */
+.example {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  background: var(--tile-mint);
+  border: 1px solid var(--tone-success-border);
+  border-radius: var(--radius-sm);
 }
 
-.field-hint {
-  display: block;
-  font-size: 12px;
-  color: var(--ion-color-medium);
-  margin-top: 5px;
-  line-height: 1.4;
+.example--blocked {
+  background: var(--tone-warning-bg);
+  border-color: var(--tone-warning-border);
+}
+
+.example-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-white);
+}
+
+.example-badge app-icon {
+  --icon-size: 16px;
+  color: var(--color-primary-ink);
+}
+.example--blocked .example-badge app-icon {
+  color: var(--tone-warning-ink);
+}
+
+.example-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink);
+}
+.example-text strong {
+  font-weight: 800;
+  color: var(--color-primary-ink);
 }
 
 .toggle-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.toggle-text {
+  min-width: 0;
+}
+.toggle-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.toggle-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--ion-color-medium);
 }
 
 .editor-actions {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .save-btn {
   --background: var(--color-brand-primary);
   --color: var(--color-ink);
-  --border-radius: var(--radius-control);
+  --border-radius: var(--radius-sm);
   font-weight: 700;
-  flex: 1;
   min-height: 46px;
 }
 
-// ── List ────────────────────────────────────────────────
-.list { padding: var(--space-4); }
+// ── Tools ────────────────────────────────────────────────
+.tools {
+  padding: var(--space-3) var(--space-4) 0;
+}
 
-.voucher-row {
+.voucher-search {
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  padding: 0;
+}
+
+.tools-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.count-chip {
+  padding: 5px 12px;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-pill);
   background: var(--color-white);
+  color: var(--color-ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.count-chip--on {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+  color: var(--color-ink);
+}
+
+.clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  cursor: pointer;
+}
+.clear-btn app-icon {
+  --icon-size: 13px;
+}
+
+// ── Ticket list ──────────────────────────────────────────
+/* A voucher is a ticket, so it is drawn as one: code in mono at the top, the
+   discount as a chip, and a perforated edge down the right where the actions
+   live. The old version was a plain list row with a bare toggle, which made the
+   page read as a settings list rather than as the coupon inventory it is. */
+.list {
+  padding: var(--space-3) var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ticket {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--color-white);
+  border: 1px solid var(--ion-color-light-shade);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-3);
-  border-left: 5px solid var(--color-success);
+  padding: var(--space-3);
+  overflow: hidden;
+  transition: opacity 0.15s ease;
 }
 
-/* Deactivated codes stay listed and stay editable — hiding them would make a
-   switched-off code invisible and unrecoverable from the UI. Only the accent
-   changes, so "off" reads at a glance without the row disappearing. */
-.voucher-row.inactive { border-left-color: var(--ion-color-medium); }
-.voucher-row.inactive .voucher-code { color: var(--ion-color-medium); }
+.ticket--inactive {
+  opacity: 0.66;
+}
 
-.voucher-info { min-width: 0; }
-
-.voucher-code {
+.ticket--skeleton {
   display: block;
+  min-height: 78px;
+}
+
+.ticket-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.ticket-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* The code is the thing an admin says over the phone and the thing a customer
+   types, so it is the one element on the card in a real monospace face at a size
+   that can be read aloud. */
+.ticket-code {
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--color-strawberry-ink);
-  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.voucher-desc {
-  display: block;
-  font-size: 13px;
+.ticket--inactive .ticket-code {
   color: var(--ion-color-medium);
-  margin-top: 2px;
 }
 
-.voucher-actions {
+.copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--color-primary-ink);
+  cursor: pointer;
+}
+.copy-btn app-icon {
+  --icon-size: 14px;
+}
+.copy-btn:hover {
+  background: var(--tile-powder);
+}
+
+.ticket-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.v-chip {
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--ion-color-light);
+  color: var(--ion-color-medium);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The discount itself gets the mint treatment: it is the reason the voucher
+   exists, and it was previously plain text among plain text. */
+.v-chip--value {
+  background: var(--tile-mint);
+  color: var(--color-mint-ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.v-chip--off {
+  background: var(--ion-color-light);
+  color: var(--ion-color-medium);
+}
+
+/* ── Redemption limits & window ──────────────────────────── */
+.field-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 10px;
+}
+
+@media (max-width: 400px) {
+  .field-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A native date input rather than ion-datetime: a datetime picker is the wrong
+   control for a day boundary, and native is keyboard- and locale-correct for
+   free. */
+.date-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+}
+.date-input:focus-visible {
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* ── New state chips ──────────────────────────────────────── */
+/* Distinct from --value and from the plain chip: a limit reached is a warning,
+   a measured result is a positive, and "no data" is neither. */
+.v-chip--warn {
+  background: var(--tone-warning-bg);
+  color: var(--tone-warning-ink);
+  border-color: var(--tone-warning-border);
+}
+
+.v-chip--good {
+  background: var(--tone-success-bg);
+  color: var(--tone-success-ink);
+  border-color: var(--tone-success-border);
+}
+
+.v-chip--muted {
+  background: var(--tile-powder);
+  color: var(--ion-color-medium);
+  border-color: transparent;
+}
+
+/* The perforation. Two radial cutouts rather than an SVG, so it scales with the
+   card and costs nothing to download; the pseudo-elements sit over the border
+   so the card looks torn rather than drawn-on. */
+.ticket-perf {
+  position: relative;
+  align-self: stretch;
+  width: 1px;
+  flex: 0 0 auto;
+  margin: -12px 0;
+  border-left: 2px dashed var(--ion-color-light-shade);
+}
+
+.ticket-actions {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   flex: 0 0 auto;
 }
 
-// ── Empty ───────────────────────────────────────────────
-.empty {
-  display: flex;
-  flex-direction: column;
+.icon-btn {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-7) var(--space-5);
-  text-align: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--color-primary-ink);
+  cursor: pointer;
 }
 
-.empty app-icon {
-  --icon-size: 52px;
-  color: var(--color-brand-primary);
+.icon-btn app-icon {
+  --icon-size: 16px;
+}
+.icon-btn:hover {
+  background: var(--tile-powder);
+  border-color: var(--ion-color-light-shade);
 }
 
-.empty h2 {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 600;
-  margin: var(--space-2) 0 0;
-  color: var(--color-ink);
+.icon-btn--danger {
+  color: var(--tone-danger-ink);
+}
+.icon-btn--danger:hover {
+  background: var(--tone-danger-bg);
+  border-color: var(--tone-danger-border);
 }
 
-.empty p {
-  margin: 0 0 var(--space-3);
-  font-size: 14px;
-  color: var(--ion-color-medium);
-  max-width: 34ch;
-  line-height: 1.5;
+@media (max-width: 400px) {
+  /* Below this the code, three chips and three controls cannot share a line, so
+     the actions drop to their own row rather than being squeezed to nothing. */
+  .ticket {
+    flex-wrap: wrap;
+  }
+  .ticket-perf {
+    display: none;
+  }
+  .ticket-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }

@@ -26,7 +26,7 @@
 //   <app-icon name="home" title="Home" />       named (so NOT hidden)
 
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { LUCIDE_ICON_DATA, type AppIcon } from '../../../core/icons/app-icons';
+import { LUCIDE_ICON_DATA, type AppIcon, type IconNode } from '../../../core/icons/app-icons';
 
 @Component({
   selector: 'app-icon',
@@ -131,7 +131,19 @@ export class AppIconComponent {
    * invisible rather than an exception, and that is the failure mode worth
    * surviving.
    */
-  protected readonly nodes = computed(() => LUCIDE_ICON_DATA[this.name()] ?? []);
+  /**
+   * The geometry to draw.
+   *
+   * Annotated `IconNode[]` on purpose. `LUCIDE_ICON_DATA` is declared with
+   * `satisfies`, so each entry's inferred type is its own literal shape — `{ d:
+   * string }` for a path, `{ cx: string; cy: string; r: string }` for a circle —
+   * and the template's `node[1]['d']` then fails to type-check on every entry that
+   * has no `d`. `satisfies` is still worth having: it is what makes `AppIcon` a
+   * real union so a typo in `name="…"` is a compile error. This annotation is the
+   * other half of that trade — narrow where names are checked, wide where the
+   * renderer walks a shape table it did not author.
+   */
+  protected readonly nodes = computed<IconNode[]>(() => LUCIDE_ICON_DATA[this.name()] ?? []);
 
   /**
    * Inline size, or null so the stylesheet's `var(--icon-size, 20px)` wins.

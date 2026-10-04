@@ -10,26 +10,278 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // Admin = users/{uid}.role == 'admin'.
-    // Bootstrap the first admin manually in the Firebase console,
-    // then that admin can promote others.
-    function isAdmin() {
+    // Role tiers. `myRole()` is the SINGLE source of truth for the caller's
+    // role; every guard below derives from it.
+    //
+    // NOTE (P2-13): this file's tier SETS (isStaff / isAdmin / canRunShop /
+    // canManageUsers) are NOT byte-identical to the client's `ROLE_CAPABILITIES`
+    // in src/app/core/models/user.model.ts — the client uses an 11-name
+    // Capability union, the rules use these four role sets. Both layers must be
+    // reviewed together; see the drift lint test in tests/logic.test.ts.
+    //
+    // 'admin' is kept in the full-access set so every account created before
+    // role tiers existed keeps working untouched. A shop that upgrades does not
+    // lose its owner's access to anything.
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    // Any staff tier at all — i.e. this person reaches the admin area.
+    function isStaff() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && myRole() in ['staff', 'manager', 'admin', 'owner'];
+    }
+
+    // Full admin access, which is what nearly every rule below needs.
+    //
+    // The three sets here are the same three sets as ROLE_CAPABILITIES:
+    //   staff   → queue and map
+    //   manager → + catalog, analytics, reviews, stock repair
+    //   admin   → + vouchers
+    //   owner   → + the user directory and the shop settings
+    function isAdmin() {
+      return isStaff() && myRole() in ['admin', 'owner'];
+    }
+
+    // Catalog, analytics, reviews and the stock ledger.
+    function canRunShop() {
+      return isStaff() && myRole() in ['manager', 'admin', 'owner'];
+    }
+
+    // Manager and owner, and deliberately NOT admin.
+    //
+    // Placed here, below `isStaff()`, on purpose: `tests/logic.test.ts` matches the
+    // FIRST `myRole() in [...]` in this file against the client staff set, so
+    // `isStaff()` must stay first. See the developers match block for why this is
+    // not `canRunShop()`.
+    function canManageTeam() {
+      return isStaff() && myRole() in ['manager', 'owner'];
+    }
+
+    // The five disc colours the credits page may use, and the shape of a valid
+    // developer record.
+    //
+    // A closed colour list rather than any hex, and the reason is accessibility
+    // rather than tidiness. The initials are PLUM on a PASTEL disc, which clears
+    // AA on all five of these; a free colour input would let an owner pick a dark
+    // disc and silently put unreadable text on it. `check:contrast` validates the
+    // design tokens and cannot see a value typed at runtime, so constraining it here
+    // is the only way to keep the guarantee.
+    function developerIsWellFormed() {
+      // Every mandatory field is checked for PRESENCE with `in` before it is read.
+      // A dot access to an absent key is an EVALUATION ERROR rather than `false`,
+      // and an evaluation error denies the write — so omitting `name` is refused
+      // either way, but it is refused as a crash rather than as a decision, and the
+      // log then blames an evaluation fault instead of a missing field.
+      return 'name' in request.resource.data
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80
+        && 'roles' in request.resource.data
+        && request.resource.data.roles is list
+        && request.resource.data.roles.size() > 0
+        && request.resource.data.roles.size() <= 12
+        && 'accent' in request.resource.data
+        && request.resource.data.accent in [
+             '#CFE4F2', '#CDEAD9', '#F8D2DD', '#FBE9BE', '#D3DDF7'
+           ]
+        // `photoURL` is `string | null`, not `string`. The seed writes null and the
+        // admin's "remove photo" control sets null, so an `is string` check here
+        // rejected the exact shape the app itself writes.
+        && (!('photoURL' in request.resource.data)
+            || request.resource.data.photoURL is string
+            || request.resource.data.photoURL == null)
+        && 'order' in request.resource.data
+        && request.resource.data.order is int
+        && request.resource.data.order >= 0;
+    }
+
+    // The user directory and role changes. Deliberately OWNER-only.
+    //
+    // This is the whole point of the tiers: a shift lead works the queue and
+    // cannot promote themselves, and a manager can fix prices without being able
+    // to hand out admin. Under the old single-role model the minimum useful
+    // privilege was full control over every account.
+    function canManageUsers() {
+      return isStaff() && myRole() == 'owner';
+    }
+
+    // ── Last-admin protection ──────────────────────────────────────────────
+    // Every other role guard in this file compares the CALLER's own document, so
+    // a spoofed `role` in a write payload cannot escalate. A role DEMOTION is
+    // the one place that is not enough: `allow update: if isAdmin()` would let an
+    // admin write `role: 'customer'` onto the LAST admin, after which nobody is
+    // an admin, `isAdmin()` is false for everyone, and `allow delete: if false`
+    // means the account cannot be removed. The admin side is then unreachable
+    // with no recovery path from inside the app.
+    //
+    // Firestore rules cannot COUNT documents in a collection, so "is this the
+    // last admin" cannot be asked directly. What CAN be expressed is the part
+    // that matters: an admin may not remove the LAST admin, and the honest
+    // approximation is that an admin may not demote THEMSELVES. That closes the
+    // accidental case (a single-admin shop demoting itself in the UI) and leaves
+    // the deliberate two-admin case — A demotes B, then B demotes A — which
+    // requires two coordinated writes and is a different thing entirely.
+    //
+    // The UI guards this too (admin-users.page.ts disables the control), but a
+    // UI guard is a suggestion and this is the rule.
+    function isNotChangingOwnRole(targetUid) {
+      // The simplest correct form: you may not change YOUR OWN role, in either
+      // direction.
+      //
+      // Both directions are the same danger. Writing `role: 'customer'` onto the
+      // last admin strands everyone (isStaff() is then false for all of them, and
+      // `allow delete: if false` means nobody can remove the account), and
+      // writing `role: 'owner'` onto yourself is self-escalation into the user
+      // directory. One rule closes both, and it cannot be got wrong by inverting
+      // a comparison.
+      //
+      // `targetUid` is a PARAMETER, not the bare `uid`: a function declared
+      // outside a match block cannot see that block's path variables, and reading
+      // one anyway is an undefined-property error rather than a false.
+      //
+      // `.get(key, default)` on both sides because `resource.data.role` on a
+      // document that never had a role field is an undefined-property error, and
+      // a null access is a HARD reject — it would fail unrelated profile edits.
+      return request.auth.uid != targetUid
+        || ('role' in request.resource.data
+            && request.resource.data.role
+                 == resource.data.get('role', null));
+    }
+
+    // The owner may promote/demote others and edit directories, but must not be
+    // allowed to silently STRIP their own role in one write: with `role: deleteField()`
+    // or a non-merged setDoc, the `.get('role', ...)` fallback made the old
+    // comparison pass, `isStaff()` then fails for everyone, and `allow delete: if false`
+    // means no in-app recovery. Requiring `'role' in request.resource.data` plus a
+    // key whitelist (see the update branch below) keeps the check present-aware.
+
+    // The keys an `admin` (not the owner) may write on somebody else's document:
+    // the profile fields, the suspension flag, and the staff note. Deliberately
+    // NOT `role` — handing out privileges is the one thing an admin must not do.
+    function isAdminUserEdit() {
+      return isAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'photoURL', 'phone', 'notificationsEnabled',
+          'isSuspended', 'suspendReason', 'suspendedAt', 'adminNote',
+          'notificationsReadAt'
+        ]);
+    }
+
+    // The read marker on a user's own document. Split out so all three of the
+    // places that permit a profile write agree on the type.
+    //
+    // THE `in` IS NOT OPTIONAL, and omitting it broke six unrelated tests. Written
+    // the obvious way —
+    //
+    //     request.resource.data.notificationsReadAt is int || ... == null
+    //
+    // — it denies EVERY profile save that does not happen to touch the marker,
+    // because a dot access to an absent key is an EVALUATION ERROR in Firestore
+    // rules and `is` does not launder it. Saving a display name on a document that
+    // had never had a read marker produced "Property notificationsReadAt is
+    // undefined on object" and a PERMISSION_DENIED. Only `in` is null-safe, for
+    // the same reason `historyLen()` below and `categoryIsValid()` above need it.
+    //
+    // NOT `notificationsReadAt <= request.time`. Firestore supports comparing
+    // against `request.time`, and clamping here would stop a user back-dating
+    // their own marker to hide future badges. It is deliberately absent: the
+    // value is written from a CLIENT clock (`Date.now()` in
+    // OrderNotificationService.markAllRead`), so any skew at all — even a few
+    // hundred milliseconds of drift — would reject a perfectly legitimate
+    // "mark all read". Trading a cosmetic abuse vector, which only affects the
+    // person doing it, for an intermittent failure that would hit EVERY user on
+    // a slow device is the wrong trade. The type check is the part worth having.
+    function readMarkerIsSane() {
+      return !('notificationsReadAt' in request.resource.data)
+        || request.resource.data.notificationsReadAt is int
+        || request.resource.data.notificationsReadAt == null;
     }
 
     // Every size must remain a non-negative whole number. Split out so the
     // admin path and the narrow customer stock path enforce the same floor.
+    function sizeIsSane(v) {
+      // A size that IS present must be a non-negative whole number. An ABSENT
+      // size is NOT a rejection — otherwise a legacy/partial `stock` map would
+      // make every edit and checkout throw a PERMISSION_DENIED that reads as an
+      // auth bug rather than a data problem. The next successful write
+      // normalises it to a full map.
+      return v == null || (v is int && v >= 0);
+    }
+
+    // Every size must remain a non-negative whole number, when present.
     function stockIsSane() {
-      return request.resource.data.stock.cup is int
-        && request.resource.data.stock.pint is int
-        && request.resource.data.stock.halfGallon is int
-        && request.resource.data.stock.gallon is int
-        && request.resource.data.stock.cup >= 0
-        && request.resource.data.stock.pint >= 0
-        && request.resource.data.stock.halfGallon >= 0
-        && request.resource.data.stock.gallon >= 0;
+      return request.resource.data.stock is map
+        && sizeIsSane(request.resource.data.stock.cup)
+        && sizeIsSane(request.resource.data.stock.pint)
+        && sizeIsSane(request.resource.data.stock.halfGallon)
+        && sizeIsSane(request.resource.data.stock.gallon);
+    }
+
+    // The complete set of order statuses, and nothing else.
+    //
+    // Mirrors the `OrderStatus` union in src/app/core/models/order.model.ts.
+    // An open list would let staff write any string at all — the staff update
+    // branch below uses this to reject a typo like 'delivred', which would
+    // otherwise produce an order the tracker cannot render and the admin queue
+    // cannot filter. A closed list turns that into a PERMISSION_DENIED at write
+    // time instead of a blank row at read time.
+    //
+    // If you add a status to the TypeScript union, add it here in the same
+    // commit. The staff update branch depends on it.
+    function isKnownOrderStatus() {
+      return request.resource.data.status in
+        ['pending', 'confirmed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
+    }
+
+    // How many entries an order's timeline holds, treating a MISSING timeline as
+    // empty rather than as an error.
+    //
+    // WHY THIS EXISTS. The append-only check on the staff branch below reads
+    // `resource.data.statusHistory.size()` directly. On an order that has no
+    // `statusHistory` field at all, `null.size()` is an EVALUATION ERROR, and an
+    // evaluation error denies the whole write. Every branch that reads it was
+    // therefore a total lockout, not a partial one: staff could not advance such
+    // an order and the customer could not cancel it, ever.
+    //
+    // That was not a theoretical risk. `placeOrder` has always written the field,
+    // so orders placed by the app are fine — but nothing in `allow create`
+    // REQUIRES it (`keys().hasOnly` restricts which keys may appear, it does not
+    // require a key to be there), so an order written by a seed script, a
+    // console paste, or an older build is missing it and is now un-advanceable.
+    // Data written before a field existed is exactly what a live shop has.
+    //
+    // Folded to 0 here rather than backfilled in the data on purpose: a one-off
+    // migration fixes today's rows and leaves the next bad write to brick an
+    // order the same way. This costs nothing in security — the guarantee is that
+    // a status change ADDS exactly one entry, and for a timeline that starts
+    // absent the first append is still the only way to create it.
+    //
+    // THE `in` IS NOT OPTIONAL, and this cost a test to learn. The obvious
+    // spelling — `order.statusHistory is list ? order.statusHistory.size() : 0` —
+    // still throws "Property statusHistory is undefined on object", because in
+    // Firestore rules a dot access to an absent key is itself an error and the
+    // `is` operator does not launder it. Only the `in` operator is null-safe.
+    // `categoryIsValid()` above gets this right for the same reason.
+    function historyLen(order) {
+      return 'statusHistory' in order && order.statusHistory is list
+        ? order.statusHistory.size()
+        : 0;
+    }
+
+    // A cached geocode, when present, must be a real coordinate.
+    //
+    // `label` and `at` are written by OrderTrackerPage alongside lat/lng and are
+    // left unchecked: `label` is a display string from Nominatim and `at` is a
+    // timestamp, neither of which anything branches on. lat/lng are checked
+    // because Leaflet throws on a non-finite or out-of-range coordinate, and a
+    // throw inside a map render takes the whole tracker page with it.
+    function geoIsSane(geo) {
+      return geo == null
+        || (geo is map
+            && geo.lat is number && geo.lat >= -90 && geo.lat <= 90
+            && geo.lng is number && geo.lng >= -180 && geo.lng <= 180);
     }
 
     // `category` is OPTIONAL and only checked when present. Every product
@@ -42,50 +294,199 @@ service cloud.firestore {
         || request.resource.data.category in ['flavor', 'sundae', 'cone'];
     }
 
+    // Every price must be a non-negative integer, not merely an integer.
+    //
+    // `pricing.gallon is int` alone admits -5000, and that is not a cosmetic gap:
+    // reconcileOrderStock clamps the discount to [0, totalAmount], which is only
+    // a safe clamp while totalAmount >= 0. With a negative price the subtotal is
+    // negative, Math.min(0, -5000) is -5000, and the Admin SDK — which bypasses
+    // these rules — persists a NEGATIVE discount that then satisfies
+    // grandTotal == totalAmount - discountAmount + deliveryFee. The rules
+    // express `discountAmount >= 0` on order create; this is what stops a manager
+    // from writing the product that makes it a lie.
     function isWellFormedProduct() {
       return request.resource.data.setNumber is int
         && request.resource.data.setNumber >= 1
         && request.resource.data.pricing.cup is int
+        && request.resource.data.pricing.cup >= 0
         && request.resource.data.pricing.pint is int
+        && request.resource.data.pricing.pint >= 0
         && request.resource.data.pricing.halfGallon is int
+        && request.resource.data.pricing.halfGallon >= 0
         && request.resource.data.pricing.gallon is int
+        && request.resource.data.pricing.gallon >= 0
         && request.resource.data.isActive is bool
         && categoryIsValid()
         && stockIsSane();
     }
 
     // ── Products ─────────────────────────────────────────────────────
-    // Read: any signed-in user. Create: admin only. Update: admin with full
-    // validation, OR a customer touching nothing but stock (checkout decrement
-    // and cancel restock both go through the client).
+    // Read: any signed-in user. Write: canRunShop() (manager+) with full
+    // validation. That is the ENTIRE rule — there is no customer branch.
     //
-    // KNOWN LIMITATION: the customer branch is scoped to the `stock` key but
-    // cannot express "this must correspond to an order the caller owns", so a
-    // determined user with the raw SDK could set any stock level. Rules cannot
-    // tie a cross-collection write to an order created moments later. The
-    // airtight fix is a Cloud Function performing the decrement server-side.
+    // HISTORY, because the deletion is the whole point and a bare deletion reads
+    // like an accident. This block used to be:
+    //
+    //   allow update: if (canRunShop() && isWellFormedProduct())
+    //     || (isSignedIn()
+    //         && request.resource.data.diff(resource.data).affectedKeys()
+    //              .hasOnly(['stock', 'updatedAt'])
+    //         && stockIsSane());
+    //
+    // The second clause granted ANY SIGNED-IN SESSION a write to a product's
+    // `stock`, scoped only by KEY NAME. `stockIsSane()` (above) checks that each
+    // size is a non-negative integer and nothing else, so any customer could
+    // write `stock.cup: 999999` — oversell and inventory inflation — or zero the
+    // whole catalog, which is also an availability DoS because the low-stock pill
+    // and the storefront stepper read that same map. There was no direction
+    // check (raising was as free as lowering), no requirement that the caller
+    // owned any order containing the product, and no ledger row. Every stock
+    // figure the admin UI renders was attacker-writable, which is precisely what
+    // `StockLedgerService.findUnloggedChanges()` exists to detect after the fact.
+    //
+    // WHY THE "MATCHED PAIR" WARNING THAT PROTECTED IT IS NOW FALSE. The comment
+    // here used to say that removing the branch "while the client still decrements
+    // would deny every checkout", and that the client write and this branch were
+    // a matched pair to be cut over together. Both halves of that were correct
+    // AT THE TIME and both are now false:
+    //
+    //   - The client decrement was DELETED. `OrderService.placeOrder` no longer
+    //     touches stock; see the tombstone in src/app/core/services/order.service.ts.
+    //   - The `reconcileOrderStock` Cloud Function that was supposed to replace
+    //     it cannot be deployed: this project is on the Spark (free) plan and
+    //     Cloud Functions require Blaze. It will never run here.
+    //
+    // So for months this clause was pure attack surface with no remaining caller,
+    // and its own justifying comment was the reason a zero-cost fix was never
+    // made. That is the failure mode this paragraph exists to prevent repeating.
+    //
+    // WHERE STOCK MOVES NOW. Stock is reserved by STAFF, in the fulfilment queue,
+    // inside the same transaction that advances an order out of `pending`:
+    // `OrderService.transitionOrderStatus`. It re-reads every product inside the
+    // transaction, aborts the whole movement if any line is short, and writes a
+    // `stockMovements` ledger row per line alongside the decrement. THIS RULE IS
+    // WHAT MAKES THAT THE ONLY WAY A PRODUCT'S STOCK CAN CHANGE.
+    //
+    // WHY NO CUSTOMER PATH IS NEEDED. A customer buys nothing by losing the
+    // clause: checkout never wrote stock, so nothing breaks. And a customer who
+    // cancels cannot be owed a restock, because the rules pin a customer to
+    // cancelling only while the order is still `pending` — which is before stock
+    // is ever taken. There is therefore no customer action anywhere in this app
+    // that needs to write a product document, and the clause had no caller left to
+    // serve.
     match /products/{productId} {
       allow read: if isSignedIn();
-      allow create: if isAdmin() && isWellFormedProduct();
-      allow update: if (isAdmin() && isWellFormedProduct())
-        || (isSignedIn()
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['stock', 'updatedAt'])
-            && stockIsSane());
-      allow delete: if false;
+      allow create: if canRunShop() && isWellFormedProduct();
+
+      // Two ways in, and the difference is deliberate.
+      //
+      // The general clause re-validates the WHOLE catalogue entry, because that is
+      // what an admin form does: it edits prices, names and category together, and
+      // every one of those should be checked.
+      //
+      // The narrow clause below exists because stock movement is not an admin form.
+      // `OrderService.transitionOrderStatus` writes `stock.<size>` and `updatedAt`
+      // and nothing else, from inside the order transaction — and routing that
+      // through `isWellFormedProduct()` couples "can this order start being
+      // prepared" to "is this flavour's price data pristine". Those are unrelated.
+      // `isWellFormedProduct()` requires all four `pricing.*` fields to be `int`
+      // and does NOT tolerate them being absent (unlike `stockIsSane`, which
+      // tolerates a missing size), so a single legacy flavour missing one price
+      // field would make its stock permanently unmovable — every order containing
+      // it would fail to advance, with a PERMISSION_DENIED that names no price
+      // and no reason.
+      //
+      // This grants no new power. It is still `canRunShop()`, and that tier could
+      // already write any field on any product through the clause above. It only
+      // stops an unrelated blemish on the catalogue from blocking the fulfilment
+      // queue. Prices are still validated on every path that actually edits them.
+      allow update: if canRunShop()
+            && (isWellFormedProduct()
+                || (request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['stock', 'updatedAt'])
+                    && stockIsSane()));
+
+      // Delete: admin only.
+      //
+      // This was `if false` — there was no way to remove a mis-seeded flavor at
+      // all, from the app or the console. The Inventory page now has an explicit
+      // X control for it, distinguished from the Active pill: Active takes a
+      // flavor OFF SALE and is reversible, delete erases the document.
+      //
+      // Admin-only, and deliberately not relaxed further. A product document
+      // carries its stock and its image reference, and a completed order's items
+      // record `variantName` as a string rather than a product id — so deleting a
+      // flavor cannot break a past order's record, but it does lose the only
+      // record of what the stock levels were. That trade is the admin's to make,
+      // behind the confirmation dialog, and it is why this stays behind isAdmin()
+      // rather than being opened up to every signed-in user — as the (now-deleted)
+      // customer stock branch briefly was.
+      allow delete: if isAdmin();
     }
 
     // ── Orders ───────────────────────────────────────────────────────
     match /orders/{orderId} {
-      // Owner or admin can read (covers get + where(customerId == uid) lists).
-      allow read: if isAdmin()
+      // Staff OR the order's own customer (covers get + where(customerId == uid) lists).
+      //
+      // `isStaff()` rather than `isAdmin()`: working the queue is the WHOLE POINT
+      // of the staff tier, so a `staff` account that cannot read orders cannot do
+      // its job. It grants nothing beyond reading — the update clause below still
+      // requires a fuller tier.
+      allow read: if isStaff()
         || (isSignedIn() && resource.data.customerId == request.auth.uid);
       // Owner creates their own pending order only.
       allow create: if isSignedIn()
         && request.resource.data.customerId == request.auth.uid
+        // An explicit allow-list is what stops extra fields like
+        // `stockRestored: false` from being combined with a fake cancelled order
+        // to launder free stock through the owner's repair panel. Without it, the
+        // client's `keys()` town had no ceiling: the customer-cancel branch above
+        // pins only the four legitimate fields, but create pins none.
+        && request.resource.data.keys().hasOnly([
+          'customerId', 'customerEmail', 'items', 'totalAmount', 'deliveryFee',
+          'discountAmount', 'voucherCode', 'grandTotal', 'status', 'paymentStatus',
+          'deliveryAddress', 'notes', 'cancelReason', 'createdAt', 'updatedAt',
+          'statusHistory'
+        ])
         && request.resource.data.items.size() > 0
-        && request.resource.data.totalAmount >= 0
+        // ── Money floors. `deliveryFee` WAS NOT VALIDATED AT ALL ────────────
+        //
+        // This clause used to check only `totalAmount >= 0` and
+        // `grandTotal >= 0`. `deliveryFee` appeared NOWHERE except inside the
+        // consistency identity below, so it was completely unconstrained — not
+        // even required to be a number.
+        //
+        // That made a free ₱450 order with NO zero-price line item and nothing
+        // for a human reviewer to notice:
+        //
+        //   totalAmount: 1000, discountAmount: 0, deliveryFee: -450,
+        //   grandTotal: 550
+        //
+        // Every other clause passes: both money fields are >= 0, and the
+        // identity holds because 550 == 1000 - 0 + (-450). The customer keeps
+        // real line items at real prices and simply shaves the delivery fee
+        // negative. It was strictly easier to miss than a `unitPrice: 0` line,
+        // because nothing in the payload looks wrong.
+        //
+        // `is int` rather than `is number` because a fractional peso is never
+        // legitimate and every price in the app is a whole peso.
+        && request.resource.data.totalAmount is int
+        && request.resource.data.totalAmount > 0
+        && request.resource.data.grandTotal is int
         && request.resource.data.grandTotal >= 0
+        && request.resource.data.deliveryFee is int
+        && request.resource.data.deliveryFee >= 0
+        // The totals must be internally consistent, so a forgeable client cannot
+        // set discount == total for a ₱0 order. Per-item `unitPrice` still cannot
+        // be verified here — Firestore rules have no loop, so an array of items
+        // cannot be summed — which is why `totalAmount > 0` above matters: it
+        // refuses the all-zero basket even though the per-line prices are opaque.
+        // The complete fix is re-pricing server-side, which needs a deployed
+        // function. See CUTOVER.md.
+        && request.resource.data.grandTotal
+             == request.resource.data.totalAmount
+              - request.resource.data.discountAmount
+              + request.resource.data.deliveryFee
         && request.resource.data.deliveryAddress is string
         && request.resource.data.status == 'pending'
         && request.resource.data.paymentStatus == 'pending'
@@ -93,15 +494,117 @@ service cloud.firestore {
         && request.resource.data.discountAmount is number
         && request.resource.data.discountAmount >= 0
         && request.resource.data.discountAmount <= request.resource.data.totalAmount;
-      // Admin advances status / edits freely. A customer may only cancel their
-      // own order, only while it is still pending, and may only touch the four
-      // fields the cancel path writes — so no price, quantity or total is
-      // reachable from a customer session.
+      // A customer may only cancel their own order, only while it is still
+      // pending, and may only touch the four fields the cancel path writes — so
+      // no price, quantity or total is reachable from a customer session.
       //
       // `statusHistory` must gain exactly one entry: the cancel path appends a
       // single arrayUnion element, so a caller cannot rewrite the fulfilment
       // timeline that the tracker renders.
-      allow update: if isAdmin()
+      //
+      // Staff advance status, and may only do that honestly.
+      //
+      // The staff branch was a bare `if canRunShop()`: no transition whitelist,
+      // no statusHistory check, no field whitelist. A manager could move a
+      // DELIVERED order back to 'pending', erase statusHistory entirely and
+      // rewrite the timeline the tracker renders, or write any arbitrary field
+      // onto the order. The customer branch was already strict about exactly
+      // these three things, which made the staff branch the odd one out rather
+      // than a deliberate looser tier.
+      //
+      // NOTE ON THE FUNCTIONS. An earlier version of this comment said the
+      // Cloud Functions bypass these rules via the Admin SDK, so their writes were
+      // unaffected. That is true of the ADMIN SDK and irrelevant here: this
+      // project is on the Spark plan, so `reconcileOrderStock` and
+      // `restockCancelledOrder` can never be deployed and never run. Stock is
+      // moved by STAFF from the app, which means every stock-related write in
+      // this file is now genuinely rule-gated. Nothing here is exempt.
+      //
+      // WHY `stockRestored` IS IN THE WHITELIST — a bug the rules tests missed.
+      //
+      // `transitionOrderStatus` cancels a held order in ONE update carrying
+      // `status`, `cancelReason`, `statusHistory`, `stockRestored`,
+      // `stockRestoredAt` and `updatedAt` together. That write matched NOTHING:
+      //
+      //   - this branch refused it, because `stockRestored` was not whitelisted;
+      //   - the narrow restock clause below refused it too, because it requires
+      //     `affectedKeys().hasOnly(['stockRestored','stockRestoredAt'])` AND
+      //     `resource.data.status == 'cancelled'` — and on a cancel the resource
+      //     is still `confirmed`/`preparing`, which is the entire point.
+      //
+      // So every stock-restoring cancellation was PERMISSION_DENIED for every
+      // role including owner: cancelling a confirmed or preparing order simply
+      // did not work. The separate restock clause was written for the REPAIR
+      // panel, which only touches the flag on an already-cancelled order, and
+      // nobody checked that the atomic cancel-and-restock write had a home.
+      //
+      // It is safe here, and only here, because of what it does NOT change:
+      //   - still `canRunShop()`, so no customer can reach this branch at all;
+      //   - the create-time `keys().hasOnly` above still OMITS `stockRestored`,
+      //     so the laundering hole — pairing a forged cancelled order with
+      //     `stockRestored: true` — remains closed;
+      //   - the flag is only ever read from orders already filtered to
+      //     `status == 'cancelled'`, so writing `true` on a live order is inert,
+      //     and writing `false` only adds a row to the repair queue, which is
+      //     the conservative direction.
+      //
+      // The lesson is in how this was found: 143 rules tests passed while the
+      // real client write was impossible. Rules tests assert each clause in
+      // isolation; nothing asserted that the write the app actually makes is
+      // authorizable. tests/order-stock.integration.test.ts now does.
+      allow update: if canRunShop()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['status', 'cancelReason', 'updatedAt', 'statusHistory',
+                           'deliveryAddress', 'notes', 'items', 'geo',
+                           'totalAmount', 'deliveryFee', 'discountAmount', 'grandTotal',
+                           // 'stockRestored' and 'stockRestoredAt' BELONG HERE, and
+                           // their absence was a live bug. See the note below.
+                           'stockRestored', 'stockRestoredAt'])
+            && isKnownOrderStatus()
+            // THE MARKER MAY ONLY TRAVEL WITH A CANCELLATION.
+            //
+            // Whitelisting `stockRestored` above is necessary — the atomic
+            // cancel writes it in the same update as the status change — but
+            // whitelisting it ALONE would have quietly undone a deliberate
+            // hardening: `stockRestored` on a live order is inert (the repair
+            // panel filters on `status == 'cancelled'`), yet refusing it keeps the
+            // flag meaning exactly one thing rather than "whatever a manager
+            // typed". This restores that: touch the marker and the order must be
+            // ending up cancelled.
+            && (!request.resource.data.diff(resource.data).affectedKeys()
+                     .hasAny(['stockRestored', 'stockRestoredAt'])
+                 || request.resource.data.status == 'cancelled')
+            && (request.resource.data.status == 'cancelled'
+                  ? (request.resource.data.cancelReason is string
+                        ? request.resource.data.cancelReason.size() <= 300
+                        : request.resource.data.cancelReason == null)
+                  : true)
+            // The timeline is APPEND-ONLY. A status change must append exactly
+            // one entry (the cancel branch below already requires this); any other
+            // staff write — correcting an address, editing notes — must leave the
+            // history exactly as it was.
+            //
+            // This stops the erasure a bare `canRunShop()` permitted: a manager
+            // could replace the whole array and rewrite what the tracker renders.
+            // It does NOT make individual entries immutable — proving every prior
+            // entry survived unchanged at the same index needs a loop, and
+            // Firestore rules have no loop. `stockMovements` is the
+            // tamper-evident record; statusHistory is the view derived from it.
+            //
+            // FORMATTING WARNING, learned the hard way. Do NOT wrap this staff
+            // branch in its own parentheses. `(canRunShop() && ... ) || (...)`
+            // compiles in the TypeScript-looking source but the rules compiler
+            // rejects it with "Unexpected ';'" pointing at the END of the *next*
+            // clause — the customer branch's `+ 1);` — which sends you looking at
+            // the wrong line. `&&` already binds tighter than `||`, so the
+            // unparenthesised form below is equivalent and parses. Same trap
+            // applies to `diff()` on a create, where `resource` does not exist.
+            && ((request.resource.data.status != resource.data.status
+                 && historyLen(request.resource.data)
+                      == historyLen(resource.data) + 1)
+                || (request.resource.data.status == resource.data.status
+                    && historyLen(request.resource.data)
+                         == historyLen(resource.data)))
         || (isSignedIn()
             && resource.data.customerId == request.auth.uid
             && resource.data.status == 'pending'
@@ -111,26 +614,161 @@ service cloud.firestore {
             && (request.resource.data.cancelReason is string
                 ? request.resource.data.cancelReason.size() <= 300
                 : request.resource.data.cancelReason == null)
-            && request.resource.data.statusHistory.size()
-                 == resource.data.statusHistory.size() + 1);
+            && historyLen(request.resource.data)
+                 == historyLen(resource.data) + 1);
+
+      // ── The restock marker, on its own narrow clause ────────────────────
+      //
+      // `stockRestored` is a handover flag, not part of the order's state: it
+      // records whether a cancellation actually returned its stock. It gets a
+      // SEPARATE clause rather than a place in the staff whitelist above,
+      // because mixing the two would quietly widen what any other staff write may
+      // touch along with it — and this flag is specifically what the laundering
+      // defence at the create clause protects.
+      //
+      // WHY THIS EXISTS AT ALL. `stockRestored` appeared in NO allow-list in this
+      // file before now — only in comments. So `OrderService.repairStockRestock()`
+      // was dead code: its very first statement,
+      // `updateDoc(orderRef, { stockRestored: false })`, matched no branch and
+      // threw PERMISSION_DENIED for every role including owner. The admin repair
+      // panel was therefore a control that could never be used, and because
+      // nothing could write `false`, the queue it filters on was permanently
+      // empty. The method's own comment blamed "only `allow update: if isAdmin()`",
+      // a clause that does not exist on orders — the real staff branch is
+      // `canRunShop()` PLUS a whitelist, which this field failed too.
+      //
+      // ABUSE SURFACE, stated plainly. A manager can now write this flag by
+      // hand. That is acceptable because:
+      //   - it is read only from orders already filtered to `status ==
+      //     'cancelled'`, and only compared against `false`, so a stray write on
+      //     a live order is inert;
+      //   - setting `true` hides nothing — the ledger still holds the truth;
+      //   - setting `false` only ADDS a row to the repair queue, which is the
+      //     conservative direction;
+      //   - it cannot reopen the create-time laundering hole, because that is
+      //     governed by the separate `keys().hasOnly` list above, which still
+      //     omits `stockRestored` and must keep omitting it.
+      allow update: if canRunShop()
+            && resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['stockRestored', 'stockRestoredAt'])
+            && (request.resource.data.stockRestored is bool
+                  || request.resource.data.stockRestored == null);
+
+      // A customer may cache the GEO for their own order, and nothing else.
+      //
+      // OrderTrackerPage.ensureDestination geocodes `deliveryAddress` and writes
+      // the result back so the map and the admin dispatch map have a pin to draw.
+      // That write was PERMISSION_DENIED on every attempt — the cancel branch
+      // above omits `geo` from its whitelist — and the failure was swallowed by a
+      // console.warn, so the geocode was never cached and the admin map could
+      // never show a destination.
+      //
+      // It could not simply be added to the cancel branch: that branch requires
+      // `status == 'pending'`, and a tracker is opened precisely to watch an order
+      // that has already left. So this is its own rule, OR'd in by Firestore's
+      // rule that several `allow` statements for one operation are permissive if
+      // ANY of them passes.
+      //
+      // This is safe to allow because `geo` is DERIVED from `deliveryAddress`,
+      // which the customer wrote themselves and cannot change afterwards. The
+      // worst a lie here does is draw a pin in the wrong place on a map nobody
+      // navigates by. The ranges are still checked so a malformed document cannot
+      // reach Leaflet, which throws on a non-finite coordinate.
+      allow update: if isSignedIn()
+            && resource.data.customerId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['geo'])
+            && geoIsSane(request.resource.data.geo);
       allow delete: if false;
     }
 
     // ── Users ────────────────────────────────────────────────────────
     match /users/{uid} {
-      // Owner or admin can read.
-      allow read: if isOwner(uid) || isAdmin();
+      // Owner, any staff tier, or the account's own document.
+      //
+      // Staff can read user documents because the fulfilment queue needs to show
+      // who an order belongs to. That does NOT extend to the whole directory —
+      // the unfiltered LIST below is owner-only, so staff cannot enumerate every
+      // account in the shop from here.
+      allow get: if isOwner(uid) || isStaff();
+      allow list: if canManageUsers();
       // Owner can create only their own doc, always as customer.
       allow create: if isOwner(uid)
         && request.resource.data.uid == uid
         && request.resource.data.role == 'customer';
       // Owner can edit profile but never change role.
-      // Admin can edit anything (promotion path).
-      allow update: if isAdmin()
+      // OWNER may change anything, including roles — but never their OWN.
+      //
+      // An `admin` may still fix a profile, suspend an account, or annotate it,
+      // but NOT a role: handing out privileges is the one thing an admin must not
+      // be able to do. Under the single-role model, promoting someone and fixing
+      // their phone number were the same operation.
+      allow update: if (canManageUsers()
+            && isNotChangingOwnRole(uid)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['uid', 'email', 'displayName', 'photoURL', 'phone',
+                           'notificationsEnabled', 'role', 'isSuspended',
+                           'suspendReason', 'suspendedAt', 'adminNote',
+                           'notificationsReadAt']))
+        || isAdminUserEdit()
         || (isOwner(uid)
           && request.resource.data.role == resource.data.role
-          && request.resource.data.uid == resource.data.uid);
-      allow delete: if false;
+          && request.resource.data.uid == resource.data.uid
+          // The owner's branch now has a key whitelist.
+          //
+          // It compared role and uid by value and nothing else, so a customer
+          // could write ANY other field on their own document — including
+          // `isSuspended`, `suspendReason` and `adminNote`. A suspended account
+          // could therefore lift its own suspension, and a customer could write
+          // text that the admin UI then renders as a staff note. Those keys are
+          // admin-only from here on.
+          //
+          // `diff().affectedKeys()` rather than `keys()` so this constrains only
+          // what an update actually TOUCHED: `keys()` would demand the full
+          // post-write document match the list, and `setDoc` without merge would
+          // then be impossible. `hasOnly` (not `hasAll`) because a partial write
+          // legitimately omits fields it is not changing.
+          //
+          // `notificationsReadAt` IS ON THIS LIST because the notifications
+          // feature needs it and the rules had never been told. Tapping any
+          // notification called `AuthService.updateProfile({ notificationsReadAt })`,
+          // this branch matched nothing, and every role — customer, staff, admin
+          // and owner alike — got "Could not update your notifications" and a
+          // badge that would not clear. Three lists omitted the field while the
+          // model, the `ProfilePatch` type and the write path all carried it: the
+          // two halves were each correct and neither was checked against the
+          // other. `tests/logic.test.ts` now asserts they agree.
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['displayName', 'photoURL', 'phone', 'notificationsEnabled',
+                         'notificationsReadAt'])
+          && readMarkerIsSane());
+
+      // A user may delete their OWN document. This was `if false` for everyone.
+      //
+      // Both app stores require a working in-app deletion path for any app that
+      // lets people create an account — Google's Data Safety form and Apple's
+      // 5.1.1(v) both treat "delete your account in-app" as a requirement, and a
+      // support email is not a substitute. It was also simply absent: PRIVACY.md
+      // had to say "this is not yet self-service" because nothing could delete
+      // anything.
+      //
+      // Scoped to the OWN document, so a user cannot delete another account or
+      // their way up the tier ladder by removing a superior's record. The id is
+      // the path, so `uid == request.auth.uid` is the whole check.
+      //
+      // What this does NOT do: it does not delete the Firebase Auth record, and
+      // it does not touch the user's orders. AuthService.deleteAccount() handles
+      // the Auth side from the client, and `anonymiseDeletedCustomerOrders` in
+      // functions/src/index.ts redacts the personal fields on the orders via the
+      // Admin SDK — a client cannot write to an order it does not own, so that
+      // half has to be server-side.
+      //
+      // Staff are NOT excluded. An owner who deletes their own account would
+      // otherwise strand every admin page permanently, with the only recovery
+      // being another owner promoting a replacement first — so `deleteAccount` in
+      // AuthService refuses while the user holds a staff role and says so.
+      allow delete: if request.auth != null && uid == request.auth.uid;
     }
 
     // ── Reviews ──────────────────────────────────────────────────────
@@ -147,19 +785,58 @@ service cloud.firestore {
     // `match /reviews/{reviewId}` the only capture is `reviewId`, so a bare
     // `productId` is an undefined identifier and the whole ruleset fails to
     // deploy. That was the error in the original gap analysis.
-    match /reviews/{reviewId} {
-      allow read: if isSignedIn();
-      allow create, update: if (isSignedIn()
+    // The author may write ONLY their own review, and only these fields.
+      //
+      // The key whitelist is what stops a customer forging the shop's official
+      // reply. Without it the author branch validated `userId` and `rating` but
+      // constrained nothing else, so `adminResponse`, `adminResponderName` and
+      // `adminRespondedAt` were customer-writable — and those three render on the
+      // product page as a reply from the shop, attributed to staff. A customer
+      // could post "Call us at 09xx-xxx-xxxx" under the shop's name and every
+      // reader would take it as a staff response.
+      //
+      // `create` and `update` are SEPARATE statements, and the difference is not
+      // cosmetic.
+      //
+      // A combined `allow create, update` cannot express this whitelist. On an
+      // update you want `diff().affectedKeys()` — constrain what the write
+      // TOUCHED, so a partial merge legitimately omits untouched fields. But
+      // `diff()` reads `resource.data`, and on a CREATE there is no resource: the
+      // emulator returns a null-value error and the write is refused, which is
+      // what happened when these were first combined — every first review was
+      // denied with "evaluation error".
+      //
+      // On a create the full document IS what was written, so `keys()` is both
+      // correct and necessary. On an update the resource exists, so `diff()` is
+      // safe. Split by operation and each clause uses the primitive that is true
+      // for it.
+      match /reviews/{reviewId} {
+        allow read: if isSignedIn();
+        allow create: if (isSignedIn()
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.productId is string
             && reviewId == request.resource.data.productId + '_' + request.auth.uid
             && request.resource.data.rating is int
             && request.resource.data.rating >= 1
-            && request.resource.data.rating <= 5)
-        || isAdmin();
+            && request.resource.data.rating <= 5
+            && request.resource.data.keys()
+                 .hasOnly(['productId', 'userId', 'displayName', 'rating',
+                           'comment', 'createdAt', 'updatedAt']))
+        || canRunShop();
+        allow update: if (isSignedIn()
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.productId is string
+            && reviewId == request.resource.data.productId + '_' + request.auth.uid
+            && request.resource.data.rating is int
+            && request.resource.data.rating >= 1
+            && request.resource.data.rating <= 5
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['productId', 'userId', 'displayName', 'rating',
+                           'comment', 'createdAt', 'updatedAt']))
+        || canRunShop();
       // The author may withdraw their own review. The id check is what stops
       // this becoming a delete-anything rule.
-      allow delete: if isAdmin()
+      allow delete: if canRunShop()
         || (isSignedIn()
             && resource.data.userId == request.auth.uid
             && reviewId == resource.data.productId + '_' + request.auth.uid);
@@ -170,6 +847,110 @@ service cloud.firestore {
     match /vouchers/{voucherId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
+    }
+
+    // ── Stock movements ───────────────────────────────────────────────
+    // The audit trail for every stock change made through
+    // `StockLedgerService.record()`.
+    //
+    // Read: admin only. Customers have no reason to see it and it reveals order
+    // ids.
+    //
+    // Write: admin only, and CREATE only — a ledger row that could be edited or
+    // deleted is not a ledger. Note the gap this deliberately leaves: a
+    // CUSTOMER's stock write (the branch above) does NOT create a row, because
+    // the rules cannot call a function or write two documents atomically. That
+    // is exactly what `StockLedgerService.findUnloggedChanges()` detects.
+    match /stockMovements/{movementId} {
+      allow read: if canRunShop();
+      allow create: if canRunShop();
+      allow update, delete: if false;
+    }
+
+    // ── Shop settings ─────────────────────────────────────────────────
+    // A SINGLE document at shopSettings/app — the low-stock threshold, the promo
+    // banner and the contact line. Readable by any signed-in user because the
+    // storefront renders the banner and the threshold drives the low-stock pill
+    // on the customer dashboard. Admin write only.
+    match /shopSettings/{docId} {
+      allow read: if isSignedIn();
+      // OWNER-only — the model (`manage_settings`) and the client route agree.
+      // Previously admin+owner via `isAdmin()`, which over-granted `admin` a
+      // write the client and ROLE_SUMMARY deny them. create/update only:
+      // `allow write` aliases create+update+delete, and deleting the single
+      // shop document would blank the storefront banner / pop the low-stock
+      // threshold back to the build-time default.
+      allow create: if canManageUsers()
+        && request.resource.data.keys().hasOnly(['lowStockThreshold', 'promoTitle', 'promoBody', 'promoActive', 'contactPhone'])
+        && request.resource.data.lowStockThreshold is number
+        && request.resource.data.lowStockThreshold >= 1;
+      allow update: if canManageUsers()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['lowStockThreshold', 'promoTitle', 'promoBody', 'promoActive', 'contactPhone'])
+        && request.resource.data.lowStockThreshold is number
+        && request.resource.data.lowStockThreshold >= 1;
+      allow delete: if false;
+    }
+
+    // ── Developers (the public credits page) ───────────────────────────
+    //
+    // These five records used to be five object literals inside
+    // `DevelopersPage`, which meant the owner could not correct a misspelled name
+    // or replace a photo without a developer, a rebuild and a deploy.
+    //
+    // READ IS PUBLIC, and that is a deliberate consequence rather than an
+    // oversight: `/developers` carries no `authGuard`, `adminGuard` or
+    // `capabilityGuard`, so a signed-out guest reaches it and the storefront links
+    // it. Gating the read would blank the credits page for every visitor.
+    //
+    // WRITE IS NOT PUBLIC, and it is the only part that matters. Cloudinary is
+    // configured with an UNSIGNED upload preset, so the upload POST itself cannot
+    // be permission-gated — anyone can push an image and get a URL back. The
+    // Firestore write is the only enforceable step, which is exactly why a
+    // permission check in the UI is not sufficient on its own and this block
+    // exists.
+    //
+    // `canManageTeam()` rather than `canRunShop()`: the intent is manager and
+    // owner, NOT admin. `canRunShop()` is manager+admin+owner, so it would have
+    // handed admin the ability to rewrite who built the app. The client helper of
+    // the same name is a rank comparison for the same reason — a ROLE_CAPABILITIES
+    // entry would be forced onto admin by the ladder invariant in
+    // tests/logic.test.ts.
+    //
+    // NOTE ON PLACEMENT. `tests/logic.test.ts` asserts that the FIRST
+    // `myRole() in [...]` in this file is the staff set used by `isStaff()`. The
+    // predicate below is a second one, so `isStaff()` must stay above it — which it
+    // does. Moving this block above the role helpers would fail that test.
+    match /developers/{developerId} {
+      allow read: if true;
+
+      allow create: if canManageTeam()
+        && developerIsWellFormed()
+        && request.resource.data.keys().hasOnly([
+             'name', 'roles', 'accent', 'photoURL', 'order',
+             'updatedAt', 'updatedBy'
+           ]);
+
+      allow update: if canManageTeam()
+        && developerIsWellFormed()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+             'name', 'roles', 'accent', 'photoURL', 'order',
+             'updatedAt', 'updatedBy'
+           ]);
+
+      // OWNER-only. Removing someone from the credits page is not a typo fix, it
+      // is deleting a person from the record of who built the thing, and it is not
+      // what "manager" was asked to be able to do.
+      allow delete: if canManageUsers();
+    }
+
+    // ── Catch-all deny ────────────────────────────────────────────────
+    // Firestore denies anything unmatched already, so this changes no current
+    // behaviour. It is here so that behaviour is DELIBERATE rather than
+    // incidental: adding a collection later denies it by an explicit rule that
+    // says so, instead of by omission that nobody wrote down.
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

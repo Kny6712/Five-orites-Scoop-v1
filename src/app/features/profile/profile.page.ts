@@ -16,18 +16,31 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton, IonButton, IonIcon, IonSpinner,
-  IonInput, IonItem, IonLabel, IonAvatar, IonToggle,
+  AlertController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonButton,
+  IonSpinner,
+  IonInput,
+  IonItem,
+  IonLabel,
+  IonAvatar,
+  IonToggle,
   ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
-import { NotificationService, type NotificationPermissionState } from '../../core/services/notification.service';
+import { NotificationService } from '../../core/services/notification.service';
 import type { AppUser } from '../../core/models/user.model';
+import { isStaffRole } from '../../core/models/user.model';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
@@ -35,11 +48,25 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
   selector: 'app-profile',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton, IonButton, IonSpinner,
-    IonInput, IonItem, IonLabel, IonAvatar, IonToggle,
-    AppIconComponent, AlertBannerComponent, CloudinaryPipe,
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonButton,
+    IonSpinner,
+    IonInput,
+    IonItem,
+    IonLabel,
+    IonAvatar,
+    IonToggle,
+    AppIconComponent,
+    AlertBannerComponent,
+    CloudinaryPipe,
+    AppFooterComponent,
   ],
   templateUrl: './profile.page.html',
   styleUrls: ['./profile.page.scss'],
@@ -49,28 +76,110 @@ export class ProfilePage implements OnInit {
   private uploads = inject(ImageUploadService);
   private notifications = inject(NotificationService);
   private toast = inject(ToastController);
+  private alertCtrl = inject(AlertController);
 
   user = signal<AppUser | null>(null);
 
   // Form fields. Seeded from the user, which is why `?? ''` matters throughout:
   // a console-bootstrapped admin has no displayName at all.
-  displayName = '';
-  phone = '';
+  //
+  // SIGNALS, and that is load-bearing rather than stylistic. These were plain
+  // class fields, and `isDirty` below is a `computed`. A computed caches its value
+  // and invalidates only on a SIGNAL read — its sole signal dependency was
+  // `user()`, so it was evaluated once when the profile first loaded and then
+  // never again. Typing into the two inputs wrote plain properties, invalidated
+  // nothing, and the Save button stayed disabled for the entire life of the page.
+  // The save method was always correct; it was simply never reachable.
+  displayName = signal('');
+  phone = signal('');
 
   newEmail = '';
   emailPassword = '';
   isChangingEmail = false;
+
+  currentPassword = '';
+  newPassword = '';
+  confirmPassword = '';
+  readonly isChangingPassword = signal(false);
 
   saveState = signal<SaveState>('idle');
   errorMessage = signal('');
   isUploadingPhoto = signal(false);
 
   /**
+   * Whether the Change Password section should render. A METHOD for the same
+   * reason `emailLocked()` is one: `providerData` is not a signal, so a `computed`
+   * would freeze its answer for the component's lifetime.
+   */
+  hasPasswordProvider(): boolean {
+    return this.auth.hasPasswordProvider();
+  }
+
+  /**
+   * Changes the account password.
+   *
+   * The two fields are compared here as well as being checked for emptiness,
+   * because a mismatch is the single most common way this form is submitted
+   * wrongly and Firebase's own error for it does not exist — it would happily
+   * accept the new value while the user believes nothing happened, because the
+   * confirmation box is ours, not theirs.
+   */
+  async changePassword(): Promise<void> {
+    if (this.isChangingPassword()) return;
+    const next = this.newPassword;
+    if (!this.currentPassword) {
+      this.fail('Enter your current password.');
+      return;
+    }
+    if (next.length < 6) {
+      this.fail('Choose a password of at least 6 characters.');
+      return;
+    }
+    if (next !== this.confirmPassword) {
+      this.fail('The two new passwords do not match.');
+      return;
+    }
+
+    this.isChangingPassword.set(true);
+    try {
+      await this.auth.changePassword(this.currentPassword, next);
+      // Clear the form so the new value is not left sitting in a DOM field, and a
+      // second submit cannot silently re-send it.
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.confirmPassword = '';
+      this.errorMessage.set('');
+      await this.toast
+        .create({
+          message: 'Password changed.',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
+    } catch (err: unknown) {
+      this.fail(err instanceof Error ? err.message : 'Could not change your password.');
+    } finally {
+      this.isChangingPassword.set(false);
+    }
+  }
+
+  /**
    * Google (and any other external identity) owns the address, so it cannot be
    * changed here without locking the user out of their own account. Detected from
    * providerData rather than hardcoded, so a second provider is handled too.
+   *
+   * A METHOD, not a `computed`, and that is not a style choice either. A computed
+   * caches on signal reads, and `isEmailManagedByProvider()` reads none — it goes
+   * to `auth.currentUser`, a plain getter over a BehaviorSubject. So the computed
+   * was evaluated once and frozen for the component's lifetime. It happened to look
+   * correct only because the auth guard guarantees a signed-in user before the
+   * first read, which is a coincidence rather than a guarantee: the value cannot
+   * change under a given session, but nothing in the code enforced that.
    */
-  readonly emailLocked = computed(() => this.auth.isEmailManagedByProvider());
+  emailLocked(): boolean {
+    return this.auth.isEmailManagedByProvider();
+  }
 
   /**
    * Three states, not two. A boolean toggle cannot say "you asked for this and
@@ -78,18 +187,15 @@ export class ProfilePage implements OnInit {
    * re-granted from a page, so the user has to change it in site settings. Saying
    * so is the difference between a setting and a broken button.
    */
-  readonly notificationState = computed<NotificationPermissionState>(() =>
-    this.notifications.permissionState(this.user()?.notificationsEnabled)
+  readonly updatesOn = computed(() =>
+    this.notifications.isEnabled(this.user()?.notificationsEnabled),
   );
 
   /** True when the user has changed something worth saving. */
   readonly isDirty = computed(() => {
     const u = this.user();
     if (!u) return false;
-    return (
-      this.displayName !== (u.displayName ?? '') ||
-      this.phone !== (u.phone ?? '')
-    );
+    return this.displayName() !== (u.displayName ?? '') || this.phone() !== (u.phone ?? '');
   });
 
   readonly initials = computed(() => {
@@ -111,13 +217,13 @@ export class ProfilePage implements OnInit {
 
   private applyUser(u: AppUser): void {
     this.user.set(u);
-    this.displayName = u.displayName ?? '';
-    this.phone = u.phone ?? '';
+    this.displayName.set(u.displayName ?? '');
+    this.phone.set(u.phone ?? '');
     this.newEmail = u.email ?? '';
   }
 
   async saveProfile(): Promise<void> {
-    const name = this.displayName.trim();
+    const name = this.displayName().trim();
     if (!name) {
       this.fail('Please enter a name.');
       return;
@@ -126,7 +232,7 @@ export class ProfilePage implements OnInit {
     // PH mobile numbers, tolerating the separators people actually type. The
     // group is 09XX XXX XXXX, optionally with a +63 country code in place of the
     // leading 0.
-    const digits = this.phone.replace(/[\s()-]/g, '');
+    const digits = this.phone().replace(/[\s()-]/g, '');
     if (digits && !/^(?:\+?63|0)9\d{9}$/.test(digits)) {
       this.fail('Enter a valid PH mobile number, e.g. 0917 123 4567.');
       return;
@@ -143,12 +249,14 @@ export class ProfilePage implements OnInit {
       });
       this.applyUser(updated);
       this.saveState.set('saved');
-      await this.toast.create({
-        message: 'Profile updated!',
-        color: 'success',
-        duration: 2000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Profile updated!',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not save your profile.');
     }
@@ -169,12 +277,14 @@ export class ProfilePage implements OnInit {
       const photoURL = await this.uploads.uploadAvatar(file);
       const updated = await this.auth.updateProfile({ photoURL });
       this.applyUser(updated);
-      await this.toast.create({
-        message: 'Photo updated!',
-        color: 'success',
-        duration: 2000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Photo updated!',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not upload that photo.');
     } finally {
@@ -209,12 +319,14 @@ export class ProfilePage implements OnInit {
       const fresh = await this.auth.refreshProfile();
       this.applyUser(fresh);
       this.emailPassword = '';
-      await this.toast.create({
-        message: 'Check your new email for a confirmation link.',
-        color: 'success',
-        duration: 4000,
-        position: 'top',
-      }).then((t) => t.present());
+      await this.toast
+        .create({
+          message: 'Check your new email for a confirmation link.',
+          color: 'success',
+          duration: 4000,
+          position: 'top',
+        })
+        .then((t) => t.present());
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not change your email.');
     } finally {
@@ -223,34 +335,109 @@ export class ProfilePage implements OnInit {
   }
 
   /**
-   * Turning notifications ON necessarily asks the browser, because the permission
-   * can only be requested from a user gesture. Turning them OFF is a pure
-   * preference write with no prompt — which is what makes the toggle feel like a
-   * switch rather than a dialog.
+   * A pure preference write, in both directions.
+   *
+   * This used to prompt for an OS permission when turning notifications ON and
+   * roll the switch back on a denial, because the app registered for FCM push.
+   * In-app notifications need no permission, so there is nothing to prompt for and
+   * nothing to reconcile — which also removes the failure this method was built
+   * around, where the switch could read "on" while nothing was ever delivered.
    */
   async onNotificationsToggle(event: CustomEvent): Promise<void> {
     const enabled = event.detail.checked as boolean;
     this.errorMessage.set('');
     try {
-      if (enabled) {
-        const granted = await this.notifications.requestPermission();
-        if (!granted) {
-          // Put the switch back. Writing `false` would silently discard the
-          // user's intent, and leaving it visually on while nothing is delivered
-          // is the exact dishonesty this control was built to avoid.
-          await this.auth.updateProfile({ notificationsEnabled: false });
-          const fresh = await this.auth.refreshProfile();
-          this.applyUser(fresh);
-          this.fail(
-            'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.'
-          );
-          return;
-        }
-      }
       const updated = await this.auth.updateProfile({ notificationsEnabled: enabled });
       this.applyUser(updated);
     } catch (err) {
       this.fail(err instanceof Error ? err.message : 'Could not save that preference.');
+    }
+  }
+
+  // ── Account deletion ───────────────────────────────────────────────────────
+
+  /** True for any staff tier. The delete UI is hidden for these. */
+  readonly isStaff = computed(() => isStaffRole(this.user()?.role));
+
+  readonly isDeleting = signal(false);
+  readonly deleteError = signal('');
+  deletePassword = '';
+
+  /**
+   * Whether the password field must be shown before deleting.
+   *
+   * `deleteUser()` throws `auth/requires-recent-login` unless the session is
+   * fresh, and the only way to refresh it is to re-enter the password. Checking
+   * up front means the user is prompted once, here, rather than pressing Delete
+   * and being handed an opaque Firebase error code.
+   *
+   * Google-managed accounts have no password to re-enter — reauthentication is
+   * Google's dialog — so the field is skipped entirely for them.
+   */
+  readonly needsPasswordForDelete = computed(
+    () => !this.auth.isEmailManagedByProvider() && !this.auth.recentlyAuthenticated(),
+  );
+
+  /**
+   * Deletes the account behind a confirmation dialog.
+   *
+   * The dialog is not decoration. This is the most irreversible action in the
+   * app, and a single mis-tap on a button that only appears on one page should
+   * not be able to destroy someone's account and order history.
+   *
+   * THE DIALOG SAYS WHAT ACTUALLY HAPPENS, which is less than it used to claim.
+   * This text once ended "…but your name, email and address are removed from
+   * them." That was false. The redaction was to be done by the
+   * `anonymiseDeletedCustomerOrders` Cloud Function, and this project is on the
+   * free Spark plan, so that function has never been deployed and has never run.
+   * Deleting the account therefore leaves name, email and delivery address on
+   * every order that customer ever placed — those orders are the shop's sales
+   * records, and they are retained.
+   *
+   * PRIVACY.md now says exactly this too. A confirmation dialog is the last place
+   * a user reads before an irreversible action, so it is the worst place to be
+   * vague: a promise made here is a promise the shop is held to.
+   */
+  async confirmDeleteAccount(): Promise<void> {
+    if (this.isDeleting()) return;
+    this.deleteError.set('');
+
+    const alert = await this.alertCtrl.create({
+      header: 'Delete your account?',
+      message:
+        'This permanently deletes your account and cannot be undone. Your past orders are kept as sales records, and they still show the name, email and address you ordered with. Delete your account only if you are comfortable with that.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Delete my account', role: 'destructive' },
+      ],
+    });
+    await alert.present();
+    const { role } = await alert.onDidDismiss();
+    if (role !== 'destructive') return;
+
+    this.isDeleting.set(true);
+    try {
+      // Re-authenticate first when required, so the session is fresh by the time
+      // deleteUser() runs rather than failing after the Firestore document is
+      // already gone.
+      if (this.needsPasswordForDelete() && this.deletePassword) {
+        await this.auth.reauthenticateWithPassword(this.deletePassword);
+      }
+      await this.auth.deleteAccount();
+      // Nothing to navigate to -- the session is gone and every route is behind
+      // authGuard, which would bounce to /auth anyway. A full reload clears any
+      // cached state that assumed a signed-in user.
+      window.location.assign('/auth');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // `auth/requires-recent-login` is the one failure the user can actually
+      // act on, so it gets a sentence rather than a code.
+      this.deleteError.set(
+        /requires-recent-login/i.test(message)
+          ? 'Your session is too old for this. Enter your password above and try again.'
+          : message,
+      );
+      this.isDeleting.set(false);
     }
   }
 

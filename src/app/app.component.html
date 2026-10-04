@@ -3,23 +3,24 @@
 
 <ion-app>
   <ion-split-pane contentId="main-content" when="md">
-
     <!-- ═══════════════════════════════════════════
          SIDE NAVIGATION MENU
     ═══════════════════════════════════════════ -->
     <ion-menu contentId="main-content" type="overlay" class="app-menu">
-
       <!-- Menu Header / Branding -->
       <div class="menu-header">
         <div class="menu-logo-wrap">
-          <img src="assets/placeholder-scoop.svg" alt="Five-orites Scoop logo — colorful ice cream bowl with three scoops" class="menu-logo" />
+          <img
+            src="assets/placeholder-scoop.svg"
+            alt="Five-orites Scoop logo — colorful ice cream bowl with three scoops"
+            class="menu-logo"
+          />
         </div>
         <h1 class="menu-brand">Five-orites Scoop</h1>
         <p class="menu-tagline">Premium ice cream, scooped to your door</p>
       </div>
 
       <ion-content class="menu-content ion-padding-bottom">
-
         <!-- Customer / Shared Navigation -->
         <ion-list lines="none" class="nav-list">
           <ion-list-header class="nav-section-label">Menu</ion-list-header>
@@ -41,8 +42,8 @@
                      the icon's offset from --padding-start and the row height. -->
                 <span slot="start" class="nav-icon-wrap">
                   <app-icon [name]="item.icon" class="nav-icon" />
-                  @if (item.badge && cartItemCount() > 0) {
-                    <span class="cart-badge" aria-hidden="true">{{ cartItemCount() }}</span>
+                  @if (item.badgeCount && item.badgeCount() > 0) {
+                    <span class="cart-badge" aria-hidden="true">{{ item.badgeCount() }}</span>
                   }
                 </span>
                 <ion-label>{{ item.title }}</ion-label>
@@ -56,7 +57,7 @@
           <ion-list lines="none" class="nav-list admin-nav">
             <ion-list-header class="nav-section-label admin-label">Admin Panel</ion-list-header>
 
-            @for (item of adminNavItems; track item.url) {
+            @for (item of visibleAdminNavItems(); track item.url) {
               <ion-menu-toggle auto-hide="false">
                 <ion-item
                   [routerLink]="item.url"
@@ -79,7 +80,18 @@
         <!-- User Profile Panel -->
         @if (currentUser()) {
           <div class="user-panel">
-            <div class="user-info">
+            <!-- The identity block is a link to My Profile. It stays a SIBLING of the
+                 logout button, never its parent: nesting <ion-button> inside an <a> is
+                 invalid, breaks keyboard/AT semantics, and would make signing out also
+                 navigate. So the panel is two independent tap targets — this one goes to
+                 /profile, the icon to its right signs out. -->
+            <a
+              class="user-info user-link"
+              [routerLink]="'/profile'"
+              routerLinkActive="active-user-link"
+              (click)="closeMenu()"
+              aria-label="My Profile"
+            >
               <ion-avatar class="user-avatar">
                 @if (currentUser()?.photoURL) {
                   <img [src]="currentUser()!.photoURL" [alt]="'Profile photo of ' + currentUser()!.displayName" />
@@ -91,28 +103,16 @@
                 <span class="user-name">{{ currentUser()?.displayName }}</span>
                 <span class="user-email">{{ currentUser()?.email }}</span>
               </div>
-            </div>
-            <ion-button
-              fill="clear"
-              class="logout-btn"
-              (click)="logout()"
-              aria-label="Sign out of your account"
-            >
+            </a>
+            <ion-button fill="clear" class="logout-btn" (click)="logout()" aria-label="Sign out of your account">
               <app-icon name="log-out" slot="icon-only" />
             </ion-button>
           </div>
         } @else {
           <div class="guest-panel">
-            <ion-button
-              expand="block"
-              [routerLink]="'/auth'"
-              class="sign-in-btn"
-            >
-              Sign In
-            </ion-button>
+            <ion-button expand="block" [routerLink]="'/auth'" class="sign-in-btn"> Sign In </ion-button>
           </div>
         }
-
       </ion-content>
     </ion-menu>
 
@@ -120,6 +120,5 @@
          MAIN CONTENT OUTLET
     ═══════════════════════════════════════════ -->
     <ion-router-outlet id="main-content"></ion-router-outlet>
-
   </ion-split-pane>
 </ion-app>

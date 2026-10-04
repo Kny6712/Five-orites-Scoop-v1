@@ -1,0 +1,249 @@
+// src/app/admin/reviews/admin-reviews.page.scss
+// Five-orites Scoop — Review moderation queue
+
+:host {
+  display: block;
+}
+
+.reviews-body {
+  padding: 14px 16px 8px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── Filters ───────────────────────────────────────────────────── */
+.filter-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+/* A real <button> with aria-pressed, not an ion-chip: the pressed state has to
+   be announced, and a chip's `selected` reads as "chosen option" in a radio
+   group — which is not what this is. */
+.filter-chip {
+  appearance: none;
+  border: 1px solid var(--ion-color-light-shade);
+  background: var(--color-white);
+  border-radius: var(--radius-pill);
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.filter-chip:hover {
+  background: var(--tile-powder);
+}
+.filter-chip.is-on {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+  color: var(--color-ink);
+}
+
+.chip-num {
+  display: inline-block;
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.review-search {
+  margin-bottom: 6px;
+}
+
+.queue-note {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  color: var(--ion-color-medium);
+}
+
+/* ── Rows ──────────────────────────────────────────────────────── */
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.review-row {
+  background: var(--color-white);
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-card);
+  transition: opacity 0.15s ease;
+}
+.review-row.is-busy {
+  opacity: 0.55;
+}
+
+.review-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stars {
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--color-brand-accent);
+}
+
+.review-author {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+.review-date {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-left: auto;
+}
+
+.review-product {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+.row-icon {
+  --icon-size: 14px;
+  flex: 0 0 auto;
+}
+
+.review-comment {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+/* ── Staff reply ───────────────────────────────────────────────── */
+.staff-reply {
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--tile-mint);
+  border-left: 4px solid var(--color-brand-secondary);
+  border-radius: var(--radius-xs);
+}
+
+.reply-tag {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-mint-ink);
+  margin-bottom: 3px;
+}
+
+.reply-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+}
+
+/* ── Actions ───────────────────────────────────────────────────── */
+.review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  appearance: none;
+  border: 1px solid var(--ion-color-light-shade);
+  background: var(--color-white);
+  border-radius: var(--radius-xs);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  min-height: 40px;
+}
+.act-btn:hover:not(:disabled) {
+  background: var(--tile-powder);
+  color: var(--color-primary-ink);
+}
+.act-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.act-btn--danger {
+  color: var(--color-danger);
+}
+.act-btn--danger:hover:not(:disabled) {
+  background: var(--tone-danger-bg);
+}
+.act-icon {
+  --icon-size: 16px;
+  flex: 0 0 auto;
+}
+
+.link-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reply-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ion-color-light-shade);
+}
+
+.reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sk-line {
+  height: 14px;
+  margin-bottom: 8px;
+}
+.sk-short {
+  width: 55%;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

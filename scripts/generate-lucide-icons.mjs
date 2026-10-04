@@ -40,14 +40,6 @@ if (!existsSync(BUNDLE)) {
   process.exit(1);
 }
 
-const BUNDLE = resolve('node_modules/lucide-angular/fesm2020/lucide-angular.mjs');
-const OUT = resolve('src/app/core/icons/lucide-icon-data.ts');
-
-if (!existsSync(BUNDLE)) {
-  console.error(`Source bundle not found: ${BUNDLE}`);
-  process.exit(1);
-}
-
 /** app icon name -> [candidate Lucide export names, newest first] */
 const WANTED = {
   home: ['House', 'Home'],
@@ -87,6 +79,10 @@ const WANTED = {
   'eye-off': ['EyeOff'],
   lock: ['Lock'],
   mail: ['Mail'],
+  // The notification affordance: the header bell and the notifications page.
+  // Added with the in-app notification feed - `mail` was doing double duty as
+  // the only mail-ish glyph and reading as "email" rather than "your alerts".
+  bell: ['Bell'],
   filter: ['Funnel', 'Filter'],
   refresh: ['RefreshCw'],
   'arrow-right': ['ArrowRight'],
@@ -123,6 +119,46 @@ const WANTED = {
   'chart-pie': ['ChartPie', 'PieChart'],
   'chart-bar': ['ChartBar', 'BarChart'],
   peso: ['PhilippinePeso'],
+
+  // ── Added for the UI polish pass ──────────────────────────────────────────
+  // Pagination. Only ChevronRight was registered before, which made a one-sided
+  // pager — a "Previous" affordance had no icon to use.
+  'chevron-left': ['ChevronLeft'],
+  'chevrons-left': ['ChevronsLeft'],
+  'chevrons-right': ['ChevronsRight'],
+  // Search inputs. `filter` was registered but is a funnel, not a magnifier,
+  // and a funnel next to a text field reads as "open filters" rather than
+  // "type to search".
+  search: ['Search'],
+  // Table/list affordances for the admin pages that became real tables.
+  list: ['List'],
+  'chart-column': ['ChartColumnBig', 'ChartColumn'],
+  gauge: ['Gauge'],
+  // Reordering the credits page. `chevron-down` already existed at line 91; its
+  // counterpart did not, and the admin developers page needs a matched pair
+  // rather than a rotated icon.
+  'chevron-up': ['ChevronUp'],
+  // Export / external navigation.
+  download: ['Download'],
+  // Import. The inventory CSV trigger referenced this name before it existed here,
+  // so the button rendered with an empty <svg> and no icon at all.
+  upload: ['Upload'],
+  'external-link': ['ExternalLink'],
+  // The redesigned cart affordance and its menu entry. ShoppingCart reads as a
+  // wireframe trolley; ShoppingBag is the shape most people picture.
+  'shopping-bag': ['ShoppingBag'],
+  // Inventory: the card's replace-image and delete actions, and the size
+  // steppers that replaced the "Edit Stock" button.
+  'image-plus': ['ImagePlus'],
+  'square-pen': ['SquarePen'],
+  'circle-minus': ['CircleMinus'],
+  'circle-plus': ['CirclePlus'],
+  // Users table (joined date) and Settings.
+  calendar: ['Calendar'],
+  'text-cursor-input': ['TextCursorInput'],
+  'sliders-horizontal': ['SlidersHorizontal'],
+  contrast: ['Contrast'],
+  'map-pinned': ['MapPinned'],
 };
 
 const src = readFileSync(BUNDLE, 'utf8');
@@ -154,7 +190,10 @@ function extractIcon(name) {
     if (ch === '[' || ch === '{') depth++;
     else if (ch === ']' || ch === '}') {
       depth--;
-      if (depth === 0) { end = i + 1; break; }
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
     }
   }
   if (end === -1) return null;
@@ -182,7 +221,10 @@ for (const [appName, candidates] of Object.entries(WANTED)) {
   let used = null;
   for (const c of candidates) {
     node = extractIcon(c);
-    if (node) { used = c; break; }
+    if (node) {
+      used = c;
+      break;
+    }
   }
   if (node) out[appName] = node;
   else missing.push(`${appName} (tried: ${candidates.join(', ')})`);
@@ -210,15 +252,40 @@ const file = `// src/app/core/icons/lucide-icon-data.ts
 /** One SVG shape: element name plus its attributes. */
 export type IconNode = [tag: string, attrs: Record<string, string>];
 
-/** Icon geometry, keyed by the app-level name used in \`<app-icon name="…">\`. */
-export const LUCIDE_ICON_DATA: Record<string, IconNode[]> = ${JSON.stringify(out, null, 2)};
+/**
+ * Icon geometry, keyed by the app-level name used in \`<app-icon name="…">\`.
+ *
+ * \`satisfies\`, NOT a \`Record<string, IconNode[]>\` annotation, and this line is
+ * load-bearing in a way that is easy to undo by accident.
+ *
+ * An explicit \`Record<string, …>\` annotation WIDENS this object to
+ * \`Record<string, IconNode[]>\`, so \`keyof typeof\` below — which is what
+ * \`AppIcon\` in app-icons.ts is built from — becomes plain \`string\`. Every
+ * \`<app-icon name="…">\` in the app then type-checks against \`string\`, and the
+ * promise in that file's comment that a typo becomes a compile error is false.
+ *
+ * It was not theoretical: \`name="upload"\` on the inventory CSV button was not one
+ * of these keys, so it rendered an empty \`<svg>\` and the button lost its icon with
+ * nothing reporting a problem. Regenerating this file used to silently restore the
+ * broken annotation, which is why the fix lives HERE and not in the generated
+ * output.
+ *
+ * \`satisfies\` keeps the literal key union while still checking every value is a
+ * well-formed \`IconNode[]\`, so a name outside the vocabulary stops compiling.
+ */
+export const LUCIDE_ICON_DATA = ${JSON.stringify(out, null, 2)} satisfies Record<
+  string,
+  IconNode[]
+>;
 
 export type LucideIconName = keyof typeof LUCIDE_ICON_DATA;
 `;
 
 writeFileSync(OUT, file, 'utf8');
 
-console.log(`Extracted ${Object.keys(out).length} icons, ${total} shapes, ${(bytes / 1024).toFixed(1)} KB of geometry.`);
+console.log(
+  `Extracted ${Object.keys(out).length} icons, ${total} shapes, ${(bytes / 1024).toFixed(1)} KB of geometry.`,
+);
 console.log(`Wrote ${OUT}`);
 if (missing.length) {
   console.error(`\nMISSING (${missing.length}):`);

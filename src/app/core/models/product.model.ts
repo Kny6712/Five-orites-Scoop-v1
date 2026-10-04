@@ -50,10 +50,10 @@ export interface StockLevel {
 }
 
 export interface Product {
-  id: string;                 // Firestore document ID
-  setNumber: FlavorSet;       // >= 1 (1–8 built-in, extensible via admin)
-  setName: string;            // e.g. "Chocolates"
-  variantName: string;        // e.g. "Rocky Road"
+  id: string; // Firestore document ID
+  setNumber: FlavorSet; // >= 1 (1–8 built-in, extensible via admin)
+  setName: string; // e.g. "Chocolates"
+  variantName: string; // e.g. "Rocky Road"
   description: string;
   imageUrl: string;
   category?: ProductCategory; // absent on documents seeded before the field existed

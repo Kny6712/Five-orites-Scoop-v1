@@ -78,7 +78,7 @@ STEPS TO RUN THE APP
 3. Run: npm install
    (if peer-dependency errors appear, retry with npm install --legacy-peer-deps)
 4. Run: npm run typecheck      (optional sanity check — no Firebase needed)
-5. Run: npm run test:logic     (optional — 18 business-logic tests)
+5. Run: npm run test:logic     (optional — 160 business-logic tests)
 6. Run: npm run seed           (writes 64 products to Firestore)
 7. Run: npm start              (dev server, opens in browser)
 8. Open: http://localhost:4200
@@ -103,9 +103,19 @@ FIREBASE SETUP CHECKLIST
 □ Downloaded service account key → renamed → placed in scripts/
 □ Ran: npm run seed  (seeds 64 products)
 □ Ran: firebase deploy --only firestore  (applies security rules + indexes)
-□ Promoted your first admin by hand:
-  Firebase Console → Firestore → users → your user doc → role = "admin"
-  (the security rules read this field; there are no custom claims)
+□ Promoted your first admin:
+  Sign in through the app once FIRST — that is what creates users/{uid}.
+  Then:  npm run seed:admin -- <your-uid> owner
+
+  (The security rules read the `role` field on the user document; there are no
+  custom claims. Only an OWNER can promote anyone else afterwards, from
+  Admin → Users.)
+
+  The script validates the role against the same vocabulary the app and the rules
+  use, and refuses anything malformed. Doing this by hand in the console is what
+  produced a real incident here: a role pasted as "owner\n" matches no tier, so the
+  owner lost every admin page with no error anywhere, and recovery meant another
+  manual edit.
 
 TEAM MEMBERS
 ──────────────

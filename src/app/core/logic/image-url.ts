@@ -23,10 +23,7 @@ const EXISTING_TRANSFORM = /\/image\/upload\/[^/]*f_auto[^/]*\//;
  * hand-pasted link — is returned untouched, so callers can apply this
  * unconditionally.
  */
-export function buildCloudinaryUrl(
-  url: string | null | undefined,
-  width: number,
-): string {
+export function buildCloudinaryUrl(url: string | null | undefined, width: number): string {
   if (!url || !url.includes(UPLOAD_SEGMENT)) return url ?? '';
 
   const base = url.replace(EXISTING_TRANSFORM, UPLOAD_SEGMENT);

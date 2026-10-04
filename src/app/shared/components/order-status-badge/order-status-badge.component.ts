@@ -17,11 +17,20 @@ import { OrderStatus, ORDER_STATUS_META } from '../../../core/models/order.model
       <ion-label>{{ statusMeta.label }}</ion-label>
     </ion-chip>
   `,
-  styles: [`
-    :host { display: inline-block; }
-    .status-chip { font-size: 12px; font-weight: 600; }
-    .status-icon { margin-right: 4px; }
-  `],
+  styles: [
+    `
+      :host {
+        display: inline-block;
+      }
+      .status-chip {
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .status-icon {
+        margin-right: 4px;
+      }
+    `,
+  ],
 })
 export class OrderStatusBadgeComponent {
   @Input({ required: true }) status!: OrderStatus;

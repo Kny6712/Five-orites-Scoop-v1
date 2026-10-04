@@ -1,4 +1,20 @@
 {
+  "//README": "Which Firebase project each command talks to. `default` is the LIVE shop and it is the only entry here, so every bare `firebase deploy` targets it. There is no second project to rehearse against. Before this file existed, dev and prod were the same project AND the same credentials, so running the app locally meant reading and writing production Firestore.",
+  "//how-to-use": [
+    "Production (live shop data) -- the only project, no flag needed:",
+    "  npm run deploy            # rules + indexes + hosting, to `default`",
+    "",
+    "Nothing here deploys functions. The Spark plan cannot host them, so they",
+    "are out of the chain rather than left to fail in the middle of it:",
+    "  npm run deploy:functions  # still here, still fails, never in a release",
+    "",
+    "Rules tests -- never touches a live project, the label is a name only:",
+    "  npm run test:rules",
+    "",
+    "ROLLBACK is the git history of firestore.rules: revert the commit, then",
+    "npm run deploy:firestore. There is no second copy of the shop to fall back",
+    "to, so the decision to deploy is the decision to change production."
+  ],
   "projects": {
     "default": "five-orites-scoop"
   }

@@ -1,0 +1,107 @@
+<!-- src/app/features/notifications/notifications.page.html -->
+<!-- Five-orites Scoop — persistent in-app notification feed -->
+
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Notifications</ion-title>
+    <ion-buttons slot="end">
+      <!--
+        Only rendered when something is unread. A permanent "mark all read"
+        button that does nothing 90% of the time is a control that lies about
+        being available.
+      -->
+      @if (unreadCount() > 0) {
+        <ion-button (click)="markRead()" aria-label="Mark all notifications as read"> Mark read </ion-button>
+      }
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div class="page">
+    @if (isEmpty()) {
+      <!--
+        The empty state states the SCOPE rather than just "nothing here". A user
+        who has genuinely never had an order and a user whose app was closed while
+        their order shipped both see an empty list, and only one of them is
+        looking at a page that is working correctly.
+      -->
+      <div class="empty">
+        <span class="empty-icon" aria-hidden="true">
+          <app-icon name="bell" [iconSize]="40" />
+        </span>
+        <h2 class="empty-title">No notifications yet</h2>
+        <p class="empty-text">
+          When one of your orders changes status it will appear here, and this app will show a message while it is open.
+        </p>
+        <p class="empty-note">
+          Nothing is sent while the app is closed &mdash; this project has no server to deliver notifications from.
+        </p>
+        <ion-button routerLink="/orders" class="empty-action">View my orders</ion-button>
+      </div>
+    } @else {
+      @for (group of groups(); track group.label) {
+        <h2 class="day-label">{{ group.label }}</h2>
+        <ul class="feed">
+          @for (entry of group.entries; track entry.id) {
+            <li>
+              <!--
+                A button, not a routerLink on the <li>. It is a real control, so it
+                is reachable by keyboard and announced as one; and it has to do
+                work on activation (mark read) before navigating, which a plain
+                link cannot.
+              -->
+              <button
+                type="button"
+                [class]="entryClasses(entry)"
+                [attr.aria-label]="entryAriaLabel(entry)"
+                (click)="open(entry)"
+              >
+                <span class="entry-dot" aria-hidden="true"></span>
+                <span class="entry-body">
+                  <span class="entry-head">
+                    <span class="entry-title">{{ entry.title }}</span>
+                    <!-- aria-hidden: the accessible name is built in entryAriaLabel,
+                         where "12m" can be expanded to "12 minutes ago". Reading a
+                         bare abbreviation here would be the only place in the app
+                         where a screen reader says "12m" with no unit. -->
+                    <span class="entry-time" aria-hidden="true">{{ ago(entry) }}</span>
+                  </span>
+                  <span class="entry-text">{{ entry.body }}</span>
+                  <span class="entry-order">Order {{ shortOrderId(entry.orderId) }}</span>
+                </span>
+                <app-icon name="chevron-right" class="entry-chevron" />
+              </button>
+            </li>
+          }
+        </ul>
+      }
+
+      <!--
+        Paged over entries, so the day headings above describe only the rows
+        beneath them and the unread badge still counts the whole feed.
+      -->
+      <app-pagination
+        [page]="page()"
+        [total]="totalEntries()"
+        [pageSize]="PAGE_SIZE"
+        itemLabel="updates"
+        (pageChange)="page.set($event)"
+      />
+
+      <p class="scope-note">
+        These are stored as your orders' own status history, not as a separate list &mdash; so this feed can never
+        disagree with the order it describes.
+      </p>
+    }
+
+    <app-footer />
+  </div>
+</ion-content>

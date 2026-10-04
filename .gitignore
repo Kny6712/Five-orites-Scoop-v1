@@ -22,6 +22,10 @@ www/
 *-debug.log
 .firebase/
 
+# Playwright CLI scratch — page snapshots and traces from ad-hoc browser
+# inspection. Local debugging output, regenerable on demand.
+.playwright-cli/
+
 # ── Capacitor ────────────────────────────────────────────────────────────────────
 android/
 ios/

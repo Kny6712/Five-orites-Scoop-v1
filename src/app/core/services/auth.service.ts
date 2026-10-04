@@ -15,6 +15,8 @@ import {
   updateProfile,
   verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
+  updatePassword,
+  deleteUser,
   EmailAuthProvider,
   User,
 } from '@angular/fire/auth';
@@ -23,11 +25,11 @@ import {
   doc,
   getDoc,
   setDoc,
-  updateDoc,
+  deleteDoc,
   serverTimestamp,
 } from '@angular/fire/firestore';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { AppUser } from '../models/user.model';
+import { AppUser, isStaffRole } from '../models/user.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -35,8 +37,7 @@ export class AuthService {
   private firestore = inject(Firestore);
 
   private currentUserSubject = new BehaviorSubject<AppUser | null>(null);
-  readonly currentUser$: Observable<AppUser | null> =
-    this.currentUserSubject.asObservable();
+  readonly currentUser$: Observable<AppUser | null> = this.currentUserSubject.asObservable();
 
   private authReadySubject = new BehaviorSubject<boolean>(false);
   readonly authReady$ = this.authReadySubject.asObservable();
@@ -71,7 +72,18 @@ export class AuthService {
         const userSnap = await getDoc(userDocRef);
 
         if (userSnap.exists()) {
-          // User doc already exists — return it
+          // User doc already exists — return it AS STORED.
+          //
+          // We deliberately do NOT trim/normalize the role here. `firestore.rules`
+          // compares the raw stored string, and the client's `can()`/`isStaffRole()`
+          // do the same. Normalizing only on the client (as a former version did)
+          // made `isStaffRole('owner')` TRUE while the rules still denied every
+          // admin request — a full Admin Panel that 403s on every tap, which is
+          // worse than the truthful failure. A role with stray whitespace now
+          // fails closed IDENTICALLY in both layers (empty Admin Panel for the
+          // user, every write refused by the rules). Fix the stored value, not
+          // the read path — and the drift lint in tests/logic.test.ts guards the
+          // client/rules boundary.
           return userSnap.data() as AppUser;
         }
 
@@ -81,7 +93,7 @@ export class AuthService {
           email: firebaseUser.email ?? '',
           displayName: firebaseUser.displayName ?? 'Scoop Lover',
           photoURL: firebaseUser.photoURL ?? undefined,
-          role: 'customer',   // default role, never trust client input
+          role: 'customer', // default role, never trust client input
           createdAt: serverTimestamp() as never,
         };
 
@@ -100,7 +112,7 @@ export class AuthService {
             role: 'customer',
             createdAt: serverTimestamp(),
           },
-          { merge: true }
+          { merge: true },
         );
 
         return newUser;
@@ -120,7 +132,49 @@ export class AuthService {
   }
 
   async signInWithEmail(email: string, password: string): Promise<void> {
-    await signInWithEmailAndPassword(this.auth, email, password);
+    const credential = await signInWithEmailAndPassword(this.auth, email, password);
+    await this.assertNotSuspended(credential.user.uid);
+  }
+
+  /**
+   * Signs the user out if their account has been suspended, and says why.
+   *
+   * WHY THIS IS HERE AND NOT IN THE RULES
+   * Firestore rules can block a suspended user's READS and WRITES, but they
+   * cannot revoke a Firebase AUTH session that already exists — and this app's
+   * carts, wishlists and saved addresses all live in localStorage keyed by uid,
+   * so a session that survives the block still has working client state. The
+   * honest enforcement point is the moment credentials are accepted.
+   *
+   * The read itself is permitted: `users/{uid}` is readable by its owner, so
+   * this does not need admin rights and works from any sign-in path.
+   *
+   * Signing out rather than merely refusing matters — if the session were left
+   * open the user would sit on a signed-in shell that fails on every query, with
+   * no way to tell that the reason was the account and not the network.
+   */
+  private async assertNotSuspended(uid: string): Promise<void> {
+    let reason = '';
+    let suspended = false;
+    try {
+      const snap = await getDoc(doc(this.firestore, `users/${uid}`));
+      const data = snap.data() as
+        { isSuspended?: boolean; suspendReason?: string | null } | undefined;
+      suspended = data?.isSuspended === true;
+      reason = data?.suspendReason?.trim() ?? '';
+    } catch {
+      // If the check itself fails, do NOT block the sign-in. A Firestore outage
+      // must not read as "your account is banned", and the rules still gate the
+      // data itself.
+      return;
+    }
+    if (!suspended) return;
+    await this.signOut();
+    throw new Error(
+      reason
+        ? `This account has been suspended: ${reason}`
+        : 'This account has been suspended. Contact the shop if you think this is a mistake.',
+    );
   }
 
   /**
@@ -137,14 +191,8 @@ export class AuthService {
     await sendPasswordResetEmail(this.auth, email.trim());
   }
 
-  async registerWithEmail(
-    email: string,
-    password: string,
-    displayName: string
-  ): Promise<void> {
-    const credential = await createUserWithEmailAndPassword(
-      this.auth, email, password
-    );
+  async registerWithEmail(email: string, password: string, displayName: string): Promise<void> {
+    const credential = await createUserWithEmailAndPassword(this.auth, email, password);
     await updateProfile(credential.user, { displayName });
 
     // createUserWithEmailAndPassword fires onAuthStateChanged before this
@@ -183,14 +231,17 @@ export class AuthService {
           role: 'customer',
           createdAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
     }
   }
 
   async signInWithGoogle(): Promise<void> {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(this.auth, provider);
+    const credential = await signInWithPopup(this.auth, provider);
+    // Same check as the password path. A suspension that only applied to email
+    // sign-in would be trivially bypassed by signing in with Google instead.
+    await this.assertNotSuspended(credential.user.uid);
   }
 
   async signOut(): Promise<void> {
@@ -331,9 +382,7 @@ export class AuthService {
     if (!firebaseUser) throw new Error('You must be signed in to change your email.');
 
     if (this.isEmailManagedByProvider()) {
-      throw new Error(
-        'Your email is managed by your Google account and cannot be changed here.'
-      );
+      throw new Error('Your email is managed by your Google account and cannot be changed here.');
     }
 
     const trimmed = newEmail.trim().toLowerCase();
@@ -352,9 +401,13 @@ export class AuthService {
 
     // Keep the Firestore copy in step. This is safe precisely BECAUSE it comes
     // from Auth, not from user input: the value was just verified.
-    await setDoc(doc(this.firestore, `users/${firebaseUser.uid}`), { email: trimmed }, {
-      merge: true,
-    });
+    await setDoc(
+      doc(this.firestore, `users/${firebaseUser.uid}`),
+      { email: trimmed },
+      {
+        merge: true,
+      },
+    );
     await this.refreshProfile();
   }
 
@@ -373,6 +426,58 @@ export class AuthService {
   }
 
   /**
+   * Does this account actually have a password to change?
+   *
+   * The honest gate for a Change Password control, and deliberately NOT the
+   * inverse of "signed in with an external provider". Those two are not the same
+   * question:
+   *
+   *   - a Google-only account has NO password credential at all, so there is
+   *     nothing to change and `updatePassword` cannot be called on it;
+   *   - an account that has signed in with BOTH Google and email/password HAS a
+   *     password, and hiding the control from it would be wrong.
+   *
+   * `providerData` is the only source that distinguishes these, and it is
+   * already read for the email-lock check below.
+   */
+  hasPasswordProvider(): boolean {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) return false;
+    return firebaseUser.providerData.some((p) => p.providerId === 'password');
+  }
+
+  /**
+   * Changes the password, after confirming the current one.
+   *
+   * The reauthentication is not optional. Firebase rejects `updatePassword` with
+   * `auth/requires-recent-login` when the session is older than a few minutes,
+   * and this is the one action on the profile page where the failure mode of
+   * skipping it is an error dialog with no way forward — the user would simply be
+   * told to sign in again, mid-form.
+   *
+   * The current password is re-checked here rather than relying on the caller's
+   * earlier `reauthenticateWithPassword`, so this method is safe to call on its
+   * own.
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) throw new Error('You must be signed in.');
+    if (!this.hasPasswordProvider()) {
+      throw new Error('This account signs in with Google, so it has no password to change.');
+    }
+    if (newPassword.length < 6) {
+      throw new Error('Choose a password of at least 6 characters.');
+    }
+    if (currentPassword === newPassword) {
+      throw new Error('The new password must be different from the current one.');
+    }
+
+    const credential = EmailAuthProvider.credential(firebaseUser.email ?? '', currentPassword);
+    await reauthenticateWithCredential(firebaseUser, credential);
+    await updatePassword(firebaseUser, newPassword);
+  }
+
+  /**
    * Is the email owned by an external identity provider?
    *
    * True for Google sign-in, where the address is the Google account's and is
@@ -385,7 +490,89 @@ export class AuthService {
     const EXTERNAL = ['google.com', 'facebook.com', 'apple.com', 'github.com'];
     return firebaseUser.providerData.some((p) => EXTERNAL.includes(p.providerId));
   }
+
+  // ── Account deletion ───────────────────────────────────────────────────────
+
+  /**
+   * Deletes the signed-in user's account. Irreversible.
+   *
+   * Both app stores require an in-app deletion path for an app that lets people
+   * create an account, and PRIVACY.md could only describe a manual email route
+   * because nothing could delete anything.
+   *
+   * ORDER MATTERS, and getting it backwards is the trap:
+   *
+   *   1. Firestore `users/{uid}` FIRST, via the self-delete rule.
+   *   2. The Auth record SECOND, via `deleteUser()`.
+   *
+   * Doing it the other way round leaves an orphaned user document that the rules
+   * still recognise — `myRole()` would keep resolving and the account would look
+   * alive in every read, with no way to remove it because `deleteUser()` is
+   * irreversible and the session is gone. Doing Firestore first means the worst
+   * failure is a user document with no Auth record, which is inert and removable
+   * by an owner from the console.
+   *
+   * `deleteUser()` requires a RECENT sign-in. A user who set their profile up
+   * weeks ago and taps Delete will get `auth/requires-recent-login`, so the
+   * caller must re-authenticate first; `recentlyAuthenticated()` is exposed so
+   * the page can decide whether to prompt for a password before calling this.
+   *
+   * Staff are refused. If an owner deletes their own account, every admin page is
+   * stranded — `isStaff()` fails for everyone and the only recovery is another
+   * owner promoting a replacement. A single-account shop would have no other
+   * owner, so the message tells them to promote someone else first.
+   *
+   * Their ORDERS are not deleted, because they are the shop's financial records.
+   * `anonymiseDeletedCustomerOrders` (functions/src/index.ts) redacts the
+   * personal fields on them once the user document goes.
+   */
+  async deleteAccount(): Promise<void> {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) throw new Error('You must be signed in to delete your account.');
+    const uid = firebaseUser.uid;
+
+    if (isStaffRole(this.currentUserSnapshot?.role)) {
+      throw new Error(
+        'You cannot delete an account that has staff access. Promote someone else to owner first, then delete this one.',
+      );
+    }
+
+    await deleteDoc(doc(this.firestore, `users/${uid}`));
+    await deleteUser(firebaseUser);
+
+    // Clear local state. The Auth SDK fires its own sign-out for the deleted
+    // user, but the in-memory profile is a separate subject and would otherwise
+    // keep rendering the deleted user's name until the next full reload.
+    this.currentUserSubject.next(null);
+  }
+
+  /**
+   * Whether the session is recent enough for `deleteUser()` to be accepted.
+   *
+   * Firebase requires a sign-in within roughly the last few minutes. Checking
+   * this before offering the action means the user is prompted for their
+   * password up front instead of pressing Delete and getting an opaque
+   * `auth/requires-recent-login` failure.
+   */
+  recentlyAuthenticated(): boolean {
+    const firebaseUser = this.auth.currentUser;
+    if (!firebaseUser) return false;
+    // `creationTime` is the moment of the LAST sign-in, not account creation --
+    // Firebase overwrites it on every sign-in, which is exactly the semantic
+    // wanted here. It is typed `string | undefined`; absent means "unknown",
+    // and treating unknown as stale is the safe direction, because it makes the
+    // password field appear rather than letting deleteUser() fail opaquely.
+    const signedInAt = firebaseUser.metadata.creationTime;
+    if (!signedInAt) return false;
+    const elapsed = Date.now() - new Date(signedInAt).getTime();
+    // A clock skew that puts the sign-in in the future yields a negative elapsed.
+    // That is not "fresh" by accident; treat anything implausible as stale.
+    return elapsed >= 0 && elapsed < FIVE_MINUTES_MS;
+  }
 }
+
+/** Firebase's own freshness window for destructive Auth operations. */
+const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
 /**
  * The fields a user may change about themselves.
@@ -400,4 +587,18 @@ export interface ProfilePatch {
   photoURL?: string | null;
   phone?: string | null;
   notificationsEnabled?: boolean;
+  /**
+   * Epoch ms of the newest notification the user has seen.
+   *
+   * A plain number, NOT a `serverTimestamp()`, for two reasons. The feed compares
+   * it against normalised epoch ms, and a sentinel read straight back is not
+   * resolved yet - this file already documents that `createdAt` comes back that
+   * way and that `.toDate()` throws on it. And `suspendedAt` is already stored as
+   * epoch ms, so this follows the existing convention rather than inventing a
+   * second one.
+   *
+   * `updateProfile` merges, so writing it never disturbs `role`/`uid`, which the
+   * rules require to be preserved.
+   */
+  notificationsReadAt?: number | null;
 }

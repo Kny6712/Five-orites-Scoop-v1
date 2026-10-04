@@ -13,17 +13,18 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   @if (isLoading()) {
     <ion-skeleton-text animated class="hero-skeleton"></ion-skeleton-text>
     <div class="detail-body">
-      <ion-skeleton-text animated style="height: 24px; width: 70%; margin-bottom: 8px;"></ion-skeleton-text>
-      <ion-skeleton-text animated style="height: 140px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="height: 24px; width: 70%; margin-bottom: 8px"></ion-skeleton-text>
+      <ion-skeleton-text animated style="height: 140px"></ion-skeleton-text>
     </div>
   }
 
   @if (!isLoading() && errorMessage()) {
-    <div class="error-state"><p>{{ errorMessage() }}</p></div>
+    <div class="error-state">
+      <p>{{ errorMessage() }}</p>
+    </div>
   }
 
   @if (!isLoading() && product()) {
@@ -32,12 +33,10 @@
         [src]="(product()!.imageUrl | cloudinary: 1000) || 'assets/placeholder-scoop.svg'"
         [alt]="product()!.variantName"
         class="hero-image"
-        onerror="this.src='assets/placeholder-scoop.svg'"
+        onerror="this.src = 'assets/placeholder-scoop.svg'"
       />
       <div class="hero-overlay">
-        <ion-badge class="set-badge-hero">
-          Set {{ product()!.setNumber }} · {{ product()!.setName }}
-        </ion-badge>
+        <ion-badge class="set-badge-hero"> Set {{ product()!.setNumber }} · {{ product()!.setName }} </ion-badge>
       </div>
     </div>
 
@@ -51,12 +50,7 @@
       }
       <app-star-rating [rating]="avgRating()" [showCount]="true" [reviewCount]="reviewCount()"></app-star-rating>
       <ion-button fill="outline" size="small" (click)="toggleWishlist()">
-        <app-icon
-          name="heart"
-          slot="start"
-          class="wishlist-icon"
-          [class.wished]="isWished()"
-        />
+        <app-icon name="heart" slot="start" class="wishlist-icon" [class.wished]="isWished()" />
         {{ isWished() ? 'Wishlisted' : 'Wishlist' }}
       </ion-button>
       <p class="detail-description">{{ product()!.description }}</p>
@@ -73,12 +67,19 @@
           >
             <span class="tile-size">{{ opt.label }}</span>
             <span class="tile-price">{{ product()!.pricing[opt.key] | peso }}</span>
-            <span class="tile-stock"
-              [class.stock-in-stock]="product()!.stock[opt.key] >= lowStockThreshold"
-              [class.stock-low-stock]="product()!.stock[opt.key] > 0 && product()!.stock[opt.key] < lowStockThreshold"
-              [class.stock-out-of-stock]="product()!.stock[opt.key] === 0">
-              {{ product()!.stock[opt.key] === 0 ? 'Out of Stock' :
-                 product()!.stock[opt.key] < lowStockThreshold ? 'Low Stock (' + product()!.stock[opt.key] + ')' : 'In Stock' }}
+            <span
+              class="tile-stock"
+              [class.stock-in-stock]="product()!.stock[opt.key] >= lowStockThreshold()"
+              [class.stock-low-stock]="product()!.stock[opt.key] > 0 && product()!.stock[opt.key] < lowStockThreshold()"
+              [class.stock-out-of-stock]="product()!.stock[opt.key] === 0"
+            >
+              {{
+                product()!.stock[opt.key] === 0
+                  ? 'Out of Stock'
+                  : product()!.stock[opt.key] < lowStockThreshold()
+                    ? 'Low Stock (' + product()!.stock[opt.key] + ')'
+                    : 'In Stock'
+              }}
             </span>
           </button>
         }
@@ -88,11 +89,7 @@
         <span class="qty-label">Quantity</span>
         <!-- Shared stepper, replacing a 32x32 hand-rolled pair. The ceiling is
              the live stock, so the button disables itself at the limit. -->
-        <app-qty-stepper
-          [value]="quantity()"
-          [max]="stepperMax()"
-          (changed)="quantity.set($event)"
-        />
+        <app-qty-stepper [value]="quantity()" [max]="stepperMax()" (changed)="quantity.set($event)" />
         <span class="line-total">{{ lineTotal() | peso }}</span>
       </div>
 
@@ -103,7 +100,15 @@
         (click)="addToCart()"
       >
         <app-icon name="cart" slot="start" />
-        {{ isAdding() ? 'Adding...' : isUnavailable() ? 'No Longer Available' : isOutOfStock() ? 'Out of Stock' : 'Add to Cart' }}
+        {{
+          isAdding()
+            ? 'Adding...'
+            : isUnavailable()
+              ? 'No Longer Available'
+              : isOutOfStock()
+                ? 'Out of Stock'
+                : 'Add to Cart'
+        }}
       </ion-button>
 
       <div class="reviews-section">
@@ -122,7 +127,7 @@
           @if (reviewsTruncated()) {
             <p class="reviews-truncated">Showing the most recent {{ reviews().length }} reviews.</p>
           }
-          @for (r of reviews(); track r.id) {
+          @for (r of pagedReviews(); track r.id) {
             <div class="review-item">
               <app-star-rating [rating]="r.rating"></app-star-rating>
               <p class="review-author">{{ r.displayName }}</p>
@@ -143,13 +148,31 @@
               }
             </div>
           }
+          <!--
+            Pages the RENDER only. The stars above the fold and the "(n)" beside
+            them still come from summarizeRatings() over every fetched review, so
+            paging cannot move an average.
+          -->
+          <app-pagination
+            [page]="reviewsPage()"
+            [total]="reviews().length"
+            [pageSize]="REVIEWS_PER_PAGE"
+            itemLabel="reviews"
+            (pageChange)="reviewsPage.set($event)"
+          />
         }
         <div class="review-form">
           <h3 class="section-title">{{ hasMyReview() ? 'Update your review' : 'Write a review' }}</h3>
           @if (hasMyReview()) {
-            <p class="review-form-note">You already reviewed this flavor. Submitting again updates your existing review.</p>
+            <p class="review-form-note">
+              You already reviewed this flavor. Submitting again updates your existing review.
+            </p>
           }
-          <app-star-rating [rating]="newRating()" [interactive]="true" (ratingChange)="newRating.set($event)"></app-star-rating>
+          <app-star-rating
+            [rating]="newRating()"
+            [interactive]="true"
+            (ratingChange)="newRating.set($event)"
+          ></app-star-rating>
           <ion-textarea
             id="review-comment"
             [(ngModel)]="newComment"
@@ -164,5 +187,6 @@
       </div>
     </div>
   }
-
 </ion-content>
+
+<app-footer></app-footer>

@@ -1,11 +1,22 @@
+<!-- src/app/admin/vouchers/admin-vouchers.page.html -->
+<!-- Five-orites Scoop — Admin voucher management -->
+
 <ion-header>
-  <ion-toolbar>
+  <ion-toolbar color="primary">
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>Vouchers</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="startCreate()">
+      <ion-button
+        size="small"
+        (click)="exportReport()"
+        [disabled]="metricsLoading()"
+        aria-label="Export voucher performance as CSV"
+      >
+        <app-icon name="download" slot="icon-only" />
+      </ion-button>
+      <ion-button (click)="startCreate()" class="new-btn">
         <app-icon name="plus" slot="start" />
         New
       </ion-button>
@@ -15,13 +26,27 @@
 
 <ion-content fullscreen>
   @if (errorMessage()) {
-    <app-alert-banner tone="danger" [message]="errorMessage()" />
+    <app-alert-banner tone="danger" [message]="errorMessage()" actionLabel="Try again" (action)="load()" />
   }
 
-  <!-- ── Editor ───────────────────────────────────────────────────────── -->
+  <!-- ── Editor ────────────────────────────────────────────────────────
+    An inline panel rather than a modal, kept — it means the list stays visible
+    while you type a code against it, so a duplicate is spotted by looking
+    rather than by being told. What is new is the worked example below, which
+    states what the voucher does in pesos.
+  -->
   @if (editing()) {
     <section class="editor">
-      <h2 class="editor-title">{{ originalId() ? 'Edit voucher' : 'New voucher' }}</h2>
+      <header class="editor-head">
+        <h2 class="editor-title">{{ originalId() ? 'Edit voucher' : 'New voucher' }}</h2>
+        <p class="editor-sub">
+          {{
+            originalId()
+              ? 'Changing the code creates a new voucher and removes the old one.'
+              : 'Codes are case-insensitive for customers and stored uppercase.'
+          }}
+        </p>
+      </header>
 
       <label class="field">
         <span class="field-label">Code</span>
@@ -29,19 +54,18 @@
           [(ngModel)]="code"
           placeholder="SCOOP10"
           autocapitalize="characters"
-          maxlength="24"
+          spellcheck="false"
+          aria-label="Voucher code"
         ></ion-input>
-        <span class="field-hint">
-          Uppercase letters, numbers, dashes and underscores. This is what the customer types.
-        </span>
+        <span class="field-hint">Letters, numbers, dashes and underscores. 3–24 characters.</span>
       </label>
 
       <div class="field-row">
         <label class="field">
           <span class="field-label">Type</span>
-          <ion-select [(ngModel)]="type" interface="popover">
+          <ion-select [(ngModel)]="type" interface="popover" aria-label="Discount type">
             <ion-select-option value="percent">Percentage off</ion-select-option>
-            <ion-select-option value="fixed">Fixed peso amount</ion-select-option>
+            <ion-select-option value="fixed">Fixed amount off</ion-select-option>
           </ion-select>
         </label>
 
@@ -50,102 +74,308 @@
           <ion-input
             [(ngModel)]="value"
             type="number"
-            inputmode="numeric"
-            [placeholder]="type === 'percent' ? '10' : '50'"
+            [min]="1"
+            [attr.max]="type === 'percent' ? maxPercent : null"
+            [attr.aria-label]="type === 'percent' ? 'Discount percentage' : 'Discount amount in pesos'"
           ></ion-input>
-          @if (type === 'percent') {
-            <span class="field-hint">Maximum {{ maxPercent }}%.</span>
-          }
+          <span class="field-hint">
+            {{ type === 'percent' ? 'Up to ' + maxPercent + '%.' : 'In pesos.' }}
+          </span>
         </label>
       </div>
 
       <label class="field">
         <span class="field-label">Minimum order (₱)</span>
-        <ion-input [(ngModel)]="minOrder" type="number" inputmode="numeric" placeholder="0"></ion-input>
+        <ion-input
+          [(ngModel)]="minOrder"
+          type="number"
+          [min]="0"
+          placeholder="0"
+          aria-label="Minimum order value in pesos"
+        ></ion-input>
         <span class="field-hint">Leave at 0 for no minimum.</span>
       </label>
 
+      <!--
+        Redemption limits and window.
+
+        These fields are what make the caps ENFORCED rather than decorative: until
+        they existed a `maxRedemptions` shown on this page would have been ignored
+        by checkout, because "usable" meant exactly "isActive".
+      -->
+      <div class="field-pair">
+        <label class="field">
+          <span class="field-label">Max redemptions</span>
+          <ion-input
+            [(ngModel)]="maxRedemptions"
+            type="number"
+            inputmode="numeric"
+            [min]="0"
+            placeholder="Unlimited"
+            aria-label="Maximum total redemptions"
+          ></ion-input>
+          <span class="field-hint">Blank is unlimited.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Per customer</span>
+          <ion-input
+            [(ngModel)]="perCustomerLimit"
+            type="number"
+            inputmode="numeric"
+            [min]="0"
+            placeholder="Unlimited"
+            aria-label="Maximum redemptions per customer"
+          ></ion-input>
+          <span class="field-hint">Blank is unlimited.</span>
+        </label>
+      </div>
+
+      <div class="field-pair">
+        <label class="field">
+          <span class="field-label">Starts on</span>
+          <input type="date" class="date-input" [(ngModel)]="startsAtDate" aria-label="Start date" />
+          <span class="field-hint">Blank starts immediately.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Expires on</span>
+          <input type="date" class="date-input" [(ngModel)]="expiresAtDate" aria-label="Expiry date" />
+          <span class="field-hint">Blank never expires.</span>
+        </label>
+      </div>
+
+      <!--
+        Only meaningful when the code already has a usage count. Without one the
+        number is not tracked at all, and saying "0 of 10" would imply a
+        measurement that was never taken.
+      -->
+      @if (originalId() && usageOf() !== null) {
+        <p class="field-hint">This code has been used {{ usageOf() }} time{{ usageOf() === 1 ? '' : 's' }}.</p>
+      }
+
+      <!--
+        The worked example. This is the part the form did not have, and it is the
+        reason an admin gets the discount wrong: "10% off" and "₱50 off" are
+        both incomplete answers. "₱50 off a ₱500 basket" is the question they are
+        actually asking, so it is answered in words while they type — including
+        the case where a minimum order means the voucher does nothing at that
+        basket size.
+      -->
+      @if (example(); as ex) {
+        <div class="example" [class.example--blocked]="ex.belowMinimum">
+          <span class="example-badge"><app-icon name="percent" /></span>
+          @if (ex.belowMinimum) {
+            <p class="example-text">
+              A ₱{{ ex.basket }} order is below the ₱{{ ex.minOrder }} minimum, so this voucher takes nothing off it.
+              The first saving starts at ₱{{ ex.minOrder }}.
+            </p>
+          } @else {
+            <p class="example-text">
+              A ₱{{ ex.basket }} order pays <strong>₱{{ ex.total }}</strong> &mdash; ₱{{ ex.saved }} off.
+            </p>
+          }
+        </div>
+      }
+
       <div class="toggle-row">
-        <span class="field-label">Active</span>
-        <ion-toggle [(ngModel)]="isActive" aria-label="Voucher active"></ion-toggle>
+        <div class="toggle-text">
+          <span class="toggle-title">Active</span>
+          <span class="toggle-sub">Customers can redeem this code.</span>
+        </div>
+        <ion-toggle [(ngModel)]="isActive" aria-label="Voucher is active"></ion-toggle>
       </div>
 
       <div class="editor-actions">
-        <ion-button fill="clear" (click)="cancelEdit()">Cancel</ion-button>
-        <ion-button
-          expand="block"
-          class="save-btn"
-          [disabled]="busyCode() !== null"
-          (click)="save()"
-        >
-          Save voucher
+        <ion-button fill="clear" color="medium" (click)="cancelEdit()">Cancel</ion-button>
+        <ion-button expand="block" [disabled]="busyCode() !== null" (click)="save()" class="save-btn">
+          <app-icon name="save" slot="start" />
+          {{ busyCode() ? 'Saving…' : originalId() ? 'Save changes' : 'Create voucher' }}
         </ion-button>
       </div>
     </section>
   }
 
-  <!-- ── List ─────────────────────────────────────────────────────────── -->
+  <!-- ── Search & filter ──────────────────────────────────────────────── -->
+  @if (!editing()) {
+    <div class="tools">
+      <ion-searchbar
+        placeholder="Search voucher codes"
+        debounce="200"
+        (ionInput)="onQuery($event)"
+        [value]="query()"
+        class="voucher-search"
+        aria-label="Search voucher codes"
+      ></ion-searchbar>
+
+      <div class="tools-row">
+        <button
+          type="button"
+          class="count-chip"
+          [class.count-chip--on]="!showInactiveOnly()"
+          [attr.aria-pressed]="!showInactiveOnly()"
+          (click)="showInactiveOnly() && toggleStatusFilter()"
+        >
+          Active {{ activeCount() }}
+        </button>
+        <button
+          type="button"
+          class="count-chip"
+          [class.count-chip--on]="showInactiveOnly()"
+          [attr.aria-pressed]="showInactiveOnly()"
+          (click)="!showInactiveOnly() && toggleStatusFilter()"
+        >
+          Inactive {{ inactiveCount() }}
+        </button>
+        @if (query() || showInactiveOnly()) {
+          <button type="button" class="clear-btn" (click)="clearFilters()">
+            <app-icon name="x" />
+            Clear
+          </button>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── List ──────────────────────────────────────────────────────────
+    Ticket cards rather than plain rows. A voucher IS a ticket — perforated
+    edge, a code in mono, a dashed stub — and rendering it as a generic list row
+    made the page look like a settings screen instead of the coupon inventory
+    it is. The value is a chip because "10% off" and "₱50 off" are different
+    kinds of thing, and the minimum is a separate chip because it is a
+    condition, not part of the discount.
+  -->
   @if (isLoading()) {
     <div class="list">
-      @for (s of [1, 2, 3]; track s) {
-        <div class="voucher-row">
-          <ion-skeleton-text animated style="height: 20px; width: 45%;"></ion-skeleton-text>
+      @for (s of [1, 2, 3, 4]; track s) {
+        <div class="ticket ticket--skeleton">
+          <ion-skeleton-text animated style="width: 40%; height: 18px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 65%; height: 12px; margin-top: 8px"></ion-skeleton-text>
         </div>
       }
     </div>
   } @else if (vouchers().length === 0) {
-    <!--
-      A fresh install genuinely has no vouchers: there is no seeder, and the
-      hardcoded fallback was removed as a security fix. So this state is expected,
-      not exceptional, and the empty copy says what to do about it.
-    -->
-    <div class="empty">
-      <app-icon name="ticket" />
-      <h2>No vouchers yet</h2>
-      <p>
-        Promo codes you create here appear on the customer dashboard straight away.
-      </p>
-      <ion-button class="save-btn" (click)="startCreate()">
-        <app-icon name="plus" slot="start" />
-        Create the first one
-      </ion-button>
-    </div>
+    <app-empty-state
+      icon="ticket"
+      title="No vouchers yet"
+      message="Create a code to give customers a discount. They can redeem it at checkout."
+      actionLabel="New voucher"
+      (action)="startCreate()"
+    />
+  } @else if (filteredVouchers().length === 0) {
+    <app-empty-state
+      icon="search"
+      title="No matching vouchers"
+      message="No code matches that search or filter."
+      actionLabel="Clear filters"
+      (action)="clearFilters()"
+      [compact]="true"
+    />
   } @else {
     <div class="list">
-      @for (voucher of vouchers(); track voucher.id) {
-        <div class="voucher-row" [class.inactive]="!voucher.isActive">
-          <div class="voucher-info">
-            <span class="voucher-code">{{ voucher.code }}</span>
-            <span class="voucher-desc">
-              {{ describe(voucher) }}
+      @for (voucher of pagedVouchers(); track voucher.id) {
+        <article class="ticket" [class.ticket--inactive]="!voucher.isActive">
+          <div class="ticket-body">
+            <div class="ticket-head">
+              <code class="ticket-code">{{ voucher.code }}</code>
+              <button
+                type="button"
+                class="copy-btn"
+                (click)="copyCode(voucher)"
+                [attr.aria-label]="'Copy code ' + voucher.code"
+              >
+                <app-icon name="copy" />
+              </button>
+            </div>
+
+            <div class="ticket-chips">
+              <span class="v-chip v-chip--value">{{ describe(voucher) }}</span>
               @if (voucher.minOrder) {
-                · min ₱{{ voucher.minOrder }}
+                <span class="v-chip">Min ₱{{ voucher.minOrder }}</span>
               }
-            </span>
+              <span class="v-chip" [class.v-chip--off]="!voucher.isActive">
+                {{ voucher.isActive ? 'Active' : 'Inactive' }}
+              </span>
+
+              <!--
+                Window and cap state. Each of these used to be displayable and
+                unenforced, so a code could read "10 uses left" while checkout
+                had already honoured it past that.
+              -->
+              @if (statsFor(voucher).state === 'scheduled') {
+                <span class="v-chip v-chip--warn">Starts {{ voucher.startsAt | date: 'shortDate' }}</span>
+              }
+              @if (statsFor(voucher).state === 'expired') {
+                <span class="v-chip v-chip--off">Expired</span>
+              }
+              @if (statsFor(voucher).state === 'exhausted') {
+                <span class="v-chip v-chip--warn">Limit reached</span>
+              }
+              @if (voucher.maxRedemptions !== undefined && voucher.maxRedemptions !== null) {
+                <span class="v-chip"> {{ voucher.usageCount ?? 0 }} / {{ voucher.maxRedemptions }} used </span>
+              }
+
+              <!--
+                Performance. "not tracked" rather than "0 uses" for a code with
+                no usageCount — an unmeasured code and an unused one are different
+                statements and only the first is true.
+              -->
+              @if (statsFor(voucher).untracked) {
+                <span class="v-chip v-chip--muted">Usage not tracked</span>
+              } @else if (statsFor(voucher).orders > 0) {
+                <span class="v-chip v-chip--good">
+                  {{ statsFor(voucher).orders }} order{{ statsFor(voucher).orders === 1 ? '' : 's' }} &middot; ₱{{
+                    statsFor(voucher).discountGiven
+                  }}
+                  off
+                </span>
+              }
+            </div>
           </div>
 
-          <div class="voucher-actions">
+          <!-- The perforated edge. Two radial cutouts drawn with radial-gradients
+               rather than an SVG, so it scales with the card and costs nothing
+               to download. -->
+          <span class="ticket-perf" aria-hidden="true"></span>
+
+          <div class="ticket-actions">
             <ion-toggle
               [checked]="voucher.isActive"
               (ionChange)="toggleActive(voucher)"
               [disabled]="busyCode() === voucher.code"
               [attr.aria-label]="(voucher.isActive ? 'Deactivate ' : 'Activate ') + voucher.code"
             ></ion-toggle>
-            <ion-button fill="clear" size="small" (click)="startEdit(voucher)">
-              Edit
-            </ion-button>
-            <ion-button
-              fill="clear"
-              size="small"
-              color="danger"
+
+            <button
+              type="button"
+              class="icon-btn"
+              (click)="startEdit(voucher)"
+              [attr.aria-label]="'Edit ' + voucher.code"
+            >
+              <app-icon name="pencil" />
+            </button>
+
+            <button
+              type="button"
+              class="icon-btn icon-btn--danger"
               (click)="remove(voucher)"
               [attr.aria-label]="'Delete ' + voucher.code"
             >
               <app-icon name="trash" />
-            </ion-button>
+            </button>
           </div>
-        </div>
+        </article>
       }
     </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="filteredVouchers().length"
+      [pageSize]="PAGE_SIZE"
+      itemLabel="vouchers"
+      (pageChange)="onPageChange($event)"
+    />
   }
 </ion-content>
+
+<app-footer></app-footer>

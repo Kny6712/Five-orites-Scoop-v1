@@ -5,9 +5,20 @@ import { Component, Input, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonButton, IonList, IonItem,
-  IonSelect, IonSelectOption, IonInput, IonTextarea, ModalController, ToastController,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonButton,
+  IonList,
+  IonItem,
+  IonSelect,
+  IonSelectOption,
+  IonInput,
+  IonTextarea,
+  ModalController,
+  ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { InventoryService } from '../../core/services/inventory.service';
@@ -25,11 +36,22 @@ interface SelectOption {
   selector: 'app-add-product-modal',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonButton, IonList, IonItem,
-    IonSelect, IonSelectOption, IonInput, IonTextarea,
-    AppIconComponent],
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonButton,
+    IonList,
+    IonItem,
+    IonSelect,
+    IonSelectOption,
+    IonInput,
+    IonTextarea,
+    AppIconComponent,
+  ],
   template: `
     <ion-header>
       <ion-toolbar color="primary">
@@ -162,38 +184,94 @@ interface SelectOption {
           </ion-button>
         }
         @if (!uploadService.isConfigured) {
-          <p class="config-hint">⚠️ Cloudinary is not set up yet — fill cloudName + uploadPreset in environment.ts to enable image uploads.</p>
+          <p class="config-hint">
+            ⚠️ Cloudinary is not set up yet — fill cloudName + uploadPreset in environment.ts to
+            enable image uploads.
+          </p>
         }
       </ion-list>
 
-      <ion-button
-        expand="block"
-        (click)="create()"
-        [disabled]="isSaving"
-        class="create-btn"
-      >
-        {{ isUploading ? 'Uploading image…' : isSaving ? 'Creating…' : isNewSet ? 'Create New Set' : 'Create Product' }}
+      <ion-button expand="block" (click)="create()" [disabled]="isSaving" class="create-btn">
+        {{
+          isUploading
+            ? 'Uploading image…'
+            : isSaving
+              ? 'Creating…'
+              : isNewSet
+                ? 'Create New Set'
+                : 'Create Product'
+        }}
       </ion-button>
     </ion-content>
   `,
-  styles: [`
-    .create-btn { --background: var(--color-brand-primary); --border-radius: 10px; font-weight: 700; margin-top: 16px; }
-    .section-title { font-size: 14px; font-weight: 800; color: var(--ion-color-dark); margin: 18px 2px 4px; }
-    .img-box {
-      position: relative; min-height: 180px; border-radius: 14px; overflow: hidden; cursor: pointer;
-      border: 2px dashed var(--ion-color-medium, #999); background: var(--ion-color-light);
-      display: flex; align-items: center; justify-content: center; margin: 4px 2px 0;
-    }
-    .img-box-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 12px; color: var(--ion-color-medium); font-size: 13px; font-weight: 600; text-align: center; }
-    .img-box-icon { font-size: 44px; }
-    .img-box-fill { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-    .img-box-change {
-      position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-      background: rgba(0,0,0,0.65); color: #fff; font-size: 12px; font-weight: 600;
-      padding: 4px 14px; border-radius: 20px; white-space: nowrap;
-    }
-    .config-hint { font-size: 12px; color: var(--ion-color-warning-shade, #9a6b00); margin: 6px 2px 0; }
-  `],
+  styles: [
+    `
+      .create-btn {
+        --background: var(--color-brand-primary);
+        --border-radius: 10px;
+        font-weight: 700;
+        margin-top: 16px;
+      }
+      .section-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: var(--ion-color-dark);
+        margin: 18px 2px 4px;
+      }
+      .img-box {
+        position: relative;
+        min-height: 180px;
+        border-radius: 14px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 2px dashed var(--ion-color-medium, #999);
+        background: var(--ion-color-light);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 4px 2px 0;
+      }
+      .img-box-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 28px 12px;
+        color: var(--ion-color-medium);
+        font-size: 13px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .img-box-icon {
+        font-size: 44px;
+      }
+      .img-box-fill {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .img-box-change {
+        position: absolute;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.65);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 14px;
+        border-radius: 20px;
+        white-space: nowrap;
+      }
+      .config-hint {
+        font-size: 12px;
+        color: var(--ion-color-warning-shade, #9a6b00);
+        margin: 6px 2px 0;
+      }
+    `,
+  ],
 })
 export class AddProductModalComponent {
   private inventoryService = inject(InventoryService);
@@ -202,7 +280,12 @@ export class AddProductModalComponent {
   readonly uploadService = inject(ImageUploadService);
 
   @Input() maxSetNumber: number = 8;
-  @Input() variants: { setNumber: number; setName: string; variantName: string; isActive: boolean }[] = [];
+  @Input() variants: {
+    setNumber: number;
+    setName: string;
+    variantName: string;
+    isActive: boolean;
+  }[] = [];
 
   /**
    * Built-in sets merged with any admin-created set present in the catalog.
@@ -226,9 +309,11 @@ export class AddProductModalComponent {
 
   /** Display name for a set number, including admin-created sets. */
   setNameFor(setNumber: number): string {
-    return this.sets.find((s) => s.value === String(setNumber))?.label
-      ?? SET_NAMES[setNumber]
-      ?? `Set ${setNumber}`;
+    return (
+      this.sets.find((s) => s.value === String(setNumber))?.label ??
+      SET_NAMES[setNumber] ??
+      `Set ${setNumber}`
+    );
   }
 
   selectedSet: string = '1';
@@ -253,7 +338,6 @@ export class AddProductModalComponent {
   isSaving = false;
   isUploading = false;
 
-
   get isNewSet(): boolean {
     return this.selectedSet === 'new';
   }
@@ -264,9 +348,7 @@ export class AddProductModalComponent {
 
   get availableVariants(): string[] {
     const set = Number(this.selectedSet) || 0;
-    const names = this.variants
-      .filter((v) => v.setNumber === set)
-      .map((v) => v.variantName);
+    const names = this.variants.filter((v) => v.setNumber === set).map((v) => v.variantName);
     return [...new Set(names)].sort((a, b) => a.localeCompare(b));
   }
 
@@ -353,7 +435,7 @@ export class AddProductModalComponent {
         if (!this.isVariantActive(variant)) {
           await this.toast(
             `"${variant}" is deactivated. Switch it back on from the inventory list instead of creating a duplicate.`,
-            'danger'
+            'danger',
           );
           return;
         }
@@ -386,7 +468,7 @@ export class AddProductModalComponent {
         this.isNewSet
           ? `✅ Set ${setNumber} · ${setName} created. Set its stock next.`
           : '✅ Product created. Set its stock next.',
-        'success'
+        'success',
       );
       await this.modalCtrl.dismiss({ created: true });
     } catch (err: unknown) {

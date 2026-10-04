@@ -29,12 +29,137 @@
   </section>
 
   <div class="about-body">
-    <!-- ── Our story ────────────────────────────────────────────────────── -->
+    <!-- ── Our story ──────────────────────────────────────────────────────
+      The heading is centred, and the story runs beside a photo of the shop and
+      a map of where it is.
+
+      That pairing is the point of the section. "How Our Business Started" is the
+      one heading on this page that describes a place, and it was a block of
+      centred-less text with no picture of anywhere — the page had exactly one
+      image on it, the logo in the hero. Putting the address next to the founding
+      story means the reader learns where this actually is in the same breath as
+      why it exists. -->
     <section class="story-section">
-      <h2 class="section-heading">{{ story.heading }}</h2>
-      @for (paragraph of story.paragraphs; track $index) {
-        <p class="story-text">{{ paragraph }}</p>
-      }
+      <h2 class="section-heading section-heading--center">{{ story.heading }}</h2>
+
+      <div class="story-split">
+        <div class="story-copy">
+          @for (paragraph of story.paragraphs; track $index) {
+            <p class="story-text">{{ paragraph }}</p>
+          }
+        </div>
+
+        <div class="story-aside">
+          <figure class="store-figure">
+            <!--
+              The shop. Authored as inline SVG rather than a photograph because
+              there is no photograph of a shop that does not exist yet — the
+              placeholder this replaces was the generic bowl logo, which says
+              nothing about a location. This is a storefront, so it can be themed
+              to the palette and it is honest about being an illustration.
+            -->
+            <svg
+              class="store-art"
+              viewBox="0 0 320 200"
+              role="img"
+              aria-label="Illustration of the Five-orites Scoop storefront"
+            >
+              <defs>
+                <linearGradient id="ab-sky" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#e4f1f8" />
+                  <stop offset="100%" stop-color="#f4fbfe" />
+                </linearGradient>
+              </defs>
+              <rect width="320" height="200" fill="url(#ab-sky)" />
+
+              <!-- pavement -->
+              <rect y="168" width="320" height="32" fill="#e8eef9" />
+
+              <!-- building -->
+              <rect x="44" y="66" width="232" height="102" rx="6" fill="#ffffff" stroke="#cfe0ec" stroke-width="2" />
+
+              <!-- awning: mint and white stripes, the shop's actual pattern -->
+              <g>
+                <rect x="36" y="52" width="248" height="26" rx="4" fill="#5fd9b4" />
+                <g fill="#ffffff" opacity="0.85">
+                  <rect x="66" y="52" width="22" height="26" />
+                  <rect x="110" y="52" width="22" height="26" />
+                  <rect x="154" y="52" width="22" height="26" />
+                  <rect x="198" y="52" width="22" height="26" />
+                  <rect x="242" y="52" width="22" height="26" />
+                </g>
+                <rect x="36" y="74" width="248" height="6" fill="#1b5e7e" opacity="0.16" />
+              </g>
+
+              <!-- sign -->
+              <rect x="96" y="30" width="128" height="24" rx="12" fill="#8ecae6" stroke="#1b5e7e" stroke-width="1.5" />
+              <text
+                x="160"
+                y="46"
+                text-anchor="middle"
+                font-family="Fredoka, Trebuchet MS, sans-serif"
+                font-size="12"
+                font-weight="700"
+                fill="#1b5e7e"
+              >
+                FIVE-ORITES
+              </text>
+
+              <!-- window with a cone -->
+              <rect x="60" y="94" width="86" height="58" rx="4" fill="#e4f1f8" stroke="#cfe0ec" stroke-width="2" />
+              <g transform="translate(103 138)">
+                <path d="M-13 -20h26l-13 26z" fill="#f6e0c4" />
+                <circle cx="0" cy="-24" r="8" fill="#ffc53d" />
+              </g>
+
+              <!-- door -->
+              <rect x="166" y="96" width="48" height="72" rx="3" fill="#f4fbfe" stroke="#cfe0ec" stroke-width="2" />
+              <circle cx="205" cy="134" r="2.5" fill="#1b5e7e" />
+
+              <!-- opening hours on the door -->
+              <rect x="176" y="106" width="28" height="3" rx="1.5" fill="#8ecae6" />
+              <rect x="176" y="113" width="22" height="3" rx="1.5" fill="#8ecae6" opacity="0.7" />
+
+              <!-- plant either side -->
+              <g>
+                <rect x="48" y="150" width="8" height="18" fill="#c9a882" />
+                <circle cx="52" cy="146" r="10" fill="#5fd9b4" />
+                <rect x="264" y="150" width="8" height="18" fill="#c9a882" />
+                <circle cx="268" cy="146" r="10" fill="#5fd9b4" />
+              </g>
+            </svg>
+            <figcaption class="store-caption">{{ shop.address }}</figcaption>
+          </figure>
+
+          <figure class="store-figure store-figure--map">
+            <app-scoop-map
+              [markers]="shopMarkers"
+              height="200px"
+              ariaLabel="Map showing the location of Five-orites Scoop in Cainta, Rizal"
+            />
+            <figcaption class="store-caption">
+              <a [href]="shop.mapsUrl" target="_blank" rel="noopener" class="map-link">
+                <app-icon name="external-link" />
+                Open in Maps
+              </a>
+            </figcaption>
+          </figure>
+
+          <p class="store-hours">
+            <app-icon name="clock" />
+            <span>Weekdays {{ hours.weekdays }} &middot; Weekends {{ hours.weekends }}</span>
+          </p>
+          <!-- Whole row hidden while empty: `SHOP_HOURS.phone` is '' and an admin
+               may never have filled the setting in, and printing an empty line
+               reads as a bug rather than as absent information. -->
+          @if (contactPhone()) {
+            <p class="store-hours">
+              <app-icon name="phone" />
+              <a [href]="'tel:' + contactPhone()">{{ contactPhone() }}</a>
+            </p>
+          }
+        </div>
+      </div>
 
       <!--
         The name etymology, lifted out of the middle of the story paragraph. It is
@@ -132,9 +257,9 @@
 
     <div class="team-cta">
       <p class="team-cta-text">Curious who built this?</p>
-      <ion-button [routerLink]="'/developers'" fill="outline" class="team-cta-btn">
-        Meet the Team
-      </ion-button>
+      <ion-button [routerLink]="'/developers'" fill="outline" class="team-cta-btn"> Meet the Team </ion-button>
     </div>
   </div>
 </ion-content>
+
+<app-footer></app-footer>

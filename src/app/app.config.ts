@@ -1,22 +1,23 @@
 // src/app/app.config.ts
 // Five-orites Scoop — Angular Application Configuration
 
-import { ApplicationConfig, inject } from '@angular/core';
-import {
-  provideRouter,
-  withPreloading,
-  PreloadingStrategy,
-  Route,
-} from '@angular/router';
+import { ApplicationConfig, inject, Injectable } from '@angular/core';
+import { provideRouter, withPreloading, PreloadingStrategy, Route } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { provideIonicAngular } from '@ionic/angular/standalone';
-import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
-import { getFirestore, provideFirestore } from '@angular/fire/firestore';
+import { getApp, initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  provideFirestore,
+} from '@angular/fire/firestore';
 import { getAuth, provideAuth } from '@angular/fire/auth';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { routes } from './app.routes';
 import { AuthService } from './core/services/auth.service';
+import { isStaffRole } from './core/models/user.model';
 import { environment } from '../environments/environment';
 
 /**
@@ -61,6 +62,7 @@ function collectAdminLoaders(config: Route[], into: Set<unknown>, underAdmin = f
  * the preloader re-runs on every navigation, an admin who signs in mid-session
  * still gets the admin chunks preloaded on their next navigation.
  */
+@Injectable({ providedIn: 'root' })
 class AdminAwarePreloadingStrategy implements PreloadingStrategy {
   private authService = inject(AuthService);
   private adminLoaders = new Set<unknown>();
@@ -77,7 +79,7 @@ class AdminAwarePreloadingStrategy implements PreloadingStrategy {
   /** Unresolved user counts as "not an admin" — see the class comment. */
   private isAdminUser(): boolean {
     try {
-      return this.authService.currentUserSnapshot?.role === 'admin';
+      return isStaffRole(this.authService.currentUserSnapshot?.role);
     } catch {
       // AuthService not resolvable from this injector, or Firebase config
       // missing. Skip the preload rather than guess.
@@ -105,7 +107,29 @@ export const appConfig: ApplicationConfig = {
       backButtonText: '',
     }),
     provideFirebaseApp(() => initializeApp(environment.firebase)),
-    provideFirestore(() => getFirestore()),
+    // initializeFirestore, NOT getFirestore.
+    //
+    // `getFirestore()` always comes up in memory-only mode, so every product,
+    // price and stock read needed the network. Offline, the storefront was empty
+    // and the cart could not show what it already held in localStorage — while
+    // CartService and WishlistService both advertise that they work offline.
+    //
+    // `persistentLocalCache` is the modern form: it uses IndexedDB where
+    // available and falls back to memory automatically, and it does not throw on
+    // a private-mode browser the way `enableIndexedDbPersistence()` does.
+    // `persistentMultipleTabManager` is included so two open tabs share one cache
+    // over BroadcastChannel rather than each holding a stale copy that overwrites
+    // the other's writes.
+    //
+    // It MUST be initializeFirestore: persistence cannot be attached after the
+    // instance exists, so getFirestore() here would silently do nothing.
+    provideFirestore(() =>
+      initializeFirestore(getApp(), {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      }),
+    ),
     provideAuth(() => getAuth()),
   ],
 };

@@ -1,11 +1,31 @@
-# Five-orites Scoop — Refactor & Bug-Fix Plan
+Pro# Five-orites Scoop — Refactor & Bug-Fix Plan
 
 Scope: remove dead code, consolidate duplicated config, and fix the critical
 correctness/security/deploy bugs found during the `repomix-output.xml` review.
 No new features. No new paid services.
 
-**Assumption:** client-only (no Cloud Functions). One item (#3) has a stronger
-fix that needs Cloud Functions — flagged as optional.
+> ### ⚠ HISTORICAL DOCUMENT — READ `CUTOVER.md` INSTEAD
+>
+> **The assumption below is false.** This plan was written for a client-only app
+> with no Cloud Functions. `functions/` now exists and owns stock reservation,
+> order pricing, and voucher redemption — and it is **written but not deployed**.
+>
+> Nearly all of this plan is done (Phases 0–6 were largely executed). What it
+> cannot describe is the thing that matters now: a **half-finished migration**
+> where the client has stopped writing stock but the server-side replacement is
+> not live, which means sales currently do not decrement inventory.
+>
+> Do not work from this file. Use:
+>
+> - **`CUTOVER.md`** — the stock cutover, which is the current blocker
+> - **`README.md` → "Known limitations"** — what is and is not true today
+>
+> The phase structure below is kept for history only. Statements like "out of
+> scope for a client-only pass" were accurate when written and are now wrong.
+
+**Assumption (as originally written, and now false):** client-only (no Cloud
+Functions). One item (#3) has a stronger fix that needs Cloud Functions — flagged
+as optional.
 
 ---
 
@@ -30,12 +50,12 @@ Record the output. If `npm install` fails on peer deps, use `--legacy-peer-deps`
 
 These are small, and nothing after Phase 1 can be verified without them.
 
-| # | File | Change |
-|---|------|--------|
-| 1 | `firebase.json` | `hosting.public`: `"www"` → `"www/browser"` (Angular 17 `application` builder emits to `www/browser`; `www/index.html` does not exist) |
-| 2 | `capacitor.config.ts` | `webDir`: `'www'` → `'www/browser'` |
-| 3 | `angular.json` | Add `fileReplacements` to the `production` configuration so `environment.prod.ts` is actually used |
-| 4 | `package.json` | `"test": "ng test"` and `"lint": "ng lint"` reference targets that **do not exist** in `angular.json`. Remove both until real targets are added in Phase 5. |
+| #   | File                  | Change                                                                                                                                                      |
+| --- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `firebase.json`       | `hosting.public`: `"www"` → `"www/browser"` (Angular 17 `application` builder emits to `www/browser`; `www/index.html` does not exist)                      |
+| 2   | `capacitor.config.ts` | `webDir`: `'www'` → `'www/browser'`                                                                                                                         |
+| 3   | `angular.json`        | Add `fileReplacements` to the `production` configuration so `environment.prod.ts` is actually used                                                          |
+| 4   | `package.json`        | `"test": "ng test"` and `"lint": "ng lint"` reference targets that **do not exist** in `angular.json`. Remove both until real targets are added in Phase 5. |
 
 **Verify:** `npm run build` → confirm `www/browser/index.html` exists.
 
@@ -107,7 +127,7 @@ try {
 }
 ```
 
-Also fixes the mirror case in `cancelOrder()`: restock currently runs *before*
+Also fixes the mirror case in `cancelOrder()`: restock currently runs _before_
 the status update, so a failed update double-restockes. Reorder so the status
 write commits first, then restock.
 
@@ -150,15 +170,15 @@ templates to it instead of a literal.
 
 ## Phase 3 — UI / logic bugs
 
-| # | File | Bug | Fix |
-|---|------|-----|-----|
-| 3.1 | `app.component.html:8375` | `<img src="">` — empty `src` renders a broken image and can re-request the page | Point at `assets/placeholder-scoop.svg` |
-| 3.2 | `order-status-badge.component.ts:46` | `out_for_delivery: 'tertiary'` — `--ion-color-tertiary` is never defined in `theme/variables.scss`, so the chip renders uncoloured. (`developers.page.ts:75` also uses `tertiary`.) | Add an `--ion-color-tertiary` token to `variables.scss` |
-| 3.3 | `app.component.ts` + `.html` | `NavItem.role` is declared but never used for filtering, so signed-out guests see "My Cart" / "My Orders" and get bounced to `/auth` | Actually filter by `role` (use the field, don't delete it) |
-| 3.4 | `admin/inventory/inventory.page.ts` | `saveStock()` issues 4 sequential transactions; the edit modal uses the atomic `updateStocks()` for the same job | Call `updateStocks()` once |
-| 3.5 | `add-product-modal.component.ts` | Dropdown lists only `SET_NAMES` 1–8, but a new set is assigned `maxSetNumber + 1`. Custom sets are unselectable and can collide | Build the option list from loaded products ∪ `SET_NAMES`, so admin-created sets appear |
-| 3.6 | `admin/orders/admin-orders.page.ts` | `filteredOrders` is an arrow property, not `computed()` — recomputes every CD cycle, inconsistent with every other page | Convert to `computed()` |
-| 3.7 | `index.html:9163` | `<link rel="shortcut icon" type="image/png" href="favicon.ico" />` — MIME says PNG, file is ICO | `type="image/x-icon"` |
+| #   | File                                 | Bug                                                                                                                                                                                 | Fix                                                                                    |
+| --- | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| 3.1 | `app.component.html:8375`            | `<img src="">` — empty `src` renders a broken image and can re-request the page                                                                                                     | Point at `assets/placeholder-scoop.svg`                                                |
+| 3.2 | `order-status-badge.component.ts:46` | `out_for_delivery: 'tertiary'` — `--ion-color-tertiary` is never defined in `theme/variables.scss`, so the chip renders uncoloured. (`developers.page.ts:75` also uses `tertiary`.) | Add an `--ion-color-tertiary` token to `variables.scss`                                |
+| 3.3 | `app.component.ts` + `.html`         | `NavItem.role` is declared but never used for filtering, so signed-out guests see "My Cart" / "My Orders" and get bounced to `/auth`                                                | Actually filter by `role` (use the field, don't delete it)                             |
+| 3.4 | `admin/inventory/inventory.page.ts`  | `saveStock()` issues 4 sequential transactions; the edit modal uses the atomic `updateStocks()` for the same job                                                                    | Call `updateStocks()` once                                                             |
+| 3.5 | `add-product-modal.component.ts`     | Dropdown lists only `SET_NAMES` 1–8, but a new set is assigned `maxSetNumber + 1`. Custom sets are unselectable and can collide                                                     | Build the option list from loaded products ∪ `SET_NAMES`, so admin-created sets appear |
+| 3.6 | `admin/orders/admin-orders.page.ts`  | `filteredOrders` is an arrow property, not `computed()` — recomputes every CD cycle, inconsistent with every other page                                                             | Convert to `computed()`                                                                |
+| 3.7 | `index.html:9163`                    | `<link rel="shortcut icon" type="image/png" href="favicon.ico" />` — MIME says PNG, file is ICO                                                                                     | `type="image/x-icon"`                                                                  |
 
 ---
 
@@ -166,18 +186,18 @@ templates to it instead of a literal.
 
 **Delete (verified zero references):**
 
-| Symbol | Location |
-|--------|----------|
-| `StockHistoryEntry` interface | `core/models/product.model.ts` |
-| `ProductFilter.minPrice` / `.maxPrice` | `core/models/product.model.ts` |
-| `Order.paymentReference` | `core/models/order.model.ts` |
-| `CartService.hasItem()` | `core/services/cart.service.ts` |
-| `InventoryService.getProductsBySet()` | `core/services/inventory.service.ts` |
-| `StockStatusPipe` (+ its export) | `shared/pipes/stock-status.pipe.ts` — imported by `product-detail.page.ts` but never used in any template |
-| `AnalyticsPage` `activeOrders`, `cancelledOrders`, `pendingOrders` computeds | `admin/analytics/analytics.page.ts` — not referenced in the template |
-| `InventoryPage` `isLowStock()` / `isOutOfStock()` | `admin/inventory/inventory.page.ts` — template uses inline class bindings |
-| `environment.deliveryFeePhp`, `environment.freeDeliveryThresholdPhp` | all 3 environment files — **never read**; `cart.model.ts` hardcodes 50/500 |
-| Unused imports `IonHeader, IonToolbar, IonTitle, IonNote`, `personCircleOutline` | `app.component.ts` |
+| Symbol                                                                           | Location                                                                                                  |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `StockHistoryEntry` interface                                                    | `core/models/product.model.ts`                                                                            |
+| `ProductFilter.minPrice` / `.maxPrice`                                           | `core/models/product.model.ts`                                                                            |
+| `Order.paymentReference`                                                         | `core/models/order.model.ts`                                                                              |
+| `CartService.hasItem()`                                                          | `core/services/cart.service.ts`                                                                           |
+| `InventoryService.getProductsBySet()`                                            | `core/services/inventory.service.ts`                                                                      |
+| `StockStatusPipe` (+ its export)                                                 | `shared/pipes/stock-status.pipe.ts` — imported by `product-detail.page.ts` but never used in any template |
+| `AnalyticsPage` `activeOrders`, `cancelledOrders`, `pendingOrders` computeds     | `admin/analytics/analytics.page.ts` — not referenced in the template                                      |
+| `InventoryPage` `isLowStock()` / `isOutOfStock()`                                | `admin/inventory/inventory.page.ts` — template uses inline class bindings                                 |
+| `environment.deliveryFeePhp`, `environment.freeDeliveryThresholdPhp`             | all 3 environment files — **never read**; `cart.model.ts` hardcodes 50/500                                |
+| Unused imports `IonHeader, IonToolbar, IonTitle, IonNote`, `personCircleOutline` | `app.component.ts`                                                                                        |
 
 **Also:** the `analytics` collection block in `firestore.rules` — nothing in the
 app reads or writes it. Remove, or keep as a placeholder for the documented

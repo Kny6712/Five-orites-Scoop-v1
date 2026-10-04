@@ -13,12 +13,11 @@
 </ion-header>
 
 <ion-content fullscreen>
-
   <!-- Loading -->
   @if (isLoading()) {
     <div class="tracker-body">
-      <ion-skeleton-text animated style="height:20px; width:50%; margin-bottom:8px;"></ion-skeleton-text>
-      <ion-skeleton-text animated style="height:160px; border-radius:14px;"></ion-skeleton-text>
+      <ion-skeleton-text animated style="height: 20px; width: 50%; margin-bottom: 8px"></ion-skeleton-text>
+      <ion-skeleton-text animated style="height: 160px; border-radius: 14px"></ion-skeleton-text>
     </div>
   }
 
@@ -32,7 +31,6 @@
   <!-- Tracker Content -->
   @if (!isLoading() && order()) {
     <div class="tracker-body">
-
       <!-- Order ID + Date -->
       <div class="order-header">
         <div>
@@ -110,8 +108,7 @@
             <p class="map-note">Looking up your address…</p>
           } @else if (geoUnavailable()) {
             <p class="map-note">
-              We couldn't place your address on the map, but your delivery details
-              below are up to date.
+              We couldn't place your address on the map, but your delivery details below are up to date.
             </p>
           } @else if (courierProgress() !== null) {
             <p class="map-note">
@@ -130,12 +127,7 @@
           @if (order()!.notes) {
             <p class="info-notes">Note: {{ order()!.notes }}</p>
           }
-          <a
-            class="address-link"
-            [href]="shopMapsUrl + '&q=' + order()!.deliveryAddress"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a class="address-link" [href]="deliveryMapsUrl()" target="_blank" rel="noopener noreferrer">
             <app-icon name="map-pin" />
             Open in Maps
           </a>
@@ -162,7 +154,7 @@
             @if ((order()!.discountAmount ?? 0) > 0) {
               <div class="total-row">
                 <span>Voucher {{ order()!.voucherCode }}</span>
-                <span>-{{ (order()!.discountAmount ?? 0) | peso }}</span>
+                <span>-{{ order()!.discountAmount ?? 0 | peso }}</span>
               </div>
             }
             <div class="total-row">
@@ -176,8 +168,8 @@
           </div>
         </ion-card-content>
       </ion-card>
-
     </div>
   }
-
 </ion-content>
+
+<app-footer></app-footer>

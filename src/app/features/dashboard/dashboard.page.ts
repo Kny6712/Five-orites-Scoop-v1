@@ -4,31 +4,48 @@
 
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router, RouterLink } from '@angular/router';
+import { RouterLink } from '@angular/router';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-  IonButton, IonText, IonSkeletonText,
-  IonChip, IonLabel, IonRefresher, IonRefresherContent, IonToggle,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonCard,
+  IonCardContent,
+  IonCardHeader,
+  IonCardTitle,
+  IonButton,
+  IonText,
+  IonSkeletonText,
+  IonChip,
+  IonLabel,
+  IonRefresher,
+  IonRefresherContent,
+  IonToggle,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { VoucherCardsComponent } from './voucher-cards/voucher-cards.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
-import { Subscription, combineLatest, catchError, of, Observable } from 'rxjs';
+import { Subscription, catchError, of, Observable } from 'rxjs';
 import { AuthService } from '../../core/services/auth.service';
 import { InventoryService } from '../../core/services/inventory.service';
 import { OrderService } from '../../core/services/order.service';
 import { NotificationService } from '../../core/services/notification.service';
-import { LOW_STOCK_THRESHOLD } from '../../core/config/stock.config';
+import { ShopSettingsService } from '../../core/services/shop-settings.service';
 import { describeFirestoreError } from '../../core/logic/firestore-error';
 import { Product } from '../../core/models/product.model';
 import { Order } from '../../core/models/order.model';
-import { AppUser } from '../../core/models/user.model';
+import { AppUser, isStaffRole } from '../../core/models/user.model';
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
+
 import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
+import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -36,16 +53,38 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
   selector: 'app-dashboard',
   standalone: true,
   imports: [
-    CommonModule, RouterLink,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonGrid, IonRow, IonCol,
-    IonCard, IonCardContent, IonCardHeader, IonCardTitle,
-    IonButton, IonText, IonSkeletonText,
-    IonChip, IonLabel,
-    IonRefresher, IonRefresherContent, IonToggle,
-    ProductCardComponent, OrderStatusBadgeComponent, PesoPipe, CartButtonComponent,
-    AppIconComponent, VoucherCardsComponent, AlertBannerComponent],
+    CommonModule,
+    RouterLink,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonCard,
+    IonCardContent,
+    IonCardHeader,
+    IonCardTitle,
+    IonButton,
+    IonText,
+    IonSkeletonText,
+    IonChip,
+    IonLabel,
+    IonRefresher,
+    IonRefresherContent,
+    IonToggle,
+    ProductCardComponent,
+    OrderStatusBadgeComponent,
+    PesoPipe,
+    PaginationComponent,
+    AppFooterComponent,
+    AppIconComponent,
+    VoucherCardsComponent,
+    AlertBannerComponent,
+  ],
   templateUrl: './dashboard.page.html',
   styleUrls: ['./dashboard.page.scss'],
 })
@@ -54,11 +93,10 @@ export class DashboardPage implements OnInit, OnDestroy {
   private inventoryService = inject(InventoryService);
   private orderService = inject(OrderService);
   private notifService = inject(NotificationService);
-  private router = inject(Router);
   private subs: Subscription[] = [];
 
   currentUser = signal<AppUser | null>(null);
-  isAdmin = computed(() => this.currentUser()?.role === 'admin');
+  isAdmin = computed(() => isStaffRole(this.currentUser()?.role));
   isLoading = signal(true);
   /**
    * Set when any dashboard feed fails. Non-empty means "we could not read
@@ -82,30 +120,94 @@ export class DashboardPage implements OnInit, OnDestroy {
   totalOrderCount = signal(0);
   adminRecentOrders = signal<Order[]>([]);
   lowStockProducts = signal<Product[]>([]);
-  readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
+
+  /**
+   * The admin-editable threshold, not the build constant.
+   *
+   * Read from the same service `InventoryService.subscribeToLowStock()` uses, so
+   * the count on screen and the rows in the low-stock panel can never disagree
+   * about what "low" means.
+   */
+  readonly shop = inject(ShopSettingsService);
+  readonly lowStockThreshold = computed(() => this.shop.lowStockThreshold());
+
+  /**
+   * Recent Orders paging.
+   *
+   * This list was a hard `.slice(0, 10)` with no pager, so an admin with 40
+   * orders had no way to see the 11th-most-recent from this page at all — the
+   * only route was "View All" into the fulfillment queue, which is a different
+   * task with different controls. Ten a page keeps the whole list reachable
+   * here without turning the dashboard into a table, and matches the 10–12 band
+   * every list in the app now pages at so the rows-per-page does not read as a
+   * different app depending on where you are.
+   *
+   * The underlying fetch is unchanged: getAllOrders() is capped at 100 by the
+   * service, so the pager pages what was fetched rather than fetching more. That
+   * is the right trade for a dashboard — it is a "what needs attention now"
+   * surface, and the fulfillment queue is the exhaustive one.
+   */
+  readonly RECENT_PAGE_SIZE = 10;
+  readonly recentPage = signal(1);
+
+  readonly pagedRecentOrders = computed(() => {
+    const start = (this.recentPage() - 1) * this.RECENT_PAGE_SIZE;
+    return this.adminRecentOrders().slice(start, start + this.RECENT_PAGE_SIZE);
+  });
+
+  /**
+   * Low stock paging.
+   *
+   * Same reasoning as the orders panel above, applied to the other list on this
+   * page: a shop with thirty flavors under the threshold rendered thirty rows of
+   * near-identical chips, and a restock is easier to work through a screen at a
+   * time. It is sorted worst-first (see loadAdminDashboard), so paging keeps
+   * that order — the flavors that will sell out today are still the first thing
+   * on page 1.
+   *
+   * CLIENT-SIDE, AND THE READ IS DELIBERATELY UNCAPPED. `subscribeToLowStock` is
+   * a live listener over every product, not a `limit()` query, so the panel is
+   * already reading all of them; slicing here costs nothing and hides nothing. The
+   * alternative — asking the service for one page at a time — would either lose
+   * the live updates that make the panel worth having, or make it a different
+   * kind of list than the one the KPI count above it describes.
+   */
+  readonly LOW_STOCK_PAGE_SIZE = 12;
+  readonly lowStockPage = signal(1);
+
+  readonly pagedLowStock = computed(() => {
+    const start = (this.lowStockPage() - 1) * this.LOW_STOCK_PAGE_SIZE;
+    return this.lowStockProducts().slice(start, start + this.LOW_STOCK_PAGE_SIZE);
+  });
 
   constructor() {
-
-    this.authService.currentUser$
-      .pipe(takeUntilDestroyed())
-      .subscribe((user) => {
-        const wasAdmin = this.isAdmin();
-        this.currentUser.set(user);
-        // Reload when role resolves (fixes admin seeing customer view on refresh).
-        if (user && this.isAdmin() !== wasAdmin) {
-          this.loadDashboard();
-        } else if (user && this.featuredProducts().length === 0 && this.adminRecentOrders().length === 0) {
-          this.loadDashboard();
-        }
-      });
+    this.authService.currentUser$.pipe(takeUntilDestroyed()).subscribe((user) => {
+      const wasAdmin = this.isAdmin();
+      this.currentUser.set(user);
+      // Reload when role resolves (fixes admin seeing customer view on refresh).
+      if (user && this.isAdmin() !== wasAdmin) {
+        this.loadDashboard();
+      } else if (
+        user &&
+        this.featuredProducts().length === 0 &&
+        this.adminRecentOrders().length === 0
+      ) {
+        this.loadDashboard();
+      }
+    });
   }
 
   ngOnInit(): void {
+    // Live so the banner and the low-stock threshold react to an admin saving
+    // without a reload. `watch()` drops any previous listener first, so a
+    // re-entry cannot stack subscriptions.
+    this.shop.watch();
     this.loadDashboard();
   }
 
   ngOnDestroy(): void {
     this.subs.forEach((s) => s.unsubscribe());
+    this.shop.stop();
   }
 
   loadDashboard(): void {
@@ -168,10 +270,20 @@ export class DashboardPage implements OnInit, OnDestroy {
     // Recent orders
     const uid = this.currentUser()?.uid;
     if (uid) {
+      // Capped at exactly what is rendered. This was `getCustomerOrders(uid)`
+      // followed by `.slice(0, 3)`, which subscribed to the newest 50 orders and
+      // then discarded 47 of them — 50 document reads per emission to draw three
+      // rows, on a dashboard that is refreshed often. `getCustomerOrders` already
+      // applies `orderBy('createdAt', 'desc')` BEFORE `limit()`, so asking for 3
+      // returns the same three the slice did.
+      //
+      // The orders page reads the same collection separately for its own list,
+      // which is a second listener rather than a shared one. Worth folding into
+      // one subscription if this ever shows up in a bill.
       const s2 = this.orderService
-        .getCustomerOrders(uid)
+        .getCustomerOrders(uid, 3)
         .pipe(catchError((err) => this.feedFailed('your recent orders', err)))
-        .subscribe((orders) => this.recentOrders.set(orders.slice(0, 3)));
+        .subscribe((orders) => this.recentOrders.set(orders));
       this.subs.push(s2);
     }
   }
@@ -184,7 +296,7 @@ export class DashboardPage implements OnInit, OnDestroy {
       .subscribe((orders) => {
         this.totalOrderCount.set(orders.length);
         this.pendingOrderCount.set(
-          orders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length
+          orders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length,
         );
 
         // Today's revenue: delivered orders today (paymentStatus stays
@@ -196,24 +308,42 @@ export class DashboardPage implements OnInit, OnDestroy {
             const raw = o.createdAt as unknown as { toDate(): Date } | string;
             const date = typeof raw === 'string' ? new Date(raw) : raw.toDate();
             return date >= today && (o.status === 'delivered' || o.paymentStatus === 'paid');
-          } catch { return false; }
+          } catch {
+            return false;
+          }
         });
         this.todayRevenue.set(todayOrders.reduce((sum, o) => sum + (o.grandTotal ?? 0), 0));
 
-        this.adminRecentOrders.set(orders.slice(0, 10));
+        // The full recent slice, no longer truncated to a display count: the
+        // pager slices for display and needs the whole list to know its length.
+        this.adminRecentOrders.set(orders.slice(0, 60));
+        this.recentPage.set(1);
         this.isLoading.set(false);
       });
     this.subs.push(s1);
 
-    // Low stock
+    // Low stock. The threshold is passed explicitly so the query and the number
+    // shown beside it are read from the same source at the same moment — a
+    // change to the setting mid-load would otherwise make them disagree.
     const s2 = this.inventoryService
-      .subscribeToLowStock()
+      .subscribeToLowStock(this.lowStockThreshold())
       .pipe(catchError((err) => this.feedFailed('low stock alerts', err)))
       .subscribe((products) => {
-        this.lowStockProducts.set(products.slice(0, 5));
         this.lowStockCount.set(products.length);
+        // Show the WORST first, so the panel's top rows are the ones that will
+        // sell out today. It was previously sliced in whatever order the snapshot
+        // arrived, which meant a flavor at zero could sit below four flavors
+        // merely "low" — the panel's job is triage, and triage is sorted.
+        this.lowStockProducts.set(
+          [...products].sort((a, b) => this.shortestSize(a) - this.shortestSize(b)),
+        );
       });
     this.subs.push(s2);
+  }
+
+  /** The smallest single-size stock figure for a flavor — its worst number. */
+  private shortestSize(p: Product): number {
+    return Math.min(p.stock.cup, p.stock.pint, p.stock.halfGallon, p.stock.gallon);
   }
 
   /**
@@ -223,31 +353,21 @@ export class DashboardPage implements OnInit, OnDestroy {
    * A toggle that looks broken and offers no way out is worse than one that says
    * why.
    */
-  readonly notificationState = computed(() =>
-    this.notifService.permissionState(this.currentUser()?.notificationsEnabled)
+  readonly updatesOn = computed(() =>
+    this.notifService.isEnabled(this.currentUser()?.notificationsEnabled),
   );
 
   /**
-   * Turning notifications on necessarily prompts, since a browser permission can
-   * only be requested from a user gesture. Turning them off is a pure preference
-   * write.
+   * A pure preference write in both directions.
    *
-   * On a denial we write `false` back. Discarding the user's intent silently
-   * would be worse, but leaving the switch visually ON while nothing is ever
-   * delivered is precisely the dishonesty this control exists to avoid — so the
-   * switch returns to off and the banner explains the real cause.
+   * This used to prompt for an OS permission first and roll the toggle back on a
+   * denial, because the app was registering for FCM push. Notifications are now
+   * in-app only, so there is no permission, no prompt, and no second axis that
+   * could leave the switch reading "on" while nothing was delivered.
    */
   async onNotificationsToggle(event: CustomEvent): Promise<void> {
     const enabled = event.detail.checked as boolean;
     try {
-      if (enabled && !await this.notifService.requestPermission()) {
-        await this.authService.updateProfile({ notificationsEnabled: false });
-        await this.authService.refreshProfile();
-        this.loadError.set(
-          'Your browser blocked notifications. To turn them on, allow notifications for this site in your browser settings.'
-        );
-        return;
-      }
       await this.authService.updateProfile({ notificationsEnabled: enabled });
       await this.authService.refreshProfile();
     } catch (err) {
@@ -266,10 +386,21 @@ export class DashboardPage implements OnInit, OnDestroy {
       if (timestamp === null || timestamp === undefined) return '—';
       const ts = timestamp as { toDate(): Date } | string;
       const date = typeof ts === 'string' ? new Date(ts) : ts.toDate();
-      return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch { return '—'; }
+      return date.toLocaleDateString('en-PH', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '—';
+    }
   }
 
-  trackProduct(_: number, p: Product): string { return p.id; }
-  trackOrder(_: number, o: Order): string { return o.id; }
+  trackProduct(_: number, p: Product): string {
+    return p.id;
+  }
+  trackOrder(_: number, o: Order): string {
+    return o.id;
+  }
 }

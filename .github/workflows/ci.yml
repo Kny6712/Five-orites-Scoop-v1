@@ -1,0 +1,126 @@
+# Five-orites Scoop — CI
+#
+# WHY THIS EXISTS
+# There was no automated gate at all, and the repo was for a long time 103
+# uncommitted changes deep with a half-finished migration in the working tree.
+# Nothing would have noticed that the client half of the stock cutover was done
+# and the server half was not — which is exactly how a build ended up where every
+# sale shipped without decrementing inventory, and how `test:rules` sat red for
+# months without anyone noticing.
+#
+# It is deliberately a gate, not a deployment. Nothing here touches Firebase,
+# because deploying rules to a live project from a pull request is how you
+# discover what "matched pair" means. Deployment stays manual and stays in
+# CUTOVER.md.
+
+name: CI
+
+on:
+  push:
+    branches: [main, mainV2]
+  pull_request:
+    branches: [main, mainV2]
+
+# Cancel an in-progress run when the same branch gets a new push. Without this a
+# queue of stale runs reports failures for commits nobody is shipping.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: typecheck, tests, build
+    runs-on: ubuntu-latest
+
+    # ── THIS FILE MUST NOT CONTAIN CHECKING LOGIC ───────────────────────────
+    #
+    # It used to spell out eleven steps by hand — `npm run typecheck`, then
+    # `lint`, then `test:logic`, then `test:rules`, and so on. That is a second,
+    # hand-maintained copy of the `verify` chain in package.json, and it drifted:
+    #
+    #   - `test:integration` was added to `verify` and never appeared here, so
+    #     the 23 tests that caught stock inflating on every non-take transition,
+    #     a pending cancel restocking stock that was never taken, and an
+    #     unauthorizable cancel-and-restock all sat unrun in CI;
+    #   - `format:check` was `continue-on-error` here and blocking in `verify`;
+    #   - the cloud-functions typecheck existed ONLY here, so it could never be
+    #     run locally before pushing.
+    #
+    # One copy of the chain means one place to add a step. So this workflow now
+    # does exactly three things: set up the environment, install, and run
+    # `npm run verify` — the same command you run locally before pushing. If a
+    # check is missing, fix it in `verify` and both get it.
+    #
+    # `tests/logic.test.ts` asserts this file keeps that property, because the
+    # drift was silent and would be again.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node 20 because .nvmrc says 20, and because package.json declares an
+      # upper bound that deliberately rejects Node 24:
+      #   "engines": { "node": ">=18.13.0 <21 || >=22.0.0 <23" }
+      # That bound was added because Angular 17 silently accepted a too-new Node
+      # and then failed the build with no diagnostic pointing at the version. npm
+      # only *warns* on an engine mismatch unless engine-strict is set, so the
+      # explicit setup-node version here is what actually pins it.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Java 21 IS A FLOOR, NOT A PREFERENCE.
+      #
+      # This was pinned to Temurin 17, chosen on purpose: "rather than whatever
+      # is newest: the emulator and firebase-tools have historically broken on
+      # the newest JDKs, and a build that fails because the runner image gained a
+      # Java 25 is a build that trains people to ignore red."
+      #
+      # That reasoning inverted. firebase-tools 15.x no longer supports Java
+      # before 21 and refuses to start with:
+      #
+      #   firebase-tools no longer supports Java version before 21
+      #
+      # so the defensive pin became the thing that broke the build, while the
+      # developer's own machine (Java 24) kept passing. It is a floor, and 21 is
+      # the floor: the lowest version that works, which is the opposite of
+      # chasing the newest.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      # Install only. The cloud-functions packages are a separate npm project and
+      # so a separate install — but the CHECKING of them is inside `verify`, via
+      # `typecheck:functions`, so it cannot be skipped here again.
+      - name: Install
+        run: npm ci
+
+      - name: Install cloud functions dependencies
+        run: npm --prefix functions ci
+
+      # Everything. Typecheck (app, scripts, cloud functions), lint, 165 logic
+      # tests, 143 rules tests, 23 stock-movement integration tests, colour
+      # contrast, format check, production build.
+      #
+      # `format:check` used to be `continue-on-error: true` here on the grounds
+      # that "a formatting disagreement should never be the reason a change
+      # cannot merge". It is blocking now, and that is safe: `lint-staged` runs
+      # `prettier --write` over staged files in the pre-commit hook, so committed
+      # code is already formatted. A failure here means the hook was bypassed
+      # (`--no-verify`) or a file was edited outside it — which is exactly the
+      # case where a gate earns its keep.
+      - name: Verify
+        run: npm run verify
+
+      # Uploaded as an artifact so a failed PR can be opened in a browser and
+      # seen, rather than only read about. "It looks fine" is not a build result.
+      # `if: always()` so it uploads on failure too — the build is the last step
+      # of `verify` and will be present even when an earlier step failed.
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: www-browser
+          path: www/browser
+          retention-days: 7

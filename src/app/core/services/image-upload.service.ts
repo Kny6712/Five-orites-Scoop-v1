@@ -51,7 +51,7 @@ function downscale(img: HTMLImageElement): Promise<Blob> {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error('Could not process that image.'))),
       'image/jpeg',
-      0.85
+      0.85,
     );
   });
 }
@@ -107,7 +107,7 @@ function cropSquare(img: HTMLImageElement, maxPx: number): Promise<Blob> {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error('Could not process that image.'))),
       'image/jpeg',
-      0.85
+      0.85,
     );
   });
 }
@@ -126,7 +126,6 @@ export class ImageUploadService {
    * by the CloudinaryPipe, so one stored file serves every screen size.
    */
   async uploadProductImage(file: File): Promise<string> {
-    const c = environment.cloudinary;
     this.assertConfigured();
     this.assertIsImage(file);
 
@@ -169,10 +168,9 @@ export class ImageUploadService {
   }
 
   private assertConfigured(): void {
-    const c = environment.cloudinary;
     if (!this.isConfigured) {
       throw new Error(
-        'Cloudinary is not configured. Ask your admin to add the cloud name + upload preset.'
+        'Cloudinary is not configured. Ask your admin to add the cloud name + upload preset.',
       );
     }
   }

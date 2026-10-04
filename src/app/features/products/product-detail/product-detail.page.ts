@@ -4,7 +4,7 @@
 
 import { Component, OnInit, OnDestroy, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import {
   IonHeader,
@@ -39,9 +39,11 @@ import { summarizeRatings } from '../../../core/logic/rating';
 import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../../shared/pipes/cloudinary.pipe';
 import { StarRatingComponent } from '../../../shared/components/star-rating/star-rating.component';
+import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
 import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
+import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
-import { LOW_STOCK_THRESHOLD } from '../../../core/config/stock.config';
+import { ShopSettingsService } from '../../../core/services/shop-settings.service';
 
 interface SizeOption {
   key: SizeVariant;
@@ -52,13 +54,32 @@ interface SizeOption {
   selector: 'app-product-detail',
   standalone: true,
   imports: [
-    CommonModule, FormsModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonBackButton,
-    IonButton, IonSkeletonText, IonBadge,
-    IonChip, IonLabel, IonText, IonItem, IonNote, IonTextarea,
-    PesoPipe, StarRatingComponent, CloudinaryPipe, CartButtonComponent,
-    AppIconComponent, QtyStepperComponent],
+    CommonModule,
+    FormsModule,
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonBackButton,
+    IonButton,
+    IonSkeletonText,
+    IonBadge,
+    IonChip,
+    IonLabel,
+    IonText,
+    IonItem,
+    IonNote,
+    IonTextarea,
+    PesoPipe,
+    StarRatingComponent,
+    CloudinaryPipe,
+    CartButtonComponent,
+    AppIconComponent,
+    QtyStepperComponent,
+    PaginationComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './product-detail.page.html',
   styleUrls: ['./product-detail.page.scss'],
 })
@@ -101,7 +122,8 @@ export class ProductDetailPage implements OnInit, OnDestroy {
     { key: 'cup', label: SIZE_DISPLAY_LABELS.cup },
     { key: 'pint', label: SIZE_DISPLAY_LABELS.pint },
     { key: 'halfGallon', label: SIZE_DISPLAY_LABELS.halfGallon },
-    { key: 'gallon', label: SIZE_DISPLAY_LABELS.gallon }];
+    { key: 'gallon', label: SIZE_DISPLAY_LABELS.gallon },
+  ];
 
   /**
    * True when the loaded review set hit the query's cap, so the count and
@@ -112,7 +134,39 @@ export class ProductDetailPage implements OnInit, OnDestroy {
    */
   readonly reviewsTruncated = signal(false);
 
-  readonly lowStockThreshold = LOW_STOCK_THRESHOLD;
+  /**
+   * Twelve reviews a page. The read still asks for REVIEWS_PAGE_LIMIT (200) — see
+   * the note above — so this only decides what is RENDERED, and the two are not
+   * the same question.
+   *
+   * A flavor with two hundred reviews rendered every one of them under a single
+   * star summary, so reading three recent opinions meant scrolling past a hundred
+   * and thirty older ones, and the write-a-review form at the bottom of the page
+   * was further away than it needed to be.
+   *
+   * Slicing here rather than in `summarizeRatings` is deliberate and is the whole
+   * reason this is a computed and not a change to the read: the average and the
+   * "(n)" must describe every fetched review, so a page boundary can never move a
+   * star. The summary is taken once over the whole set in loadReviews, from the
+   * same `reviews` array the pager slices.
+   */
+  readonly REVIEWS_PER_PAGE = 12;
+  readonly reviewsPage = signal(1);
+
+  readonly pagedReviews = computed(() => {
+    const start = (this.reviewsPage() - 1) * this.REVIEWS_PER_PAGE;
+    return this.reviews().slice(start, start + this.REVIEWS_PER_PAGE);
+  });
+
+  /**
+   * The admin-editable cutoff, not the build-time constant.
+   *
+   * Same bug as ProductCardComponent: this read `LOW_STOCK_THRESHOLD`
+   * directly, so an owner's threshold change moved the dashboard and the admin
+   * inventory query but left the customer-facing product page flagging at the
+   * build default. Three surfaces, two numbers, no indication which was right.
+   */
+  readonly lowStockThreshold = inject(ShopSettingsService).lowStockThreshold;
 
   currentPrice = computed(() => this.product()?.pricing[this.selectedSize()] ?? 0);
   currentStock = computed(() => this.product()?.stock[this.selectedSize()] ?? 0);
@@ -130,7 +184,6 @@ export class ProductDetailPage implements OnInit, OnDestroy {
   canPurchase = computed(() => !!this.product() && !this.isUnavailable() && !this.isOutOfStock());
   lineTotal = computed(() => this.currentPrice() * this.quantity());
 
-
   ngOnInit(): void {
     const productId = this.route.snapshot.paramMap.get('id');
     if (!productId) {
@@ -141,10 +194,17 @@ export class ProductDetailPage implements OnInit, OnDestroy {
 
     this.sub = this.inventoryService
       .getProductById(productId)
-      .pipe(catchError((err) => {
-        this.errorMessage.set('Could not load product. Please go back and try again.');
-        return of(null);
-      }))
+      .pipe(
+        catchError(() => {
+          // The error is deliberately not surfaced verbatim. Anything thrown here is
+          // either a permissions failure or a missing document, and a customer can
+          // act on neither — they need to know the page failed to load.
+          // describeFirestoreError() exists for the admin surfaces, where the
+          // message is actionable and the operator can do something about it.
+          this.errorMessage.set('Could not load product. Please go back and try again.');
+          return of(null);
+        }),
+      )
       .subscribe((product) => {
         if (product) {
           this.product.set(product);
@@ -176,6 +236,10 @@ export class ProductDetailPage implements OnInit, OnDestroy {
         this.avgRating.set(summary.average);
         this.reviewCount.set(summary.count);
         this.reviewsTruncated.set(reviews.length >= REVIEWS_PAGE_LIMIT);
+        // A fresh set of reviews can be shorter than the page the reader was on
+        // — someone else's review landing, or their own being withdrawn — and the
+        // newest entry belongs at the top, where they were looking.
+        this.reviewsPage.set(1);
       },
       error: (err: unknown) => {
         console.error('Load reviews error:', err);
@@ -196,7 +260,9 @@ export class ProductDetailPage implements OnInit, OnDestroy {
     } catch (err) {
       const toast = await this.toastCtrl.create({
         message: err instanceof Error ? err.message : 'Sign in to use wishlist.',
-        duration: 2500, color: 'warning', position: 'bottom',
+        duration: 2500,
+        color: 'warning',
+        position: 'bottom',
       });
       await toast.present();
     }
@@ -233,20 +299,26 @@ export class ProductDetailPage implements OnInit, OnDestroy {
             try {
               await this.reviewService.deleteMyReview(product.id);
               const toast = await this.toastCtrl.create({
-                message: 'Review withdrawn.', duration: 2000, color: 'success', position: 'bottom',
+                message: 'Review withdrawn.',
+                duration: 2000,
+                color: 'success',
+                position: 'bottom',
               });
               await toast.present();
             } catch (err) {
               const toast = await this.toastCtrl.create({
                 message: err instanceof Error ? err.message : 'Could not withdraw review.',
-                duration: 3000, color: 'warning', position: 'bottom',
+                duration: 3000,
+                color: 'warning',
+                position: 'bottom',
               });
               await toast.present();
             } finally {
               this.isSubmittingReview.set(false);
             }
           },
-        }],
+        },
+      ],
     });
     await confirm.present();
   }
@@ -262,13 +334,17 @@ export class ProductDetailPage implements OnInit, OnDestroy {
       this.newRating.set(5);
       const toast = await this.toastCtrl.create({
         message: editing ? 'Review updated. Thanks!' : 'Thanks for your review! 💖',
-        duration: 2000, color: 'success', position: 'bottom',
+        duration: 2000,
+        color: 'success',
+        position: 'bottom',
       });
       await toast.present();
     } catch (err) {
       const toast = await this.toastCtrl.create({
         message: err instanceof Error ? err.message : 'Could not submit review.',
-        duration: 3000, color: 'warning', position: 'bottom',
+        duration: 3000,
+        color: 'warning',
+        position: 'bottom',
       });
       await toast.present();
     } finally {
@@ -291,16 +367,6 @@ export class ProductDetailPage implements OnInit, OnDestroy {
    */
   readonly stepperMax = computed(() => Math.max(1, this.currentStock()));
 
-  incrementQty(): void {
-    if (this.isUnavailable()) return;
-    const max = this.currentStock();
-    if (this.quantity() < max) this.quantity.update((q) => q + 1);
-  }
-
-  decrementQty(): void {
-    if (this.quantity() > 1) this.quantity.update((q) => q - 1);
-  }
-
   async addToCart(): Promise<void> {
     const product = this.product();
     if (!product || this.isAdding() || !this.canPurchase()) {
@@ -310,7 +376,9 @@ export class ProductDetailPage implements OnInit, OnDestroy {
       if (product && this.isUnavailable() && !this.isAdding()) {
         const toast = await this.toastCtrl.create({
           message: `${product.variantName} is no longer available.`,
-          duration: 3000, color: 'warning', position: 'bottom',
+          duration: 3000,
+          color: 'warning',
+          position: 'bottom',
         });
         await toast.present();
       }

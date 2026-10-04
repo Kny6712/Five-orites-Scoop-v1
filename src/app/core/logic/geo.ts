@@ -115,8 +115,7 @@ export async function geocodeAddress(address: string): Promise<GeoPoint | null> 
   await respectRateLimit();
 
   const url =
-    `${NOMINATIM}?q=${encodeURIComponent(query)}` +
-    '&format=jsonv2&limit=1&addressdetails=0';
+    `${NOMINATIM}?q=${encodeURIComponent(query)}` + '&format=jsonv2&limit=1&addressdetails=0';
 
   let payload: unknown;
   try {
@@ -155,7 +154,11 @@ export async function geocodeAddress(address: string): Promise<GeoPoint | null> 
  * Linear interpolation, not spherical — over the few hundred metres between a
  * shop and a customer in one city the difference is far below a pixel.
  */
-export function interpolate(a: { lat: number; lng: number }, b: { lat: number; lng: number }, t: number): {
+export function interpolate(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+  t: number,
+): {
   lat: number;
   lng: number;
 } {
@@ -169,7 +172,7 @@ export function interpolate(a: { lat: number; lng: number }, b: { lat: number; l
 /** Great-circle distance in metres, for the "2.4 km away" line. */
 export function distanceMetres(
   a: { lat: number; lng: number },
-  b: { lat: number; lng: number }
+  b: { lat: number; lng: number },
 ): number {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;

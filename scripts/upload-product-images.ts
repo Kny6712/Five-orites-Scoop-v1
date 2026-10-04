@@ -94,7 +94,11 @@ const PHOTOS: Pairing[] = [
   { set: 2, variant: 'Vanilla Honeycomb', file: 'Honeycomb.jpg' },
 
   // Set 3 · Strawberry
-  { set: 3, variant: 'Strawberry Cheesecake', file: 'strawberry-cheesecake-cottage-cheese-ice-cream-thumb.jpg' },
+  {
+    set: 3,
+    variant: 'Strawberry Cheesecake',
+    file: 'strawberry-cheesecake-cottage-cheese-ice-cream-thumb.jpg',
+  },
   { set: 3, variant: 'Strawberry Shortcake', file: 'Regular strawberry.jpg' },
   { set: 3, variant: 'Wild Strawberry Swirl', file: 'Wild swirl.jpg' },
   { set: 3, variant: 'Strawberry Balsamic', file: 'Balsamic.jpg' },
@@ -107,7 +111,11 @@ const PHOTOS: Pairing[] = [
   { set: 4, variant: 'Classic Mango Sorbet', file: 'Sorbet Classic mango.jpg' },
   { set: 4, variant: 'Mango Graham', file: 'Graham.jpg' },
   { set: 4, variant: 'Mango Sticky Rice', file: 'mango-sticky-rice-ice-cream-featured.jpg' },
-  { set: 4, variant: 'Mango Chili Lime', file: 'mango-chili-lime-ice-cream-tropical-flavor-sweet-fresh-hint-heat-325460269.jpg' },
+  {
+    set: 4,
+    variant: 'Mango Chili Lime',
+    file: 'mango-chili-lime-ice-cream-tropical-flavor-sweet-fresh-hint-heat-325460269.jpg',
+  },
   { set: 4, variant: 'Mango Coconut Cream', file: 'Mango-Coconut-Nice-Cream.jpg' },
   { set: 4, variant: 'Mango Cheesecake', file: 'Cheesecake.jpg' },
   { set: 4, variant: 'Mango Tango Twist', file: 'Twist.jpg' },
@@ -151,7 +159,11 @@ const PHOTOS: Pairing[] = [
   { set: 8, variant: 'Chocolate Chip Cookie Dough', file: 'Copy of choco cookie chip.webp' },
   { set: 8, variant: 'Birthday Cake Cookie', file: 'Copy of Birrthday cake cookie.jpg' },
   { set: 8, variant: 'Cookies and Cream Fudge', file: 'Copy of cookies and cream fudge.jpg' },
-  { set: 8, variant: 'Peanut Butter Cookie Crunch', file: 'Copy of peanut butter cookie crunch.jpg' },
+  {
+    set: 8,
+    variant: 'Peanut Butter Cookie Crunch',
+    file: 'Copy of peanut butter cookie crunch.jpg',
+  },
 ];
 
 const MIME: Record<string, string> = {
@@ -164,7 +176,10 @@ const MIME: Record<string, string> = {
 
 /** Mirrors the slug rule in scripts/seed-products.ts. */
 function slugify(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
 }
 
 /**
@@ -184,7 +199,9 @@ async function loadCloudinaryConfig(): Promise<{ cloudName: string; uploadPreset
     // fall through to the text scrape
   }
   const text = fs.readFileSync(envPath, 'utf8');
-  const m = text.match(/cloudinary\s*:\s*\{[\s\S]*?cloudName\s*:\s*['"]([^'"]+)['"][\s\S]*?uploadPreset\s*:\s*['"]([^'"]+)['"]/);
+  const m = text.match(
+    /cloudinary\s*:\s*\{[\s\S]*?cloudName\s*:\s*['"]([^'"]+)['"][\s\S]*?uploadPreset\s*:\s*['"]([^'"]+)['"]/,
+  );
   if (!m) throw new Error(`Could not read cloudinary config from ${envPath}`);
   return { cloudName: m[1], uploadPreset: m[2] };
 }
@@ -203,16 +220,14 @@ function loadManifest(): { set: number; variant: string; url: string }[] {
   if (!fs.existsSync(manifestPath)) {
     throw new Error(
       `Manifest not found: ${manifestPath}\n` +
-      '  Run `npm run upload:images -- --upload` once to create it, or drop --from-manifest.'
+        '  Run `npm run upload:images -- --upload` once to create it, or drop --from-manifest.',
     );
   }
   const entries = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
   if (!Array.isArray(entries) || entries.length === 0) {
     throw new Error(`Manifest is empty or malformed: ${manifestPath}`);
   }
-  const bad = entries.filter(
-    (e: any) => typeof e?.url !== 'string' || !/^https?:\/\//.test(e.url)
-  );
+  const bad = entries.filter((e: any) => typeof e?.url !== 'string' || !/^https?:\/\//.test(e.url));
   if (bad.length) {
     throw new Error(`${bad.length} manifest entr(ies) have no usable url. Re-run with --upload.`);
   }
@@ -286,8 +301,8 @@ async function writeToFirestore(entries: { set: number; variant: string; url: st
   if (!fs.existsSync(keyPath)) {
     throw new Error(
       'scripts/serviceAccountKey.json is missing.\n' +
-      '  Download it from Firebase Console → Project Settings → Service Accounts,\n' +
-      '  rename it to serviceAccountKey.json and place it in scripts/.'
+        '  Download it from Firebase Console → Project Settings → Service Accounts,\n' +
+        '  rename it to serviceAccountKey.json and place it in scripts/.',
     );
   }
   const admin = require('firebase-admin');
@@ -333,7 +348,9 @@ async function main() {
   console.log('\n🍦  Five-orites Scoop — Product Image Uploader');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`📁  Source:  ${IMAGE_DIR}`);
-  console.log(`🔍  Mode:    ${FROM_MANIFEST ? (DO_WRITE ? 'MANIFEST + WRITE' : 'MANIFEST (no upload, no write)') : DO_UPLOAD ? (DO_WRITE ? 'UPLOAD + WRITE' : 'UPLOAD ONLY') : 'DRY RUN (nothing will be sent)'}`);
+  console.log(
+    `🔍  Mode:    ${FROM_MANIFEST ? (DO_WRITE ? 'MANIFEST + WRITE' : 'MANIFEST (no upload, no write)') : DO_UPLOAD ? (DO_WRITE ? 'UPLOAD + WRITE' : 'UPLOAD ONLY') : 'DRY RUN (nothing will be sent)'}`,
+  );
   console.log(`📄  Pairs:   ${PHOTOS.length}\n`);
 
   // --from-manifest never touches local files, so the whole photo-folder audit
@@ -342,7 +359,9 @@ async function main() {
 
   if (!FROM_MANIFEST) {
     if (!fs.existsSync(IMAGE_DIR)) {
-      throw new Error(`Source folder not found: ${IMAGE_DIR}\n  Override with --dir="C:\\path\\to\\folder"`);
+      throw new Error(
+        `Source folder not found: ${IMAGE_DIR}\n  Override with --dir="C:\\path\\to\\folder"`,
+      );
     }
 
     const audit = resolveFiles();
@@ -380,7 +399,9 @@ async function main() {
 
   if (FROM_MANIFEST) {
     entries = loadManifest();
-    console.log(`📄  Reusing ${entries.length} URL(s) from image-urls.json — nothing will be uploaded.\n`);
+    console.log(
+      `📄  Reusing ${entries.length} URL(s) from image-urls.json — nothing will be uploaded.\n`,
+    );
   } else {
     if (!DO_UPLOAD) {
       console.log('✅  Dry run complete. Add --upload to send these to Cloudinary.\n');
@@ -409,7 +430,9 @@ async function main() {
     console.log(`\n📄  Manifest written: ${manifestPath}`);
 
     if (renamed) {
-      console.log(`ℹ️  ${renamed} file(s) got a Cloudinary-generated name (a previous run may have used a different id).`);
+      console.log(
+        `ℹ️  ${renamed} file(s) got a Cloudinary-generated name (a previous run may have used a different id).`,
+      );
     }
     if (failures.length) {
       console.log(`\n❌  ${failures.length} upload(s) failed:`);
@@ -417,7 +440,9 @@ async function main() {
     }
 
     if (!DO_WRITE) {
-      console.log(`\n✅  Uploaded ${entries.length}/${resolved.length}. Re-run with --write to save URLs to Firestore.\n`);
+      console.log(
+        `\n✅  Uploaded ${entries.length}/${resolved.length}. Re-run with --write to save URLs to Firestore.\n`,
+      );
       if (failures.length) process.exitCode = 1;
       return;
     }
@@ -429,16 +454,15 @@ async function main() {
   }
 
   console.log('\n⏳  Writing imageUrl to Firestore...\n');
-  try {
-    const { updated, skipped, notFound } = await writeToFirestore(entries);
-    console.log(`  ✔  ${updated} product(s) updated`);
-    if (skipped) console.log(`  ➖  ${skipped} skipped (already had a photo — use --force to overwrite)`);
-    if (notFound.length) {
-      console.log(`\n  ⚠️  ${notFound.length} product(s) not found in Firestore (run \`npm run seed\` first):`);
-      for (const n of notFound) console.log(`     · ${n}`);
-    }
-  } catch (err: any) {
-    throw err;
+  const { updated, skipped, notFound } = await writeToFirestore(entries);
+  console.log(`  ✔  ${updated} product(s) updated`);
+  if (skipped)
+    console.log(`  ➖  ${skipped} skipped (already had a photo — use --force to overwrite)`);
+  if (notFound.length) {
+    console.log(
+      `\n  ⚠️  ${notFound.length} product(s) not found in Firestore (run \`npm run seed\` first):`,
+    );
+    for (const n of notFound) console.log(`     · ${n}`);
   }
 
   console.log('\n✅  Done.\n');

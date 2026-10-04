@@ -36,7 +36,11 @@ const TONE_ICON: Record<AlertTone, AppIcon> = {
   standalone: true,
   imports: [AppIconComponent],
   template: `
-    <div class="banner" [class]="'tone-' + tone()" [attr.role]="tone() === 'danger' || tone() === 'warning' ? 'alert' : 'status'">
+    <div
+      class="banner"
+      [class]="'tone-' + tone()"
+      [attr.role]="tone() === 'danger' || tone() === 'warning' ? 'alert' : 'status'"
+    >
       <app-icon [name]="icon()" class="banner-icon" />
       <div class="banner-body">
         @if (title()) {
@@ -51,57 +55,95 @@ const TONE_ICON: Record<AlertTone, AppIcon> = {
       </div>
     </div>
   `,
-  styles: [`
-    :host { display: block; margin: var(--space-3) var(--space-4); }
+  styles: [
+    `
+      :host {
+        display: block;
+        margin: var(--space-3) var(--space-4);
+      }
 
-    .banner {
-      display: flex;
-      gap: var(--space-3);
-      align-items: flex-start;
-      padding: var(--space-3) var(--space-4);
-      border-radius: var(--radius-sm);
-      border: 1px solid transparent;
-      font-size: 14px;
-      line-height: 1.45;
-    }
+      .banner {
+        display: flex;
+        gap: var(--space-3);
+        align-items: flex-start;
+        padding: var(--space-3) var(--space-4);
+        border-radius: var(--radius-sm);
+        border: 1px solid transparent;
+        font-size: 14px;
+        line-height: 1.45;
+      }
 
-    .banner-icon { --icon-size: 20px; margin-top: 1px; }
+      .banner-icon {
+        --icon-size: 20px;
+        margin-top: 1px;
+      }
 
-    .banner-body { min-width: 0; flex: 1; }
+      .banner-body {
+        min-width: 0;
+        flex: 1;
+      }
 
-    .banner-title {
-      margin: 0 0 2px;
-      font-weight: 800;
-      font-size: 14px;
-    }
+      .banner-title {
+        margin: 0 0 2px;
+        font-weight: 800;
+        font-size: 14px;
+      }
 
-    .banner-text { margin: 0; font-weight: 500; }
+      .banner-text {
+        margin: 0;
+        font-weight: 500;
+      }
 
-    /* The retry affordance. A real <button>, so it is reachable by keyboard and
+      /* The retry affordance. A real <button>, so it is reachable by keyboard and
        announced as a control — the "Try again" it replaces was an ion-button
        inside a div, which had no such guarantee. */
-    .banner-action {
-      margin-top: var(--space-2);
-      background: none;
-      border: 1px solid currentColor;
-      border-radius: var(--radius-pill);
-      padding: 6px 14px;
-      font: inherit;
-      font-weight: 700;
-      color: inherit;
-      cursor: pointer;
-      min-height: 36px;
-      transition: background-color 0.15s ease;
-    }
-    .banner-action:hover { background: rgb(255 255 255 / 0.55); }
+      .banner-action {
+        margin-top: var(--space-2);
+        background: none;
+        border: 1px solid currentColor;
+        border-radius: var(--radius-pill);
+        padding: 6px 14px;
+        font: inherit;
+        font-weight: 700;
+        color: inherit;
+        cursor: pointer;
+        min-height: 36px;
+        transition: background-color 0.15s ease;
+      }
+      .banner-action:hover {
+        background: rgb(255 255 255 / 0.55);
+      }
 
-    /* Tinted surface + a same-hue border, so the tone is legible without
-       relying on colour alone — the text states the problem too. */
-    .tone-danger { background: #fde8ee; border-color: #f5b8c8; color: #8f1f38; }
-    .tone-warning { background: #fff3dc; border-color: #f2d49a; color: #7a4b00; }
-    .tone-success { background: #e4f6ea; border-color: #a8d9b8; color: #14622f; }
-    .tone-info { background: #e6f1fb; border-color: #a8cbe8; color: #17456f; }
-  `],
+      /* Tinted surface + a same-hue border, so the tone is legible without
+       relying on colour alone — the text states the problem too.
+
+       These four triples were the canonical definition of the banner tones, but
+       they were written as literals while eleven other files had grown their own
+       private copies of the same pastels. They are tokens now: the copies are
+       gone, and the high-contrast setting in variables.scss can reach all of
+       them at once, which it could not do when each file owned its values. */
+      .tone-danger {
+        background: var(--tone-danger-bg);
+        border-color: var(--tone-danger-border);
+        color: var(--tone-danger-ink);
+      }
+      .tone-warning {
+        background: var(--tone-warning-bg);
+        border-color: var(--tone-warning-border);
+        color: var(--tone-warning-ink);
+      }
+      .tone-success {
+        background: var(--tone-success-bg);
+        border-color: var(--tone-success-border);
+        color: var(--tone-success-ink);
+      }
+      .tone-info {
+        background: var(--tone-info-bg);
+        border-color: var(--tone-info-border);
+        color: var(--tone-info-ink);
+      }
+    `,
+  ],
 })
 export class AlertBannerComponent {
   readonly tone = input<AlertTone>('danger');

@@ -2,70 +2,70 @@
 // Five-orites Scoop — Team Credits Page
 // Author: Five-orites Scoop team (see README)
 
-import { Component } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import {
-  IonHeader, IonToolbar, IonTitle, IonContent,
-  IonButtons, IonMenuButton,
-  IonGrid, IonRow, IonCol,
-  IonCard, IonCardContent, IonAvatar,
-  IonChip, IonLabel, } from '@ionic/angular/standalone';
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonButtons,
+  IonMenuButton,
+  IonGrid,
+  IonRow,
+  IonCol,
+  IonCard,
+  IonCardContent,
+  IonAvatar,
+  IonChip,
+  IonLabel,
+} from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-
-interface Developer {
-  name: string;
-  initials: string;
-  roles: string[];
-  accent: string;
-}
+import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+import { DeveloperService } from '../../core/services/developer.service';
+import { initialsOf } from '../../core/logic/flavor';
+import type { Developer } from '../../core/models/developer.model';
 
 @Component({
   selector: 'app-developers',
   standalone: true,
   imports: [
     CommonModule,
-    IonHeader, IonToolbar, IonTitle, IonContent,
-    IonButtons, IonMenuButton,
-    IonGrid, IonRow, IonCol,
-    IonCard, IonCardContent, IonAvatar,
-    IonChip, IonLabel, CartButtonComponent,
-    AppIconComponent],
+    IonHeader,
+    IonToolbar,
+    IonTitle,
+    IonContent,
+    IonButtons,
+    IonMenuButton,
+    IonGrid,
+    IonRow,
+    IonCol,
+    IonCard,
+    IonCardContent,
+    IonAvatar,
+    IonChip,
+    IonLabel,
+    CartButtonComponent,
+    AppIconComponent,
+    AppFooterComponent,
+  ],
   templateUrl: './developers.page.html',
   styleUrls: ['./developers.page.scss'],
 })
-export class DevelopersPage {
-  readonly developers: Developer[] = [
-    {
-      name: 'Kenn Karlo Umadhay',
-      initials: 'KK',
-      roles: ['Main Project Lead', 'Full Stack Dev', 'UI/UX Designer Lead', 'QA', 'Documentation'],
-      accent: '#6B3FA0',
-    },
-    {
-      name: 'Heaven Alvior',
-      initials: 'HA',
-      roles: ['QA', 'Documentation'],
-      accent: '#F4A435',
-    },
-    {
-      name: 'Justin Curby P. Esguerra',
-      initials: 'JE',
-      roles: ['Full Stack Dev', 'UI/UX Designer', 'QA', 'Documentation'],
-      accent: '#00838f',
-    },
-    {
-      name: 'Renz Gabriel De la Cruz',
-      initials: 'RD',
-      roles: ['QA', 'Documentation'],
-      accent: '#E65100',
-    },
-    {
-      name: 'Antonio Miguel Villanueva',
-      initials: 'AV',
-      roles: ['Full Stack Dev', 'UI/UX Designer', 'QA', 'Documentation'],
-      accent: '#2E7D32',
-    }];
+export class DevelopersPage implements OnInit, OnDestroy {
+  /**
+   * Avatar disc colours.
+   *
+   * All five were previously a set of fully saturated, unrelated hues — a
+   * saturated violet, an amber, a teal, an orange and a green — behind white
+   * initials. Each one was a different design system dropped onto the same card
+   * grid, and none of them came from the palette.
+   *
+   * They are now five steps of the app's own surfaces, so the row reads as one
+   * set. Because the palette is pastel, the initials are plum on each rather
+   * than white, which clears AA on every one of them.
+   */
 
   getRoleColor(role: string): string {
     if (role.includes('Lead')) return 'primary';
@@ -75,6 +75,36 @@ export class DevelopersPage {
     return 'medium';
   }
 
-  readonly currentYear = new Date().getFullYear();
+  /**
+   * The credits, from Firestore.
+   *
+   * These were five object literals in this component. That made a misspelled name
+   * or a replaced photo a developer task — a rebuild and a deploy — when the person
+   * who most needs to fix it is the owner. They are documents now, editable from
+   * /admin/developers, with `firestore.rules` doing the actual gating.
+   *
+   * `usingFallback` is surfaced rather than swallowed: when the read fails the
+   * service stands in the built-in list, and a public page showing last-shipped
+   * names should not pretend they are live.
+   */
+  private readonly developersService = inject(DeveloperService);
+  readonly developers = this.developersService.developers;
+  readonly usingFallback = this.developersService.usingFallback;
 
+  private unsubscribe?: () => void;
+
+  ngOnInit(): void {
+    this.unsubscribe = this.developersService.watch();
+  }
+
+  ngOnDestroy(): void {
+    this.unsubscribe?.();
+  }
+
+  /** Initials derived from the name, not stored — see core/logic/flavor.ts. */
+  initialsFor(dev: Developer): string {
+    return initialsOf(dev.name);
+  }
+
+  readonly currentYear = new Date().getFullYear();
 }

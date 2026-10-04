@@ -79,10 +79,7 @@ export class CartService {
   // ── Calculation ──────────────────────────────────────────────────────────────
 
   private recalculate(items: CartItem[]): Cart {
-    const totalAmount = items.reduce(
-      (sum, item) => sum + item.unitPrice * item.quantity,
-      0
-    );
+    const totalAmount = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
     return { items: [...items], totalAmount, itemCount };
   }
@@ -98,17 +95,12 @@ export class CartService {
   addItem(product: Product, size: SizeVariant, quantity: number): void {
     const currentItems = [...this.cartSubject.getValue().items];
     const existingIndex = currentItems.findIndex(
-      (i) => i.productId === product.id && i.size === size
+      (i) => i.productId === product.id && i.size === size,
     );
     const existingQty = existingIndex >= 0 ? currentItems[existingIndex].quantity : 0;
     const available = product.stock?.[size] ?? 0;
 
-    assertCanAddToCart(
-      `${product.variantName} (${size})`,
-      existingQty,
-      quantity,
-      available
-    );
+    assertCanAddToCart(`${product.variantName} (${size})`, existingQty, quantity, available);
 
     if (existingIndex >= 0) {
       currentItems[existingIndex] = {
@@ -142,12 +134,7 @@ export class CartService {
    * value — without it the cart can hold more than the shop can fulfil and the
    * failure only surfaces at checkout.
    */
-  updateQuantity(
-    productId: string,
-    size: SizeVariant,
-    quantity: number,
-    available?: number
-  ): void {
+  updateQuantity(productId: string, size: SizeVariant, quantity: number, available?: number): void {
     if (quantity <= 0) {
       this.removeItem(productId, size);
       return;
@@ -159,11 +146,11 @@ export class CartService {
       return;
     }
 
-    const updated = this.cartSubject.getValue().items.map((item) =>
-      item.productId === productId && item.size === size
-        ? { ...item, quantity: capped }
-        : item
-    );
+    const updated = this.cartSubject
+      .getValue()
+      .items.map((item) =>
+        item.productId === productId && item.size === size ? { ...item, quantity: capped } : item,
+      );
     this.updateCart(updated);
   }
 

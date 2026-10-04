@@ -12,19 +12,33 @@ import {
   doc,
   addDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   runTransaction,
   QueryConstraint,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
 import { shareReplay } from 'rxjs/operators';
-import { Product, FlavorSet, SizeVariant, StockLevel, ProductFilter, ProductCategory, productCategory } from '../models/product.model';
-import { LOW_STOCK_THRESHOLD } from '../config/stock.config';
+import {
+  Product,
+  FlavorSet,
+  SizeVariant,
+  StockLevel,
+  ProductFilter,
+  ProductCategory,
+  productCategory,
+} from '../models/product.model';
 import { normaliseStockLines, SIZE_VARIANTS } from '../logic/stock';
+import { AuthService } from './auth.service';
+import { ShopSettingsService } from './shop-settings.service';
 
 @Injectable({ providedIn: 'root' })
 export class InventoryService {
   private firestore = inject(Firestore);
+  /** For the ledger's `actorUid` — who made the change, not just that one did. */
+  private authService = inject(AuthService);
+  /** The admin-editable low-stock threshold, falling back to the build default. */
+  private shopSettings = inject(ShopSettingsService);
 
   // ── Real-time product stream ──────────────────────────────────────────────────
   /**
@@ -63,10 +77,12 @@ export class InventoryService {
    * it. Do not move filtering into the query — that would need a composite
    * index per filter combination and would undo the shareReplay.
    */
-  getProducts(filters?: ProductFilter, maxResults = 200, includeInactive = false): Observable<Product[]> {
-    return this.streamFor(maxResults, includeInactive).pipe(
-      applyProductFilters(filters)
-    );
+  getProducts(
+    filters?: ProductFilter,
+    maxResults = 200,
+    includeInactive = false,
+  ): Observable<Product[]> {
+    return this.streamFor(maxResults, includeInactive).pipe(applyProductFilters(filters));
   }
 
   /**
@@ -91,7 +107,7 @@ export class InventoryService {
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          let products = snapshot.docs.map((docSnap) => ({
+          const products = snapshot.docs.map((docSnap) => ({
             id: docSnap.id,
             ...docSnap.data(),
           })) as Product[];
@@ -107,7 +123,7 @@ export class InventoryService {
         (error) => {
           console.error('Inventory snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
 
       return () => unsubscribe();
@@ -154,16 +170,44 @@ export class InventoryService {
         (error) => {
           console.error('Product snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
 
       return () => unsubscribe();
     });
   }
 
-  subscribeToLowStock(threshold = LOW_STOCK_THRESHOLD): Observable<Product[]> {
+  /**
+   * Products with any size at or below the threshold.
+   *
+   * `threshold` now defaults to the ADMIN-EDITABLE value from
+   * `ShopSettingsService`, falling back to `LOW_STOCK_THRESHOLD` (the build-time
+   * environment number) when nothing has been saved. Callers that already hold
+   * the current value can pass it explicitly, which is what the dashboard and
+   * the product card do so they show the same number the query used.
+   */
+  subscribeToLowStock(threshold?: number): Observable<Product[]> {
+    const cutoff = threshold ?? this.shopSettings.lowStockThreshold();
     return new Observable<Product[]>((observer) => {
       const productsCol = collection(this.firestore, 'products');
+
+      // DELIBERATELY UNCAPPED, and adding a `limit()` here would be a bug rather
+      // than an optimisation.
+      //
+      // The filter that makes this list "low stock" runs on the CLIENT, in the
+      // `onSnapshot` callback below. Firestore applies `limit()` BEFORE it hands
+      // anything back, so a cap would not return "the N most urgent low items" —
+      // it would return the first N ACTIVE products in document order and filter
+      // those, silently dropping every low item that sorts after the cut. The
+      // admin would see an empty low-stock panel on a fully-stocked shelf and
+      // read it as "nothing is low".
+      //
+      // Doing it correctly means moving the threshold into the query. `stock` is
+      // a nested map of four size variants, so there is no single indexed field
+      // to compare against — it would need four OR'd range queries over four
+      // numeric fields, i.e. four composite indexes and four listeners. That is
+      // not worth it for a catalogue of this size, where the whole active set is
+      // already in memory elsewhere (see the note at line 439).
       const q = query(productsCol, where('isActive', '==', true));
 
       const unsubscribe = onSnapshot(
@@ -173,10 +217,10 @@ export class InventoryService {
             .map((d) => ({ id: d.id, ...d.data() }) as Product)
             .filter(
               (p) =>
-                p.stock.cup < threshold ||
-                p.stock.pint < threshold ||
-                p.stock.halfGallon < threshold ||
-                p.stock.gallon < threshold
+                p.stock.cup < cutoff ||
+                p.stock.pint < cutoff ||
+                p.stock.halfGallon < cutoff ||
+                p.stock.gallon < cutoff,
             );
           observer.next(lowStock);
         },
@@ -187,7 +231,7 @@ export class InventoryService {
           // Log it so a failure is visible even if the caller swallows it.
           console.error('Low stock snapshot error:', error);
           observer.error(error);
-        }
+        },
       );
 
       return () => unsubscribe();
@@ -202,16 +246,81 @@ export class InventoryService {
     });
   }
 
-  // ── Replace ALL size quantities at once (Edit Details modal) ──────────────
-  async updateStocks(productId: string, stock: StockLevel): Promise<void> {
-    for (const size of Object.keys(stock) as SizeVariant[]) {
-      const qty = stock[size];
-      if (!Number.isInteger(qty) || qty < 0) throw new Error('Stock cannot be negative.');
+  /**
+   * Permanently remove a product document.
+   *
+   * THIS IS IRREVERSIBLE. There is no archive flag and no recovery path, which
+   * is the whole point of the distinction the UI draws:
+   *
+   *   updateProductActive(false)  keeps the document, hides it from sale
+   *   deleteProduct()             erases the document, its stock, its image
+   *                                reference and every trace of it
+   *
+   * An admin who wants to take a flavor off the shelf should be using the
+   * Active pill. This exists for the case where the flavor was created in error
+   * and should not be recoverable.
+   *
+   * `deleteDoc` rather than `setDoc` with a tombstone: a tombstone would still
+   * appear in getAllProducts() (which has no deleted filter) and would reappear
+   * in the storefront if the rule ever changed, which is precisely the failure
+   * mode a "complete removal" is supposed to rule out.
+   */
+  async deleteProduct(productId: string): Promise<void> {
+    const productRef = doc(this.firestore, `products/${productId}`);
+    await deleteDoc(productRef);
+  }
+
+  /**
+   * Change one size's quantity by a delta, atomically.
+   *
+   * The inventory page's +/- buttons call this rather than read-modify-write
+   * client-side, because a client-side round trip is a race: two admins tapping
+   * "+1" on the same size at the same time both read 4, both write 5, and one
+   * increment is lost. runTransaction makes the read and the write one atomic
+   * unit, so concurrent taps queue and each one lands.
+   *
+   * Returns the quantity actually stored afterwards, which may be higher than
+   * the caller expected if someone else changed it in between — the caller uses
+   * that to resync rather than to assume.
+   */
+  async adjustStock(productId: string, size: SizeVariant, delta: number): Promise<number> {
+    if (!Number.isInteger(delta) || delta === 0) {
+      throw new Error('Adjustment must be a non-zero whole number.');
     }
     const productRef = doc(this.firestore, `products/${productId}`);
-    await updateDoc(productRef, {
-      stock: { ...stock },
-      updatedAt: serverTimestamp(),
+    return runTransaction(this.firestore, async (tx) => {
+      const snap = await tx.get(productRef);
+      if (!snap.exists()) {
+        throw new Error('That product no longer exists.');
+      }
+      const current = ((snap.data() as Product).stock?.[size] ?? 0) as number;
+      // Clamped at zero rather than allowed to go negative: a negative stock
+      // level means "sell N of something you do not have", and the cart's own
+      // validation would have to catch it downstream.
+      const next = Math.max(current + delta, 0);
+      if (next !== current) {
+        tx.update(productRef, {
+          stock: { ...(snap.data() as Product).stock, [size]: next } as StockLevel,
+          updatedAt: serverTimestamp(),
+        });
+        // The ledger row is written INSIDE the same transaction, so a movement
+        // can never be recorded for a change that did not happen, or missed for
+        // one that did. `applied` rather than `delta`, because the clamp above
+        // means the two can differ.
+        const ledgerRef = doc(collection(this.firestore, 'stockMovements'));
+        tx.set(ledgerRef, {
+          productId,
+          variantName: (snap.data() as Product).variantName ?? 'Unknown',
+          size,
+          delta: next - current,
+          balanceAfter: next,
+          reason: delta > 0 ? 'admin_restock' : 'manual_adjust',
+          orderId: null,
+          actorUid: this.authService.currentUserSnapshot?.uid ?? null,
+          createdAt: serverTimestamp(),
+        });
+      }
+      return next;
     });
   }
 
@@ -249,7 +358,18 @@ export class InventoryService {
 
   async updateProductDetails(
     productId: string,
-    patch: Partial<Pick<Product, 'variantName' | 'description' | 'imageUrl' | 'pricing' | 'setName' | 'setNumber' | 'category'>>
+    patch: Partial<
+      Pick<
+        Product,
+        | 'variantName'
+        | 'description'
+        | 'imageUrl'
+        | 'pricing'
+        | 'setName'
+        | 'setNumber'
+        | 'category'
+      >
+    >,
   ): Promise<void> {
     const productRef = doc(this.firestore, `products/${productId}`);
     await updateDoc(productRef, { ...patch, updatedAt: serverTimestamp() });
@@ -257,13 +377,13 @@ export class InventoryService {
 
   // ── Bulk restock: add `amount` to EVERY size of EVERY active product ──────
   async bulkRestock(amount: number): Promise<number> {
-    if (!Number.isInteger(amount) || amount <= 0) throw new Error('Restock amount must be a positive whole number.');
+    if (!Number.isInteger(amount) || amount <= 0)
+      throw new Error('Restock amount must be a positive whole number.');
     const { getDocs } = await import('@angular/fire/firestore');
     const productsCol = collection(this.firestore, 'products');
     const snap = await getDocs(query(productsCol, where('isActive', '==', true), limit(200)));
     let updated = 0;
     for (const d of snap.docs) {
-      const data = d.data() as Product;
       // Transactional, and the base is re-read INSIDE the transaction.
       //
       // This used to be a plain getDocs + a loop of updateDocs computing the
@@ -289,53 +409,21 @@ export class InventoryService {
     return updated;
   }
 
-  // ── Firestore Transaction: Stock Validation ────────────────────────────────────
-  async validateAndDecrementStock(
-    items: { productId: string; size: SizeVariant; quantity: number }[]
-  ): Promise<void> {
-    // Reject non-positive/fractional quantities and collapse duplicate
-    // product+size pairs before the transaction reads anything. A negative
-    // quantity would pass the check below and then *raise* stock, because the
-    // write is `stock - quantity`.
-    const lines = normaliseStockLines(items);
-
-    await runTransaction(this.firestore, async (transaction) => {
-      const stockChecks: {
-        ref: ReturnType<typeof doc>;
-        data: Product;
-        size: SizeVariant;
-        quantity: number;
-      }[] = [];
-
-      for (const item of lines) {
-        const ref = doc(this.firestore, `products/${item.productId}`);
-        const snap = await transaction.get(ref);
-        if (!snap.exists()) {
-          throw new Error(`Product ${item.productId} no longer exists.`);
-        }
-        const product = { id: snap.id, ...snap.data() } as Product;
-        const availableStock = product.stock?.[item.size] ?? 0;
-        if (availableStock < item.quantity) {
-          throw new Error(
-            `Insufficient stock for ${product.variantName} (${item.size}). Available: ${availableStock}`
-          );
-        }
-        stockChecks.push({ ref, data: product, size: item.size, quantity: item.quantity });
-      }
-
-      for (const check of stockChecks) {
-        const newStock = (check.data.stock?.[check.size] ?? 0) - check.quantity;
-        transaction.update(check.ref, {
-          [`stock.${check.size}`]: newStock,
-          updatedAt: serverTimestamp(),
-        });
-      }
-    });
-  }
+  // validateAndDecrementStock used to live here: 42 lines that opened a
+  // transaction, checked every line had stock, and wrote the decrements. It had
+  // no callers -- OrderService.placeOrder stopped calling it when stock moved to
+  // the reconcileOrderStock Cloud Function -- and it was still being cited in
+  // cart.page.ts as "the server-side check ... remains the backstop", which was
+  // false: a function nothing calls is not a backstop, and worse, it read like a
+  // live guarantee to anyone auditing checkout.
+  //
+  // The transaction discipline in it is not lost, it is in functions/src/index.ts
+  // where it belongs: one transaction, every line re-read inside it, all lines
+  // applied or none. See CUTOVER.md.
 
   // ── Restock (e.g. order cancelled) ──────────────────────────────────────────
   async restockItems(
-    items: { productId: string; size: SizeVariant; quantity: number }[]
+    items: { productId: string; size: SizeVariant; quantity: number }[],
   ): Promise<void> {
     if (items.length === 0) return;
     // Same guard as the decrement path: a negative quantity here would
@@ -396,7 +484,7 @@ function applyProductFilters(filters?: ProductFilter) {
             out = out.filter(
               (p) =>
                 p.variantName.toLowerCase().includes(search) ||
-                p.setName.toLowerCase().includes(search)
+                p.setName.toLowerCase().includes(search),
             );
           }
           if (filters.inStockOnly) {
@@ -421,7 +509,7 @@ function applyProductFilters(filters?: ProductFilter) {
         },
         error: (err) => observer.error(err),
         complete: () => observer.complete(),
-      })
+      }),
     );
 }
 
@@ -432,7 +520,7 @@ function priceFor(product: Product, size: SizeVariant): number {
 function sortProducts(
   products: Product[],
   sortBy: ProductFilter['sortBy'],
-  size?: SizeVariant
+  size?: SizeVariant,
 ): Product[] {
   if (!sortBy || sortBy === 'featured') return products;
   const sizeForPrice = size ?? 'cup';
