@@ -171,16 +171,11 @@ import { SectionHeaderComponent } from '../../shared/components/section-header/s
 
         <p class="version">Five-orites Scoop &middot; v{{ version }}</p>
       </div>
+      <app-footer></app-footer>
     </ion-content>
-
-    <app-footer></app-footer>
   `,
   styles: [
     `
-      :host {
-        display: block;
-      }
-
       .settings-body {
         max-width: 640px;
         margin: 0 auto;

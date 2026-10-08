@@ -1,12 +1,22 @@
 // src/app/features/dashboard/dashboard.page.scss
 
-:host {
-  display: block;
-}
-
 // ── Customer Welcome ─────────────────────────────────────
 .welcome-banner {
-  background: var(--gradient-brand);
+  /* A deeper lemon, not --tile-lemon and not the old --gradient-brand.
+     --tile-lemon was the obvious choice and is wrong here: at 1.06:1 against the
+     cream page it has no edge at all, so the greeting would read as a patch of
+     yellow rather than a card. --tile-lemon-deep reaches 1.20:1.
+
+     Two things measured before choosing it, both in the token's comment:
+       - the gold retro shadow on the title gets STRONGER (1.26:1 vs 1.13:1 on
+         the old gradient), so the sticker treatment improves rather than fades;
+       - it stays 1.14:1 off .announce-banner below it, which is --tile-lemon.
+         Using that same --tile-lemon here would have made the two cards
+         identical at 1.00:1, stacked, on the same screen.
+
+     Plum on this surface is 10.25:1, up from 7.20:1 on the gradient, so the
+     greeting and the subtitle both get easier to read. */
+  background: var(--tile-lemon-deep);
   margin: 12px 12px 0;
   border-radius: 18px;
   padding: 20px;
@@ -17,12 +27,50 @@
 }
 .welcome-text {
   flex: 1;
+
+  /* This greeting is the one display string in the app whose length is NOT
+     under our control — it is the user's own first name, from
+     `(displayName || 'Scooper').split(' ')[0]`, and displayName is whatever
+     they typed at registration.
+
+     In a flex row, `flex: 1` alone means "shrink to the content's min-content
+     width", and for a long unbreakable name that min-content width is the whole
+     word. So without min-width: 0 the text box refuses to shrink below it and
+     pushes out past the card's rounded edge. overflow-wrap then gives the
+     desperate name somewhere to break. Neither property is decorative: they are
+     what stops a long name from breaking the layout. */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+
 .welcome-title {
-  font-size: 22px;
-  font-weight: 800;
-  margin: 0 0 4px;
+  /* The second of two opt-in retro strings. See --font-display-retro. */
+  font-family: var(--font-display-retro);
+  font-weight: 700;
+
+  /* Smaller clamp than the About hero on purpose. This is a card on a page,
+     not a hero: the banner sits on cream with a 72px logo plate beside it, so
+     the script has less room and a heavier line would crowd both. 18.4-24px
+     keeps the first name on one line for most names while staying a display
+     size rather than collapsing into the body face. */
+  font-size: clamp(1.15rem, 3.4vw, 1.5rem);
+  line-height: 1.1;
   letter-spacing: -0.3px;
+  margin: 0 0 var(--space-2);
+}
+
+/* The shadow lives on the greeting alone, NOT on the heading. Set on the
+   heading it would paint behind the scoop emoji too, and a colour emoji is a
+   bitmap rather than text — the offset renders as a hard gold fringe around it
+   instead of a shadow. */
+.welcome-greeting {
+  text-shadow: var(--display-sticker-shadow);
+}
+
+/* The emoji needs the line-height reset as well, or the taller script leading
+   opens a gap between the scoop and the exclamation mark beside it. */
+.welcome-scoop {
+  line-height: 1;
 }
 .welcome-sub {
   font-size: 14px;
@@ -33,7 +81,10 @@
   width: 72px;
   height: 72px;
   flex-shrink: 0;
-  border-radius: 14px;
+  /* 50%, for consistency with the other three plates. This one is cosmetic
+     only: .welcome-image is width/height 100% and this wrap has no border, so
+     the image covers the plate completely and the radius is never visible. */
+  border-radius: 50%;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.15);
 }
@@ -99,14 +150,32 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  background: var(--color-brand-light);
+  /* Blush, not mint. Measured on all three text roles the banner carries, since a
+     background swap is invisible to the palette gate until the numbers are run:
+
+       plum 14px/800 title          7.00:1  (mint was 7.41)
+       plum 12px at 0.9 opacity     5.63:1  (mint was 6.10)
+       --color-primary-ink border   3.87:1  (mint was 4.09; 1.4.11 owes 3.0)
+       blush against the cream page 1.76:1  (mint was 1.67)
+
+     --tile-blush was the other candidate and is NOT used: at 1.12:1 against the
+     cream page the banner dissolves into the background, which is an invisible
+     control rather than an unreadable one.
+
+     The dashed --color-primary-ink edge is deliberately left blue. It passes at
+     3.87:1, and --color-blush-ink would also pass (3.37:1) if the warm edge is
+     preferred — but that is a visible change and not the one that was asked for.
+
+     MEASURED-BY-HAND WARNING: `.promo-sub` uses `opacity: 0.9`, so the figure
+     above is the composited colour, not plum at full strength. check-contrast.mjs
+     cannot see it — it reads a hardcoded solid-pair table, and the opacity lives
+     in this stylesheet. Re-run the composition by hand after any change to
+     either the background or that opacity; nothing in the gate will fail. */
+  background: var(--color-brand-blush);
   margin: 10px 12px 0;
   padding: 12px 16px;
   border-radius: 12px;
   font-size: 14px;
-  // Plum. This measured 1.03:1 - powder on mint, the label sitting at the same
-  // lightness as the banner behind it. Ink on mint is 7.41:1 and is already asserted
-  // in check-contrast.mjs, so this pair is guarded rather than merely commented.
   color: var(--color-ink);
   font-weight: 600;
   cursor: pointer;
@@ -374,7 +443,10 @@
 .low-stock-panel {
   margin: var(--space-3) 12px 0;
   background: var(--tone-warning-bg);
-  border: 1px solid var(--tone-warning-border);
+  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
+     See .danger-group in profile.page.scss for the full explanation. Amber on
+     cream is visible enough for that to show. */
+  border: 2px solid var(--tone-warning-border);
   border-radius: var(--radius-md);
   overflow: hidden;
 }

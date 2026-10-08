@@ -69,3 +69,32 @@ export function initialsOf(name: string | null | undefined): string {
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
+
+/**
+ * A CSS-class-safe key for a flavour, derived from the set name.
+ *
+ * Used to pair each catalogue flavour with its pastel chip colour. Keyed on the
+ * NAME rather than the set number on purpose: `setChips()` on the Products page
+ * is derived from live documents, so a set can be renumbered without the label
+ * the customer reads ever changing. A number-keyed map would silently start
+ * painting the wrong colour the day someone renumbered a set, and nothing would
+ * fail. A name-keyed map follows the thing the user actually sees.
+ *
+ * Runs through `flavourOf()` first so the key is singular — `Chocolates` and
+ * `Chocolate` must land on the same colour, and the catalogue happens to use the
+ * plural.
+ *
+ * Returns '' for a name that is blank or reduces to nothing, which is the caller's
+ * signal to fall back to the brand primary. An unmapped flavour is a gap in this
+ * map; it must never be an undefined class name on a chip.
+ *
+ * The full set of keys this can produce against the live catalogue:
+ * chocolate, vanilla, strawberry, mango, ube, mint, coffee, cookies-cream,
+ * pistachio.
+ */
+export function flavourSlug(setName: string | null | undefined): string {
+  return flavourOf({ setName })
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}

@@ -19,7 +19,9 @@
 .menu-logo-wrap {
   width: 72px;
   height: 72px;
-  border-radius: 20px;
+  /* 50%, not 20px. The logo art is a circle (transparent corners), so a
+     rounded-square plate left the corners of the plate showing around it. */
+  border-radius: 50%;
   overflow: hidden;
   background: rgba(255, 255, 255, 0.15);
   display: flex;
@@ -40,11 +42,47 @@
    decorations below it are fine — a logo plate and a hairline ring do not carry
    text. */
 .menu-brand {
+  /* Plum, not white — see the note above the block. Kept explicit rather than
+     inherited: the value happens to match what <html> resolves to today, but
+     this is the string that has to stay readable on the gradient, and the
+     1.79:1 measurement it was chosen against is a property of THIS rule. */
   color: var(--color-ink);
-  font-size: 18px;
+
+  /* Fourth retro string, and the one that was least suited to it at its old
+     size: this was 18px, where the shadow computes to 0.06 * 18 = 1.08px —
+     too tight to read as a decal and more like a smudge behind the letters.
+     24px puts the offset at 1.44px, which is where the effect actually reads.
+
+     font-family has to be stated because this is an <h1> and was inheriting
+     Fredoka from the bare `h1` rule in variables.scss.
+
+     FIXED SIZE, NOT A clamp, and that is the point. .menu-header lives inside
+     ion-menu, which is a fixed-width overlay (~280px, and nothing in this app
+     overrides it), so its content box is 240px. A vw() term here measures the
+     VIEWPORT, not the drawer, so a clamp would silently render the drawer
+     title at 28px on a desktop and 22px on a phone — two different brand marks
+     for the same string, in a container whose width never varies.
+
+     24px was chosen from the 240px budget, not by eye: at 28px the string
+     measures exactly 240px and fills the box to the pixel, so it wraps at the
+     space in "Five-orites Scoop" the moment the name or the font changes by a
+     hair. At 24px it measures ~206px, leaving ~34px of slack. Verified by
+     measuring scrollWidth inside a real 280px drawer. */
+  font-family: var(--font-display-retro);
   font-weight: 700;
-  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
   letter-spacing: -0.3px;
+
+  /* --space-3, matching the two hero strings rather than the --space-2 first
+     written here. An earlier note on this rule claimed `margin: 0` meant "no gap
+     at all" before .menu-tagline; that was wrong — .menu-header is a flex
+     column with gap: 6px (see above), so the real prior clearance was 6px. The
+     correction matters because the invariant to preserve is the TOTAL gap, not
+     this one declaration: 12px margin + 6px flex gap = 18px against a 1.44px
+     shadow. */
+  margin: 0 0 var(--space-3);
+  text-shadow: var(--display-sticker-shadow);
 }
 
 .menu-tagline {
@@ -101,20 +139,41 @@
   margin-bottom: 2px;
   transition: background 0.15s ease;
 
+  /* The nav labels are DELIBERATELY not part of the retro treatment.
+
+     This was tried at 18px Lobster Two with the gold shadow on the active row and
+     then reverted. The reason it could not stay is not aesthetic:
+
+       - the active row is distinguished from the idle rows by font-weight: 600
+         against a lighter inherited weight. Lobster Two ships only 700, so every
+         retro row had to be 700, and the active state lost its only weight cue.
+         A single-weight face cannot express a weight-based active state.
+       - the idle rows sit on WHITE, where the gold decal measures 1.58:1 — too
+         faint to read as intentional and more like a rendering artefact.
+
+     Font size and family are therefore left to inherit from the body face, and
+     `font-weight: 600` on the active row below is restored exactly as it was.
+     Note that .menu-brand, the drawer's own header title, IS retro — this revert
+     covers the navigation rows only. */
+
   &.active-nav-item {
     // PLUM, not the brand hue. This row was powder (#8ECAE6) on mint (#5FD9B4),
     // which measures 1.03:1 — the label and its own background sat at the same
     // lightness, so the ACTIVE page was the one row in the drawer you could not
     // read. Measured off the live DOM, not eyeballed.
     //
-    // Plum on mint is 7.41:1, and it is the convention the rest of the app already
-    // follows: `check-contrast.mjs` asserts plum against every pastel surface, and
-    // the idle rows are plum on cream at 12.34:1. The powder/mint pair was simply
-    // absent from that list, so the gate passed a broken row — the same shape as
-    // every other drift here: two correct halves, nothing asserting they agree.
-    --background: var(--color-brand-light);
+    // The fill moved from full-strength mint to a deep powder (--nav-active,
+    // #cfe4f2) because the idle rows are transparent over ion-menu's WHITE
+    // surface, so the selected fill is judged against white rather than against
+    // the cream page. Mint cleared that at 1.74:1; the obvious replacement,
+    // --tile-powder, would have measured 1.15:1 and left the row looking
+    // unselected. Plum on the new fill is 9.84:1, up from 7.41:1.
+    //
+    // --cart-badge-ring moves with it, or the count bubble would keep a mint
+    // halo on a powder row.
+    --background: var(--nav-active);
     --color: var(--color-ink);
-    --cart-badge-ring: var(--color-brand-light);
+    --cart-badge-ring: var(--nav-active);
     font-weight: 600;
 
     .nav-icon {

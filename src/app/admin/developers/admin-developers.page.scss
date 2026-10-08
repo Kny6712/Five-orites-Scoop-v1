@@ -16,7 +16,12 @@
 }
 
 .card {
-  border: 1px solid var(--color-border, #dfe4ec);
+  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
+     See .danger-group in profile.page.scss for the full explanation.
+     `.suggestion` below keeps its 1px: at 999px the radius clamps to half the
+     chip's height, so its curve is already shallow and a 2px border would only
+     bloat it. */
+  border: 2px solid var(--color-border, #dfe4ec);
   border-radius: var(--radius-md, 12px);
   background: var(--color-surface, #fff);
   padding: 14px;

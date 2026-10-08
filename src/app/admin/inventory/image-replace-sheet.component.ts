@@ -54,7 +54,7 @@ import type { Product } from '../../core/models/product.model';
         -->
         <span class="drop-frame">
           <img
-            [src]="preview || product?.imageUrl || 'assets/placeholder-scoop.svg'"
+            [src]="preview || product?.imageUrl || '/assets/placeholder-scoop.svg'"
             alt=""
             class="drop-img"
           />

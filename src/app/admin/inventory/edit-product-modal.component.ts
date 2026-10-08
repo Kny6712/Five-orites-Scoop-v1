@@ -157,7 +157,7 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
             [attr.aria-label]="previewImage ? 'Change product photo' : 'Add a product photo'"
           >
             <img
-              [src]="(previewImage | cloudinary: 600) || 'assets/placeholder-scoop.svg'"
+              [src]="(previewImage | cloudinary: 600) || '/assets/placeholder-scoop.svg'"
               [alt]="variantName || 'Product image'"
               class="image-preview"
               [class.is-stale]="removeImage"
@@ -521,7 +521,7 @@ export class EditProductModalComponent implements OnInit, OnDestroy {
   onImageError(event: Event): void {
     const img = event.target as HTMLImageElement;
     if (img && !img.src.endsWith('placeholder-scoop.svg')) {
-      img.src = 'assets/placeholder-scoop.svg';
+      img.src = '/assets/placeholder-scoop.svg';
     }
   }
 

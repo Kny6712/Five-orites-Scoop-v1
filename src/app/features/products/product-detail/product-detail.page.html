@@ -30,10 +30,10 @@
   @if (!isLoading() && product()) {
     <div class="hero-wrap">
       <img
-        [src]="(product()!.imageUrl | cloudinary: 1000) || 'assets/placeholder-scoop.svg'"
+        [src]="(product()!.imageUrl | cloudinary: 1000) || '/assets/placeholder-scoop.svg'"
         [alt]="product()!.variantName"
         class="hero-image"
-        onerror="this.src = 'assets/placeholder-scoop.svg'"
+        onerror="this.src = '/assets/placeholder-scoop.svg'"
       />
       <div class="hero-overlay">
         <ion-badge class="set-badge-hero"> Set {{ product()!.setNumber }} · {{ product()!.setName }} </ion-badge>
@@ -187,6 +187,5 @@
       </div>
     </div>
   }
+  <app-footer></app-footer>
 </ion-content>
-
-<app-footer></app-footer>

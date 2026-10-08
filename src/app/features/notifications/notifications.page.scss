@@ -154,7 +154,12 @@
   text-align: center;
   gap: var(--space-3);
   padding: var(--space-7) var(--space-4);
-  border: 1px solid var(--color-ink);
+  /* 2px, not 1px. A thin border on an 18px curve is rasterised as a chain of
+     separately-antialiased segments and breaks up. This is the most visible
+     instance in the app, because --color-ink is the darkest border colour
+     anywhere: a plum hairline on white shows every gap. Same fix and reasoning
+     as .danger-group in profile.page.scss, which is the canonical write-up. */
+  border: 2px solid var(--color-ink);
   border-radius: var(--radius-card);
   background: var(--color-white);
 }

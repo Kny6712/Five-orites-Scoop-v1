@@ -1,9 +1,5 @@
 // src/app/features/auth/auth.page.scss
 
-:host {
-  display: block;
-}
-
 .auth-content {
   --background: var(--gradient-brand);
 }
@@ -31,7 +27,8 @@
 .auth-logo-wrap {
   width: 88px;
   height: 88px;
-  border-radius: 24px;
+  /* 50%, not 24px - see .menu-logo-wrap in app.component.scss. */
+  border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   border: 2px solid rgba(255, 255, 255, 0.4);
   display: flex;
@@ -48,10 +45,33 @@
 }
 
 .auth-brand {
-  font-size: 26px;
-  font-weight: 800;
-  margin: 0 0 4px;
+  /* Third retro string. This is an <h1>, so it was inheriting Fredoka from the
+     bare `h1` rule in variables.scss — font-family has to be stated here to
+     override that, since .auth-brand sets a size but never named a family. */
+  font-family: var(--font-display-retro);
+
+  /* 700, not the 800 this used to carry. Lobster Two ships ONLY 700, so an 800
+     request is not honoured by the font — the browser synthesises the extra
+     weight by smearing the outlines, which on a script face fills in the
+     counters and the joins. It looks bolder and worse at the same time. */
+  font-weight: 700;
+
+  /* Same 28-36px band as the About hero: both are the shop name, both sit on a
+     --gradient-brand surface, and both need to read as the same brand moment.
+     At 320px the auth content box is 320 less the container's 20px gutters =
+     280px, and "Five-orites Scoop" sets to roughly 210px at 30px, so there is
+     room to grow from the old 26px. Verified visually, not assumed. */
+  font-size: clamp(1.75rem, 5.6vw, 2.25rem);
+  line-height: 1.05;
   letter-spacing: -0.5px;
+
+  /* The 4px this used to have is the exact bug that shipped on the About hero:
+     the shadow points DOWN by 0.06em — 1.7px at 28px, 2.2px at 36px — and
+     .auth-tagline sits immediately below, so the shadow landed on it. The
+     logo plate above is not at risk, because the shadow only goes down and
+     right. */
+  margin: 0 0 var(--space-3);
+  text-shadow: var(--display-sticker-shadow);
 }
 
 .auth-tagline {

@@ -1,10 +1,6 @@
 // src/app/admin/inventory/inventory.page.scss
 // Five-orites Scoop — Admin Inventory Manager
 
-:host {
-  display: block;
-}
-
 // ── Header ─────────────────────────────────────────────
 .inv-header {
   padding: 10px 12px 6px;
@@ -156,8 +152,12 @@
    is a chip sized for a filter row and not for a card header that already carries
    an 11px label underneath it — so both are pulled in here.
 
-   min-height, not height: :host sets min-height, and min-height always beats
-   height, so the original `height` in this rule could never have taken effect. */
+   min-height, not height: ion-chip's own host sets min-height, and min-height
+   always beats height, so the original `height` in this rule could never have
+   taken effect. Named explicitly because `ion-chip`'s host is easy to confuse
+   with the page's own, and this page deliberately declares no `:host` rule — it
+   would override `.ion-page { display: flex }` and stop <app-footer> from being
+   page chrome. */
 .set-chip-sm {
   font-size: 11px;
   min-height: 22px;

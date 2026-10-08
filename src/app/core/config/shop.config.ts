@@ -40,3 +40,13 @@ export const SHOP_HOURS = {
   weekends: '9:00 AM – 10:00 PM',
   phone: '',
 } as const;
+
+/**
+ * The year the shop opened, shown in the site footer.
+ *
+ * A constant, not a setting. The hours above are editable at runtime because an
+ * admin genuinely changes them; nobody re-opens a shop. It lives here rather
+ * than in AppFooterComponent because it is a fact about the BUSINESS, not about
+ * the footer — the About story reads the same value.
+ */
+export const SHOP_FOUNDED_YEAR = 2026;

@@ -1,4 +1,4 @@
-﻿<!-- src/app/admin/inventory/inventory.page.html -->
+<!-- src/app/admin/inventory/inventory.page.html -->
 <!-- Five-orites Scoop â€” Admin Inventory Manager -->
 
 <ion-header>
@@ -142,7 +142,7 @@
             >
               <span class="inv-thumb-frame">
                 <img
-                  [src]="(product.imageUrl | cloudinary: 200) || 'assets/placeholder-scoop.svg'"
+                  [src]="(product.imageUrl | cloudinary: 200) || '/assets/placeholder-scoop.svg'"
                   [alt]="product.variantName"
                   class="inv-thumb-img"
                   loading="lazy"
@@ -320,6 +320,5 @@
       />
     }
   }
+  <app-footer></app-footer>
 </ion-content>
-
-<app-footer></app-footer>

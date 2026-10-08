@@ -4,10 +4,6 @@
 // Sizes icons via the --icon-size custom property rather than font-size, because
 // app-icon is inline SVG and is not affected by font-size.
 
-:host {
-  display: block;
-}
-
 /* 720px rather than 640px. The email and password fields were the narrowest
    thing on a desktop screen at 640px, and the extra 80px costs nothing on a
    phone because the wrapper is width-constrained, not fixed. */
@@ -347,8 +343,31 @@
      fill is reserved for the one thing on this page a user should have to
      aim at deliberately. */
 .danger-group {
-  border: 1px solid var(--ion-color-danger);
-  border-radius: var(--radius-card, 16px);
+  /* 2px, not 1px. The border is drawn on an 18px curve (--radius-card ->
+     --radius-md), and a 1px stroke on a large radius is rasterised as a chain of
+     independently-antialiased segments: where adjacent segments fail to overlap
+     the outline breaks, which is what made this border look like a dashed line
+     rather than a solid one.
+
+     2px gives the rasteriser enough coverage to close the arc. It is the fix
+     that does NOT touch anything else — the alternatives were rejected:
+       - box-shadow spread instead of a border: also antialiases on curves, and
+         draws outside the box, changing the element's footprint.
+       - a smaller radius: --radius-card is 18px on purpose. variables.scss
+         argues the scale is the point ("a single radius applied everywhere is the
+         'SaaS card kit' look"), so shrinking one rule to dodge a rendering bug
+         would be the wrong trade.
+
+     Note this is renderer-dependent — it varies with GPU rasterisation, browser
+     zoom and device pixel ratio. 2px is robust across all of them; 1px is not.
+
+     Severity tracks radius divided by width, which is why only the large-radius
+     rules show this. 36 rules in the app pair a 1px border with a radius; the
+     8-12px ones (--radius-xs / --radius-sm) render continuously and were left
+     alone. The remaining --radius-md and --radius-pill ones are the same defect
+     waiting to happen. */
+  border: 2px solid var(--ion-color-danger);
+  border-radius: var(--radius-card);
   padding: var(--space-4);
   margin-top: var(--space-4);
 }

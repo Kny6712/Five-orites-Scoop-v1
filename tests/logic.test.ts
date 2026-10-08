@@ -1437,6 +1437,243 @@ describe('brand hues are not used as foregrounds (ratchet)', () => {
 });
 
 /**
+ * Every page must carry the site footer, and the footer must be page chrome.
+ *
+ * `<app-footer>` uses `:host { display: contents }` so its `<footer>` becomes a
+ * flex SIBLING of `<ion-content>`, and `.site-foot { flex: 0 0 auto }` pins it to
+ * the bottom of the page. Both of those only work if the page host is the column
+ * flexbox Ionic's `.ion-page` makes it, and if the footer is not nested inside
+ * `<ion-content>`.
+ *
+ * Two separate things broke that, and neither failed a build, a lint or a test:
+ *
+ * 1. Nineteen pages declared `:host { display: block }`. Compiled, that is
+ *    `[_nghost-cN]` — specificity (0,1,0), IDENTICAL to `.ion-page` — and
+ *    component styles are appended to <head> at runtime, i.e. after the <link>
+ *    carrying the global bundle, so the page's rule won on document order. The
+ *    page stopped being a flex column, `ion-content` fell back from `flex: 1` to
+ *    its `height: 100%`, and the footer rendered BELOW the viewport. It was
+ *    unreachable rather than mispositioned, because Ionic's structure.css sets
+ *    `body { position: fixed; overflow: hidden }` — so the app had a footer on
+ *    every page and no footer anywhere.
+ * 2. Three pages nested `<app-footer>` inside `<ion-content>`, so it scrolled
+ *    away with the content instead of being chrome.
+ *
+ * A third, softer one: the footer was still absent from the pages that happened
+ * to have no `:host` rule at all, which is what made this read as "no footer
+ * anywhere" rather than "no footer on most pages". Two correct pages were the
+ * only evidence anything was wrong.
+ */
+describe('every page carries the site footer, as chrome', () => {
+  /**
+   * Every page template that actually contains markup.
+   *
+   * A `.page.ts` is only a template when it inlines one. The other twenty
+   * carry `templateUrl: './x.page.html'` and no markup of their own, so counting
+   * `<app-footer` in them finds zero on every page and the guard fails for a
+   * reason that has nothing to do with footers. `.page.html` is always one.
+   *
+   * `*.page.*` excludes the modals and sheets on purpose: they are not pages
+   * and must not carry a footer.
+   */
+  function pageTemplates(): { file: string; src: string }[] {
+    const out: { file: string; src: string }[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!/\.page\.(html|ts)$/.test(entry.name)) continue;
+        const src = readFileSync(full, 'utf8');
+        if (/\.page\.ts$/.test(entry.name) && /templateUrl\s*:/.test(src)) continue;
+        const rel = relative(join(__dirname, '..'), full).replace(/\\/g, '/');
+        out.push({ file: rel, src });
+      }
+    };
+    walk(join(__dirname, '..', 'src', 'app'));
+    return out.sort((a, b) => a.file.localeCompare(b.file));
+  }
+
+  /**
+   * Markup with comments removed.
+   *
+   * A guard that a prose mention can fail is a guard people learn to work
+   * around. `inventory.page.scss` names ion-chip's own host in a comment purely
+   * to be unambiguous about it, and `[^}]*` spans far enough to reach a real
+   * `display: block` from a `:host` mentioned in a comment — which is how this
+   * test failed on the first run, for a page that was already correct.
+   */
+  function stripComments(src: string): string {
+    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  }
+
+  it('finds the page templates, so the assertions below are not vacuous', () => {
+    const found = pageTemplates();
+    assert.ok(
+      found.length >= 21,
+      `expected 21 routed pages (20 .page.html + the inline-template settings.page.ts), ` +
+        `found ${found.length}. If a page was added this needs revisiting; if the walk ` +
+        'stopped matching, every assertion below is passing for the wrong reason.',
+    );
+  });
+
+  it('every page renders exactly one <app-footer>', () => {
+    const missing: string[] = [];
+    const doubled: string[] = [];
+    for (const { file, src } of pageTemplates()) {
+      const count = (src.match(/<app-footer/g) ?? []).length;
+      if (count === 0) missing.push(file);
+      if (count > 1) doubled.push(`${file} (${count})`);
+    }
+    assert.deepEqual(missing, [], 'these pages have no <app-footer>: ' + missing.join(' | '));
+    assert.deepEqual(doubled, [], 'these render it more than once: ' + doubled.join(' | '));
+  });
+
+  it('the footer is the LAST CHILD inside </ion-content>, so it scrolls away', () => {
+    // This assertion is the INVERSE of what it used to be, and that is
+    // deliberate. The footer was originally a flex sibling of <ion-content>,
+    // pinned to the bottom of the viewport, and this test required it to sit
+    // AFTER </ion-content> for that to work. It is now the last child INSIDE
+    // <ion-content>, so it scrolls with the page and is reached at the end.
+    //
+    // The reason for the change: pinned, a two-row footer carrying the flavour
+    // chips measured ~26% of a phone viewport taken permanently, on exactly the
+    // pages that are already the longest. Scroll-away costs nothing while
+    // reading.
+    //
+    // "Last child" is the whole requirement, not merely "inside". A footer
+    // nested inside some inner wrapper is inside <ion-content> but inherits that
+    // wrapper's max-width and padding — notifications.page.html did exactly
+    // that, inside a 720px .page div, and the footer rendered indented instead
+    // of full-bleed. Checking only "footer index < close index" would have
+    // passed that file.
+    const wrong: string[] = [];
+    for (const { file, src } of pageTemplates()) {
+      const footerAt = src.indexOf('<app-footer');
+      const contentAt = src.indexOf('</ion-content>');
+      if (footerAt < 0 || contentAt < 0) continue;
+
+      // Caught separately, because the slice below CANNOT catch it. When the
+      // footer sits AFTER </ion-content>, start > end and String.prototype.slice
+      // returns '' rather than throwing, so the gap reads as "nothing between the
+      // footer and the close tag" and the page passes. That is not hypothetical:
+      // this assertion shipped with exactly that hole and a deliberately re-pinned
+      // page sailed straight through it.
+      if (footerAt > contentAt) {
+        wrong.push(`${file} (footer is OUTSIDE </ion-content> — pinned, not scroll-away)`);
+        continue;
+      }
+
+      // End of the whole ELEMENT. indexOf('>', footerAt) lands on the OPENING
+      // tag of a paired element, which would make every page look like it has
+      // stray markup after the footer. Anchored at the start of the slice, not
+      // the end: the slice runs on past the tag, so a `$` anchor never matches.
+      const elemEnd = /^<app-footer\s*\/>/.test(src.slice(footerAt))
+        ? src.indexOf('>', footerAt) + 1
+        : src.indexOf('</app-footer>', footerAt) + '</app-footer>'.length;
+
+      const between = src.slice(elemEnd, contentAt).trim();
+      if (between !== '') wrong.push(`${file} (stray after footer: "${between.slice(0, 40)}")`);
+    }
+    assert.deepEqual(
+      wrong,
+      [],
+      'the footer must be the last child inside <ion-content>, with nothing between it and ' +
+        '</ion-content>. Anything else either puts it back outside the scroll area (pinned ' +
+        'again) or buries it inside a wrapper that caps its width: ' +
+        wrong.join(' | '),
+    );
+  });
+
+  it('no page stylesheet declares :host { display: block }', () => {
+    // The regression is the DECLARATION, not the symptom, so this matches the
+    // rule rather than trying to render a page and measure it.
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        // Stylesheets AND inline `styles: []` blocks in single-file pages.
+        if (!/\.page\.(scss|ts)$/.test(entry.name)) continue;
+        const rel = relative(join(__dirname, '..'), full).replace(/\\/g, '/');
+        // `:host` followed by a brace is a rule; a `:host` inside a comment is
+        // prose and must not count.
+        const rule = /:host\s*\{[^}]*\bdisplay\s*:\s*block\b[^}]*\}/;
+        if (rule.test(stripComments(readFileSync(full, 'utf8')))) offenders.push(rel);
+      }
+    };
+    walk(join(__dirname, '..', 'src', 'app'));
+    assert.deepEqual(
+      offenders,
+      [],
+      'a page-level :host { display: block } ties on specificity with .ion-page and wins ' +
+        'on document order, which stops ion-content from flexing and drops the footer ' +
+        'below the viewport. Delete the rule — Ionic already sets the host to ' +
+        'display: flex: ' +
+        offenders.join(' | '),
+    );
+  });
+
+  /**
+   * The footer must NOT carry the paint-order workaround for a PINNED footer.
+   *
+   * History, because this is easy to undo by accident and the failure is silent:
+   *
+   * `ion-content` is `position: relative` and its `.inner-scroll` is absolutely
+   * positioned with `bottom: calc(var(--offset-bottom) * -1)`. Ionic's
+   * readDimensions() sets `--offset-bottom` to the page height minus the content's
+   * own box, which is the footer's own height. So while the footer was a flex
+   * SIBLING of `<ion-content>`, the scroll area deliberately overhangs its own
+   * height down into the footer band, and being positioned it painted ABOVE it.
+   * That is why the footer was invisible on all 21 pages at once: laid out
+   * correctly (measured: header + content + footer summed to exactly the
+   * viewport) and simply behind ion-content. It needed `position: relative;
+   * z-index: 1` to win the paint order.
+   *
+   * The footer is now the last child INSIDE `<ion-content>`, so there is no
+   * overhang and nothing to out-paint. The declarations are gone on purpose: a rule
+   * whose comment describes a hazard that no longer exists is worse than no rule,
+   * because the next reader trusts it.
+   *
+   * This assertion exists to make that removal EXPLICIT. If someone re-pins the
+   * footer — putting `<app-footer>` back after `</ion-content>` — the workaround has
+   * to come back with it, and this test fails until they either restore the rule
+   * or acknowledge the change.
+   */
+  it('the scroll-away footer carries no pinned-footer paint workaround', () => {
+    const src = readFileSync(
+      join(
+        __dirname,
+        '..',
+        'src',
+        'app',
+        'shared',
+        'components',
+        'app-footer',
+        'app-footer.component.ts',
+      ),
+      'utf8',
+    );
+    const rule = /\.site-foot\s*\{([^}]*)\}/.exec(stripComments(src));
+    assert.ok(rule, 'could not find the .site-foot rule in AppFooterComponent');
+
+    assert.doesNotMatch(
+      rule[1],
+      /\bz-index\s*:/,
+      '.site-foot has a z-index again. That only ever existed to out-paint the ' +
+        'ion-content overhang, which cannot happen now the footer is inside the ' +
+        'scroll area. If you have re-pinned the footer, restore the workaround here ' +
+        'too — and say so in the comment above this test.',
+    );
+  });
+});
+
+/**
  * An emulator-backed test suite must close what it opens.
  *
  * `initializeTestEnvironment` hands out a NEW Firestore client every time you ask

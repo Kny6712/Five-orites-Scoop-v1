@@ -105,7 +105,7 @@ export class ProductCardComponent implements OnInit {
   onImageError(event: Event): void {
     const img = event.target as HTMLImageElement;
     if (img && !img.src.endsWith('placeholder-scoop.svg')) {
-      img.src = 'assets/placeholder-scoop.svg';
+      img.src = '/assets/placeholder-scoop.svg';
     }
     this.imageLoaded.set(true);
   }

@@ -26,6 +26,19 @@
       the fallback instead of blocking on the network, and only the weights
       actually used are requested — each extra weight is another woff2 against a
       bundle already at 1.55mb.
+
+      Lobster Two is a FOURTH face and is NOT the display face. It is loaded for
+      exactly four strings — the About hero title, the auth page brand, the
+      side-menu header brand, and the Dashboard welcome greeting. All four sit
+      on a brand-hue background, which is the requirement, because the gold
+      offset shadow is close to invisible against cream or white (1.58:1 and
+      1.51:1 respectively, asserted in check-contrast.mjs). It is scoped by its
+      own token (--font-display-retro) and deliberately does not replace
+      --font-display: that token is read in 27 places, several at 15-19px in
+      chart labels and empty states, where a display script is illegible and
+      ~20% wider than Fredoka, which breaks tight flex rows. Its fallback chain
+      ends at var(--font-display), so if the network never delivers it the
+      string renders as Fredoka and still reads correctly.
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -35,9 +48,47 @@
       never actually requested, so every one of those strings silently rendered
       in the Consolas fallback. Two extra weights, two more woff2 files.
     -->
+    <!--
+      Lobster Two, 700 only. It carries the retro script face for the SIX strings
+      that opt in via --font-display-retro: About's .hero-title, the auth brand,
+      the side-menu brand, Dashboard's welcome title and greeting, the global
+      `ion-title`, and the footer name. Each is paired with a hard offset shadow.
+
+      This said "four" for a long time and was wrong twice over: it predated the
+      footer and toolbar work, and then the Developers hero briefly made a seventh
+      while trying out a poster face. That hero settled on a plain one-line motto
+      in --font-display instead, so the count is six and stays six. Do not assume
+      the two heroes should match: About's hero line is script, and a hero motto
+      is not, which is deliberate.
+
+      700 is the heaviest weight the family ships; there is no 800, so the sticker
+      effect would be lighter than intended on any weight below it — and a
+      retro-faced element left at a weight the font does not have is SYNTHESISED
+      bold by the browser, which smears a script face rather than merely thinning
+      it.
+    -->
+    <!--
+      Four families, and this list is the reason two are missing.
+
+      Baloo 2 and Kaushan Script were both here, both for the Developers hero
+      motto alone, and both are gone. They came and went within one revision:
+
+        - Baloo 2 (500/700) as a three-line poster stack with "Five" enlarged.
+          Stacking needs a solid face with predictable vertical boxes, and the
+          enlarged word wanted a script or brush — exactly the face whose
+          ascenders overrun the line box.
+        - Kaushan Script (400 only) as a brush lead over two Baloo 2 supporting
+          lines. Its upstrokes go faint at text sizes, and the hard offset shadow
+          that the solid faces carry fills the counters and dry voids of a brush.
+
+      The motto went back to being one line in Fredoka, which was already loaded
+      for 27 other elements, so two families left the request entirely. Every
+      weight that is requested here is used; if you add a face, add the place it
+      is used, or add nothing.
+    -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Nunito:wght@400;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Lobster+Two:wght@700&family=Nunito:wght@400;600;700;800&display=swap"
     />
     <!--
       Inline SVG favicon. src/favicon.ico is a 0-byte placeholder, so linking it

@@ -6,7 +6,7 @@
       <ion-skeleton-text animated class="image-skeleton"></ion-skeleton-text>
     }
     <img
-      [src]="(product.imageUrl | cloudinary: 400) || 'assets/placeholder-scoop.svg'"
+      [src]="(product.imageUrl | cloudinary: 400) || '/assets/placeholder-scoop.svg'"
       [alt]="product.variantName"
       class="card-image"
       [class.image-visible]="imageLoaded()"

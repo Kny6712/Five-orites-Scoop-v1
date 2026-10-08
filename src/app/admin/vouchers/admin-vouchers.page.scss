@@ -1,10 +1,6 @@
 // src/app/admin/vouchers/admin-vouchers.page.scss
 // Five-orites Scoop — Admin voucher management
 
-:host {
-  display: block;
-}
-
 .new-btn {
   --font-size: 13px;
   font-weight: 700;
@@ -228,7 +224,9 @@
   align-items: center;
   gap: var(--space-3);
   background: var(--color-white);
-  border: 1px solid var(--ion-color-light-shade);
+  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
+     See .danger-group in profile.page.scss for the full explanation. */
+  border: 2px solid var(--ion-color-light-shade);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-3);

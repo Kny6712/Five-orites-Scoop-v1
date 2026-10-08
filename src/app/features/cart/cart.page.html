@@ -50,10 +50,10 @@
           <div class="cart-item">
             <div class="item-image-wrap">
               <img
-                [src]="(item.imageUrl | cloudinary: 200) || 'assets/placeholder-scoop.svg'"
+                [src]="(item.imageUrl | cloudinary: 200) || '/assets/placeholder-scoop.svg'"
                 [alt]="item.variantName"
                 class="item-image"
-                onerror="this.src = 'assets/placeholder-scoop.svg'"
+                onerror="this.src = '/assets/placeholder-scoop.svg'"
               />
             </div>
             <div class="item-info">
@@ -258,6 +258,5 @@
       </div>
     </div>
   }
+  <app-footer></app-footer>
 </ion-content>
-
-<app-footer></app-footer>

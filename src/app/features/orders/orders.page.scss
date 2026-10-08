@@ -1,9 +1,5 @@
 // src/app/features/orders/orders.page.scss
 
-:host {
-  display: block;
-}
-
 /* The ion-list only exists to give each row ion-item's tap handling and ripple.
    A plain container is enough now, since the pager — not the list — controls
    what is on screen. */

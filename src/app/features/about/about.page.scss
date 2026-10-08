@@ -1,25 +1,47 @@
 // src/app/features/about/about.page.scss
 // Sizes icons via --icon-size: app-icon is inline SVG, not a font glyph.
 
-:host {
-  display: block;
-}
-
 // ── Hero ────────────────────────────────────────────────
 .about-hero {
   position: relative;
   padding: var(--space-7) var(--space-5) var(--space-6);
   text-align: center;
-  /* Two-stop gradient, angled so the highlight falls on the logo rather than
-     sitting symmetrically behind it. */
-  background: var(--gradient-brand);
+  /* Ice cream photo under a heavy white scrim.
+
+     The 70% is not a taste call, it is the WCAG floor for .hero-tagline. This
+     photo runs from pure black to blown white inside the cropped band, and the
+     tagline sits at opacity 0.85, so contrast is driven by the darkest pixel:
+
+       50% scrim -> 2.75:1 FAIL    60% -> 3.62:1 FAIL
+       65%       -> 4.10:1 FAIL    70% -> 4.61:1 PASS  <- this
+
+     Measured at 390/768/1280/1600/1920 wide. cover crops differently at each,
+     but the darkest pixel lands at 178-179 at every one, so 4.61:1 is the real
+     figure and it clears AA by only 0.11. Do not lighten this without
+     re-measuring. check:contrast cannot help here: it reads a hardcoded palette
+     table and never looks at the stylesheets.
+
+     Flat 70%, not an angle, so the guarantee above holds everywhere. The old
+     gradient was angled to favour the logo; the photo supplies its own depth.
+
+     Order matters twice over: the gradient is listed FIRST so it paints on top
+     of the url (reversed, the photo hides it), and background-color sits under
+     both so a failed image load degrades to the old flat teal, not to white. */
+  background-color: var(--color-brand-primary);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 70%), rgb(255 255 255 / 70%)),
+    url('/assets/images/hero-ice-cream.jpg');
+  background-size: cover;
+  background-position: center;
 }
 
 .hero-logo-wrap {
   width: 88px;
   height: 88px;
   margin: 0 auto var(--space-3);
-  border-radius: 26px;
+  /* 50%, not 26px - see .menu-logo-wrap. The logo is smaller than this wrap,
+     so unlike the other three the plate is visible as a ring around it. */
+  border-radius: 50%;
   background: rgb(255 255 255 / 0.22);
   border: 2px solid rgb(255 255 255 / 0.4);
   display: flex;
@@ -30,15 +52,40 @@
 .hero-logo {
   width: 62px;
   height: 62px;
+  // The art is a circle on a transparent square, so cover is a no-op here.
+  // Kept so a future non-square logo cannot squash.
+  object-fit: cover;
 }
 
 .hero-title {
-  font-family: var(--font-display);
-  font-size: 30px;
+  /* The one place the retro script is used at full size. See
+     --font-display-retro for why this is a separate token and why it is not
+     applied to any other heading on the page. */
+  font-family: var(--font-display-retro);
   font-weight: 700;
   color: var(--color-ink);
-  margin: 0;
+
+  /* The 28px FLOOR is a deliberate guess, not a measurement: Lobster Two Bold
+     sets noticeably wider than Fredoka, and this string is 17 characters on a
+     320px phone where the hero's content box is only 272px wide (320 less the
+     --space-5 gutters either side). If it wraps, drop this floor — do not
+     shrink the clamp's maximum, or it stops being a display line. Verified
+     visually at 320/768/1920 rather than assumed. */
+  font-size: clamp(1.75rem, 5.2vw, 2.25rem); /* 28px - 36px */
   letter-spacing: -0.5px;
+
+  /* 1.05, not the inherited 1.2. Lobster Two's ascenders and descenders are
+     tall, so normal leading leaves visible slack above and below the glyphs
+     and the block reads loose. */
+  line-height: 1.05;
+
+  /* The bottom margin is load-bearing and was NOT zero by accident being
+     fixed. The shadow points DOWN by 0.06em — 1.7px at 28px, 2.2px at 36px —
+     and the tagline sits below with only --space-1 (4px) between them, so the
+     shadow was landing on it. --space-3 leaves ~10px of clean gradient between
+     the text and its own shadow at any size in the clamp. */
+  margin: 0 0 var(--space-3);
+  text-shadow: var(--display-sticker-shadow);
 }
 
 .hero-tagline {
@@ -77,9 +124,10 @@
   margin: 0 0 var(--space-3);
 }
 
-.section-heading--center {
-  text-align: center;
-}
+/* Was .section-heading--center, applied only to the story heading. Removed: that
+   heading spans the full .story-section width, so centring it pushed it away
+   from the copy it introduces and above the image column. Left, it lands flush
+   with .story-text, matching the four other .section-heading rules on this page. */
 
 // ── Story: copy beside the shop ──────────────────────────
 /* Every other section in .about-body owns the space below it (.mv-section and
@@ -134,13 +182,21 @@
   overflow: hidden;
 }
 
-/* Fixed 3:2, so the artwork never letterboxes and the card keeps its height
-   whatever the viewport does. */
+/* Fixed 8:5, so the artwork never letterboxes and the card keeps its height
+   whatever the viewport does. The comment here used to say 3:2, which
+   contradicted the rule directly beneath it - 3:2 is 1.5, this is 1.6.
+
+   object-fit is load-bearing now that this is an <img> rather than an inline
+   SVG. An SVG scales through its viewBox; an image dropped into a box with a
+   different aspect-ratio gets stretched to fill it unless told to crop instead.
+   The source is cropped to exactly 8:5, so cover should never actually crop -
+   it is here so a future swap cannot silently squash the storefront. */
 .store-art {
   display: block;
   width: 100%;
   height: auto;
   aspect-ratio: 8 / 5;
+  object-fit: cover;
 }
 
 .store-caption {
@@ -185,6 +241,13 @@
 // ── Name triptych ───────────────────────────────────────
 // The one deliberately distinctive moment on the page: three cards standing in
 // for the three words of the name. Everything else stays quiet.
+//
+// No accent border here, nor on .mv-card or .step-card below. A one-sided
+// border on a rounded box is not a straight rule: CSS draws it between the
+// outer rounded outline and an inner one whose radius is reduced by the
+// border's width, so the two arcs are not concentric and the stripe tapers to
+// zero at each corner - 26px of taper for the 5px rule .mv-card carried. It
+// read as a hook rather than as an edge. These cards separate on --shadow-card.
 .name-triptych {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -197,7 +260,6 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
-  border-top: 4px solid var(--color-brand-accent);
 }
 
 .name-word {
@@ -229,13 +291,6 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
-}
-
-.mv-card.mission {
-  border-left: 5px solid var(--color-brand-light);
-}
-.mv-card.vision {
-  border-left: 5px solid var(--color-primary-ink);
 }
 
 .mv-head {
@@ -357,10 +412,6 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-3);
-  /* The one card on the page that had no accent at all, sitting directly between
-     two sections that both did. A left rule in the same brand ink as the other
-     accents, so How It Works belongs to the same family. */
-  border-left: 4px solid var(--color-brand-primary);
 }
 
 /* The number is meaningful here — How It Works IS a sequence — so it is a real

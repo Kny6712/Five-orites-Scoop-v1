@@ -241,3 +241,27 @@ ion-segment-button {
 ion-button:where([fill='outline']) {
   --color: var(--color-primary-ink);
 }
+/* ── Scroll-area layout ───────────────────────────────────────────────────────
+   ion-content's scroll element is display: block, so slottable children stack
+   in normal flow. When a page's content is SHORTER than the viewport, the
+   <app-footer> stops after the last card and the leftover space sits BELOW it
+   as dead cream. Measured at 128px on /about in a 1600x2600 viewport, and absent
+   at 390px wide because the stacked mobile layout is about 1.8x taller.
+
+   Making the scroll element a column flexbox lets the footer's auto margin
+   absorb that free space.
+
+   `flex: 0 0 auto` on the children is NOT optional. Flex items shrink by
+   default and block children never did, so without it a long page compresses to
+   fit instead of scrolling.
+
+   The exposed part is `scroll`, NOT `inner-scroll`. The latter is the CSS class
+   inside the shadow root; the part attribute is `scroll`. Using the class name
+   silently matches nothing. */
+ion-content::part(scroll) {
+  display: flex;
+  flex-direction: column;
+}
+ion-content > * {
+  flex: 0 0 auto;
+}

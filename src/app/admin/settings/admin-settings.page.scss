@@ -1,10 +1,6 @@
 // src/app/admin/settings/admin-settings.page.scss
 // Five-orites Scoop — Admin shop settings
 
-:host {
-  display: block;
-}
-
 .settings-body {
   padding: 16px 16px 8px;
   max-width: 760px;
@@ -16,7 +12,11 @@
 
 .panel {
   background: var(--color-white);
-  border: 1px solid var(--ion-color-light-shade);
+  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
+     See .danger-group in profile.page.scss for the full explanation. Doubling a
+     near-white border like this one costs little visually, and keeps every
+     --radius-md surface in the app on the same footing. */
+  border: 2px solid var(--ion-color-light-shade);
   border-radius: var(--radius-md);
   padding: 16px;
   box-shadow: var(--shadow-card);

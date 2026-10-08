@@ -1,56 +1,194 @@
 // src/app/features/developers/developers.page.scss
 
-:host {
-  display: block;
-}
-
 // ── Hero ──────────────────────────────────────────────────
-/* The illustration sits in a white card ON the gradient rather than being drawn
-   straight onto it. The artwork's own palette is powder and mint, so on a
-   powder-to-mint gradient it would have almost no edge — the card is what makes
-   the scene readable, and it also gives the title a surface to sit against. */
+/* A gradient band closed by `wave-drip`'s cream swell, carrying one line of copy.
+   It used to hold the vendor illustration in a white rounded card plus the page's
+   h1 and tagline; the heading moved out to .dev-intro and the illustration went
+   entirely.
+
+   The illustration went rather than losing just its card, because the card was
+   never doing the job its comment claimed. The SVG painted its own opaque
+   full-bleed background (`<rect width="320" height="200" fill="url(#dv-sky)">`)
+   and `.vendor-art` was `width: 100%`, so it covered the card completely —
+   `background: var(--color-white)` underneath was never visible on screen. The
+   card only supplied rounded corners, a shadow and clipping. So there was no white
+   to remove; dropping the card alone left the SVG's hard square corners sitting on
+   the gradient, and making the SVG transparent instead deleted six of its ten
+   elements, measured against both ends of the gradient:
+
+     canopy #5fd9b4    1.03 vs powder   1.00 vs mint   <- identical to the gradient
+     apron #8ecae6     1.00 vs powder   1.03 vs mint   <- identical to the gradient
+     cap band #8ecae6  1.00 vs powder   1.03 vs mint   <- identical to the gradient
+     shirt/cone #ffc53d 1.13            1.10
+     scoop #f8a9be     1.03            1.06
+     strokes #1b5e7e   3.98            4.09           <- survived
+     wheels #3d2b45    7.20            7.41           <- survived
+
+   Only the strokes and the wheels would have remained. */
 .dev-hero {
   background: var(--gradient-brand);
+  /* Height is `min-height`, not `height`. At 300px with one line of copy in it the
+     band is sized deliberately rather than derived from content, and `min-height`
+     is what keeps that reversible: add content and the band grows instead of
+     clipping it. It also stops a font-metric change from silently resizing the
+     hero out from under the swell.
+
+     `box-sizing: border-box` is stated rather than inherited. Nothing in this
+     project's own SCSS sets it globally (only app.component.scss and
+     cart-button do, locally), so the value was being decided by whatever Ionic's
+     core stylesheet happens to apply. Under content-box the same declaration gives
+     a 358px band instead of 300px — a silent 19% difference from a number that
+     looks identical in the source.
+
+     Measured, not estimated: the swell owns the bottom 27px at the centre, so
+     300px of band shows 273px of gradient there and 286px at the edges. Padding
+     stays at 28/24/30 purely as the swell's breathing room; raising the band means
+     changing this one number and nothing else here moves. Past roughly 340px the
+     first card starts falling below the fold on a 390x844 phone, which is where
+     this stops being a band and starts being a page-eater.
+
+     `justify-content: center` is the safety property, not a stylistic flourish.
+     This is a flex column, so the copy's vertical position decides its distance
+     from the swell, and the swell reaches 27px up at the centre where the copy is
+     centred. Bottom-aligning it (`flex-end`) would put the text's box 30px above
+     the band's bottom edge — a 3px gap, which is the same near-collision that
+     `.dev-hero-sub` had before the padding went to 48px. Centred in a 242px
+     content box it clears the swell by roughly 100px.
+
+     That clearance is a function of how much content the hero holds, not of the
+     line count: `distance = 30 + max(0, 242 - contentHeight) / 2`, so it is safe
+     while total hero content stays under about 168px and collapses below a 40px
+     margin past 242px. Past 242 the hero grows to `58 + contentHeight` and the
+     gap pins at exactly 30px — 3px of clearance — no matter how much more is
+     added. So the guard to watch when editing this hero is its total height
+     staying at 300px; if it ever exceeds that, the swell is the problem and no
+     amount of tuning the tagline will fix it. */
+  box-sizing: border-box;
+  min-height: 300px;
+  /* Bottom padding is 30px, and it is NOT clearance for the copy. The --space-7
+     (48px) that briefly replaced it existed to clear `.dev-hero-sub`, which used
+     to be this hero's last child at 30px — a 2px gap under a swell that reaches
+     27px up at the centre. That text is now `.dev-intro-sub`, on cream. What
+     cleared this hero's copy before was `justify-content: center` below, and that
+     is what clears it now; the 30px is the swell's own breathing room.
+
+     Geometry, corrected: .wave-drip's ::after is `height: 28px` with
+     `bottom: -1px` inside an `overflow: hidden` parent, so the visible peak is
+     27px, not 28px. An earlier note here said 28px/20px; the real figures are
+     27px/21px. Understated, so harmless, but the arithmetic should be right. */
   padding: 28px 24px 30px;
   text-align: center;
   // Plum, not white — see the header note in variables.scss. This is a
   // light-to-light pastel gradient, so white text would sit at 1.79:1.
+  // Measured across the whole 135deg sweep for the tagline, which now sits here:
+  // plum is 7.20:1 at the powder end rising to 7.41:1 at mint, so it clears AA at
+  // any size on any part of the band. If a background image ever lands behind
+  // this, that stops being true and the About hero's 70% white scrim becomes the
+  // reference — its own comment has the measured ladder (50% -> 2.75:1 FAIL,
+  // 70% -> 4.61:1 PASS).
   color: var(--color-ink);
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Load-bearing: see the note above. Without it the copy sits at flex-start and
+     the 30px bottom padding looks like it is doing the clearing. With it, the
+     line is centred in the 242px content box, roughly 100px clear of the swell. */
+  justify-content: center;
   gap: 10px;
 }
 
-.dev-hero-art {
-  width: 100%;
-  max-width: 380px;
-  background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-raised);
-  overflow: hidden;
-  margin-bottom: 4px;
-}
+/* The motto: one line in --font-display (Fredoka), the app's own display face and
+   the one already on 27 other elements. Nothing decorative about it — no script,
+   no brush, no offset shadow, no outline. Every one of those was tried here and
+   removed; the reasons live in the template comment and in variables.scss.
 
-/* A locked 8:5 so the illustration never letterboxes on a tall phone or a wide
-   desktop, and the hero keeps a predictable height. */
-.vendor-art {
-  display: block;
-  width: 100%;
-  height: auto;
-  aspect-ratio: 8 / 5;
-}
+   Fredoka's advance on THIS string, measured by rendering it at 200px and
+   dividing: 3300.6px over 36 characters = 0.4584em per character. So one line
+   needs 16.5em of width, and with -0.3px tracking across 35 gaps it only fits
+   once the viewport is past about 346px. That is the whole reason this clamps
+   where it does.
 
-.dev-hero-title {
+   The size is FLUID, which the earlier fixed sizes could not be: that was because
+   the poster stack had to fit a fixed 242px content box, and a vw term would only
+   have grown it into the same box while adding wrap risk. A single line has 122px
+   of clearance at the 48px cap, so there is vertical room to spare and the type
+   can scale with the screen.
+
+   Where one line actually holds, at this clamp:
+     346px viewport and up  -> ONE LINE
+     320px                  -> 286px of text in a 272px box, so it wraps
+
+   320px is the only width that wraps, and `text-wrap: balance` splits it into two
+   even lines there rather than stranding "masterpiece." alone. Getting a literal
+   single line at 320px would need 17.4px, which is legible here (the fill measures
+   7.20:1, far above the 4.5:1 that applies at any size) but is not a size worth
+   setting a motto in. */
+.dev-hero-tagline {
   font-family: var(--font-display);
-  font-size: 26px;
+  /* A REAL 700, and that is verifiable rather than assumed. Lobster Two and
+     Kaushan Script both shipped 400 only, so asking them for 700 produced
+     SYNTHESISED bold that smeared the outlines — the reason neither face is on
+     this hero any more. Fredoka's loaded face list contains both 500 and 700, so
+     this is a cut between two real faces. Note that width is NOT a usable test
+     here: those two weights render only 0.5% apart on this string, so a
+     "widths must differ" check passes or fails on rounding noise rather than on
+     weight. The face list is the honest evidence. */
   font-weight: 700;
-  margin: 0;
+  font-size: clamp(1.125rem, 5.2vw, 3rem); /* 18px phone floor - 48px desktop cap */
+  /* 1.15 rather than the inherited 1.2: this is one display line, so the slight
+     tightening keeps it reading as a single gesture. */
+  line-height: 1.15;
   letter-spacing: -0.3px;
-}
-.dev-hero-sub {
-  font-size: 14px;
+  color: var(--color-ink);
   margin: 0;
+  /* Only does anything below ~346px, where it evens the two lines instead of
+     leaving a stub. Browsers without support (pre-Chrome 114, pre-Safari 17.5,
+     pre-Firefox 121) fall back to greedy wrapping rather than breaking. */
+  text-wrap: balance;
+}
+
+// ── Intro ─────────────────────────────────────────────────
+/* Type-matched to the card area it introduces, not to the hero it replaced.
+   Same display face and weight as .dev-name (16px), scaled up because a section
+   heading should outrank the name it heads; same centring as .dev-card-content;
+   --container-max and auto margins exactly as .about-body uses them, so the block
+   aligns with the card columns on a wide screen instead of floating wider. */
+.dev-intro {
+  /* `width: 100%` is load-bearing, not tidiness. `ion-content::part(scroll)` is a
+     flex column (global.scss), and on a flex item an `auto` inline margin cancels
+     the default `align-self: stretch` — the box shrinks to fit-content and the
+     auto margins just centre it. Without the width it collapsed to 256px, the
+     intrinsic width of a short heading, so the block no longer lined up with the
+     card columns at all.
+
+     `.about-body` gets away with the same `max-width` + `margin: 0 auto` only
+     because its children are paragraphs whose max-content width is enormous, so
+     fit-content always trips the 1080px cap. A short heading does not, which is
+     exactly what made this invisible by comparison. Stating the width makes the
+     behaviour depend on the container rather than on how long the text is. */
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-3);
+  text-align: center;
+}
+
+.dev-intro-title {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  line-height: 1.25;
+}
+
+/* --color-ink-soft on cream is 6.20:1 with the high-contrast ink (#6B5875) and
+   9.93:1 with the default one, where on the gradient it was 3.58:1 and 5.80:1.
+   The 3.58:1 case failed AA at 14px, so this move fixes it rather than trading
+   it. check:contrast cannot see this: it reads a hardcoded palette table. */
+.dev-intro-sub {
+  font-size: 14px;
+  margin: var(--space-1) 0 0;
   color: var(--color-ink-soft);
 }
 
@@ -192,8 +330,10 @@ ion-col {
 }
 
 // ── Credit ────────────────────────────────────────────────
-/* Reduced from 40px of bottom padding to 16px: the site footer now closes the
-   page, so a second 40px band directly above it was dead space. */
+/* No border-top here, deliberately. This block sits directly above <app-footer>,
+   which has its own hairline; two rules 8px apart read as a rendering fault
+   rather than as two things. The credit is content, the footer's edge is
+   chrome, and only the chrome gets an edge. */
 .dev-footer {
   display: flex;
   flex-direction: column;
@@ -201,7 +341,6 @@ ion-col {
   gap: 3px;
   padding: var(--space-4) 16px var(--space-3);
   text-align: center;
-  border-top: 1px solid var(--ion-color-light-shade);
   margin: 8px 16px 0;
 }
 .footer-icon {

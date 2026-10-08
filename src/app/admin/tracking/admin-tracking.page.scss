@@ -1,10 +1,6 @@
 // src/app/admin/tracking/admin-tracking.page.scss
 // Five-orites Scoop — Admin Delivery Map
 
-:host {
-  display: block;
-}
-
 /* ── Split: map left, controls right ─────────────────────────
    The map and the search panel are used together — you look at where the
    orders are and then find them in a list. Stacked vertically they were never
@@ -369,7 +365,10 @@
   margin: var(--space-5) var(--space-4) var(--space-6);
   padding: var(--space-3);
   background: var(--tone-warning-bg);
-  border: 1px solid var(--tone-warning-border);
+  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
+     See .danger-group in profile.page.scss for the full explanation. Same amber
+     tone as .low-stock-panel on the Dashboard, so both are on the same footing. */
+  border: 2px solid var(--tone-warning-border);
   border-radius: var(--radius-md);
 }
 

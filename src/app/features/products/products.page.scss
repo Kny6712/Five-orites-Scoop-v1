@@ -1,9 +1,5 @@
 // src/app/features/products/products.page.scss
 
-:host {
-  display: block;
-}
-
 // ── Filter Bar ─────────────────────────────────────────
 .filter-bar {
   position: sticky;
@@ -47,23 +43,77 @@
   height: 30px;
   --color: var(--color-ink);
 
+  /* The flavour this chip carries. Every `.set-chip--*` modifier below only sets
+     this one property; nothing else on the chip is flavour-aware. The fallback is
+     the brand primary, which is what the "All" chip uses by design and what any
+     flavour missing from the map degrades to. */
+  --flavor: var(--flavor-all);
+
   ion-label {
     color: var(--color-ink);
   }
 }
 
-/* The SELECTED chip keeps the brand powder - powder is a surface, and that is what
-   brand hues are for. Plum on powder is 7.20:1, so the label becomes readable without
-   changing what the chip looks like at all. */
-.set-chip-active {
-  background: var(--color-brand-primary);
+/* One rule per flavour, and they only assign --flavor. Nine of these, rather than
+   nine backgrounds, so that changing a chip's STATE below can never accidentally
+   desynchronise one flavour from another: both the idle and the selected look
+   read the same variable. */
+.set-chip--chocolate {
+  --flavor: var(--flavor-chocolate);
+}
+.set-chip--vanilla {
+  --flavor: var(--flavor-vanilla);
+}
+.set-chip--strawberry {
+  --flavor: var(--flavor-strawberry);
+}
+.set-chip--mango {
+  --flavor: var(--flavor-mango);
+}
+.set-chip--ube {
+  --flavor: var(--flavor-ube);
+}
+.set-chip--mint {
+  --flavor: var(--flavor-mint);
+}
+.set-chip--coffee {
+  --flavor: var(--flavor-coffee);
+}
+.set-chip--cookies-cream {
+  --flavor: var(--flavor-cookies-cream);
+}
+.set-chip--pistachio {
+  --flavor: var(--flavor-pistachio);
 }
 
-/* The idle chip keeps the outline shape it used to get from [outline], now declared.
-   Its label measured #808289 on white at 3.84:1; ink is far above that. */
+/* SELECTED. The full pastel, so the step up from idle is a clear increase in
+   saturation rather than a different colour.
+
+   `color-mix` for the idle tint rather than a second hand-written value per
+   flavour: nine extra tokens would be nine more places for the two states to
+   drift apart, and the tint has to stay a fixed relationship to the full colour
+   or a flavour stops looking like itself when selected. Baseline support is
+   Chrome 111 / Safari 16.2 / Firefox 113, comfortably inside what Ionic 7 targets. */
+.set-chip-active {
+  background: var(--flavor);
+}
+
+/* IDLE. A 32% tint of the same pastel, outlined in it at full strength. Two
+   reasons the tint is not simply the pastel: an unselected row of nine full-
+   strength pastels reads as nine loud buttons competing for a tap, and the
+   selected chip needs somewhere to go.
+
+   Contrast only improves when idle — the label is plum, and plum on a tint sits
+   between plum on the full pastel (5.32-10.01:1) and plum on white (13.10:1).
+   The chip stays at least 1.2:1 against the cream page in both states, which is
+   asserted per flavour in check-contrast.mjs.
+
+   1px on the outline, unlike the 2px the large --radius-md cards use: ion-chip
+   is 30px tall, so its pill radius clamps to about 15px and the curve is already
+   shallow. A 2px edge here would only bloat the chip. */
 .set-chip-idle {
-  background: transparent;
-  border: 1px solid var(--color-border, #dfe4ec);
+  background: color-mix(in srgb, var(--flavor) 32%, var(--color-white));
+  border: 1px solid var(--flavor);
 }
 
 .filter-label {

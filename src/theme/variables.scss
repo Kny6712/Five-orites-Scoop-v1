@@ -36,8 +36,22 @@
 // The old design had strawberry #FF6B8A as the primary, which made it the
 // toolbar on every page and the fill on every CTA — roughly 104 call sites. It is
 // gone as a role colour. What survives is `--color-brand-blush` #F8A9BE, a soft
-// pastel used only for small moments that genuinely want warmth: the wishlist
-// heart, a promo banner, a "Sale" style badge. It is never a surface.
+// pastel for small moments that genuinely want warmth: the wishlist heart and a
+// "Sale" style badge.
+//
+// IT IS NEVER A PAGE SURFACE, and that is the rule this paragraph used to
+// contradict — it listed "a promo banner" as an approved use three lines above
+// saying it was never a surface. Resolved: a single-row promo strip is a small
+// moment; a full section, a card the page is built from, or anything a user must
+// scroll to read is not, and must use a role colour or a --tile-* token instead.
+//
+// The Dashboard's "Track your orders live" banner was mint
+// (`--color-brand-light`) until it was deliberately recoloured to blush, which is
+// the one place blush now fills a surface. It qualifies as a small moment — a
+// one-row affordance, not a page region — and all three of its text pairs are
+// asserted in check-contrast.mjs: plum 7.00:1, the dashed border 3.87:1 against
+// the 3.0 that WCAG 1.4.11 requires of a non-text boundary, and 1.76:1 against
+// the cream page so the strip does not dissolve into it.
 //
 // ── Semantic colours are a different story ───────────────────────────────────
 // success / warning / danger are already dark, so plum text on them is
@@ -92,6 +106,27 @@
   --tile-lemon: #fff3d6;
   --tile-blush: #fde8ee;
   --tile-periwinkle: #e8eef9;
+
+  /* Deliberately DEEPER than --tile-lemon, and the reason is measured rather than
+     aesthetic. --tile-lemon at #fff3d6 sits 1.06:1 against the cream page, which
+     is no edge at all — a card in that colour reads as a slightly-off patch of
+     yellow floating on the background rather than as a container. This one
+     reaches 1.20:1, which is the floor this file uses for "large filled area must
+     be distinguishable from what it sits on" (the same 1.2 that gates the nine
+     flavour chips and the promo banner).
+
+     Used by the Dashboard welcome banner, which was --gradient-brand. Two things
+     were checked before choosing it:
+       - the retro gold sticker shadow on the title gets STRONGER here, 1.26:1
+         against 1.13:1 on the old powder gradient. Warm surfaces are where a gold
+         decal reads best, so this improves the treatment rather than losing it.
+       - it must not collide with the announcement banner directly below it,
+         which is --tile-lemon. At 1.14:1 the two are close but distinguishable;
+         making the welcome banner the same --tile-lemon would have made them
+         identical at 1.00:1.
+     Deeper than this and the gold shadow starts to disappear — #f5ce78 drops it
+     to 1.05:1, the floor — so this value is near the ceiling for the effect. */
+  --tile-lemon-deep: #fbe3ae;
 
   // The one ink colour for the whole app. Not pure black — a deep plum keeps
   // the warm cast and measures better than #000 on a cream background.
@@ -255,6 +290,151 @@
   // Google Fonts, so every "mono" string silently rendered as Consolas.
   --font-mono: 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
 
+  /* The retro display face — a DECORATIVE one, not the display face.
+     Lobster Two carries the script-plus-hard-shadow treatment for SIX strings:
+     the About hero title, the auth page brand, the side-menu header brand, the
+     Dashboard welcome title and greeting, the global `ion-title`, and the footer
+     name.
+
+     This said FOUR for a long time and was wrong twice over: it predated the
+     footer and toolbar work, and then the Developers hero briefly made seven
+     while it was trying out a poster face. That hero settled on a plain one-line
+     motto in --font-display, so the count is six and stays six.
+
+     The requirement is a BRAND-HUE background, because the gold offset shadow
+     below is close to invisible against cream or white — 1.58:1 on white and
+     1.51:1 on cream, both asserted at the very bottom of check-contrast.mjs.
+     That is why it is not applied to the ~25 other --font-display call sites,
+     most of which sit on white cards. Note the six do NOT share one background:
+     the menu header, auth page and Dashboard banner are on --gradient-brand, but
+     the About hero is --color-brand-primary under a 70% white scrim over a
+     photograph, so the sticker's visibility there can only be judged by eye.
+
+     ALWAYS pair this with `font-weight: 700` in the same rule. The bare h1/h2/h3
+     defaults further down this file are 600, and Lobster Two ships only 700 — so a
+     retro-faced element left at 600 is not rendered thin, it is SYNTHESISED bold by
+     the browser, which smears the outlines and fills in the counters of a script
+     face. That cannot be enforced from the token; it has to be repeated per rule.
+
+     It deliberately does NOT replace --font-display. That token is read in 27
+     places, several of them 15-19px (chart labels, empty-state titles), where a
+     display script is illegible, and Lobster Two sets ~20% wider than Fredoka,
+     which wraps or clips inside tight flex rows.
+
+     The fallback chain ends at var(--font-display) rather than at a generic
+     sans, so a blocked or failed font request degrades to Fredoka — the string
+     still reads as a heading instead of falling back to the body face.
+
+     The shadow offset is physical (down and right), so it does not mirror under
+     dir="rtl". Nothing in this app sets direction today, but the 0.06em x offset
+     would have to become -0.06em if it ever does. */
+  --font-display-retro: 'Lobster Two', var(--font-display);
+
+  /* The hard offset "sticker" shadow that goes with it.
+     em, not px: a fixed 3px reads as a mistake at 28px and all but disappears
+     at 36px, whereas 0.06em tracks the rendered size on its own. Zero blur and
+     zero spread is deliberate — a soft shadow is a drop shadow, not this.
+
+     --color-brand-accent (#ffc53d) against --color-ink (#3d2b45) measures
+     8.16:1, so the glyph gets MORE contrast over its own shadow than it had
+     over the plain surface, which matters on the About hero where the scrim
+     only clears AA by 0.11. That advantage is specific to --color-ink: the same
+     gold behind --color-sunny-ink measures 3.72:1 and behind --color-ink-soft
+     4.06:1, both under the 4.5:1 that body text owes. check-contrast.mjs
+     asserts those so the treatment cannot be quietly applied to a non-plum ink. */
+  --display-sticker-shadow: 0.06em 0.06em 0 var(--color-brand-accent);
+
+  /* A second scale of the same effect, for text that is NOT display-sized.
+
+     --display-sticker-shadow is expressed in em on purpose, so the offset
+     tracks the rendered size. That is right for the four display strings and
+     quietly wrong for the two small ones: 0.06em is 2.16px at the About hero's
+     36px, but only 1.1px at the footer's 18px or the toolbar's 19px — roughly a
+     third of the visual weight, which reads as "black text" rather than as a
+     decal. One token was silently doing two different jobs.
+
+     0.09em puts the small surfaces at 1.6-1.7px, which is about the same
+     absolute weight as the display strings without the heavier look. Chosen as
+     the subtle end of that range deliberately.
+
+     Both scales are safe for contrast wherever they are used, because the gold
+     lands UNDER the glyph and plum on gold is 8.16:1 — better than plum on
+     powder (7.20:1) or on white (13.10:1 is the card case, and 7.20:1 on the
+     toolbar). The gold's own edge against the surface is the decorative part and
+     is asserted at 1.05 in check-contrast.mjs: 1.13 on powder, 1.58 on white. */
+  --display-sticker-shadow-small: 0.09em 0.09em 0 var(--color-brand-accent);
+
+  /* ── Flavour pastels ───────────────────────────────────────────────────
+     One pastel per catalogue flavour, so the Products page's filter chips can
+     be colour-coded. Derived, not invented: every value below was measured
+     twice before it was accepted —
+
+       plum on it            >= 4.5:1, because the chip label is --color-ink at
+                             13px. All nine clear it; Chocolates is the tightest
+                             at 5.32:1 and Vanilla the loosest at 10.01:1.
+       it on --color-cream   >= 1.2:1, so no chip dissolves into the page. This is
+                             the check that actually moved values: Vanilla began
+                             at #f4ecd9, which is 1.13:1 against the cream page
+                             and was barely a chip at all.
+
+     WHY THESE THREE BEIGES LOOK SEPARATE. Vanilla, Coffee and Cookies & Cream
+     are all pale and warm, so they cannot be told apart on lightness — pushing
+     them apart that way stops them being pastel. They are separated by CHROMA
+     and HUE instead: the first two stay warm (43deg, 35deg) and Cookies & Cream
+     swings to a cool near-grey at 197deg with saturation 0.11. Measured
+     perceptual spread across the three is 1.08, against 0.35 for a
+     lightness-based attempt.
+
+     Option C was tried and rejected: a real mid-brown Coffee at #b5824f is only
+     3.85:1 against the plum label, so it FAILS. There is no way back from that
+     without a second label colour for one chip.
+
+     Every one of these is asserted in check-contrast.mjs against both criteria. */
+  --flavor-chocolate: #c4a07c;
+  --flavor-vanilla: #eee2c4;
+  --flavor-strawberry: #f7bcc8;
+  --flavor-mango: #f8c88a;
+  --flavor-ube: #d9c8ee;
+  --flavor-mint: #bfe9d5;
+  --flavor-coffee: #e3c396;
+  --flavor-cookies-cream: #dde2e4;
+  --flavor-pistachio: #d6e8b8;
+
+  /* The "All" chip, and the fallback for any flavour missing from the map above.
+     Deliberately NOT a flavour colour — "All" is the no-filter state, and powder
+     is already the app's primary surface (toolbar, primary buttons, active nav
+     row), so it reads as "everything" rather than as a tenth flavour. Verified
+     not to collide with any of the nine: the closest by hue is mint at 48
+     degrees (green against blue), then ube at 68. */
+  --flavor-all: var(--color-brand-primary);
+
+  /* The drawer's selected row — customer Menu and Admin Panel alike, plus the
+     cart badge ring, which derives from the same value. One token, three
+     effects, so it is named for the role rather than inlined at each site.
+
+     The value is --flavor-ube, not a new colour. It was already in the palette
+     for the Ube flavour chip, and the high-contrast block independently uses the
+     same #d9c8ee for --tile-powder, so this ties the drawer to the flavour system
+     rather than inventing a tenth hue.
+
+     Neither obvious purple works, and the reason is the same for both: the idle
+     rows are transparent over ion-menu's WHITE surface, so the selected fill is
+     judged against white, not against the cream page — a harsher test than
+     anywhere else in the app.
+
+       --tile-periwinkle #e8eef9   1.16:1 vs white   FAIL - no edge at all
+       --tile-powder     #e4f1f8   1.15:1 vs white   FAIL - the same trap
+       this value        #d9c8ee   1.56:1 vs white   the floor is 1.2
+
+     Plum on it is 8.25:1. That pairing is same-hue — the label is itself a
+     desaturated purple — but the lavender is far lighter than the plum, so it
+     measures comfortably rather than going muddy. The old mint gave 7.41:1, so
+     the label is actually easier to read than before.
+
+     If a future edit swaps this for a --tile-* value, check the two "REJECTED"
+     rows in check-contrast.mjs before anything else. */
+  --nav-active: var(--flavor-ube);
+
   --ion-font-family: var(--font-body);
 
   // ── App chrome ───────────────────────────────────────────
@@ -264,10 +444,6 @@
   // Plum, not white: the toolbar sits on a pastel, where white measures 1.79:1
   // and is unreadable.
   --ion-toolbar-color: var(--color-ink);
-
-  // ── Footer ───────────────────────────────────────────────
-  --footer-height: 62px;
-  --footer-bg: #ffffff;
 }
 
 // ── Typography Scale ─────────────────────────────────────────
@@ -319,6 +495,70 @@ ion-button {
 ion-toolbar {
   --background: var(--color-brand-primary);
   --color: var(--color-ink);
+}
+
+/* Every page's toolbar title, in the retro face.
+   This is genuinely ONE rule: before it there was no `ion-title` styling in the
+   project at all, and all ~19 toolbars are authored per page but styled here.
+   That is the opposite of the drawer, where each page owns its own header.
+
+   NO text-shadow, and this one is a judgement rather than a rule: powder blue is
+   a brand hue so the gold would technically read (1.13:1, the weakest of the
+   three), but toolbar text is small and a 0.06em offset on a 19px script is well
+   under a pixel of gold. On the big display strings it reads as a decal; here it
+   reads as mud. So: family only.
+
+   font-weight 700 restated, for the same reason as every other retro string —
+   Lobster Two has no 600, and an unstated weight would inherit the `h2`-style 600
+   default and be synthetically emboldened.
+
+   Size: 19px, against Ionic's default toolbar title size of roughly 17px. Raised
+   because a script face needs it, but not further — this sits in a fixed-height
+   56px toolbar and the real constraint is width, below.
+
+   WIDTH IS THE ACTUAL RISK HERE, and it is not the shadow. Ionic renders the
+   title into `.toolbar-title`, which is `width:100%; overflow:hidden;
+   text-overflow:ellipsis; white-space:nowrap`, inside a slot CENTRED between the
+   left and right button groups. It clips rather than wraps, and Lobster Two sets
+   ~20% wider than the face it replaces.
+
+   Every ion-title in the app was measured at 320/390/768px with a button group
+   either side: none ellipsise and none collide at 19px. The titles carrying the
+   risk are the long ones, and the full list of 14 characters or more is:
+
+     17  Inventory Manager    admin/inventory/inventory.page.html
+     16  Order Fulfillment    admin/orders/admin-orders.page.html
+     15  Sales Analytics      admin/analytics/analytics.page.html
+     14  Bulk import flavors  admin/inventory/csv-import-modal (a MODAL, and
+                               modals are narrower than pages at 320px)
+     14  Product Detail       products/product-detail — see below
+
+   Nothing breaks, because `.toolbar-title` ellipsises rather than overflowing,
+   but a truncation in a script face looks worse than one in a geometric sans.
+   `ion-title` has no shrink mechanism short of abandoning the face, so the lever
+   is the copy: the drawer already calls the analytics page "Analytics", and
+   "Bulk Import" would read the same. Both are copy decisions rather than CSS
+   ones, so neither has been changed here.
+
+   The product-detail title is different in kind, because it is not authored:
+   `{{ product()?.variantName ?? 'Product Detail' }}` interpolates a name that
+   came from a CSV import and is therefore unbounded. A 25-character flavour name
+   will ellipsise. There is no CSS fix for that and none is needed — the worst
+   case is a visible truncation, not a broken layout — but it is the one title on
+   this rule whose length no one controls. */
+ion-title {
+  font-family: var(--font-display-retro);
+  font-weight: 700;
+  font-size: 19px;
+  line-height: 1.1;
+  /* The small-scale token, not the display one: at 19px the 0.06em display
+     offset is 1.1px and effectively invisible, while 0.09em gives 1.7px — enough
+     to read as a warm edge behind the letters without turning a toolbar into a
+     sticker. See --display-sticker-shadow-small for why there are two scales.
+
+     Safe on powder, and slightly BETTER for the glyph than having no shadow:
+     plum on the gold is 8.16:1 against plum on powder's 7.20:1. */
+  text-shadow: var(--display-sticker-shadow-small);
 }
 
 /* Toolbar controls need the INK colour, not white. Ionic derives a toolbar

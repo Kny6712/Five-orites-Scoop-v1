@@ -53,9 +53,18 @@
           Both states failed; only the selected one was visible before any filter was
           chosen, which is why every earlier audit of this page passed.
           aria-pressed is unchanged and remains the real state announcement.
+
+          The array form of ngClass carries THREE things: the selected/idle state,
+          and the flavour modifier that carries the pastel. The modifier is
+          omitted entirely when `slug` is empty — the "All" chip, or any flavour
+          missing from the map — because Angular ignores the empty string, so that
+          chip just keeps the --flavor-all default declared on `.set-chip`.
         -->
         <ion-chip
-          [ngClass]="effectiveSet() === chip.value ? 'set-chip-active' : 'set-chip-idle'"
+          [ngClass]="[
+            effectiveSet() === chip.value ? 'set-chip-active' : 'set-chip-idle',
+            chip.slug ? 'set-chip--' + chip.slug : '',
+          ]"
           (click)="selectSet(chip.value)"
           (keydown.enter)="selectSet(chip.value)"
           (keydown.space)="selectSet(chip.value); $event.preventDefault()"
@@ -260,6 +269,5 @@
       (pageChange)="page.set($event)"
     />
   }
+  <app-footer></app-footer>
 </ion-content>
-
-<app-footer></app-footer>

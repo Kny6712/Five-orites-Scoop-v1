@@ -35,11 +35,29 @@
     <!-- Welcome Banner -->
     <div class="welcome-banner">
       <div class="welcome-text">
-        <h2 class="welcome-title">Hello, {{ (currentUser()?.displayName || 'Scooper').split(' ')[0] }}! 🍦</h2>
+        <!--
+          The greeting is wrapped on its own because the emoji must NOT be
+          inside the shadowed run. text-shadow paints behind every glyph in the
+          box it is set on, and the scoop is a COLOUR EMOJI — a bitmap, not
+          text — so the offset shadow renders as a hard gold fringe around it
+          rather than a shadow. Splitting the string is the fix; the alternative
+          was dropping the emoji, which is content this page chose to show.
+
+          The accessible name is deliberately left exactly as it was: the emoji
+          is still announced, as it was before this change. No aria-hidden, even
+          though it is arguably decorative — dropping it would be an unrequested
+          change to what the heading says out loud.
+        -->
+        <h2 class="welcome-title">
+          <span class="welcome-greeting">Hello, {{ (currentUser()?.displayName || 'Scooper').split(' ')[0] }}!</span>
+          <span class="welcome-scoop">🍦</span>
+        </h2>
         <p class="welcome-sub">What flavor are you craving today?</p>
       </div>
       <div class="welcome-image-wrap">
-        <img src="assets/placeholder-scoop.svg" alt="Colorful ice cream scoop illustration" class="welcome-image" />
+        <!-- The only usage where the brand name is NOT adjacent text, so this one keeps
+             a name for screen readers rather than being marked decorative. -->
+        <img src="/assets/images/logo-ice_cream.png" alt="Five-orites Scoop logo" class="welcome-image" />
       </div>
     </div>
 
@@ -338,6 +356,5 @@
       />
     }
   }
+  <app-footer></app-footer>
 </ion-content>
-
-<app-footer></app-footer>

@@ -58,10 +58,13 @@ import {
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { SET_NAMES, SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+import { flavourSlug } from '../../core/logic/flavor';
 
 interface SetChip {
   label: string;
   value: FlavorSet | null;
+  /** CSS modifier key for the chip's pastel, or '' for "All" / unmapped. */
+  slug: string;
 }
 interface SelectOption<T> {
   label: string;
@@ -227,10 +230,19 @@ export class ProductsPage implements OnInit, OnDestroy {
       );
     }
     return [
-      { label: 'All', value: null },
+      { label: 'All', value: null, slug: '' },
       ...[...labelByNumber.entries()]
         .sort((a, b) => a[0] - b[0])
-        .map(([value, label]) => ({ label, value: value as FlavorSet })),
+        .map(([value, label]) => ({
+          label,
+          value: value as FlavorSet,
+          // Pastel key, derived from the label the customer actually reads.
+          // `flavourSlug` returns '' for anything unmapped, and the template
+          // skips the modifier class in that case, so an unmapped or newly
+          // added flavour falls back to --flavor-all rather than rendering a
+          // chip with no colour at all.
+          slug: flavourSlug(label),
+        })),
     ];
   });
 
