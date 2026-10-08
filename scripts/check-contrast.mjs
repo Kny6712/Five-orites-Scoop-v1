@@ -114,6 +114,23 @@ const PAIRS = [
   [TONES.warningInk, TONES.warningBg, 4.5, 'warning ink on its banner bg'],
   [TONES.dangerInk, TONES.dangerBg, 4.5, 'danger ink on its banner bg'],
   [TONES.infoInk, TONES.infoBg, 4.5, 'info ink on its banner bg'],
+
+  // WHITE ON A TONE INK — the inverse of the four rows above, and the one the
+  // dashboard's "Restock" button depends on.
+  //
+  // Asserted because that button used to rely on this pairing silently: it was a
+  // full-bleed bar with no assertion anywhere, so nothing would have caught a
+  // future edit to --tone-warning-ink that quietly broke a CTA. It is now a pill,
+  // which makes it more obviously a button and more obviously something a gate
+  // row belongs on.
+  //
+  // The hover state is `filter: brightness(0.9)` rather than a second colour,
+  // deliberately: darkening the fill can only raise this ratio, so one row covers
+  // both states and no new token is introduced for a hover shade.
+  [P.white, TONES.successInk, 4.5, 'white on success ink (filled CTA)'],
+  [P.white, TONES.warningInk, 4.5, 'white on warning ink (the Restock pill)'],
+  [P.white, TONES.dangerInk, 4.5, 'white on danger ink (filled CTA)'],
+  [P.white, TONES.infoInk, 4.5, 'white on info ink (filled CTA)'],
   // Non-text UI components only need 3:1 (WCAG 1.4.11)
   [P.powderInk, P.white, 3, 'primary-ink border on white card'],
   [P.powderInk, P.cream, 3, 'primary-ink border on cream'],
@@ -144,6 +161,29 @@ const PAIRS = [
   [TONES.warningBorder, TONES.warningBg, 1.4, 'warning banner border vs its bg'],
   [TONES.dangerBorder, TONES.dangerBg, 1.4, 'danger banner border vs its bg'],
   [TONES.infoBorder, TONES.infoBg, 1.4, 'info banner border vs its bg'],
+
+  // The tone borders again, but judged against the CREAM PAGE instead of their
+  // own background — which is the dashboard KPI tiles' question, and the reason
+  // they are drawn with a rim at all.
+  //
+  // These four tiles were previously borderless, and the consequence was that
+  // nothing said "container": the fills measured 1.10–1.13:1 against the cream
+  // page, which is under the 1.2 floor this file uses for a large filled area
+  // (the floor that rejected --tile-lemon at 1.06:1 and produced
+  // --tile-lemon-deep). So the tiles were breaking a rule the project had already
+  // written down, and no row here covered them.
+  //
+  // A 2px --tone-*-border rim measures 1.60–1.96:1 on the same cream, which is
+  // the edge those tiles were missing. 1.4 rather than 1.2 because a rim is a
+  // deliberate boundary, matching the 1.4 the banner borders already owe.
+  //
+  // The rim against the tile's OWN background needs no row: it is the same
+  // token pair as the four rows directly above these, already asserted at 1.4,
+  // and the tiles reuse it.
+  [TONES.successBorder, P.cream, 1.4, 'KPI tile rim: success border vs cream page'],
+  [TONES.warningBorder, P.cream, 1.4, 'KPI tile rim: warning border vs cream page'],
+  [TONES.dangerBorder, P.cream, 1.4, 'KPI tile rim: danger border vs cream page'],
+  [TONES.infoBorder, P.cream, 1.4, 'KPI tile rim: info border vs cream page'],
 
   // The retro display shadow (--display-sticker-shadow): #ffc53d measured
   // against every surface it could land on.

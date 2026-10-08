@@ -61,11 +61,13 @@
   margin: 0 0 12px;
 }
 
-// ── Size Grid ────────────────────────────────────────────
+// ── Size Grid with Enhanced Embossed Tiles ───────────────────
+/* Modern, tactile cup size tiles with 3D embossed appearance.
+   Creates depth through multi-layer shadows and highlights. */
 .size-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 24px;
 }
 
@@ -73,56 +75,110 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 14px 10px;
-  border-radius: 14px;
-  border: 2px solid var(--ion-color-light-shade);
-  background: #fff;
+  gap: 6px;
+  padding: 16px 12px;
+  border-radius: 16px;
+  border: 2px solid #e8e8e8;
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
   text-align: center;
+  min-height: 110px;
+  position: relative;
 
-  &.selected {
-    border-color: var(--color-primary-ink);
-    background: var(--color-brand-light);
+  /* Embossed/raised appearance with layered shadows */
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03);
+
+  /* Hover state with lift effect */
+  &:hover:not(.out-of-stock):not(.selected) {
+    transform: translateY(-2px);
+    border-color: #d0d0d0;
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.12),
+      0 2px 4px rgba(0, 0, 0, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.03);
   }
 
+  /* Active/pressed state */
+  &:active:not(.out-of-stock) {
+    transform: translateY(0) scale(0.98);
+  }
+
+  /* Selected state with enhanced border and glow */
+  &.selected {
+    border-color: var(--color-primary-ink);
+    border-width: 2px;
+    background: linear-gradient(180deg, #f0f8fc 0%, #e6f4fa 100%);
+    box-shadow:
+      0 3px 6px rgba(27, 94, 126, 0.15),
+      0 1px 3px rgba(27, 94, 126, 0.1),
+      0 0 0 3px rgba(142, 202, 230, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(27, 94, 126, 0.05);
+
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow:
+        0 4px 8px rgba(27, 94, 126, 0.2),
+        0 2px 4px rgba(27, 94, 126, 0.15),
+        0 0 0 3px rgba(142, 202, 230, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1px 0 rgba(27, 94, 126, 0.05);
+    }
+  }
+
+  /* Out of stock state */
   &.out-of-stock {
     opacity: 0.5;
     cursor: not-allowed;
+    border-color: #f0f0f0;
+    background: linear-gradient(180deg, #f8f8f8 0%, #f0f0f0 100%);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.05),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
   }
 }
 
 .tile-size {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   color: var(--ion-color-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .tile-price {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
-  // Plum, and specifically NOT primary-ink: this price sits on a MINT tile, where
-  // primary-ink is 4.09:1 - a fail. Measured 1.03:1 here, powder on mint. Plum is
-  // 7.41:1 on mint and 12.88:1 on the white tiles beside it.
-  color: var(--color-ink);
+  color: var(--color-primary-ink);
+  line-height: 1.2;
+  margin: 2px 0;
 }
 
 .tile-stock {
   font-size: 11px;
-  font-weight: 500;
-  // All three stock states take plum on the mint tile. tone-success-ink was the
-  // obvious candidate and measures 4.28:1 there - still a fail. The state keeps its
-  // colour on the tile and the icon; the TEXT takes the one value verified on every
-  // surface this component sits on.
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+
   &.stock-in-stock {
     color: var(--color-ink);
+    background: rgba(95, 217, 180, 0.15);
   }
+
   &.stock-low-stock {
-    color: var(--color-ink);
+    color: var(--ion-color-warning-shade);
+    background: rgba(255, 197, 61, 0.15);
   }
+
   &.stock-out-of-stock {
-    color: var(--color-danger);
+    color: var(--ion-color-danger);
+    background: rgba(235, 68, 90, 0.1);
   }
 }
 

@@ -14,338 +14,354 @@
     }
 
     <!--
-      ONE container.
+      SEPARATE CARDS with improved visual hierarchy.
 
-      This was four stacked sections — an avatar block with no surface at all, then
-      three separate white cards each with 24px of padding, a 16px bottom margin
-      and its own drop shadow. On a phone that is roughly 100px of card padding
-      and 48px of margin between the cards, holding about 40px of actual content:
-      the page was mostly the space between the boxes.
+      The previous single-container approach compressed everything into one surface
+      with hairline dividers. While efficient, it didn't provide enough visual
+      separation between functionally distinct areas.
 
-      Now there is one surface. The three groups are still visually separate — the
-      avatar, then your details, then email, then notifications — but they are
-      separated by hairline rules inside a single panel, which is the same
-      information architecture at roughly a third of the height. The page also
-      gets wider (720px rather than 640px), so the email and password fields stop
-      being the narrowest thing on a desktop screen.
+      Now each major section gets its own card:
+      - Avatar hero card (most prominent)
+      - Your details card
+      - Email management card
+      - Password card (conditional)
+      - Notifications card
+      - Delete account (danger-styled)
 
-      The grouping is not decorative. Each section is a separate set of fields
-      with its own save button and its own failure modes, and the dividers make
-      it clear which button belongs to which group.
+      This provides better visual hierarchy, clearer grouping of related
+      functionality, and more breathing room while avoiding the excessive padding
+      of the original multi-card approach.
     -->
-    <section class="profile-card">
-      <!-- ── Avatar ────────────────────────────────────────────────────── -->
-      <header class="avatar-section">
-        <div class="avatar-frame">
-          @if (user()?.photoURL) {
-            <img [src]="user()!.photoURL | cloudinary: 256" alt="Your profile photo" class="avatar-img" />
-          } @else {
-            <div class="avatar-initials" aria-hidden="true">{{ initials() }}</div>
-          }
-          @if (isUploadingPhoto()) {
-            <div class="avatar-busy" aria-live="polite">
-              <ion-spinner name="crescent"></ion-spinner>
-            </div>
-          }
-        </div>
 
-        <div class="avatar-copy">
-          <span class="avatar-name">{{ user()?.displayName || 'Your profile' }}</span>
-          <span class="avatar-email">{{ user()?.email }}</span>
-        </div>
-
-        <div class="avatar-actions">
-          <!--
-            A styled label wrapping a real <input type="file">, not a div with a
-            click handler: that keeps it keyboard-reachable and screen-reader
-            announceable, and gives us the native file picker for free.
-          -->
-          <label class="file-label" [class.disabled]="isUploadingPhoto()">
-            <app-icon name="camera" />
-            {{ isUploadingPhoto() ? 'Uploading…' : 'Change' }}
-            <input
-              type="file"
-              accept="image/*"
-              class="file-input"
-              (change)="onPhotoSelected($event)"
-              [disabled]="isUploadingPhoto()"
-            />
-          </label>
-
-          @if (user()?.photoURL) {
-            <button type="button" class="link-btn" (click)="removePhoto()">Remove</button>
-          }
-        </div>
-      </header>
-
-      <!-- ── Details ───────────────────────────────────────────────────── -->
-      <div class="group">
-        <h2 class="panel-title">Your details</h2>
-
-        <label class="field">
-          <span class="field-label">Display name</span>
-          <ion-input
-            [ngModel]="displayName()"
-            (ngModelChange)="displayName.set($event)"
-            name="displayName"
-            type="text"
-            placeholder="Your name"
-            maxlength="60"
-            autocomplete="name"
-          ></ion-input>
-        </label>
-
-        <label class="field">
-          <span class="field-label">Phone number</span>
-          <ion-input
-            [ngModel]="phone()"
-            (ngModelChange)="phone.set($event)"
-            name="phone"
-            type="tel"
-            placeholder="0917 123 4567"
-            inputmode="tel"
-            autocomplete="tel"
-          ></ion-input>
-          <span class="field-hint">Used for delivery updates only.</span>
-        </label>
-
-        <ion-button
-          expand="block"
-          class="save-btn"
-          [disabled]="!isDirty() || saveState() === 'saving'"
-          (click)="saveProfile()"
-        >
-          @if (saveState() === 'saving') {
-            <ion-spinner name="crescent" slot="start"></ion-spinner>
-          }
-          Save changes
-        </ion-button>
-      </div>
-
-      <!-- ── Email ─────────────────────────────────────────────────────── -->
-      <div class="group">
-        <h2 class="panel-title">Email address</h2>
-
-        @if (emailLocked()) {
-          <!--
-            A Google account's address belongs to Google. Changing it here would
-            change the login identity and lock the user out, so it is shown, not
-            hidden — hiding it looks like a missing feature.
-          -->
-          <div class="locked-note">
-            <app-icon name="lock" />
-            <div>
-              <p class="locked-title">Managed by your Google account</p>
-              <p class="locked-text">{{ user()?.email }}</p>
-            </div>
-          </div>
+    <!-- ── Avatar Hero Card ─────────────────────────────────────────── -->
+    <section class="avatar-card">
+      <div class="avatar-frame">
+        @if (user()?.photoURL) {
+          <img [src]="user()!.photoURL | cloudinary: 256" alt="Your profile photo" class="avatar-img" />
         } @else {
-          <label class="field">
-            <span class="field-label">Email address</span>
-            <ion-input
-              [(ngModel)]="newEmail"
-              name="newEmail"
-              type="email"
-              inputmode="email"
-              autocomplete="email"
-            ></ion-input>
-          </label>
-
-          <label class="field">
-            <span class="field-label">Current password</span>
-            <ion-input
-              [(ngModel)]="emailPassword"
-              name="emailPassword"
-              type="password"
-              autocomplete="current-password"
-            ></ion-input>
-            <!--
-              Stated up front rather than discovered on submit: Firebase rejects an
-              email change without a recent sign-in, and the resulting
-              auth/requires-recent-login error names none of that.
-            -->
-            <span class="field-hint">Needed to confirm the change.</span>
-          </label>
-
-          <ion-button fill="outline" class="change-email-btn" [disabled]="isChangingEmail" (click)="changeEmail()">
-            @if (isChangingEmail) {
-              <ion-spinner name="crescent" slot="start"></ion-spinner>
-            }
-            Change email
-          </ion-button>
-          <p class="field-hint standalone-hint">
-            We'll email a confirmation link to the new address before anything changes.
-          </p>
+          <div class="avatar-initials" aria-hidden="true">{{ initials() }}</div>
+        }
+        @if (isUploadingPhoto()) {
+          <div class="avatar-busy" aria-live="polite">
+            <ion-spinner name="crescent"></ion-spinner>
+          </div>
         }
       </div>
 
-      <!-- ── Password ──────────────────────────────────────────────────── -->
-      <!--
-        Shown only to accounts that HAVE a password credential.
-
-        The requirement this came from was "hide it for email sign-in, show it for
-        anything else", which reads backwards: a Google-only account has no
-        password at all, so it is the one case where the control cannot work, and
-        an account carrying BOTH Google and email/password is the case where it
-        must not be hidden. `hasPasswordProvider()` asks the question that actually
-        decides it, from the same `providerData` the email-lock check uses.
-
-        Stated rather than silently absent, so a Google-only user learns why there
-        is no password to change instead of concluding the app has forgotten.
-      -->
-      @if (hasPasswordProvider()) {
-        <div class="group">
-          <h2 class="panel-title">Password</h2>
-
-          <label class="field">
-            <span class="field-label">Current password</span>
-            <ion-input
-              [(ngModel)]="currentPassword"
-              name="currentPassword"
-              type="password"
-              autocomplete="current-password"
-            ></ion-input>
-          </label>
-
-          <label class="field">
-            <span class="field-label">New password</span>
-            <ion-input
-              [(ngModel)]="newPassword"
-              name="newPassword"
-              type="password"
-              autocomplete="new-password"
-            ></ion-input>
-            <span class="field-hint">At least 6 characters.</span>
-          </label>
-
-          <label class="field">
-            <span class="field-label">Confirm new password</span>
-            <ion-input
-              [(ngModel)]="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autocomplete="new-password"
-            ></ion-input>
-          </label>
-
-          <ion-button
-            fill="outline"
-            class="change-email-btn"
-            [disabled]="isChangingPassword()"
-            (click)="changePassword()"
-          >
-            @if (isChangingPassword()) {
-              <ion-spinner name="crescent" slot="start"></ion-spinner>
-            }
-            Change password
-          </ion-button>
-        </div>
-      } @else {
-        <div class="group">
-          <h2 class="panel-title">Password</h2>
-          <div class="locked-note">
-            <app-icon name="lock" />
-            <div>
-              <p class="locked-title">Managed by Google</p>
-              <p class="locked-text">
-                You sign in with Google, so this account has no password. Your password lives in your Google account
-                settings.
-              </p>
-            </div>
-          </div>
-        </div>
-      }
-
-      <!-- ── Notifications ─────────────────────────────────────────────── -->
-      <div class="group">
-        <h2 class="panel-title">Order notifications</h2>
-
-        <div class="toggle-row">
-          <div class="toggle-text">
-            <p class="toggle-title">Order updates</p>
-            <p class="toggle-sub">Get a notification when your order's status changes.</p>
-          </div>
-          <ion-toggle
-            [checked]="updatesOn()"
-            (ionChange)="onNotificationsToggle($event)"
-            aria-label="Order update notifications"
-          ></ion-toggle>
-        </div>
-
-        <!--
-          States the scope rather than describing a permission the app no longer
-          asks for. The "Notifications are blocked" panel that used to sit here is
-          gone: there is no OS permission behind an in-app notification any more,
-          so the state it described is unreachable, and a control that can render
-          a state it cannot escape is one that looks broken.
-        -->
-        <p class="toggle-hint">
-          Notifications appear in this app &mdash; in your notifications list, and as a message while it is open.
-          Nothing is sent while the app is closed.
-          <a routerLink="/notifications" class="inline-link">Open your notifications</a>
-        </p>
+      <div class="avatar-info">
+        <h1 class="avatar-name">{{ user()?.displayName || 'Your profile' }}</h1>
+        <p class="avatar-email">{{ user()?.email }}</p>
       </div>
+
+      <div class="avatar-actions">
+        <!--
+          A styled label wrapping a real <input type="file">, not a div with a
+          click handler: that keeps it keyboard-reachable and screen-reader
+          announceable, and gives us the native file picker for free.
+        -->
+        <label class="file-label" [class.disabled]="isUploadingPhoto()">
+          <app-icon name="camera" />
+          {{ isUploadingPhoto() ? 'Uploading…' : 'Change Photo' }}
+          <input
+            type="file"
+            accept="image/*"
+            class="file-input"
+            (change)="onPhotoSelected($event)"
+            [disabled]="isUploadingPhoto()"
+          />
+        </label>
+
+        @if (user()?.photoURL) {
+          <button type="button" class="link-btn" (click)="removePhoto()">Remove</button>
+        }
+      </div>
+    </section>
+
+    <!-- ── Details Card ──────────────────────────────────────────────── -->
+    <section class="detail-card">
+      <div class="card-header">
+        <app-icon name="user" />
+        <h2 class="card-title">Your Details</h2>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Display name</span>
+        <ion-input
+          [ngModel]="displayName()"
+          (ngModelChange)="displayName.set($event)"
+          name="displayName"
+          type="text"
+          placeholder="Your name"
+          maxlength="60"
+          autocomplete="name"
+        ></ion-input>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Phone number</span>
+        <ion-input
+          [ngModel]="phone()"
+          (ngModelChange)="phone.set($event)"
+          name="phone"
+          type="tel"
+          placeholder="0917 123 4567"
+          inputmode="tel"
+          autocomplete="tel"
+        ></ion-input>
+        <span class="field-hint">Used for delivery updates only.</span>
+      </label>
+
+      <ion-button
+        expand="block"
+        class="save-btn"
+        [disabled]="!isDirty() || saveState() === 'saving'"
+        (click)="saveProfile()"
+      >
+        @if (saveState() === 'saving') {
+          <ion-spinner name="crescent" slot="start"></ion-spinner>
+        }
+        Save changes
+      </ion-button>
 
       @if (saveState() === 'saved') {
         <p class="saved-note" role="status">Your profile has been updated.</p>
       }
+    </section>
 
-      <!-- ── Delete account ─────────────────────────────────────────────── -->
-      <!--
-        Required by both app stores for any app that lets someone create an
-        account, and it did not exist until this was added -- PRIVACY.md had to
-        describe a manual email route because nothing could delete anything.
+    <!-- ── Email Card ────────────────────────────────────────────────── -->
+    <section class="detail-card">
+      <div class="card-header">
+        <app-icon name="mail" />
+        <h2 class="card-title">Email Address</h2>
+      </div>
 
-        Shown only to non-staff. `deleteAccount` refuses for a staff role anyway,
-        because an owner deleting themselves would strand every admin page with
-        no way back, so hiding it is better than offering it and failing.
-
-        The copy is explicit about what happens to orders, because that is the
-        part people hesitate over. The orders themselves stay -- they are the
-        shop's accounting records -- but the name, email, address and notes on
-        them are redacted. Saying "everything is deleted" when the address is
-        still on last month's order would be a lie in the one place someone is
-        trusting you.
-      -->
-      @if (!isStaff()) {
-        <div class="group danger-group">
-          <h2 class="panel-title">Delete account</h2>
-
-          <p class="danger-copy">Permanently deletes your account and signs you out. This cannot be undone.</p>
-          <p class="danger-copy">
-            Your past orders are kept as the shop's sales records, but your name, email address and delivery address are
-            removed from them.
-          </p>
-
-          @if (deleteError()) {
-            <p class="danger-error" role="alert">{{ deleteError() }}</p>
-          }
-
-          @if (needsPasswordForDelete()) {
-            <ion-item lines="none">
-              <ion-input
-                label="Confirm your password"
-                labelPlacement="stacked"
-                type="password"
-                autocomplete="current-password"
-                [(ngModel)]="deletePassword"
-                (ionChange)="deletePassword = $any($event.detail.value) ?? ''"
-              ></ion-input>
-            </ion-item>
-          }
-
-          <ion-button
-            expand="block"
-            color="danger"
-            class="delete-account-btn"
-            [disabled]="isDeleting() || (needsPasswordForDelete() && !deletePassword)"
-            (click)="confirmDeleteAccount()"
-          >
-            {{ isDeleting() ? 'Deleting…' : 'Delete my account' }}
-          </ion-button>
+      @if (emailLocked()) {
+        <!--
+          A Google account's address belongs to Google. Changing it here would
+          change the login identity and lock the user out, so it is shown, not
+          hidden — hiding it looks like a missing feature.
+        -->
+        <div class="locked-note">
+          <app-icon name="lock" />
+          <div>
+            <p class="locked-title">Managed by your Google account</p>
+            <p class="locked-text">{{ user()?.email }}</p>
+          </div>
         </div>
+      } @else {
+        <label class="field">
+          <span class="field-label">Email address</span>
+          <ion-input
+            [(ngModel)]="newEmail"
+            name="newEmail"
+            type="email"
+            inputmode="email"
+            autocomplete="email"
+          ></ion-input>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Current password</span>
+          <ion-input
+            [(ngModel)]="emailPassword"
+            name="emailPassword"
+            type="password"
+            autocomplete="current-password"
+          ></ion-input>
+          <!--
+            Stated up front rather than discovered on submit: Firebase rejects an
+            email change without a recent sign-in, and the resulting
+            auth/requires-recent-login error names none of that.
+          -->
+          <span class="field-hint">Needed to confirm the change.</span>
+        </label>
+
+        <ion-button fill="outline" class="change-email-btn" [disabled]="isChangingEmail" (click)="changeEmail()">
+          @if (isChangingEmail) {
+            <ion-spinner name="crescent" slot="start"></ion-spinner>
+          }
+          Change email
+        </ion-button>
+        <p class="field-hint standalone-hint">
+          We'll email a confirmation link to the new address before anything changes.
+        </p>
       }
     </section>
+
+    <!-- ── Password Card ─────────────────────────────────────────────── -->
+    <!--
+      Shown only to accounts that HAVE a password credential.
+
+      The requirement this came from was "hide it for email sign-in, show it for
+      anything else", which reads backwards: a Google-only account has no
+      password at all, so it is the one case where the control cannot work, and
+      an account carrying BOTH Google and email/password is the case where it
+      must not be hidden. `hasPasswordProvider()` asks the question that actually
+      decides it, from the same `providerData` the email-lock check uses.
+
+      Stated rather than silently absent, so a Google-only user learns why there
+      is no password to change instead of concluding the app has forgotten.
+    -->
+    @if (hasPasswordProvider()) {
+      <section class="detail-card">
+        <div class="card-header">
+          <app-icon name="lock" />
+          <h2 class="card-title">Password</h2>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Current password</span>
+          <ion-input
+            [(ngModel)]="currentPassword"
+            name="currentPassword"
+            type="password"
+            autocomplete="current-password"
+          ></ion-input>
+        </label>
+
+        <label class="field">
+          <span class="field-label">New password</span>
+          <ion-input
+            [(ngModel)]="newPassword"
+            name="newPassword"
+            type="password"
+            autocomplete="new-password"
+          ></ion-input>
+          <span class="field-hint">At least 6 characters.</span>
+        </label>
+
+        <label class="field">
+          <span class="field-label">Confirm new password</span>
+          <ion-input
+            [(ngModel)]="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            autocomplete="new-password"
+          ></ion-input>
+        </label>
+
+        <ion-button
+          fill="outline"
+          class="change-email-btn"
+          [disabled]="isChangingPassword()"
+          (click)="changePassword()"
+        >
+          @if (isChangingPassword()) {
+            <ion-spinner name="crescent" slot="start"></ion-spinner>
+          }
+          Change password
+        </ion-button>
+      </section>
+    } @else {
+      <section class="detail-card">
+        <div class="card-header">
+          <app-icon name="lock" />
+          <h2 class="card-title">Password</h2>
+        </div>
+        <div class="locked-note">
+          <app-icon name="lock" />
+          <div>
+            <p class="locked-title">Managed by Google</p>
+            <p class="locked-text">
+              You sign in with Google, so this account has no password. Your password lives in your Google account
+              settings.
+            </p>
+          </div>
+        </div>
+      </section>
+    }
+
+    <!-- ── Notifications Card ────────────────────────────────────────── -->
+    <section class="detail-card">
+      <div class="card-header">
+        <app-icon name="bell" />
+        <h2 class="card-title">Order Notifications</h2>
+      </div>
+
+      <div class="toggle-row">
+        <div class="toggle-text">
+          <p class="toggle-title">Order updates</p>
+          <p class="toggle-sub">Get a notification when your order's status changes.</p>
+        </div>
+        <ion-toggle
+          [checked]="updatesOn()"
+          (ionChange)="onNotificationsToggle($event)"
+          aria-label="Order update notifications"
+        ></ion-toggle>
+      </div>
+
+      <!--
+        States the scope rather than describing a permission the app no longer
+        asks for. The "Notifications are blocked" panel that used to sit here is
+        gone: there is no OS permission behind an in-app notification any more,
+        so the state it described is unreachable, and a control that can render
+        a state it cannot escape is one that looks broken.
+      -->
+      <p class="toggle-hint">
+        Notifications appear in this app &mdash; in your notifications list, and as a message while it is open. Nothing
+        is sent while the app is closed.
+        <a routerLink="/notifications" class="inline-link">Open your notifications</a>
+      </p>
+    </section>
+
+    <!-- ── Delete Account Card ───────────────────────────────────────── -->
+    <!--
+      Required by both app stores for any app that lets someone create an
+      account, and it did not exist until this was added -- PRIVACY.md had to
+      describe a manual email route because nothing could delete anything.
+
+      Shown only to non-staff. `deleteAccount` refuses for a staff role anyway,
+      because an owner deleting themselves would strand every admin page with
+      no way back, so hiding it is better than offering it and failing.
+
+      The copy is explicit about what happens to orders, because that is the
+      part people hesitate over. The orders themselves stay -- they are the
+      shop's accounting records -- but the name, email, address and notes on
+      them are redacted. Saying "everything is deleted" when the address is
+      still on last month's order would be a lie in the one place someone is
+      trusting you.
+    -->
+    @if (!isStaff()) {
+      <section class="danger-card">
+        <div class="card-header">
+          <app-icon name="triangle-alert" />
+          <h2 class="card-title danger-title">Delete Account</h2>
+        </div>
+
+        <p class="danger-copy">Permanently deletes your account and signs you out. This cannot be undone.</p>
+        <p class="danger-copy">
+          Your past orders are kept as the shop's sales records, but your name, email address and delivery address are
+          removed from them.
+        </p>
+
+        @if (deleteError()) {
+          <p class="danger-error" role="alert">{{ deleteError() }}</p>
+        }
+
+        @if (needsPasswordForDelete()) {
+          <ion-item lines="none">
+            <ion-input
+              label="Confirm your password"
+              labelPlacement="stacked"
+              type="password"
+              autocomplete="current-password"
+              [(ngModel)]="deletePassword"
+              (ionChange)="deletePassword = $any($event.detail.value) ?? ''"
+            ></ion-input>
+          </ion-item>
+        }
+
+        <ion-button
+          expand="block"
+          color="danger"
+          class="delete-account-btn"
+          [disabled]="isDeleting() || (needsPasswordForDelete() && !deletePassword)"
+          (click)="confirmDeleteAccount()"
+        >
+          {{ isDeleting() ? 'Deleting…' : 'Delete my account' }}
+        </ion-button>
+      </section>
+    }
   </div>
   <app-footer></app-footer>
 </ion-content>

@@ -286,42 +286,104 @@
 }
 
 // ── KPI Cards ─────────────────────────────────────────────
+
+/* `width: 100%`, and this is a bug fix rather than a preference.
+
+   A bare <ion-grid> here was SHRINK-TO-FIT rather than filling its parent.
+   Measured at 1280px, before this rule: the grid was 459px wide with 196px of
+   auto margin either side, sitting inside a 922px ion-content — and the four
+   tiles were 102px each. So the page's headline figures used barely half the
+   width available on a desktop, centred in the remaining space.
+
+   The cause is in the cascade rather than in any rule anyone wrote: `ion-grid`
+   resolves to `display: block` here, but as a flex item of `.ion-page` it
+   computes `flex: 0 0 auto`, and `width` computes to a used value rather than
+   `auto`. Nothing in src/ overrides it — the grid behaved this way on every
+   breakpoint from 320px up, on both the loading and the loaded branch.
+
+   100% is the fix rather than a max-width, because the tiles are `size-md="3"`
+   and Ionic's own column basis already handles the responsive step: 2-across on
+   a phone, 4-across from md up. Capping the grid would fight that. */
+
+.kpi-grid {
+  width: 100%;
+}
+
 /* Centred throughout. The icon used to be a bare glyph pinned to the top-left of
    a left-aligned column, which made the four tiles read as four different
    little lists rather than one set of comparable figures. Centring the badge,
    the label and the number together is what makes a 2x2 grid scannable — you
-   compare the numbers, and they are all in the same place. */
+   compare the numbers, and they are all in the same place.
+
+   That reasoning still holds and is why the alignment below is unchanged. What
+   changed is that the tiles became CONTAINERS, which they were not. */
+
 .kpi-card {
-  border-radius: var(--radius-md);
+  /* --radius-lg, not --radius-md. The radius scale is a scale, not one value —
+     variables.scss is explicit that "hierarchy comes from these being visibly
+     different steps", and these four tiles sat on the same 18px step as the low
+     stock panel directly beneath them. One step up makes the tiles read as the
+     page's figure layer and the panel as a detail beneath it. */
+  border-radius: var(--radius-lg);
+
+  /* THE MISSING EDGE. Measured, the tile fill against the cream page is
+     1.10-1.13:1 — and variables.scss sets 1.2:1 as the floor for "a large
+     filled area must be distinguishable from what it sits on". That floor is not
+     aspirational: it is the rule that rejected --tile-lemon at 1.06:1 and
+     created --tile-lemon-deep specifically to clear 1.20:1. All four KPI tiles
+     were breaking the project's own written standard, and nothing caught it
+     because scripts/check-contrast.mjs has no row for them.
+
+     So this is the repo's own established answer to its own stated problem, not
+     a new idea: --tone-*-border is already asserted at 1.4:1 against its own
+     background, and as a 2px rim it measures 1.60-1.96:1 against the cream page.
+     Zero palette growth — the token was already there, unused here.
+
+     2px and not 1px, matching .low-stock-panel below: a hairline breaks up as it
+     rasterises on an 18px-plus curve, and on a pastel that break is very visible.
+     See .danger-group in profile.page.scss for the longer version. */
+  border: 2px solid var(--kpi-rim);
+
+  /* Brand-tinted, not grey — a neutral rgba(0,0,0,.08) on cream reads as dirt.
+     The rim draws the edge; this gives it somewhere to sit. */
+  box-shadow: var(--shadow-card);
+
   padding: var(--space-4) var(--space-3);
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 4px;
-  min-height: 108px;
+  gap: var(--space-1);
+  min-height: 128px;
 }
 
 /* Pastel tile + dark ink, per the "soft pastel accents only" rule. These were
    four saturated ramps (deep green, burnt orange, deep red, ink-blue) behind
    white text. Each pair is an existing `--tone-*` triple whose ink is already
    contrast-verified: 6.35:1, 6.29:1, 7.42:1 and 8.61:1. The ink is carried on
-   each tile because each pastel needs its own. */
+   each tile because each pastel needs its own.
+
+   --kpi-rim is new and is the tile's border colour. It is the third leg of the
+   same triple, so nothing new had to be invented or asserted from scratch. */
 .kpi-revenue {
   background: var(--tone-success-bg);
   --kpi-ink: var(--tone-success-ink);
+  --kpi-rim: var(--tone-success-border);
 }
 .kpi-pending {
   background: var(--tone-warning-bg);
   --kpi-ink: var(--tone-warning-ink);
+  --kpi-rim: var(--tone-warning-border);
 }
 .kpi-lowstock {
   background: var(--tone-danger-bg);
   --kpi-ink: var(--tone-danger-ink);
+  --kpi-rim: var(--tone-danger-border);
 }
 .kpi-total {
   background: var(--tone-info-bg);
   --kpi-ink: var(--tone-info-ink);
+  --kpi-rim: var(--tone-info-border);
 }
 
 .kpi-skeleton {
@@ -337,43 +399,76 @@
    gradient with nothing to align it, which is why it read as an afterthought
    next to the label. The disc is now WHITE-on-pastel rather than white-on-dark:
    at 0.18 it was nearly invisible over a pale tile, so it is a solid white
-   with the tile's ink showing through as the glyph. */
+   with the tile's ink showing through as the glyph.
+
+   …but a solid white disc ON a pastel measures 1.15-1.18:1, which is no edge at
+   all. That is the actual reason it looked like it had been dropped in rather
+   than placed: the disc had no outline, so nothing said "this is a deliberate
+   token". The ring below is that outline. */
 .kpi-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--color-white);
-  margin-bottom: 2px;
+  /* A ring rather than a border so the disc can stay exactly 40px and the ring
+     paint outside it — a `border` here would eat 2px of the interior and make
+     the glyph look off-centre in the circle. As a ring it measures 1.43-1.74:1
+     against the tile fill, which check-contrast.mjs ALREADY asserts for all four
+     --tone-*-border pairs (they owe 1.4:1 against their own background). */
+  box-shadow: 0 0 0 2px var(--kpi-rim);
+  margin-bottom: var(--space-1);
 }
 
 .kpi-icon {
-  --icon-size: 20px;
+  --icon-size: 21px;
   color: var(--kpi-ink);
 }
 .kpi-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--kpi-ink);
-  opacity: 0.85;
-  font-weight: 600;
+
+  /* THE `opacity: 0.85` IS GONE, and this is a measured fix rather than a
+     preference. Composited against the tile, 0.85 alpha takes the warning ink
+     from 6.29:1 down to 4.51:1 — it passes, but by 0.01, on an 11px label.
+
+     4.51 is the number that matters here, not the pass. scripts/check-contrast.mjs
+     reads a hardcoded solid-pair table, so an opacity declared here is INVISIBLE
+     to the gate: it asserts the un-composited 6.29:1, passes, and the stylesheet
+     quietly ships a value one hundredth of a ratio from failing. That is the same
+     latent bug already documented for .promo-sub, which is why the composited
+     figure is written down here as well as in the stylesheet that caused it.
+
+     At full strength this label is 6.35 / 6.29 / 7.42 / 8.61 — every one of
+     those an existing gate row. */
+  font-weight: 700;
   margin: 0;
   /* Two lines allowed so "Today's Revenue" and "Pending Orders" occupy the same
      height — an uneven label baseline between adjacent tiles is very visible in
-     a 2x2 grid. */
-  line-height: 1.3;
-  min-height: 2.6em;
+     a 2x2 grid. 2.5em at 12px is 30px, one line-height more than the old 11px
+     min-height because the label is now an 0.5px larger type size. */
+  line-height: 1.25;
+  min-height: 2.5em;
   display: flex;
   align-items: center;
 }
 /* The tile's own ink, not white: these tiles are now pastel surfaces, and
    white on `--tone-success-bg` would have measured well under 4.5:1. Each
-   `--kpi-ink` clears it (6.35 / 6.29 / 7.42 / 8.61). */
+   `--kpi-ink` clears it (6.35 / 6.29 / 7.42 / 8.61).
+
+   600, not 700. Fredoka ships a real 600, so this is a rendered weight rather
+   than the synthetic emboldening a 700 on a face without one would produce —
+   which is the whole reason --font-display-retro has to restate 700 at every
+   call site (see variables.scss). 30px rather than 24px because this is the
+   figure the tile exists to show, and it now has the room: min-height went to
+   128px to match. */
 .kpi-value {
   font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 700;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
   color: var(--kpi-ink);
   margin: 0;
   font-variant-numeric: tabular-nums;
@@ -439,7 +534,10 @@
 // ── Low Stock panel ──────────────────────────────────────
 /* A single tinted container rather than a heading followed by a stack of loose
    rows. This is the one thing on the dashboard that needs acting on, so it gets
-   a surface of its own instead of blending into the page. */
+   a surface of its own instead of blending into the page.
+
+   --radius-md, deliberately one step BELOW the KPI tiles' --radius-lg. The panel
+   is the detail layer; the figures above it are the page's primary layer. */
 .low-stock-panel {
   margin: var(--space-3) 12px 0;
   background: var(--tone-warning-bg);
@@ -448,7 +546,29 @@
      cream is visible enough for that to show. */
   border: 2px solid var(--tone-warning-border);
   border-radius: var(--radius-md);
+  /* Still needed — it is what clips the row corners and the footer hairline to
+     the panel's curve now that the CTA inside is a pill rather than a full-bleed
+     bar that covered the bottom corners by itself. */
   overflow: hidden;
+}
+
+/* The pager footer, inside the panel's clipped edge.
+
+   This is a wrapper rather than a rule on `app-pagination` because the two
+   things it needs are both structural and neither belongs to the component: a
+   hairline marking "the list ends here", and a bottom padding. Without them the
+   "Showing 1-1 of 1 low-stock flavors" line sat flush against the panel's
+   clipped bottom edge, directly under the CTA — with the CTA as a full-bleed
+   bar above it, the two read as one broken slab rather than as a list and its
+   pager. */
+.low-stock-foot {
+  margin: 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  /* The panel's own border colour, so the rule reads as part of the container.
+     1px rather than 2px: this is an interior divider between two regions of the
+     same tint, not the container's edge against the page, and 2px here is heavier
+     than the 18px radius it sits inside. */
+  border-top: 1px solid var(--tone-warning-border);
 }
 
 .low-stock-head {
@@ -490,7 +610,11 @@
   margin: 1px 0 0;
   font-size: 12px;
   color: var(--tone-warning-ink);
-  opacity: 0.85;
+
+  /* `opacity: 0.85` removed for the same reason as .kpi-label, and it was the
+     same measured defect: 6.29:1 composited down to 4.51:1, passing by 0.01 on
+     12px text, in a stylesheet the contrast gate cannot read. Full strength is
+     6.29:1 and is an existing gate row. */
 }
 
 .low-stock-list {
@@ -510,6 +634,16 @@
   border-radius: var(--radius-sm);
   padding: 9px 11px;
   gap: var(--space-2);
+
+  /* The ROW wraps, not just the pills. With all four sizes low the pills need
+     ~246px and the flavour name needs ~90px, which is more than a 390px phone
+     has inside this row. Before this the row was nowrap, so .low-stock-info —
+     the only child allowed to shrink — absorbed the entire shortfall and the
+     name ellipsised to "Chocolate Fudge…" while the pills, being free to wrap
+     internally, quietly reflowed into two lines instead. The flavour name is the
+     thing being identified; it is the wrong thing to truncate, so the pills drop
+     to a second line where they no longer fit. */
+  flex-wrap: wrap;
 }
 
 .low-stock-info {
@@ -517,6 +651,7 @@
   flex-direction: column;
   gap: 1px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 .low-stock-name {
   font-size: 13px;
@@ -540,27 +675,95 @@
   gap: 4px;
   flex-wrap: wrap;
   justify-content: flex-end;
+
+  /* flex-shrink: 0 is what makes the row wrap instead of squeezing. These are
+     fixed-content pills; letting them shrink is what let the name lose its width
+     in the first place. `margin-left: auto` then holds them against the right
+     edge both when they share the line with the name and when they are alone on
+     the one below it, so both layouts read as the same component. */
+  flex: 0 0 auto;
+  margin-left: auto;
 }
+/* The per-size stock pills.
+
+   These carried `color="warning"` on an <ion-chip>, and Ionic turns that into
+   `background: rgba(var(--ion-color-base-rgb), 0.08)` (chip.ios.css,
+   `:host(.ion-color)`). For warning that is rgba(180, 83, 9, .08) over white —
+   about #f9f1eb. An 8%-alpha wash of a dark hue is not a designed tint, it is a
+   smudge, and four of them in a row is what made this panel read as "off". The
+   text measured 5.89:1 on it, so this was never an accessibility failure — it
+   simply looked like a bug, which is the harder one to notice.
+
+   --background/--color set explicitly moves them onto the --tone-warning triple
+   the rest of this panel already uses, which is 6.29:1 and is an EXISTING gate
+   row. The pill is then visibly part of the panel instead of sitting on it. */
 .stock-chip-sm {
+  /* The inline `--background`/`--color` pairs are what Ionic's own .ion-color
+     rule sets, so they must be declared at the same specificity to win. */
+  --background: var(--tone-warning-bg);
+  --color: var(--tone-warning-ink);
   font-size: 11px;
-  height: 22px;
+  font-weight: 700;
+
+  /* min-height, NOT height. This rule said `height: 22px` and had never done
+     anything: ion-chip's own host sets `min-height: 32px`, and in CSS min-height
+     always beats height. The chips have been rendering at 32px with 4px of margin
+     on all four sides inside a row padded by 9px — which is most of why they
+     looked oversized and misaligned. Same Ionic trap, same explanation, as
+     .set-chip-sm in admin/inventory/inventory.page.scss:150-160.
+
+     The vertical padding is pulled in for the same reason `min-height` alone was
+     not enough: ion-chip ships `padding-top/bottom: 6px`, which on its own drove
+     the rendered height to 27px even with a 22px min-height. At 22px the pill is
+     the size a chip in a card header is meant to be. */
+  min-height: 22px;
+  padding-top: 2px;
+  padding-bottom: 2px;
   margin: 0;
+  /* ion-chip ships 16px. A pill matches --radius-pill, which is what the Restock
+     CTA below now uses, so the two read as one control vocabulary. */
+  border-radius: var(--radius-pill);
 }
 
+/* A PILL, not a bar.
+
+   This was `display: flex` with no width and no side margin, sitting as a direct
+   block child of .low-stock-panel — which has `overflow: hidden` — so a
+   solid --tone-warning-ink background painted edge to edge across the whole panel.
+   It read as a dark footer with a word on it, not as a button, which is exactly
+   the "parang ang off, lalo yung button... dapat parang oval" complaint.
+
+   The fix is the three properties below and nothing else: `width: fit-content`
+   stops it stretching, `margin: … auto` centres it, and `--radius-pill` makes it
+   an oval. The colour pair is unchanged and is the same 7.41:1 it always was —
+   now asserted in check-contrast.mjs instead of being relied on silently. */
 .low-stock-cta {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 9px;
+  gap: 6px;
+  width: fit-content;
+  margin: var(--space-3) auto;
+  padding: 11px 22px;
+  border-radius: var(--radius-pill);
   background: var(--tone-warning-ink);
   color: var(--color-white);
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
+
+  /* Its own transition, rather than relying on the tile's. `filter` darkens the
+     fill rather than replacing it with a new colour, so the white-on-brown pair
+     can only get MORE contrast on hover — which means the gate row for this
+     button stays true at every state, and no new token is needed for the hover
+     shade. */
+  transition: filter 0.15s ease;
+}
+.low-stock-cta:hover {
+  filter: brightness(0.9);
 }
 .low-stock-cta app-icon {
-  --icon-size: 14px;
+  --icon-size: 15px;
 }
 
 // ── Admin Orders List ─────────────────────────────────────

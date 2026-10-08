@@ -1,4 +1,5 @@
 // src/app/features/products/products.page.scss
+// Five-orites Scoop — Products page filter bar & grid
 
 // ── Filter Bar ─────────────────────────────────────────
 .filter-bar {
@@ -7,16 +8,15 @@
   z-index: 10;
   background: var(--color-white);
   padding: 8px 0 4px;
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
 }
 
-/* Capped and left-aligned. Unconstrained, this spanned the full width of every
-   screen — a 1440px search field for a catalog of 64 items, with every filter
-   below it pushed off the top of a laptop viewport. A search input has a
-   comfortable measure and no more. */
+// ── Search Bar ──────────────────────────────────────────
 .product-searchbar {
-  --border-radius: 12px;
+  --border-radius: 10px;
   --background: var(--ion-color-light);
+  --box-shadow: none;
+  --placeholder-opacity: 0.55;
   display: block;
   width: 100%;
   max-width: 300px;
@@ -24,7 +24,7 @@
   margin: 0 8px;
 }
 
-// ── Set Chips Horizontal Scroll ──────────────────────────
+// ── Flavor Chips ────────────────────────────────────────
 .set-chips-scroll {
   display: flex;
   gap: 6px;
@@ -42,22 +42,17 @@
   font-size: 13px;
   height: 30px;
   --color: var(--color-ink);
-
-  /* The flavour this chip carries. Every `.set-chip--*` modifier below only sets
-     this one property; nothing else on the chip is flavour-aware. The fallback is
-     the brand primary, which is what the "All" chip uses by design and what any
-     flavour missing from the map degrades to. */
   --flavor: var(--flavor-all);
+  transition:
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
 
   ion-label {
     color: var(--color-ink);
+    font-weight: 600;
   }
 }
 
-/* One rule per flavour, and they only assign --flavor. Nine of these, rather than
-   nine backgrounds, so that changing a chip's STATE below can never accidentally
-   desynchronise one flavour from another: both the idle and the selected look
-   read the same variable. */
 .set-chip--chocolate {
   --flavor: var(--flavor-chocolate);
 }
@@ -86,34 +81,15 @@
   --flavor: var(--flavor-pistachio);
 }
 
-/* SELECTED. The full pastel, so the step up from idle is a clear increase in
-   saturation rather than a different colour.
-
-   `color-mix` for the idle tint rather than a second hand-written value per
-   flavour: nine extra tokens would be nine more places for the two states to
-   drift apart, and the tint has to stay a fixed relationship to the full colour
-   or a flavour stops looking like itself when selected. Baseline support is
-   Chrome 111 / Safari 16.2 / Firefox 113, comfortably inside what Ionic 7 targets. */
 .set-chip-active {
   background: var(--flavor);
+  border: 1px solid color-mix(in srgb, var(--flavor) 70%, #000);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-/* IDLE. A 32% tint of the same pastel, outlined in it at full strength. Two
-   reasons the tint is not simply the pastel: an unselected row of nine full-
-   strength pastels reads as nine loud buttons competing for a tap, and the
-   selected chip needs somewhere to go.
-
-   Contrast only improves when idle — the label is plum, and plum on a tint sits
-   between plum on the full pastel (5.32-10.01:1) and plum on white (13.10:1).
-   The chip stays at least 1.2:1 against the cream page in both states, which is
-   asserted per flavour in check-contrast.mjs.
-
-   1px on the outline, unlike the 2px the large --radius-md cards use: ion-chip
-   is 30px tall, so its pill radius clamps to about 15px and the curve is already
-   shallow. A 2px edge here would only bloat the chip. */
 .set-chip-idle {
-  background: color-mix(in srgb, var(--flavor) 32%, var(--color-white));
-  border: 1px solid var(--flavor);
+  background: color-mix(in srgb, var(--flavor) 28%, var(--color-white));
+  border: 1px solid color-mix(in srgb, var(--flavor) 60%, var(--color-white));
 }
 
 .filter-label {
@@ -122,21 +98,14 @@
   font-weight: 500;
 }
 
-// ── Consolidated filter block ────────────────────────────
-/* One container for the switches and one for the three selects, where there
-   were four stacked blocks before (including a fourth that held only "Type" and
-   existed to borrow another block's padding). */
+// ── Filters (switches + selects) ────────────────────────
 .filters {
-  padding: 0 8px 4px;
+  padding: 0 12px 4px;
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-/* Switch rows. The label sits directly beside its own switch, with the icon
-   between them, rather than the switch being flung to the far edge of a
-   full-width row by slot="end" — which is what made these read as a settings
-   list rather than as a pair of catalog filters. */
 .switch-rows {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -170,9 +139,6 @@
   cursor: pointer;
 }
 
-/* margin-left:auto is what pins the switch to the row's right edge while the
-   label stays at the left — the label and its control now read as one unit
-   because the row is only as wide as they need. */
 .switch-toggle {
   flex: 0 0 auto;
   margin-left: auto;
@@ -180,15 +146,15 @@
   --height: 26px;
 }
 
-/* Three selects in one compact panel. Two columns on a phone rather than one,
-   so the block is ~80px tall instead of ~120px. */
+// ── Select Panel ────────────────────────────────────────
+/* Three selects in a compact two-column grid.
+   Uses popover interface so tapping a select opens a small
+   anchored list instead of a full-screen alert. */
 .select-panel {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 5px;
-  background: var(--tile-powder);
-  border-radius: var(--radius-xs);
-  padding: 5px 6px;
+  padding: 0;
 }
 
 .select-row {
@@ -196,9 +162,9 @@
   align-items: center;
   gap: 4px;
   min-width: 0;
-  padding: 0 4px;
-  background: var(--color-white);
-  border-radius: 6px;
+  padding: 0 8px;
+  background: var(--tile-powder);
+  border-radius: var(--radius-xs);
   min-height: 32px;
 }
 
@@ -221,35 +187,43 @@
 }
 
 @media (max-width: 420px) {
-  /* Below this the two-up select grid squeezes "Max price" and its value into
-     unreadable widths, so it drops to one column. */
   .select-panel {
     grid-template-columns: 1fr;
   }
 }
 
-// ── Sort ──────────────────────────────────────────────
+// ── Sort ────────────────────────────────────────────────
+/* A clean underline segment — the active button gets a 2px
+   indicator bar and bolder weight; inactive ones stay quiet. */
 .sort-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px 4px;
+  padding: 2px 12px 0;
 }
 
 .sort-segment {
   flex: 1;
   min-width: 0;
-  // Segment buttons size themselves to their label; without this the four
-  // options overflow on a phone-width screen instead of shrinking.
-  --min-height: 32px;
+  --min-height: 34px;
 
   ion-segment-button {
     min-width: 0;
     font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    --color: var(--color-ink-soft);
+    --color-checked: var(--color-primary-ink);
+    --indicator-color: var(--color-primary-ink);
     --indicator-height: 2px;
+
+    &.segment-button-checked ion-label {
+      font-weight: 800;
+    }
   }
 }
 
+// ── Clear All ───────────────────────────────────────────
 .clear-row {
   display: flex;
   justify-content: flex-end;
@@ -266,7 +240,7 @@
   --icon-size: 14px;
 }
 
-// ── Product Grid ─────────────────────────────────────────
+// ── Product Grid ────────────────────────────────────────
 .products-grid {
   padding: 12px 8px 24px;
 }
@@ -275,14 +249,9 @@ ion-col {
   padding: 6px;
 }
 
-// ── Skeleton Card ─────────────────────────────────────────
+// ── Skeleton Card ───────────────────────────────────────
 .skeleton-card {
   border-radius: 16px;
   overflow: hidden;
   margin: 0;
 }
-
-/* The empty and error states are <app-empty-state> components, not local
-   classes — these four blocks were left behind when that swap happened and
-   styled nothing. Deleted rather than kept "in case": there is no branch of this
-   template that renders them. */
