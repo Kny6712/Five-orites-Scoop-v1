@@ -194,7 +194,7 @@
          are indistinguishable from a shop that genuinely took no orders, which
          is the exact failure the error banner above exists to prevent. -->
     @if (isLoading()) {
-      <ion-grid>
+      <ion-grid class="kpi-grid">
         <ion-row>
           @for (s of [1, 2, 3, 4]; track s) {
             <ion-col size="6">
@@ -206,7 +206,11 @@
         </ion-row>
       </ion-grid>
     } @else if (!loadError()) {
-      <ion-grid>
+      <!-- .kpi-grid, and not for looks: a bare <ion-grid> here was shrink-to-fit,
+           so the four tiles rendered at 459px centred inside a 922px content area
+           on desktop — barely half the width available. See .kpi-grid in the
+           stylesheet for the measurement and the cause. -->
+      <ion-grid class="kpi-grid">
         <ion-row>
           <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-revenue">
@@ -316,14 +320,20 @@
           survives a restock landing while the reader is on a later page — which
           is exactly when they need to get back to page 1. Below the CTA because
           "Restock" is what the panel is for; the pager is chrome for the list.
+
+          Wrapped in .low-stock-foot so the hairline and the bottom padding live
+          in the panel's stylesheet rather than inside the shared pager component,
+          which is used by six other lists that want neither.
         -->
-        <app-pagination
-          [page]="lowStockPage()"
-          [total]="lowStockProducts().length"
-          [pageSize]="LOW_STOCK_PAGE_SIZE"
-          itemLabel="low-stock flavors"
-          (pageChange)="lowStockPage.set($event)"
-        />
+        <div class="low-stock-foot">
+          <app-pagination
+            [page]="lowStockPage()"
+            [total]="lowStockProducts().length"
+            [pageSize]="LOW_STOCK_PAGE_SIZE"
+            itemLabel="low-stock flavors"
+            (pageChange)="lowStockPage.set($event)"
+          />
+        </div>
       </section>
     }
 

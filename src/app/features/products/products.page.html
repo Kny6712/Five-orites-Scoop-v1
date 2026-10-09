@@ -129,6 +129,7 @@
           <ion-select
             id="size-select"
             class="select-control"
+            interface="popover"
             [value]="selectedSize()"
             (ionChange)="onSizeChange($event)"
             aria-label="Filter by size"
@@ -144,6 +145,7 @@
           <ion-select
             id="max-price-select"
             class="select-control"
+            interface="popover"
             [value]="maxPrice()"
             (ionChange)="onMaxPriceChange($event)"
             aria-label="Maximum price"
@@ -159,6 +161,7 @@
           <ion-select
             id="category-select"
             class="select-control"
+            interface="popover"
             [value]="selectedCategory()"
             (ionChange)="onCategoryChange($event)"
             aria-label="Product type"
