@@ -63,7 +63,7 @@
 
 :root {
   // ── Brand Tokens ──────────────────────────────────────────
-  --color-brand-primary: #8ecae6; // powder blue — the lead hue
+  --color-brand-primary: #a3b5f0; // periwinkle — the lead hue
   --color-brand-secondary: #5fd9b4; // mint green
   --color-brand-accent: #ffc53d; // sunny — highlights, stars, CTAs
   // Pink, demoted to a soft accent. Wishlists and promos only.
@@ -81,6 +81,51 @@
   --color-sunny-ink: #8a5b00;
   --color-blush-ink: #a63a5e;
 
+  /* ── The dotted section rule ────────────────────────────────
+     PROMOTED HERE, not duplicated per page. It was defined on `.about-body`
+     alone, which made it a six-divider token on one page and unreachable from
+     any other — the Developers page could not draw the same rule without
+     re-typing the value. Two definitions of "the dotted rule" is exactly the
+     drift this file's header exists to prevent: change the weight or the colour
+     here and About keeps rendering the old one, with nothing to hint at it.
+
+     3px, NOT 2px, and the reason is a rendering threshold rather than taste:
+     Chrome draws `dotted` thinner than about 3px as a fine stipple; at 3px it
+     becomes close-packed square dots, which is the texture intended here.
+
+     --color-primary-ink, so the rule reads as the same family as the blue used
+     for links and other chrome. It is a DECORATIVE line carrying no
+     information, so it is not held to a text contrast ratio — but being the
+     text-safe ink rather than --color-brand-primary is deliberate, since the
+     latter is a pastel that would all but vanish on cream. */
+  --section-divider: 3px dotted var(--color-primary-ink);
+
+  /* ── The card surface ────────────────────────────────────
+     PROMOTED HERE, not duplicated per page. It was declared on `.about-body` with
+     a note that it was "one page's card tint" — a true statement while only
+     About used it, and false the moment the Developers cards adopted the same
+     hex. Two definitions of one card colour is the drift this file exists to
+     prevent.
+
+     #fffcee, chosen on the About page from four candidates by MEASURED contrast
+     against 13px body text, not by eye:
+
+       #ffceee  3.59:1  FAILS AA outright
+       #fffee0  4.81:1  passes, reads lemony (blue channel at 224)
+       #fef8e0  4.62:1  passes on a 0.12 margin, drags the icon tiles to 1.06
+       #fffcee  4.79:1  widest margin, and so pale the tiles are unaffected
+
+     Its trade, stated so nobody re-litigates it blind: the warmth is SUBTLE. If a
+     card tint ever needs to be seen rather than merely present, #fef8e0 is the
+     one to reach for.
+
+     NOTE FOR ANYONE ADDING A THIRD PAGE: --color-cream (#fff9f4) is the PAGE
+     background, and a card at #fff9f4 is indistinguishable from the page it sits
+     on — that is what the Developers cards were doing until they moved to this
+     token. They now clear the page by 1.015:1, which is small but is the first
+     separation they had; the shadow does the rest. */
+  --color-card: #fffcee;
+
   // ── Gradients ────────────────────────────────────────────
   /* Defined once, here, because there used to be eight inline gradients whose
      second stop was a hardcoded purple (#9b6ed4, #8b56c4) left over from a
@@ -88,10 +133,18 @@
      as a blue-to-purple wash that read as a rendering bug rather than a choice.
 
      All three run light-to-light, so text on them is PLUM, never white — the same
-     rule as the toolbar. White on these measures 1.58–1.84:1. */
-  --gradient-brand: linear-gradient(135deg, #8ecae6 0%, #5fd9b4 100%);
+     rule as the toolbar. White on these measures 1.58–1.84:1.
+
+     THE FIRST STOPS NOW REFERENCE --color-brand-primary INSTEAD OF REPEATING ITS
+     HEX. They were literal #8ecae6, which meant that when the lead hue moved to
+     #89cff0 the menu header, the auth page and the developers page all kept
+     rendering the OLD blue — three header surfaces that look like the toolbar and
+     are not. A gradient stop cannot be re-pointed by editing the token it was
+     copied from, which is exactly the drift this file's own header says it
+     exists to prevent. */
+  --gradient-brand: linear-gradient(135deg, var(--color-brand-primary) 0%, #5fd9b4 100%);
   --gradient-brand-soft: linear-gradient(135deg, #a6d5ed 0%, #8ee3c9 100%);
-  --gradient-brand-warm: linear-gradient(135deg, #8ecae6 0%, #f8a9be 100%);
+  --gradient-brand-warm: linear-gradient(135deg, var(--color-brand-primary) 0%, #f8a9be 100%);
   --gradient-sun: linear-gradient(135deg, #ffd470 0%, #ffb60a 100%);
 
   /* A DARK brand ramp, for the metric tiles that carry a large white number.
@@ -107,26 +160,49 @@
   --tile-blush: #fde8ee;
   --tile-periwinkle: #e8eef9;
 
-  /* Deliberately DEEPER than --tile-lemon, and the reason is measured rather than
-     aesthetic. --tile-lemon at #fff3d6 sits 1.06:1 against the cream page, which
-     is no edge at all — a card in that colour reads as a slightly-off patch of
-     yellow floating on the background rather than as a container. This one
-     reaches 1.20:1, which is the floor this file uses for "large filled area must
-     be distinguishable from what it sits on" (the same 1.2 that gates the nine
-     flavour chips and the promo banner).
+  /* A RIM FOR --tile-powder, because the tile itself has no edge.
 
-     Used by the Dashboard welcome banner, which was --gradient-brand. Two things
-     were checked before choosing it:
-       - the retro gold sticker shadow on the title gets STRONGER here, 1.26:1
-         against 1.13:1 on the old powder gradient. Warm surfaces are where a gold
-         decal reads best, so this improves the treatment rather than losing it.
-       - it must not collide with the announcement banner directly below it,
-         which is --tile-lemon. At 1.14:1 the two are close but distinguishable;
-         making the welcome banner the same --tile-lemon would have made them
-         identical at 1.00:1.
-     Deeper than this and the gold shadow starts to disappear — #f5ce78 drops it
-     to 1.05:1, the floor — so this value is near the ceiling for the effect. */
-  --tile-lemon-deep: #fbe3ae;
+     --tile-powder measures 1.15:1 against white, which this file's own header
+     already records as a failure — see the --nav-active block, which is how the
+     drawer got its fill in the first place. A control surface painted in it with
+     no border, shadow or outline therefore does not read as a control at all: the
+     products page filter row was exactly that, five pills that dissolved into the
+     white page behind them.
+
+     This is the SAME answer the KPI tiles use — a 2px rim in a deeper tone of the
+     fill's own hue — so the two filter surfaces in the app now look related. It is
+     deliberately NOT a change to --tile-powder: that token also paints the product
+     card's set swatch and anything else that wants a wash rather than a control,
+     and darkening it would repaint all of them.
+
+     Measured: 1.62:1 against its own fill (the 1.4:1 a border owes) and 1.87:1
+     against the white page. Asserted in check-contrast.mjs. */
+  --tile-powder-deep: #9dc2e0;
+
+  /* The CUSTOMER Dashboard welcome banner's surface. NO LONGER a deeper lemon — it
+     was #fbe3ae until this became a supplied teal, and the lemon reasoning is kept
+     only because it explains what this token is NOT.
+
+     A card needs an edge against the cream page, which is what the old value was
+     solving at 1.20:1. This one reaches 1.61:1, so that is no longer the binding
+     constraint and the surface is free to be the colour it is.
+
+     Measured on the teal:
+       - 1.53:1 off .announce-banner, which is the --tile-lemon card sitting below
+         it. Two cards on one screen that stay distinguishable rather than reading
+         as one repeated block;
+       - plum on it is 7.64:1, so the greeting and the subtitle are unharmed.
+
+     The admin/owner greeting carries NO surface — see .admin-welcome in
+     dashboard.page.scss — so this token has exactly ONE consumer. That is worth
+     stating because the name is a leftover and reads as though it were shared.
+
+     The gold retro sticker shadow on the title is the one real cost: it measured
+     1.26:1 on the warm lemon and 1.07:1 on this cool teal, against a 1.05 floor.
+     It is kept, and it is only just kept — a gold decal reads best on a warm
+     surface and this is a cold one. If it ever needs re-tuning, that ratio is the
+     number to look at, not the ink. */
+  --tile-lemon-deep: #8ad4d5;
 
   // The one ink colour for the whole app. Not pure black — a deep plum keeps
   // the warm cast and measures better than #000 on a cream background.
@@ -158,6 +234,129 @@
   --tone-warning-border: #e0b85c;
   --tone-warning-ink: #7a4b00;
 
+  /* ── Peach (low-stock surfaces) ──────────────────────────────────────────
+
+     A SEPARATE triple from --tone-warning-* on purpose, not a rename of it.
+
+     --tone-warning-* has ten consumers: this panel, the tracking page's unmapped
+     block, the customers' product card, the order status badge, the shared alert
+     banner, and four admin pages. Repainting it would change the CUSTOMER
+     storefront's low-stock pill and order chips — screens this redesign was never
+     asked to touch. So the peach lives beside the warning tone and is applied only
+     where the low-stock feature lives.
+
+     WHY A DIFFERENT PINK IS WORTH IT. #fcebc4 measures 1.13:1 against the cream
+     page — just UNDER the 1.15:1 the tone system requires of its own surfaces, so
+     that panel had no definition from its fill and got all of it from a 2px border.
+     #fdcc85 measures 1.42:1, so it reads as a container on its own and the border
+     can stay soft. The redesign is less border AND more definition, which is what
+     makes it feel lighter rather than merely paler.
+
+     #7a4b00 is carried over from --tone-warning-ink unchanged: it measures 4.99:1
+     on this background and 7.41:1 on white, so the same ink serves the text on the
+     surface and on the white pills that sit on it. */
+  --tone-peach-bg: #fdcc85;
+  --tone-peach-border: #d9a050;
+  --tone-peach-ink: #7a4b00;
+
+  /* ── Dashboard low-stock panel ────────────────────────────────────────────
+
+     A powder version of the peach above, SCOPED TO THE DASHBOARD and not a
+     replacement for it. --tone-peach-* has a second consumer in
+     admin-tracking.page.scss (the unmapped-orders block) that was not part of
+     this request, so editing the shared token would have silently repainted a
+     page nobody looked at. These three exist so the dashboard can move without
+     dragging that one along.
+
+     WHY THE SHARED TOKEN WAS NOT TOUCHED, since the gate makes the same call:
+     check-contrast.mjs carries a set of peach rows covering BOTH panels and says
+     explicitly that a retint of one needs its own rows rather than an edit of
+     theirs. Both files now treat this the same way — the peach rows describe the
+     tracking page, the lowstock rows below describe this panel, and the two are
+     asserted independently.
+
+     #fdcc85 is H36 S97 L76 — the same defect the KPI tiles had, 97% saturation.
+     This is H36 S46 L82. Hue is held constant; saturation is the variable.
+
+     WHY IT CANNOT GO AS PALE AS A KPI TILE. The rows are 40% white over this
+     fill, and that pair is the binding constraint on the whole panel: at S25 L88
+     the row edge measures 1.11:1 and FAILS the 1.15 floor. A paler panel leaves
+     a white overlay nothing to separate from. So this is held at 1.16:1 — thin,
+     and deliberately so; it is the number to re-check first if this fill is ever
+     touched again. The panel carries a title, a subtitle, flavour names, set
+     names, chips and a CTA, which is more text on one surface than a KPI tile
+     has, and it cannot afford to be as pale as one.
+
+     Measured on this fill: ink 5.15, plum 8.96, fill-vs-page 1.38, border 1.93,
+     white pill 1.44, row edge 1.16, ink-on-row 6.00. All asserted below. */
+  --lowstock-bg: #e6d5bc;
+  --lowstock-border: #b59767;
+  --lowstock-ink: #7a4b00;
+
+  /* ── Dashboard KPI tiles ──────────────────────────────────────────────────
+
+     One swatch per KPI tile by colour affinity. Scoped to these four tiles for
+     the same reason --tone-peach-* is: --tone-* has six other consumers including
+     the CUSTOMERS' product card and order status badge, and repainting those was
+     not asked for.
+
+     WHY THESE ARE POWDER AND NOT PASTEL. The previous four swatches were all
+     HSL saturation 100% — 100%, 100%, 100%, 100% — at 82-86% lightness. That is
+     not a subtle saturation, it is the definition of poster paint: a fully
+     chromatic hue at near-white lightness, which is exactly how these tiles read,
+     as four flat painted rectangles. Hue and lightness are close to the old
+     values on purpose; saturation is the only thing that moved. Measured in HSL,
+     the four are now 22-28% at ~88% lightness — chalky rather than wet.
+
+     WHY THE INKS DID NOT MOVE. Same four --tone-*-ink values as before, and all
+     four still clear AA on their new fill — 5.85, 6.15, 6.30 and 7.34:1. Moving
+     them would put a second, unnecessary change on top of a colour swap.
+
+     The red is the one that actually needed this. At #ffa5a5 it measured 4.62:1,
+     passing by 0.12 on a 12px bold label, and a paler earlier estimate of that
+     swatch FAILED outright at 4.42:1 — the old palette had no margin in it. At
+     #e8d8d8 it is 6.30:1. Desaturating is what bought the headroom, not luck.
+
+     WHY EVERY TILE STILL NEEDS ITS RIM. The fills are pale by construction now,
+     so they sit even closer to the cream page than they used to and the rim is
+     doing proportionally more of the work, not less. Against the page the rims
+     measure 2.35-2.87:1, comfortably over the 1.4:1 the gate requires of a border
+     on its own background and over the 1.2:1 floor for a large filled area.
+
+     The rims are still derived, not chosen: each background darkened 45% toward
+     its own ink, the same method and the same proportion as before. That lands
+     them between 2.02 and 2.18:1 against their own fill — the old palette's
+     figure was 1.90-2.11, so the new edges are marginally stronger while being
+     far less saturated. A hand-picked rim would have been a second opinion
+     dressed up as a decision. */
+  --kpi-revenue-bg: #dae7df;
+  --kpi-revenue-ink: #14622f;
+  --kpi-revenue-rim: #81ab90;
+
+  --kpi-pending-bg: #ebebdb;
+  --kpi-pending-ink: #7a4b00;
+  --kpi-pending-rim: #b8a378;
+  /* A 10% nudge of the pending background toward its own ink, recomputed for the
+     new fill. It exists because the badge disc is white on every tile, and white
+     on the OLD #feffb6 measured 1.04:1 — the circle vanished and the glyph floated
+     on nothing. That specific failure is gone: white on #ebebdb is 1.20:1 and
+     clears the 1.15 floor on its own, so this token is now a preference rather
+     than a necessity.
+
+     Kept rather than deleted because removing it also means deleting
+     .kpi-pending .kpi-badge and two rows of the gate, which is a refactor this
+     colour change did not ask for. It reads at 1.154:1 against the fill and
+     leaves the ink at 5.33:1 on top of it, both asserted. */
+  --kpi-pending-disc: #e0dbc5;
+
+  --kpi-lowstock-bg: #e8d8d8;
+  --kpi-lowstock-ink: #8f1f38;
+  --kpi-lowstock-rim: #c08590;
+
+  --kpi-total-bg: #d8dee9;
+  --kpi-total-ink: #17456f;
+  --kpi-total-rim: #8199b2;
+
   --tone-danger-bg: #fde8ee;
   --tone-danger-border: #f5b8c8;
   --tone-danger-ink: #8f1f38;
@@ -170,12 +369,33 @@
   // Contrast is PLUM for the three brand hues (see header). Ionic reads
   // -contrast for text and icon colour on a `color="…"` surface, so this is what
   // keeps a pastel button readable.
-  --ion-color-primary: #8ecae6;
-  --ion-color-primary-rgb: 142, 202, 230;
+  /* #A3B5F0, and the four values below are DERIVED from it rather than chosen.
+
+     The -rgb triple must stay the same colour as the token above it: Ionic reads
+     it to build translucent states, so a stale triple does not look wrong, it
+     quietly composites against the OLD hue. The -shade and -tint were computed by
+     applying this file's own previous ratios — the original #8ecae6's shade was at
+     0.8629x its lightness and its tint at 1.1371x — to the new value's HSL.
+
+     WHY PERIWINKLE AND NOT A DARKER BLUE. The toolbar carries PLUM text, so this
+     can only get so dark before the heading stops being readable. That is the whole
+     reason the earlier sky-blue attempt was nearly invisible: #89cff0 and the
+     #8ecae6 it replaced were the SAME HUE (199.1 vs 199.2 degrees) and differed
+     only in saturation. It passed every ratio and read as no change at all, which
+     is the failure this value is fixing. A hue shift of 27 degrees toward
+     blue-violet is actually visible, and it stays out of the teal's family so the
+     two do not read as related.
+
+     Still a surface, never a foreground: plum on it is 6.40:1. See the
+     "brand hues are not used as foregrounds" ratchet in tests/logic.test.ts, which
+     guards WHERE this hue is used rather than what it is, so changing the value
+     is safe — but the 50-odd call sites all move together. */
+  --ion-color-primary: #a3b5f0;
+  --ion-color-primary-rgb: 163, 181, 240;
   --ion-color-primary-contrast: #3d2b45;
   --ion-color-primary-contrast-rgb: 61, 43, 69;
-  --ion-color-primary-shade: #64b6dd;
-  --ion-color-primary-tint: #b8deef;
+  --ion-color-primary-shade: #738fe8;
+  --ion-color-primary-tint: #d3dbf8;
 
   --ion-color-secondary: #5fd9b4;
   --ion-color-secondary-rgb: 95, 217, 180;
@@ -371,11 +591,28 @@
 
        plum on it            >= 4.5:1, because the chip label is --color-ink at
                              13px. All nine clear it; Chocolates is the tightest
-                             at 5.32:1 and Vanilla the loosest at 10.01:1.
+                             at 6.20:1 and Cookies & Cream the loosest at 9.71:1.
        it on --color-cream   >= 1.2:1, so no chip dissolves into the page. This is
                              the check that actually moved values: Vanilla began
                              at #f4ecd9, which is 1.13:1 against the cream page
                              and was barely a chip at all.
+
+     MUTED, NOT BRIGHTER. These were pulled down in saturation and lightness from
+     a candy-bright set. Two things came out of that:
+
+       - The four lightest (Vanilla, Mint, Cookies & Cream, Pistachio) were at
+         1.23-1.27:1 against the page, barely a chip at all. Muting them LIFTS
+         that to 1.27-1.32. The brightness bought no legibility; it cost some.
+       - The palette now sits with --tile-powder rather than competing with it.
+
+     Hue is unchanged in every case. The chips still read as nine different
+     things in one scroller: the closest pair by contrast is Chocolate against
+     Cookies & Cream at 1.78:1, which is the whole reason these are a matched
+     set and not nine independent picks.
+
+     The same nine values are duplicated in scripts/check-contrast.mjs. Both
+     tables must move together — updating only the SCSS would leave the gate
+     asserting the old colours and going green on values nothing renders.
 
      WHY THESE THREE BEIGES LOOK SEPARATE. Vanilla, Coffee and Cookies & Cream
      are all pale and warm, so they cannot be told apart on lightness — pushing
@@ -390,15 +627,15 @@
      without a second label colour for one chip.
 
      Every one of these is asserted in check-contrast.mjs against both criteria. */
-  --flavor-chocolate: #c4a07c;
-  --flavor-vanilla: #eee2c4;
-  --flavor-strawberry: #f7bcc8;
-  --flavor-mango: #f8c88a;
-  --flavor-ube: #d9c8ee;
-  --flavor-mint: #bfe9d5;
-  --flavor-coffee: #e3c396;
-  --flavor-cookies-cream: #dde2e4;
-  --flavor-pistachio: #d6e8b8;
+  --flavor-chocolate: #cbaf94;
+  --flavor-vanilla: #e8dcc0;
+  --flavor-strawberry: #ebbfc6;
+  --flavor-mango: #efcb9b;
+  --flavor-ube: #d5cbe4;
+  --flavor-mint: #c6e2d4;
+  --flavor-coffee: #dec8a4;
+  --flavor-cookies-cream: #dde0e1;
+  --flavor-pistachio: #d5e0c0;
 
   /* The "All" chip, and the fallback for any flavour missing from the map above.
      Deliberately NOT a flavour colour — "All" is the no-filter state, and powder
@@ -412,38 +649,123 @@
      cart badge ring, which derives from the same value. One token, three
      effects, so it is named for the role rather than inlined at each site.
 
-     The value is --flavor-ube, not a new colour. It was already in the palette
-     for the Ube flavour chip, and the high-contrast block independently uses the
-     same #d9c8ee for --tile-powder, so this ties the drawer to the flavour system
-     rather than inventing a tenth hue.
+     THE VALUE IS NO LONGER --flavor-ube. It was, and the reasoning for that is
+     kept below because it explains the constraint this token is judged against.
 
-     Neither obvious purple works, and the reason is the same for both: the idle
-     rows are transparent over ion-menu's WHITE surface, so the selected fill is
-     judged against white, not against the cream page — a harsher test than
-     anywhere else in the app.
+     THE CONSTRAINT: the idle rows are transparent over ion-menu's WHITE surface,
+     so the selected fill is judged against white, not against the cream page — a
+     harsher test than anywhere else in the app.
 
        --tile-periwinkle #e8eef9   1.16:1 vs white   FAIL - no edge at all
        --tile-powder     #e4f1f8   1.15:1 vs white   FAIL - the same trap
-       this value        #d9c8ee   1.56:1 vs white   the floor is 1.2
+       ube  #d9c8ee              1.56:1 vs white   cleared 1.2, used to be this
+       this value #c6a8e6         2.07:1 vs white   a stronger edge than ube
 
-     Plum on it is 8.25:1. That pairing is same-hue — the label is itself a
-     desaturated purple — but the lavender is far lighter than the plum, so it
-     measures comfortably rather than going muddy. The old mint gave 7.41:1, so
-     the label is actually easier to read than before.
+     So this is still not a --tile-* value, and the two "REJECTED" rows in
+     check-contrast.mjs still apply. It is a supplied lilac that measures a better
+     edge than the ube it replaces, which is the opposite of the usual trade.
 
-     If a future edit swaps this for a --tile-* value, check the two "REJECTED"
-     rows in check-contrast.mjs before anything else. */
-  --nav-active: var(--flavor-ube);
+     Plum on it is 6.22:1, down from ube's 8.25:1 and from mint's 7.41:1 — the
+     label is darker-surfaced, so it is the least generous of the three. Still
+     comfortably past AA, but this is the number to re-check before swapping the
+     value again. */
+  --nav-active: #c6a8e6;
 
   --ion-font-family: var(--font-body);
 
   // ── App chrome ───────────────────────────────────────────
   --ion-background-color: var(--color-cream);
   --ion-text-color: var(--color-ink);
-  --ion-toolbar-background: var(--color-brand-primary);
+
+  /* Candy stripe on the toolbar, app-wide.
+
+     The texture lives in `--ion-toolbar-background` rather than in a rule of our
+     own, and that is not a style preference — it is the only place the value can
+     go. Ionic ships, inside ion-toolbar's shadow root:
+
+         .toolbar-background {
+           background: var(--background);
+           --background: var(--ion-toolbar-background, var(--ion-background-color, #fff));
+         }
+
+     So `.toolbar-background` re-declares `--background` ON ITSELF, and a value
+     set on the `ion-toolbar` host never inherits into it — an inherited custom
+     property always loses to a declaration on the element. The obvious
+     `ion-toolbar { --background: ... }` approach silently does nothing.
+
+     `background` is a shorthand, so a layered gradient is valid here, with the
+     flat brand colour carried in the final layer. That means no shadow-DOM
+     piercing, no ::part(), and no z-index stacking against the title — and it
+     uses Ionic's own public token, so it survives the internals moving.
+
+     CONTRAST IS SAFE BY CONSTRUCTION, not by measurement. The stripe is WHITE at
+     partial alpha over a mid-light fill, so it can only lighten the backdrop.
+     Contrast against the dark plum title therefore only ever rises. The floor is
+     today's flat value, 6.40:1, at ANY stripe strength — 20% measures 7.45:1 on
+     the stripe and 6.40:1 in the gaps. AA for normal text needs 4.5:1.
+
+     This is also why the grain alternative was rejected: feTurbulence produces
+     dark pixels as well as light ones, so noise can push the backdrop DOWN into
+     that 6.40:1 headroom. A gradient of white cannot.
+
+     DO NOT PUT `color="primary"` BACK ON AN <ion-toolbar>. This is not a style
+     preference; it silently disables everything above.
+
+     Ionic ships, inside the shadow root:
+
+         .toolbar-background          { background: var(--background); }
+         :host(.ion-color) .toolbar-background { background: var(--ion-color-base); }
+
+     The second selector outranks the first, so `color="primary"` — which puts
+     `.ion-color` on the host — hands the fill to `--ion-color-base` and
+     `--ion-toolbar-background` is never consulted. The stripe does not appear.
+
+     It shipped on 15 of the 19 toolbars and nobody noticed, for one reason:
+     `--ion-color-primary` is #a3b5f0, the SAME periwinkle this token resolves
+     to. So the fallback colour is exactly right and only the texture is gone.
+     A bug you cannot see as a colour bug, on a surface whose entire job is to
+     look right.
+
+     The attribute was also redundant on arrival: it asks for the brand hue,
+     which the token already provides. It was removed from all 15 templates so
+     every toolbar matches the four that had never carried it. --ion-color-primary
+     itself is still used, by outline buttons in page CONTENT — do not delete it
+     on the strength of this note. */
+  --toolbar-stripe-alpha: 0.2;
+  --ion-toolbar-background:
+    repeating-linear-gradient(
+      45deg,
+      rgb(255 255 255 / var(--toolbar-stripe-alpha)) 0 7px,
+      rgb(255 255 255 / 0) 7px 20px
+    ),
+    var(--color-brand-primary);
+
   // Plum, not white: the toolbar sits on a pastel, where white measures 1.79:1
   // and is unreadable.
   --ion-toolbar-color: var(--color-ink);
+}
+
+/* Narrow screens get a quieter stripe, and the reason is variation, not volume.
+
+   The stripe is constant-pitch and the toolbar is full-bleed, so what changes
+   between screens is how much bare stripe the title leaves uncovered. Measuring
+   the real titles: at 1200px every one of them leaves 85-96% of the bar striped,
+   which is loud but CONSISTENT. At 390px the same titles leave 61-87%, a 26-point
+   swing — "About" reads as heavily striped and "Inventory Manager" barely striped,
+   so the two look like different designs.
+
+   Dropping to 0.14 damps the loud end of that swing without letting the texture
+   disappear on the titles that already expose the least.
+
+   (Those percentages were measured against a FALLBACK font, not Lobster Two —
+   document.fonts.check() returned false in the sandbox the measurement ran in.
+   The ~4x spread between the longest and shortest title is solid; the exact
+   figures are not. product-detail's title is also `{{ product()?.variantName }}`,
+   which is unbounded and cannot be predicted at all.) */
+@media (max-width: 604px) {
+  :root {
+    --toolbar-stripe-alpha: 0.14;
+  }
 }
 
 // ── Typography Scale ─────────────────────────────────────────
@@ -492,10 +814,16 @@ ion-button {
   font-weight: 700;
 }
 
-ion-toolbar {
-  --background: var(--color-brand-primary);
-  --color: var(--color-ink);
-}
+/* There used to be an `ion-toolbar { --background; --color }` rule here and it
+   was DEAD, not merely redundant. Inside the shadow root, `.toolbar-background`
+   declares both properties on itself, and a custom property declared on an
+   element always beats one merely inherited from the host — so neither value
+   ever reached the element that uses them. The toolbar's fill and title colour
+   both come from `--ion-toolbar-background` / `--ion-toolbar-color` above.
+
+   Kept as a comment because the failure is invisible: the rule compiles, lints
+   and looks authoritative, and the toolbar is still periwinkle, so nothing
+   appears broken. Re-adding it here will look correct and change nothing. */
 
 /* Every page's toolbar title, in the retro face.
    This is genuinely ONE rule: before it there was no `ion-title` styling in the
@@ -512,9 +840,15 @@ ion-toolbar {
    Lobster Two has no 600, and an unstated weight would inherit the `h2`-style 600
    default and be synthetically emboldened.
 
-   Size: 19px, against Ionic's default toolbar title size of roughly 17px. Raised
-   because a script face needs it, but not further — this sits in a fixed-height
-   56px toolbar and the real constraint is width, below.
+   Size: 20px, against Ionic's default toolbar title size of roughly 17px. Raised
+   because a script face needs it, but only just, because this sits in a
+   fixed-height 56px toolbar and the real constraint is width, below.
+
+   THIS IS ONLY THE BASE OF THE SCALE, not the size. Three media queries
+   immediately after this rule raise it to 24px, 28px and 32px as the toolbar
+   title box grows, so the number to look at on any given screen is the last step
+   that applies, not this one. The measurements behind each step, and the reason
+   the scale stops at 32px rather than 36 or 40, are on those queries.
 
    WIDTH IS THE ACTUAL RISK HERE, and it is not the shadow. Ionic renders the
    title into `.toolbar-title`, which is `width:100%; overflow:hidden;
@@ -549,16 +883,87 @@ ion-toolbar {
 ion-title {
   font-family: var(--font-display-retro);
   font-weight: 700;
-  font-size: 19px;
+  font-size: 20px;
   line-height: 1.1;
-  /* The small-scale token, not the display one: at 19px the 0.06em display
-     offset is 1.1px and effectively invisible, while 0.09em gives 1.7px — enough
+  /* The small-scale token, not the display one: at 20px the 0.06em display
+     offset is 1.2px and effectively invisible, while 0.09em gives 1.8px — enough
      to read as a warm edge behind the letters without turning a toolbar into a
      sticker. See --display-sticker-shadow-small for why there are two scales.
 
      Safe on powder, and slightly BETTER for the glyph than having no shadow:
      plum on the gold is 8.16:1 against plum on powder's 7.20:1. */
   text-shadow: var(--display-sticker-shadow-small);
+}
+
+/* THE TITLE SCALE IS A FUNCTION OF AVAILABLE WIDTH, not of device class. The
+   base 20px above is for the narrowest phone still in use (320px); the three
+   steps below raise it as the toolbar title box grows. Every step was measured
+   on the live DOM, with `document.fonts.ready` resolved, against ALL 18
+   authored titles in the app at Lobster Two 700 with this rule's 0.4px
+   letter-spacing. "Inventory Manager" (17 characters) is the widest of them at
+   every size, so it is the one that sets each limit.
+
+     viewport   .toolbar-title   size    widest   spare
+     320px      174px            20px    159px    15px   <- narrowest real phone
+     360px      214px            24px    189px    25px
+     375px      229px            24px    189px    40px
+     390px      244px            24px    189px    55px
+     414px      268px            24px    189px    79px
+     480px      334px            28px    220px    114px
+     767px      621px            28px    220px    401px
+     768px      400px            32px    250px    150px
+     1024px     639px            32px    250px    389px
+     1900px     1270px           32px    250px    1020px
+
+   NOTHING ELLIPSISES AT ANY WIDTH, which is the whole point: the toolbar title
+   clips rather than wraps, so a step one size too large does not look wrong, it
+   silently truncates the page name.
+
+   WHY 768px IS NOT CONTINUOUS WITH THE STEP ABOVE IT. The box SHRINKS from
+   621px at 767px to 400px at 768px, because ion-split-pane turns the menu into
+   a permanent sidebar and takes its width. So 768px is the TIGHTEST desktop
+   case, not the widest, and it is the one to reason about. It is also why the
+   spare column collapses from 401px to 150px at that boundary.
+
+   WHY IT STOPS AT 32px. Not a width limit — measured against the same 400px
+   box, 36px (281px, 119px spare) and 40px (311px, 89px spare) both still fit,
+   and every step in the table above still fits the 56px toolbar vertically. The
+   ceiling is AESTHETIC: past roughly 32px the title dominates the bar and the
+   cart/menu buttons beside it read as undersized.
+
+   MOVING A STEP. Raise one breakpoint at a time and re-measure the two rows
+   that bracket it. 360px is the step to watch: at 28px the widest title is
+   220px against a 214px box, so the 360px–374px band is where 28px truncates.
+
+   ONE TITLE IS STILL UNBOUNDED, and this does not change that: the product
+   detail page interpolates a flavour name from a CSV import
+   ({{ product()?.variantName ?? 'Product Detail' }}). No authored title is, so
+   the table above does not cover it. At 32px the 400px box at 768px holds about
+   26 characters — "New York Super Fudge Chunk" (26) measures 389px and still
+   fits — but longer names will ellipsise, and on a 320px phone the budget is
+   nearer 17. There is no CSS fix; shortening names at seed time is the only
+   real one. The worst case is a visible truncation, not a broken layout.
+
+   This is GLOBAL by necessity: `ion-title` is the one header component every
+   page shares, so there is no About-only toolbar to target. A page-local
+   override would make About the single screen in the app whose header does not
+   match the rest. */
+@media (min-width: 360px) {
+  ion-title {
+    font-size: 24px;
+  }
+}
+
+@media (min-width: 480px) {
+  ion-title {
+    font-size: 28px;
+  }
+}
+
+@media (min-width: 768px) {
+  ion-title {
+    font-size: 32px;
+  }
 }
 
 /* Toolbar controls need the INK colour, not white. Ionic derives a toolbar
@@ -643,15 +1048,56 @@ html[data-contrast='high'] {
   --tile-periwinkle: #d3ddf7;
   --tone-success-border: #4f9a6c;
   --tone-warning-border: #a8791c;
+  --tone-peach-border: #a8791c;
+
+  /* The KPI rims darken here for the same reason every other border does, and by
+     the same method used to derive the default rims: the background mixed
+     further toward its own ink, 70% instead of 45%.
+
+     The bar is different here. This mode exists because a pastel rim on a pastel
+     tile drops under the 3:1 that WCAG 1.4.11 asks of non-text UI, so these four
+     are held to 3.0 against their own fill rather than the 1.4 the default rims
+     meet. They land at 3.20-3.68:1 — the powder fills give more room than the old
+     pastels did, which is the one place this repaint genuinely improved the
+     high-contrast case rather than just preserving it.
+
+     The fills themselves are untouched, as everywhere else in this block: the
+     point of high contrast is sharper edges, not a different palette. */
+  --kpi-revenue-rim: #4f8a64;
+  --kpi-pending-rim: #9c7b42;
+  --kpi-pending-disc: #dad3ba;
+  --kpi-lowstock-rim: #aa5768;
+  --kpi-total-rim: #517394;
+  /* The dashboard low-stock panel, same derivation and same 3:1 bar as the KPI
+     rims above. It is not in the gate at 3:1 — the panel's rows are asserted at
+     1.15/1.4 like every other border — but it is held to the same bar here so
+     the high-contrast setting sharpens this panel consistently rather than by
+     accident. */
+  --lowstock-border: #9a7438;
   --tone-danger-border: #c25c7c;
   --tone-info-border: #4c82b0;
 }
 
 // ── Wave / Drip ─────────────────────────────────────────────
 /* The one place the brief's "wave and drip" motif is allowed to appear.
-   Per the design direction it is deliberately NOT a texture applied to every
-   surface — it is a single distinctive element, used on hero and empty states,
-   so it reads as a deliberate brand mark rather than decoration everywhere. */
+
+   The original wording here said the motif is "deliberately NOT a texture
+   applied to every surface". That is no longer true of the app, because the
+   toolbar now carries the candy stripe app-wide — see `--ion-toolbar-background`
+   near the top of this file. Two things are worth keeping straight:
+
+   The stripe and the wave are DIFFERENT devices. The stripe is a flat, constant
+   45° gradient confined to the 56px chrome strip, and it is the app's only
+   repeating texture. The wave/drip is still a single closure element on hero and
+   empty states, and it stays that way. Neither has been generalised onto
+   arbitrary surfaces.
+
+   The stripe is on all ~19 toolbars on purpose, and that is a decision rather
+   than drift. Applied per-page it would make some screens feel designed and
+   others feel unfinished; uniform, it reads as chrome. The one place that
+   decision does leak is brightness — a constant-pitch pattern looks louder
+   behind a short title than a long one — which is what the narrow-screen
+   `--toolbar-stripe-alpha` override is there to damp. */
 .wave-drip {
   position: relative;
   overflow: hidden;

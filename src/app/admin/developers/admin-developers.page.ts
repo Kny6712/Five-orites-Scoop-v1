@@ -47,7 +47,7 @@ import { AlertBannerComponent } from '../../shared/components/alert-banner/alert
 import { DeveloperService } from '../../core/services/developer.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
 import { AuthService } from '../../core/services/auth.service';
-import { initialsOf } from '../../core/logic/flavor';
+import { initialsOf } from '../../core/logic/flavour';
 import { canManageTeam } from '../../core/models/user.model';
 import {
   DEVELOPER_ACCENTS,

@@ -32,11 +32,24 @@ import {
   IonContent,
   IonRefresher,
   IonRefresherContent,
+  IonSelect,
+  IonSelectOption,
 } from '@ionic/angular/standalone';
 import { ToastController } from '@ionic/angular/standalone';
 import type { ViewWillEnter } from '@ionic/angular';
 import { OrderNotificationService } from '../../core/services/order-notification.service';
-import { FeedEntry, groupByDay, relativeTime } from '../../core/logic/notifications';
+import {
+  groupByDay,
+  countByPeriod,
+  filterByPeriod,
+  nextPopulatedPeriod,
+  type FeedPeriod,
+  OrderThread,
+  feedTimeLabel,
+  absoluteTime,
+  STATUS_SEQUENCE,
+  stepState,
+} from '../../core/logic/notifications';
 import type { OrderStatus } from '../../core/models/order.model';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
 import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
@@ -56,6 +69,8 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
     IonContent,
     IonRefresher,
     IonRefresherContent,
+    IonSelect,
+    IonSelectOption,
     RouterLink,
     AppIconComponent,
     PaginationComponent,
@@ -80,45 +95,263 @@ export class NotificationsPage implements ViewWillEnter {
   protected readonly now = signal(Date.now());
 
   /**
-   * Twelve entries a page.
+   * Twelve ORDERS a page — not twelve status events, which is what this number
+   * used to mean.
    *
-   * The feed is derived from the newest 20 orders the watcher holds, so a
-   * customer with a couple of months of history gets every status change they
-   * have ever been notified about as one unbounded scroll of "Order received /
-   * Being prepared / Out for delivery" triples — long, repetitive, and with no
-   * way back to anything you scrolled past.
+   * That was the real crowding problem. One delivered order emits five entries,
+   * so a page of twelve held about two and a half orders, and three orders
+   * delivered in a single day overran it — pushing the Yesterday and Earlier
+   * sections off page one entirely, because pagination happens before grouping.
+   * An order the user had every reason to want was invisible because its
+   * neighbours on the same day had already filled the page.
    *
-   * PAGINATED BEFORE GROUPING, and that order is load-bearing rather than
-   * stylistic. `groupByDay` turns the flat newest-first entry list into
-   * Today/Yesterday/Earlier sections, and which section an entry belongs to is a
-   * property of the ENTRY, not of the group. Slicing groups would put "Earlier"
-   * on page 1 of a feed whose twelve newest entries all landed today, and would
-   * let the unread badge promise rows the current page cannot show. Slicing
-   * entries keeps both claims true: `isEmpty` and `unreadCount` still read the
-   * whole feed, and each heading still describes exactly the rows beneath it.
+   * PAGINATED BEFORE GROUPING, and that order is still load-bearing rather than
+   * stylistic. `groupByDay` turns the newest-first thread list into
+   * Today/Yesterday/Earlier sections, and which section a thread belongs to is a
+   * property of the THREAD, not of the group. Slicing groups would put "Earlier"
+   * on page 1 of a feed whose twelve newest orders all landed today, and would
+   * let the unread badge promise orders the current page cannot show. Slicing
+   * threads keeps both claims true: `isEmpty` and `unreadCount` still read the
+   * whole feed, and the page shows exactly the orders the pager claims it does.
+   *
+   * It MATTERS MORE NOW THAN IT DID, not less. The period control narrows to one
+   * window before this runs, so "Earlier" is no longer dragged onto page 1 by
+   * whatever happened today — but a user with thirty archived orders paging
+   * through Earlier still needs the pager's `total` and the rows beneath it to
+   * be describing the same set, and slicing the group is the change that would
+   * break that without any visible error.
    */
   protected readonly PAGE_SIZE = 12;
   protected readonly page = signal(1);
 
-  /** The window of entries this page renders. */
-  protected readonly pagedEntries = computed(() => {
-    const start = (this.page() - 1) * this.PAGE_SIZE;
-    return this.notifications.entries().slice(start, start + this.PAGE_SIZE);
-  });
+  /**
+   * Which day period the feed is narrowed to.
+   *
+   * `today` IS THE DEFAULT, and `all` IS NOT ONE OF THE OPTIONS. Both were the
+   * other way round when this was a four-tab segment, and the reasoning was not
+   * bad — this page exists because a toast leaves no record, so opening on a
+   * window that hides yesterday behind a tap undersells the whole idea. What
+   * changed is that the control is now a dropdown holding three named windows
+   * rather than four visible ones.
+   *
+   * With every window on screen at once, `All` was the default because it was
+   * the only option that showed the user anything. With them behind an arrow,
+   * the control answers a different question: "what do I want to look at", and
+   * for a feed built from order status the answer is almost always the last
+   * thing that happened. So the feed opens on Today, and the other two windows
+   * are one tap away.
+   *
+   * The cost is real and is paid in `rescuePeriod` instead of being hidden:
+   * anyone whose orders last moved yesterday opens on "Nothing today". That state
+   * names the window they are in and hands them a one-tap way to the newest one
+   * that has content, so the default costs a single extra tap for those users
+   * and saves every other visit the tap entirely.
+   *
+   * `FeedPeriod` still HAS an `all` member — `filterByPeriod`, `countByPeriod`
+   * and their tests all still speak it. It is simply no longer reachable from
+   * this page.
+   */
+  protected readonly filter = signal<FeedPeriod>('today');
 
-  /** Day sections, derived from this page's entries rather than the whole feed. */
-  protected readonly groups = computed(() => groupByDay(this.pagedEntries(), this.now()));
+  /** The whole feed, unfiltered. Everything below is a view over this. */
+  private readonly allThreads = this.notifications.threads;
 
   /**
-   * The WHOLE feed's length, which is what the pager's `total` wants.
+   * The same threads, carrying a top-level `at`.
    *
-   * Not the page's length, and not the number of day groups. `totalEntries` is
-   * also what `isEmpty` reads, so "is there anything at all" and "how many pages
-   * are there" cannot drift apart when a new status change arrives.
+   * `filterByPeriod` and `countByPeriod` both key off `{ at: number }` — the same
+   * shape `groupByDay` has always consumed — while a thread keeps its timestamp
+   * on `latest`. Flattening it ONCE here rather than at each of the three call
+   * sites is the difference between one place that has to agree with
+   * `groupByDay` and three.
    */
-  protected readonly totalEntries = computed(() => this.notifications.entries().length);
+  private readonly datedThreads = computed(() =>
+    this.allThreads().map((thread) => ({ at: thread.latest.at, thread })),
+  );
 
-  protected readonly isEmpty = computed(() => this.totalEntries() === 0);
+  /**
+   * How many orders sit in each of the three windows.
+   *
+   * Computed ONCE and read by `filterOptions` and `rescuePeriod` alike. Those two
+   * ask different questions of the same table — "what can I pick" and "where is
+   * anything" — and calling `countByPeriod` in both places would mean the
+   * numbers labelling the control and the numbers choosing the escape hatch are
+   * two separate walks that could disagree.
+   *
+   * Derived from the whole feed rather than the current page, so the numbers do
+   * not change as the user pages through.
+   */
+  private readonly periodCounts = computed(() => countByPeriod(this.datedThreads(), this.now()));
+
+  /**
+   * The dropdown's options, each carrying how many orders it would show.
+   *
+   * NO `all` ENTRY. It is still a valid `FeedPeriod` and `countByPeriod` still
+   * counts it — this page simply has no reason to offer a window that is not one
+   * of the three named days.
+   *
+   * THE COUNTS ARE NOT DECORATION. "Earlier" is a catch-all — everything older
+   * than yesterday — so it is unbounded where Today and Yesterday are typically
+   * 0-5. A control whose options are bare words is therefore a trap: the obvious
+   * move for someone trying to cut clutter down is to pick the longest-looking
+   * option, and in a dropdown there are no options side by side to do better
+   * with. With a count on each, "Earlier (24)" is a decision rather than a guess.
+   */
+  protected readonly filterOptions = computed(
+    () =>
+      [
+        { value: 'today', label: 'Today', count: this.periodCounts().today },
+        { value: 'yesterday', label: 'Yesterday', count: this.periodCounts().yesterday },
+        { value: 'earlier', label: 'Earlier', count: this.periodCounts().earlier },
+      ] as const,
+  );
+
+  /** The feed after the filter, before pagination. */
+  protected readonly filteredThreads = computed(() =>
+    filterByPeriod(this.datedThreads(), this.filter(), this.now()).map((e) => e.thread),
+  );
+
+  /** The window of ORDERS this page renders, within the current filter. */
+  protected readonly pagedThreads = computed(() => {
+    const start = (this.page() - 1) * this.PAGE_SIZE;
+    return this.filteredThreads().slice(start, start + this.PAGE_SIZE);
+  });
+
+  /**
+   * Applies a new period.
+   *
+   * Takes the raw `CustomEvent` and narrows inside, rather than accepting the
+   * value directly. `ion-select` types its value as `any`, and `?? 'today'` is
+   * the same defensive read the products page's `onSortChange` uses — a control
+   * that can emit no value must not be able to blank the filter.
+   *
+   * THE PAGE RESET IS THE WHOLE POINT OF THIS METHOD. `page` is not derived from
+   * the filter, so nothing else resets it: switching from page 3 of "Earlier" to
+   * "Today" — which holds two orders, so one page — would slice [24, 36) out of
+   * a two-element array and render nothing at all, with a pager sitting under a
+   * blank region claiming there are more. Changing what you are looking at has
+   * to put you back at the first page of it.
+   *
+   * Guarded against a no-op change because `ion-select` fires `ionChange` when it
+   * re-renders its selected state, and resetting the page from that would fight
+   * the user for control of it.
+   */
+  protected onFilterChange(event: CustomEvent): void {
+    const next = (event.detail.value as FeedPeriod | undefined) ?? 'today';
+    if (this.filter() === next) return;
+    this.filter.set(next);
+    this.page.set(1);
+  }
+
+  /**
+   * The newest window that actually has orders in it, or `undefined` if none do.
+   *
+   * THE WAY OUT OF AN EMPTY WINDOW. This used to be "Show all updates" and an
+   * `all` tab to land on. The dropdown has no `all`, so the escape hatch needs a
+   * different destination, and the only one that is true rather than merely legal
+   * is the newest window with something in it.
+   *
+   * `undefined` is unreachable from the template — it needs an empty feed, and
+   * the empty-feed branch renders before this one — but the type says so rather
+   * than the template assuming it.
+   */
+  protected readonly rescuePeriod = computed(() => {
+    const period = nextPopulatedPeriod(this.periodCounts());
+    return this.filterOptions().find((o) => o.value === period);
+  });
+
+  /**
+   * The escape-hatch button's text.
+   *
+   * Branching ONCE here rather than in the template, because the naive
+   * `"Show {{ label }}'s updates"` produces "Show earlier's updates" — a phrase
+   * nobody says, and the one window most likely to be the rescue target, since
+   * it is the only bucket guaranteed not to be empty for anyone who has ordered
+   * more than once.
+   */
+  protected readonly rescueLabel = computed(() => {
+    const option = this.rescuePeriod();
+    if (!option) return '';
+    return option.value === 'earlier'
+      ? 'Show earlier updates'
+      : `Show ${option.label.toLowerCase()}'s updates`;
+  });
+
+  /** To the newest window with content, from the empty-window state. */
+  protected showRescuePeriod(): void {
+    const option = this.rescuePeriod();
+    if (!option) return;
+    this.onFilterChange({ detail: { value: option.value } } as CustomEvent);
+  }
+
+  /** The label of the active period, for the "nothing here" message. */
+  protected readonly activePeriodLabel = computed(
+    () => this.filterOptions().find((o) => o.value === this.filter())?.label ?? 'Today',
+  );
+
+  /**
+   * Day sections, derived from this page's orders rather than the whole feed.
+   *
+   * AT MOST ONE GROUP NOW. The period control is a three-way dropdown, and each
+   * option names one of the three days `groupByDay` can return, so filtering to
+   * a period and then grouping cannot produce anything but the single matching
+   * section. That is why the headings above these groups are gone: with one
+   * group, named by the control the user just tapped, a heading is the same word
+   * twice. `groupByDay` is kept rather than bypassed because `filterByPeriod` is
+   * built on it, and they must not be able to disagree about where midnight is.
+   */
+  protected readonly groups = computed(() =>
+    groupByDay(
+      this.pagedThreads().map((t) => ({ at: t.latest.at, thread: t })),
+      this.now(),
+    ).map((g) => ({ label: g.label, entries: g.entries.map((e) => e.thread) })),
+  );
+
+  /** The steps of the happy path, for the progress strip. Shared with the tracker. */
+  protected readonly statusSequence = STATUS_SEQUENCE;
+
+  /**
+   * Where one step sits relative to this order's latest status.
+   *
+   * The same `stepState` the tracker timeline uses, imported rather than
+   * reimplemented — the strip and the timeline must not be able to disagree,
+   * since one is a summary of the other and they are one tap apart.
+   */
+  protected stepStateFor(thread: OrderThread, step: OrderStatus): string {
+    return stepState(thread.latest.status, step);
+  }
+
+  /**
+   * The WHOLE feed's length in ORDERS, unfiltered. Drives the empty state.
+   *
+   * NOT `filteredThreads`, and that distinction is load-bearing. The
+   * "No notifications yet" card is a claim about the user's entire history, so it
+   * must be answered by the entire history. Reading the filtered count here
+   * would put a user with thirty orders and none today in front of a card
+   * telling them they have never had one.
+   */
+  protected readonly totalThreads = computed(() => this.allThreads().length);
+
+  /**
+   * The FILTERED count, which is what the pager's `total` wants — so the readout
+   * under the feed says "Showing 1-6 of 6" when the filter is Today, rather than
+   * counting orders the user cannot see.
+   */
+  protected readonly totalEntries = computed(() => this.filteredThreads().length);
+
+  protected readonly isEmpty = computed(() => this.totalThreads() === 0);
+
+  /**
+   * The filter found nothing, but the feed is not empty.
+   *
+   * A distinct state from `isEmpty` and it needs its own message: the user has
+   * history, they have just narrowed to a window that is empty, and "No
+   * notifications yet" would be false. The copy names the window they chose and
+   * offers the way back.
+   */
+  protected readonly filterIsEmpty = computed(
+    () => !this.isEmpty() && this.filteredThreads().length === 0,
+  );
 
   protected readonly unreadCount = this.notifications.unreadCount;
 
@@ -134,32 +367,72 @@ export class NotificationsPage implements ViewWillEnter {
    * dropped and the unread styling just never appears — a bug that looks like a
    * CSS mistake and is actually a binding one.
    */
-  protected entryClasses(entry: FeedEntry): string {
+  protected entryClasses(thread: OrderThread): string {
     const classes = ['entry'];
-    if (!entry.read) classes.push('entry--unread');
-    if (NotificationsPage.ALERT_STATUSES.includes(entry.status)) classes.push('entry--alert');
+    if (thread.unread) classes.push('entry--unread');
+    if (NotificationsPage.ALERT_STATUSES.includes(thread.latest.status))
+      classes.push('entry--alert');
     return classes.join(' ');
   }
 
-  protected ago(entry: FeedEntry): string {
-    return relativeTime(entry.at, this.now());
+  /**
+   * The card's timestamp cluster — "12m · Oct 15, 2:34 PM", or the bare date
+   * in the "Earlier" window.
+   *
+   * The rule is `feedTimeLabel` in core/logic, next to the two formatters it
+   * composes: the window decides whether the relative label is information or
+   * duplication, and that decision is a display rule, which lives where the
+   * tests can reach it rather than in a template branch.
+   *
+   * Reads the SAME `now` signal as everything else on the page, so the relative
+   * label, the absolute date and the year decision are all computed against
+   * one instant rather than one per row (see the note on `now` above).
+   */
+  protected entryTime(thread: OrderThread): string {
+    return feedTimeLabel(thread.latest.at, this.filter(), this.now());
   }
 
   /**
-   * The accessible name for one row.
+   * The absolute date and time beside the relative label — "Oct 15, 2:34 PM".
    *
-   * Built rather than left to the button's contents, because the visible time is
-   * a bare abbreviation ("12m", "3h"). Read literally that is ambiguous — "3h"
+   * Reads the SAME `now` signal as the relative labels, so the year decision
+   * and every label on the page are computed against one instant rather than
+   * one per row (see the note on `now` above). The formatting itself is
+   * `absoluteTime` in core/logic, next to `relativeTime`, because a display
+   * rule belongs where the tests can reach it.
+   */
+  protected absoluteTime(at: number): string {
+    return absoluteTime(at, this.now());
+  }
+
+  /**
+   * The accessible name for one card.
+   *
+   * Built rather than left to the button's contents, because the visible time
+   * is a bare abbreviation ("12m", "3h"). Read literally that is ambiguous — "3h"
    * could be three hours or three hundred — and it would be the only place in
    * the app where a screen reader met an unexplained abbreviation.
    *
    * Also states the unread status, which is otherwise carried purely by a colour
    * and a font weight and therefore invisible to anyone who cannot see them.
+   *
+   * IT NAMES THE LATEST STATUS ONLY, deliberately, and the progress strip is
+   * aria-hidden to match. The card says where the order IS; the intermediate
+   * steps are all reachable from the tracker one tap away, and reading five
+   * statuses out loud for every card turns a scannable list into a monologue.
+   *
+   * THE DATE IS THE SAME STRING THE CARD SHOWS, from the same formatter, rather
+   * than a separate `toLocaleString()` call. The visible card pairs the relative
+   * label with the absolute one, so the spoken name now matches the visible row
+   * exactly; two formatters would be two chances to disagree, and the spoken one
+   * is the one nobody proofreads.
    */
-  protected entryAriaLabel(entry: FeedEntry): string {
-    const when = new Date(entry.at).toLocaleString();
-    const state = entry.read ? 'read' : 'unread';
-    return `${entry.title}, ${state}. ${entry.body} Order ${this.shortOrderId(entry.orderId)}, ${when}.`;
+  protected entryAriaLabel(thread: OrderThread): string {
+    const when = this.absoluteTime(thread.latest.at);
+    const state = thread.unread ? 'unread' : 'read';
+    return `${thread.latest.title}, ${state}. ${thread.latest.body} Order ${this.shortOrderId(
+      thread.orderId,
+    )} on ${when}.`;
   }
 
   protected shortOrderId(orderId: string): string {
@@ -175,9 +448,9 @@ export class NotificationsPage implements ViewWillEnter {
    * an order has read the list in every sense that matters, and someone who
    * arrives, sees the badge clear itself without reading anything, has not.
    */
-  protected async open(entry: FeedEntry): Promise<void> {
+  protected async open(thread: OrderThread): Promise<void> {
     await this.markRead();
-    await this.router.navigate(['/orders', entry.orderId]);
+    await this.router.navigate(['/orders', thread.orderId]);
   }
 
   /**

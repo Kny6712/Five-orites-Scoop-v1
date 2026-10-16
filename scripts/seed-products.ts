@@ -17,7 +17,13 @@ const PRESERVE_STOCK = process.env.PRESERVE_STOCK === 'true';
  * empty — which is how all 64 products shipped without a photo.
  */
 const USE_ASSET_IMAGES = process.env.IMAGE_FROM_ASSETS === 'true';
-const ASSET_IMAGE_SRC = path.resolve(__dirname, '..', 'assets', 'images');
+/** Source artwork, which lives outside the Angular build. Renamed to brand-assets/. */
+const ASSET_IMAGE_SRC = path.resolve(__dirname, '..', 'brand-assets', 'images');
+/**
+ * Where the copy lands, as the APP sees it. This is NOT brand-assets: it is the
+ * public path angular.json emits `src/assets` to, so it has to stay `assets/...`
+ * or every seeded product image 404s.
+ */
 const ASSET_IMAGE_DEST = 'assets/images';
 
 /** Local asset path for a flavor, or '' when there is no matching artwork. */

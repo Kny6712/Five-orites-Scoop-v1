@@ -36,7 +36,7 @@ import { Product, SizeVariant } from '../../core/models/product.model';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
-import { PENDING_VOUCHER_KEY } from '../dashboard/voucher-cards/voucher-cards.component';
+import { PENDING_VOUCHER_KEY } from '../../core/models/voucher.model';
 import { QtyStepperComponent } from '../../shared/components/qty-stepper/qty-stepper.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
@@ -51,7 +51,16 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 const FALLBACK_QTY_CEILING = 99;
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-type CheckoutStep = 1 | 2 | 3;
+/**
+ * 1 = editing the cart, 3 = order placed.
+ *
+ * There was a 2 = "Review Order", a separate confirmation screen between the
+ * cart and placing the order. It was removed as redundant: it restated the
+ * cart's own figures one screen later. Checkout is now two states, and the
+ * consequence is that PLACE ORDER commits on its first tap - the review screen
+ * used to be the deliberate second action. See placeOrder().
+ */
+type CheckoutStep = 1 | 3;
 
 @Component({
   selector: 'app-cart',
@@ -100,6 +109,19 @@ export class CartPage implements OnInit {
   errorMessage = signal('');
   lastOrderId = signal<string | null>(null);
   savedAddresses = signal<string[]>([]);
+  /** Which saved address, if any, is currently chosen. Drives the radio row. */
+  selectedAddress = signal<string | null>(null);
+  /**
+   * Whether the saved-address rows are showing their delete affordances.
+   *
+   * The list is a chooser first: picking an address happens every time, and
+   * deleting one almost never. Showing four permanent trash icons gave the
+   * destructive action the visual weight and the permanent real estate, while
+   * the common action was a bare radio circle with nothing saying "use this".
+   * That is backwards, and this flag is the correction - the default state has
+   * no delete affordance at all.
+   */
+  managingAddresses = signal(false);
   voucherCode = '';
   voucherDiscount = signal(0);
   appliedVoucher = signal<string | null>(null);
@@ -278,19 +300,68 @@ export class CartPage implements OnInit {
     await alert.present();
   }
 
-  // Step 1 → Step 2: Validate address then show review
-  proceedToReview(): void {
-    if (!this.deliveryAddress.trim()) {
-      this.errorMessage.set('Please enter your delivery address.');
-      return;
-    }
-    this.errorMessage.set('');
-    this.addressService.saveAddress(this.deliveryAddress);
-    this.checkoutStep.set(2);
+  useSavedAddress(address: string): void {
+    this.selectedAddress.set(address);
+    this.deliveryAddress = address;
   }
 
-  useSavedAddress(address: string): void {
-    this.deliveryAddress = address;
+  /**
+   * Clears the saved-address radio when the textarea stops matching it.
+   *
+   * Necessary rather than cosmetic: picking a saved address writes
+   * deliveryAddress, so this fires for programmatic changes too. The value
+   * comparison is what separates the two - if what landed in the box is still
+   * the selected address, the radio is still true and stays. Type one character
+   * into the box and the radio is no longer describing what is there, so it has
+   * to go. Without this the UI would claim an address is chosen after the
+   * customer had already changed it.
+   */
+  onAddressTyped(value: string): void {
+    if (this.selectedAddress() !== null && value !== this.selectedAddress()) {
+      this.selectedAddress.set(null);
+    }
+  }
+
+  /** Shows or hides the delete affordances on the saved-address rows. */
+  toggleManageAddresses(): void {
+    this.managingAddresses.update((on) => !on);
+  }
+
+  /**
+   * Deletes a saved address, behind a confirmation.
+   *
+   * Confirmed because it is a one-tap destructive action on a list with no undo:
+   * recovering means retyping the address. This mirrors clearCart(), which has
+   * asked the same way since before the cart was redesigned.
+   */
+  async removeSavedAddress(address: string): Promise<void> {
+    const alert = await this.alertCtrl.create({
+      header: 'Delete address',
+      message: `Remove "${address}" from your saved addresses?`,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Delete',
+          role: 'destructive',
+          handler: () => {
+            // Drop the radio if it was pointing at the row being deleted. The
+            // textarea is left alone: the text is still in the box, and the
+            // order can still ship there - it simply is not a saved shortcut
+            // any more.
+            if (this.selectedAddress() === address) {
+              this.selectedAddress.set(null);
+            }
+            this.addressService.removeAddress(address);
+            // Deleting the last one would otherwise leave the page sitting in
+            // manage mode with no rows and no toggle to get out of it.
+            if (this.savedAddresses().length === 0) {
+              this.managingAddresses.set(false);
+            }
+          },
+        },
+      ],
+    });
+    await alert.present();
   }
 
   async applyVoucher(): Promise<void> {
@@ -317,16 +388,26 @@ export class CartPage implements OnInit {
     this.voucherMessage.set('');
   }
 
-  backToCart(): void {
-    this.checkoutStep.set(1);
-    this.errorMessage.set('');
-  }
-
-  // Step 2 → Place Order (called ONCE only from the Review screen)
+  /**
+   * Commits the order.
+   *
+   * The blank-address guard and the saveAddress() call used to live in
+   * proceedToReview(), which ran before the removed review screen. Nothing sits
+   * between the customer and this method now, so both moved here: without them
+   * an order could be placed with no delivery address at all.
+   *
+   * Validation runs BEFORE isPlacingOrder is set, so a rejected submit does not
+   * leave the button spinning.
+   */
   async placeOrder(): Promise<void> {
     if (this.isPlacingOrder()) return; // ← prevents double-tap double-call
-    this.isPlacingOrder.set(true);
+    if (!this.deliveryAddress.trim()) {
+      this.errorMessage.set('Please enter your delivery address.');
+      return;
+    }
     this.errorMessage.set('');
+    this.addressService.saveAddress(this.deliveryAddress);
+    this.isPlacingOrder.set(true);
 
     try {
       // Pass null for empty notes — never undefined

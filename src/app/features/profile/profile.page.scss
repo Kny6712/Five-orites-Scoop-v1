@@ -4,8 +4,10 @@
 // Sizes icons via the --icon-size custom property rather than font-size, because
 // app-icon is inline SVG and is not affected by font-size.
 
-/* 720px max-width provides optimal reading width for forms while remaining
-   responsive on all devices. */
+/* 720px is the single-column width. It is right for phones and tablets, where
+   the viewport is narrower than the cap and this never binds, and for the
+   narrow band just under the two-up breakpoint. Above 1200px the cards go
+   side by side instead — see the wide layout at the foot of this file. */
 .profile-wrap {
   max-width: 720px;
   margin: 0 auto;
@@ -452,4 +454,111 @@
   color: var(--color-primary-ink);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* -- Wide layout: two columns --------------------------------------------
+   Six cards in one 720px column left roughly 150px of dead space at each side
+   on a 1440px viewport (316px at 1900px) and made the page scroll for six
+   cards of modest height. Above 1200px they sit two-up instead, which takes
+   the content from 1323px tall to 701px.
+
+   1200px, not lower: the shell is only ~737px wide at a 1024px viewport, so
+   the 720px cap already fills it there. Two columns that early would leave
+   ~345px cards and force scrolling — the opposite of the intent. */
+
+@media (min-width: 1200px) {
+  .profile-wrap {
+    max-width: var(--container-max); /* 1080px, the width the rest of the app uses */
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+    /* Deliberately NOT `align-items: start`.
+
+       The cards are wildly different heights — 124px for the email card on a
+       Google account, 379px for the change-password form — so some row always
+       contains a mismatch. With `start` that row is still floored by its
+       tallest card and the shorter one leaves a hole beside it, measured at
+       140px and 116px before the cards were reordered. `stretch` spends that
+       same space inside the shorter card instead, which reads as padding
+       rather than as a hole in the page, and makes every row bottom-align:
+       measured 0px of row mismatch across all four account states.
+
+       Same choice as the Developers grid, for the same reason. */
+  }
+
+  /* The stack separates cards with margins; `gap` does that job here. This has
+     to clear `margin-bottom` from the shared card rule AND the `margin-top`
+     the danger card adds on top of it, or the bottom row sits 16px lower. */
+  .avatar-card,
+  .detail-card,
+  .danger-card {
+    margin: 0;
+  }
+
+  /* The error banner is a direct child of .profile-wrap. Without this it would
+     take one cell and push every card along by one, putting the avatar card
+     opposite a banner instead of beside the email card. */
+  .profile-wrap > app-alert-banner {
+    grid-column: 1 / -1;
+  }
+
+  /* An odd number of cards leaves the last row one cell short. Delete Account
+     takes the whole row when it is the stranded one; the Email card does NOT,
+     and that asymmetry is deliberate.
+
+     Spanning a stranded Email card stretched it to the full 990px row while
+     its content -- two inputs, a button, a line of copy -- filled only the
+     left ~40%. Measured against Your Details it was 503px too wide, and the
+     empty right-hand half read as a card that failed to render rather than as
+     a form. Leaving it one column wide puts the same whitespace BESIDE the
+     card instead of inside it, and puts it at the same 487px as Your Details.
+
+       owner + password  (5 cards) -> email stranded, left at column width
+       owner + Google    (4 cards) -> nothing stranded, 2x2 exactly
+       client + password (6 cards) -> nothing stranded, 3x2 exactly
+       client + Google   (5 cards) -> delete stranded, takes the full row
+
+     Both conditions are required on the selector, and that is the whole point.
+     Owner + Google is missing BOTH cards, so a rule keyed on either one alone
+     would match it and span a card inside a 2x2 grid that is already complete
+     -- pushing the empty cell to row 2 instead of removing it. */
+  .profile-wrap:has(.danger-card):not(:has(.card-password)) .danger-card {
+    grid-column: 1 / -1;
+  }
+
+  /* Two-up order reads as two columns rather than three rows:
+        avatar/name | password
+        your details | order notifications
+        email address | delete account
+
+     Password sits opposite the avatar because the password card is the tallest
+     form on the page for a client signed in with email and password, so it
+     belongs where the row it inflates is doing the least damage.
+
+     These are `order`, not a template reshuffle, on purpose: below 1200px the
+     single column keeps the template's own order, which reads correctly when
+     cards are stacked. Reordering the markup would drag that mobile sequence
+     along with it.
+
+     The cost is that on wide screens tab order follows the template while the
+     eye follows the grid. Say the word and the markup can be moved to match
+     instead, at the cost of the mobile sequence above. */
+  .avatar-card {
+    order: 1;
+  }
+  .card-password {
+    order: 2;
+  }
+  .card-details {
+    order: 3;
+  }
+  .card-notifications {
+    order: 4;
+  }
+  .card-email {
+    order: 5;
+  }
+  .danger-card {
+    order: 6;
+  }
 }

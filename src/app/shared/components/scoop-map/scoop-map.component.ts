@@ -101,11 +101,19 @@ interface LeafletLike {
       why every caller passing a height got the 260px default instead.
       The square class takes precedence, so the admin map does not also get an
       inline height fighting it.
+
+      The ratio input is the same idea for a map that has to MATCH another
+      element rather than fill a known number of pixels, so it suppresses the
+      inline height for the same reason: aspect-ratio does nothing while an
+      inline px height is set, so a map asked to match a sibling would silently
+      ignore the match and render at its fallback instead.
     -->
     <div
       class="map-shell"
       [class.square]="square()"
-      [style.height]="square() || !height() ? null : height()"
+      [class.ratio]="ratio()"
+      [style.--map-ratio]="ratio()"
+      [style.height]="square() || ratio() || !height() ? null : height()"
     >
       <div #mapEl class="map-canvas" [attr.aria-label]="ariaLabel()"></div>
 
@@ -148,6 +156,26 @@ interface LeafletLike {
         border-radius: var(--radius-md);
         overflow: hidden;
         background: var(--tile-powder);
+      }
+
+      /* The ratio variant: the map takes its shape from an ELEMENT BESIDE it
+        rather than from a pixel count of its own.
+
+        The About page stacks a photo directly above this map and the two are
+        meant to read as one matched pair. They cannot be matched with two
+        numbers - the photo's height is width * 5/8, so any fixed px height
+        agrees with it at exactly one viewport width and drifts everywhere else.
+        Keying both to the same width is what keeps them identical at every
+        size, including after a rotation.
+
+        Only WIDTH may be definite here. Setting both axes makes aspect-ratio
+        inert, which is the same trap .square records below; the inline height
+        is cleared in the template for this reason. A --map-ratio custom property
+        carries the caller's value, so one rule serves any ratio. */
+      .map-shell.ratio {
+        width: 100%;
+        height: auto;
+        aspect-ratio: var(--map-ratio, 1 / 1);
       }
 
       /* The square variant, for the admin map. A delivery map next to a tall
@@ -224,6 +252,18 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
   /** Render as a balanced square rather than a letterbox. */
   readonly square = input<boolean>(false);
 
+  /**
+   * CSS aspect-ratio for the shell, e.g. '8 / 5'. Null leaves the map on
+   * `height`.
+   *
+   * Prefer this over `height` whenever the map has to line up with something
+   * else on the page. A height is a single fixed number, so it can only agree
+   * with a fluid sibling at one viewport width; a ratio tracks the shared
+   * width and therefore stays matched at every size. The About page uses it to
+   * give the map the same shape as the shop photo above it.
+   */
+  readonly ratio = input<string | null>(null);
+
   readonly markerTapped = output<MapMarker>();
 
   isLoading = signal(true);
@@ -235,6 +275,8 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
   /** Kept so a re-render updates markers instead of stacking duplicates. */
   private drawnMarkers: LeafletMarker[] = [];
   private drawnRoute: { remove(): void } | null = null;
+  /** Re-tiles the map when its container changes size. See observeResize(). */
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor() {
     // Redraw whenever the inputs change. An effect rather than ngOnChanges,
@@ -304,11 +346,48 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
       // an image above it finishing). invalidateSize() tells Leaflet to re-read
       // it; without this the tile grid is offset inside the box.
       setTimeout(() => this.mapInstance?.invalidateSize?.(), 120);
+
+      this.observeResize(el);
     } catch (err) {
       console.error('Map failed to initialise', err);
       this.isLoading.set(false);
       this.hasError.set(true);
     }
+  }
+
+  /**
+   * Re-tile whenever the container's box changes.
+   *
+   * The one-shot invalidateSize() in init() only covers layout settling just
+   * after the map appears. That was enough while every caller passed a FIXED
+   * pixel height, because the box then never changed again for the life of the
+   * component. It is not enough for a ratio-driven map: its height is derived
+   * from the container width, so rotating a phone resizes the shell and Leaflet
+   * is left holding a tile grid sized for the old box - the map draws offset,
+   * with a blank strip along one edge.
+   *
+   * The previous size is remembered because invalidateSize() can itself settle
+   * layout; without that guard the observer and Leaflet trade invalidate calls
+   * back and forth. Guarded by a typeof check too, since a map still has to
+   * render in a test environment that has no ResizeObserver.
+   */
+  private observeResize(el: HTMLElement): void {
+    if (this.resizeObserver || typeof ResizeObserver === 'undefined') return;
+
+    let lastWidth = -1;
+    let lastHeight = -1;
+
+    this.resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const width = Math.round(entry.contentRect.width);
+        const height = Math.round(entry.contentRect.height);
+        if (width === lastWidth && height === lastHeight) continue;
+        lastWidth = width;
+        lastHeight = height;
+        this.mapInstance?.invalidateSize?.();
+      }
+    });
+    this.resizeObserver.observe(el);
   }
 
   private redraw(): void {
@@ -381,6 +460,9 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
     this.leaflet = null;
     this.drawnMarkers = [];
     this.drawnRoute = null;
+    // Disconnected before the map so it cannot call into a torn-down instance.
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
   }
 }
 

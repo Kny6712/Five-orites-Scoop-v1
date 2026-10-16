@@ -58,6 +58,23 @@ which is the part of this file worth reading before you demo anything.
   the reset confirmation is identical whether or not an account exists, so the
   login form cannot be used to discover which addresses are registered
 
+### Boot splash
+
+- **Web / PWA — works now.** A branded splash covers the gap between first paint and
+  Angular finishing bootstrap, so a cold start no longer shows a bare white frame. It
+  is drawn as `::before` / `::after` on `<html>` in `src/index.html`, **not** as a
+  node inside `<body>` — Ionic ships `html:not(.hydrated) body { display: none }`,
+  which hides anything in `<body>` for exactly the window a splash exists to cover.
+  `AppComponent.dismissBootSplash` adds `app-ready` to `<html>` on first render, which
+  stops the pseudo-elements being generated. A pure-CSS failsafe fades the splash at
+  6s, so a bundle that never boots cannot leave a branded screen stuck on screen.
+- **Native (Android / iOS) — configured but not yet built.** `@capacitor/splash-screen`
+  is installed and `capacitor.config.ts` sets `launchAutoHide: false` with a cream
+  background matching the app, so the splash is dismissed from `afterNextRender`
+  rather than on a fixed timer. None of it takes effect until a platform is added
+  with `npx cap add android` — see "Not done yet". Source artwork for the density
+  matrix is at `brand-assets/splash/icon.png` and `brand-assets/splash/splash.png`.
+
 ### Admin
 
 - **Inventory Manager**: Live stock view per product/size; inline edit with atomic
@@ -278,11 +295,11 @@ storefront renders the same generic scoop placeholder 64 times. To give each
 flavor its own image:
 
 ```bash
-npm run images:generate   # 64 distinct placeholder SVGs -> assets/images/
+npm run images:generate   # 64 distinct placeholder SVGs -> brand-assets/images/
 npm run images:seed       # re-seed pointing each product at its artwork
 ```
 
-To use real photography, drop files into `assets/images/` named after the flavor
+To use real photography, drop files into `brand-assets/images/` named after the flavor
 slug, or upload to Cloudinary with
 `npm run upload:images -- --dir=<folder> --upload --write`.
 
@@ -596,9 +613,12 @@ this field existed keep appearing in the catalog.
   the function that would do it cannot run. This is a `PRIVACY.md` disclosure, not
   a UI gap. See "Known limitations".
 - CSV bulk product import
-- App Store / Play Store signing and release pipeline. `android/` now exists and
-  a debug APK builds; there is no keystore, no iOS project, and no app icon or
-  splash artwork in `src/assets/`.
+- App Store / Play Store signing and release pipeline. **There is no `android/` or
+  `ios/` directory in this repo** — both are git-ignored and neither platform has been
+  added, so `npx cap ls` reports nothing and `npm run build:android` fails at
+  `npx cap sync android`. There is no keystore and no iOS project. Splash source
+  artwork exists at `brand-assets/splash/icon.png`; no icon set does. See
+  **Boot splash** below for what works today.
 
 ---
 
@@ -652,6 +672,30 @@ nothing at all has been exercised against a live Firestore project. A green
 > than against a spec. Recovering the original document is the first thing needed
 > to make either audit authoritative — which is also why neither has been
 > refreshed against the current build.
+
+### `functions/` is parked, not dead
+
+The `functions/` package is written, compiles, and is wired into `firebase.json`,
+CI, `verify`, eslint and lint-staged — but **the app never calls it.** `src/`
+contains no `httpsCallable`, `getFunctions`, or any other Cloud Functions entry
+point. Nothing in the running application can reach those three exports.
+
+It stays because of the plan, not because it is load-bearing:
+
+- **It cannot be deployed on this project.** The project is on the free Spark
+  plan, which does not support Cloud Functions. `CUTOVER.md` records this, and
+  records that stock ownership landed as a _staff-gated_ movement inside the
+  order status transition instead. The storefront path is complete without it.
+- **It is kept as the Blaze-upgrade path.** If the project is ever upgraded, the
+  server-authoritative stock decrement, order pricing and voucher redemption are
+  already written there.
+
+**Do not delete it as dead code, and do not "wire it up"** — wiring it up without
+a plan upgrade would fail at deploy. Note also that `functions/src/config.ts` is
+a deliberate duplicate of constants in `src/app/core/logic/` (the delivery fee
+among them), because the deployed package cannot import from the app; a test
+asserts the two stay in sync. That duplication is a real money risk, which is a
+second reason it should be either deployed or removed rather than left drifting.
 
 ---
 

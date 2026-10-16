@@ -2,7 +2,7 @@
 <!-- Five-orites Scoop — Order History -->
 
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
@@ -60,6 +60,41 @@
   <!-- Orders List -->
   @if (!isLoading() && orders().length > 0) {
     <!--
+      The status filter. A DROPDOWN of seven windows — All, then one per status in
+      lifecycle order — rather than a segment, and for the same reason the
+      notifications page's period control is a dropdown and not tabs: the app has
+      ONE way of saying "narrow this list" to a customer, and this is now that way
+      rather than the exception.
+
+      `interface="popover"` so it opens as a small anchored list rather than a
+      full-screen alert, matching the notifications page's period select — the
+      same pattern for narrowing a list, which this is now part of too.
+
+      The options carry counts ("Cancelled (0)") for the same reason that page's do:
+      a bare word invites picking the longest-looking option, and a count makes it
+      a decision. Zeros stay visible, matching "Yesterday (0)" there.
+
+      `onStatusChange` (not `[value]` + a two-way binding) because the filter owns a
+      side effect the binding cannot express — resetting the pager, which nothing
+      else will do.
+    -->
+    <div class="filter-row">
+      <span class="filter-label" id="status-filter-label">Show</span>
+      <ion-select
+        class="status-select"
+        interface="popover"
+        [interfaceOptions]="{ cssClass: 'status-filter-popover' }"
+        [value]="statusFilter()"
+        (ionChange)="onStatusChange($event)"
+        aria-labelledby="status-filter-label"
+      >
+        @for (opt of statusOptions(); track opt.value) {
+          <ion-select-option [value]="opt.value">{{ opt.label }} ({{ opt.count }})</ion-select-option>
+        }
+      </ion-select>
+    </div>
+
+    <!--
       Paged at eight. This list was un-paged and unbounded — `getCustomerOrders`
       has no cap — so a customer with a few years of history got a single endless
       scroll with no way to jump. Eight a page is about one screen of this list,
@@ -70,45 +105,137 @@
       nesting-a-button-in-a-link case: the row is a routerLink and the button is
       a separate action on the same card.
     -->
-    <div class="orders-body">
-      @for (order of pagedOrders(); track trackOrder($index, order)) {
-        <ion-item [routerLink]="['/orders', order.id]" detail="true" class="order-item" button>
-          <div class="order-info">
-            <div class="order-top-row">
-              <span class="order-id">Order #{{ order.id.slice(-6).toUpperCase() }}</span>
-              <app-order-status-badge [status]="order.status"></app-order-status-badge>
-            </div>
-            <p class="order-meta">
-              {{ itemCount(order) }} item{{ itemCount(order) !== 1 ? 's' : '' }} &middot; {{ order.grandTotal | peso }}
-              @if (order.voucherCode) {
-                &middot; {{ order.voucherCode }}
-              }
-            </p>
-            <p class="order-date">{{ formatDate(order.createdAt) }}</p>
-            @if (canCancel(order)) {
-              <ion-button
-                fill="outline"
-                color="danger"
-                size="small"
-                (click)="cancelOrder(order, $event)"
-                [disabled]="cancellingId() === order.id"
-                class="cancel-order-btn"
-              >
-                {{ cancellingId() === order.id ? 'Cancelling…' : 'Cancel Order' }}
-              </ion-button>
-            }
-          </div>
-        </ion-item>
-      }
+    <!--
+      THE LEDGER AND THE PAGER, TOGETHER, AND ONLY WHEN THE FILTER ADMITS SOMETHING.
+      The two are one unit — the header labels the columns the rows fill, and the
+      pager counts the rows — so they appear and disappear as a pair rather than
+      leaving a header over an empty region or a pager under one.
 
-      <app-pagination
-        [page]="page()"
-        [total]="orders().length"
-        [pageSize]="PAGE_SIZE"
-        itemLabel="orders"
-        (pageChange)="page.set($event)"
+      The alternative branch below is a DIFFERENT emptiness from the page's own
+      "No orders yet", and conflating the two is the trap this page now has to
+      avoid. The customer HAS history; they have narrowed to a status that happens
+      to hold none of it, and "No orders yet" would be a false claim about their
+      whole account. So it names the status they are in and hands back a one-tap
+      route to the whole history — not a generic "show everything", which is what
+      the control already says and would be the same word twice.
+    -->
+    @if (filteredOrders().length > 0) {
+      <!--
+        Seven fixed columns on one line, and a header that says what each is.
+
+      The previous row stacked three left-aligned lines and floated the status
+      badge alone at the far right, which measured 1172px of empty space between
+      the two content clusters in EVERY row, and left the order total sharing a
+      line with the item count at the same size and colour. It also made rows two
+      different heights (72px cancellable, 93px not) purely because of the button.
+
+      A ledger fixes all three at once: the total gets a column of its own, the
+      void is gone because every column is carrying something, and every row is
+      the same height whether or not it can be cancelled.
+
+      The header is aria-hidden. It is a visual index for sighted scanning over a
+      list of links; exposing it as a table header over link content would claim a
+      table structure that is not in the DOM, and every row is already
+      self-describing to a screen reader.
+    -->
+      <div class="orders-head" aria-hidden="true">
+        <span>Order</span>
+        <span>Items</span>
+        <span class="num">Qty</span>
+        <span class="num">Total</span>
+        <span class="end">Status</span>
+        <span>Placed</span>
+        <span></span>
+      </div>
+
+      <div class="orders-body">
+        @for (order of pagedOrders(); track trackOrder($index, order)) {
+          <ion-item [routerLink]="['/orders', order.id]" class="order-item" [ngClass]="rowClass(order)" button>
+            <!--
+            `detail="true"` is gone. Ionic's arrow was vertically centred against a
+            three-line stack, so it floated in the middle of the dead space rather
+            than at the end of a line of content. There is a whole column of empty
+            space at the right of this grid instead.
+
+            The Cancel button keeps its stopPropagation guard — see cancelOrder().
+            It is a separate action on a row that is itself a routerLink, and
+            losing that guard means tapping Cancel opens the tracker.
+          -->
+            <div class="order-grid">
+              <span class="order-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
+              <span class="order-items">{{ itemSummary(order) }}</span>
+              <span class="order-qty">{{ itemCount(order) }}</span>
+              <span class="order-total">{{ order.grandTotal | peso }}</span>
+              <span class="order-status">
+                <app-order-status-badge [status]="order.status"></app-order-status-badge>
+              </span>
+              <span class="order-date">{{ formatDate(order.createdAt) }}</span>
+              <span class="order-action">
+                @if (canCancel(order)) {
+                  <!--
+                  A tonal pill, not a red outline and not a red word with an
+                  underline under it. See the .cancel-order-btn block in the SCSS
+                  for why the tokens are the app's existing danger tone.
+
+                  A plain <button> rather than ion-button, matching .manage-toggle
+                  on the cart page: an ion-button brings its own padding, radius
+                  and inner shadow DOM, every one of which has to be overridden to
+                  paint a tonal pill, and every override is somewhere the pill can
+                  leak. This one is styled entirely from the outside.
+
+                  THE LABEL NEVER CHANGES. It used to read "Cancelling…" while the
+                  request was in flight, which is 38px wider than "Cancel" and
+                  pushed the pill out past the edge of its column mid-request — the
+                  row shifted under the finger that had just pressed it.
+
+                  The busy state was then moved onto an icon, swapping `x` for a
+                  spinning `loader`, so the button's width stayed identical before
+                  and during. Both are gone now: on a list of rows the X read as a
+                  stray artefact rather than as part of a label, and "Cancel" says
+                  it on its own. The spinner went with it, so an in-flight cancel
+                  now shows nothing but the disabled state and `aria-busy` — the
+                  button is only disabled for the length of one Firestore write,
+                  which is well inside the threshold where a silent wait is a
+                  mis-tap risk. The keyframes and .is-busy rule are still in the
+                  SCSS, unused, if the spinner is ever wanted back.
+                -->
+                  <button
+                    type="button"
+                    class="cancel-order-btn"
+                    (click)="cancelOrder(order, $event)"
+                    [disabled]="cancellingId() === order.id"
+                    [attr.aria-busy]="cancellingId() === order.id"
+                  >
+                    Cancel
+                  </button>
+                }
+              </span>
+            </div>
+          </ion-item>
+        }
+
+        <app-pagination
+          [page]="page()"
+          [total]="filteredOrders().length"
+          [pageSize]="PAGE_SIZE"
+          itemLabel="orders"
+          (pageChange)="page.set($event)"
+        />
+      </div>
+    } @else {
+      <!--
+        THE EMPTY WINDOW. Guarded on the filter rather than assumed, because the
+        whole-list emptiness above has nothing to jump to and this branch must not
+        render a button that leads nowhere.
+      -->
+      <app-empty-state
+        icon="filter"
+        title="No orders with this status yet"
+        [message]="'None of your orders is ' + statusLabel() + '.'"
+        actionLabel="Show all orders"
+        (action)="showAllOrders()"
       />
-    </div>
+    }
   }
   <app-footer></app-footer>
 </ion-content>

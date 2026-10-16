@@ -361,14 +361,21 @@
 }
 
 // ── Unmapped orders ───────────────────────────────────────
+/* Peach, matching .low-stock-panel on the Dashboard. This block and that panel are
+   the same idea — "the shop has something it cannot act on automatically" — and
+   they were deliberately on the same tone. They are now on the same NEW tone.
+
+   The contrast notes are shared with the dashboard panel and apply identically:
+   #fdcc85 is 1.42:1 against the page and --tone-warning-border was only 1.27:1
+   against this fill, so the fill and the border both had to change together. See
+   the token definitions in src/theme/variables.scss. */
 .unmapped {
   margin: var(--space-5) var(--space-4) var(--space-6);
   padding: var(--space-3);
-  background: var(--tone-warning-bg);
+  background: var(--tone-peach-bg);
   /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
-     See .danger-group in profile.page.scss for the full explanation. Same amber
-     tone as .low-stock-panel on the Dashboard, so both are on the same footing. */
-  border: 2px solid var(--tone-warning-border);
+     See .danger-group in profile.page.scss for the full explanation. */
+  border: 2px solid var(--tone-peach-border);
   border-radius: var(--radius-md);
 }
 
@@ -380,7 +387,7 @@
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 600;
-  color: var(--tone-warning-ink);
+  color: var(--color-ink);
 }
 .unmapped-title app-icon {
   --icon-size: 15px;
@@ -390,8 +397,11 @@
   margin: 5px 0 var(--space-2);
   font-size: 12px;
   line-height: 1.45;
-  color: var(--tone-warning-ink);
-  opacity: 0.9;
+
+  /* Full strength — an opacity here would drop 12px text toward the limit in a
+     stylesheet the contrast gate cannot read, which is a mistake this repo has
+     already made twice. */
+  color: var(--tone-peach-ink);
 }
 
 .unmapped-list {
@@ -403,13 +413,22 @@
   gap: 5px;
 }
 
+/* The same TINTED BAND the dashboard's low-stock panel uses, so an admin moving
+   between the two screens sees one list treatment rather than two.
+
+   It replaces the hairline this block used to carry, and the same measurement
+   applies: #d9a050 on this peach is a soft 1.56:1 rule, which is a container's
+   edge but too quiet to group the rows of a list. The 40% white tint composites
+   to #fee0b6 against the panel at 1.17:1, and it makes the text on it BETTER —
+   the address line goes from 4.99:1 on raw peach to 5.84:1 here. Both composites
+   are asserted once in check-contrast.mjs and shared by both panels. */
 .unmapped-item {
   display: flex;
   gap: var(--space-2);
   align-items: baseline;
-  background: var(--color-white);
-  border-radius: var(--radius-xs);
   padding: 7px 10px;
+  background: rgb(255 255 255 / 0.4);
+  border-radius: var(--radius-sm);
 }
 
 .unmapped-id {
@@ -422,7 +441,10 @@
 
 .unmapped-address {
   font-size: 12px;
-  color: var(--ion-color-medium);
+
+  /* NOT --ion-color-medium: 3.32:1 on this peach, a fail at 12px. Same correction
+     as .low-stock-set on the dashboard panel. */
+  color: var(--tone-peach-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

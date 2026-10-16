@@ -18,15 +18,12 @@ import {
   IonTitle,
   IonContent,
   IonSearchbar,
-  IonChip,
   IonLabel,
   IonGrid,
   IonRow,
   IonCol,
   IonSkeletonText,
   IonCard,
-  IonCardContent,
-  IonText,
   IonRefresher,
   IonRefresherContent,
   IonButtons,
@@ -46,25 +43,33 @@ import { Subscription } from 'rxjs';
 import { catchError, of } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
 import { WishlistService } from '../../core/services/wishlist.service';
-import {
-  Product,
-  FlavorSet,
-  SizeVariant,
-  ProductSort,
-  ProductCategory,
-  PRODUCT_CATEGORIES,
-  productCategory,
-} from '../../core/models/product.model';
+import { Product, FlavorSet, SizeVariant, ProductSort } from '../../core/models/product.model';
 import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { SET_NAMES, SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
-import { flavourSlug } from '../../core/logic/flavor';
-
 interface SetChip {
   label: string;
   value: FlavorSet | null;
-  /** CSS modifier key for the chip's pastel, or '' for "All" / unmapped. */
-  slug: string;
+  /**
+   * The `slug` field that used to live here is GONE with the chip row.
+   *
+   * It was the CSS modifier key that picked one of the nine `--flavor-*` pastels
+   * per set, and a `<select>` paints no per-option background — so keeping it
+   * meant a computed string that nothing read. `flavourSlug()` in
+   * core/logic/flavour.ts is exported and still has its own tests, so the helper
+   * survives; only this page's use of it is gone.
+   *
+   * That last claim was wrong, and this comment is here so it is not repeated:
+   * on `interface="popover"` Ionic DOES paint per-option backgrounds, because
+   * `createPopoverOptions` in select.js copies each `<ion-select-option>`'s own
+   * classList onto the `ion-item` it renders. The colours were built on that and
+   * worked — contrast passed at 5.32:1 to 10.01:1.
+   *
+   * What actually failed was the WIDTH override shipped alongside them, not the
+   * colours. A CSS `--width` and Ionic's JS positioning cannot both be trusted:
+   * the panel is positioned from a measurement taken before the stylesheet
+   * applies, so the two desynchronise and the panel overflows. Both went together.
+   */
 }
 interface SelectOption<T> {
   label: string;
@@ -98,15 +103,12 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
     IonTitle,
     IonContent,
     IonSearchbar,
-    IonChip,
     IonLabel,
     IonGrid,
     IonRow,
     IonCol,
     IonSkeletonText,
     IonCard,
-    IonCardContent,
-    IonText,
     IonRefresher,
     IonRefresherContent,
     IonButtons,
@@ -149,19 +151,24 @@ export class ProductsPage implements OnInit, OnDestroy {
   readonly sortBy = signal<ProductSort>('featured');
 
   /**
-   * Catalog type filter, null = all types.
+   * THE CATEGORY FILTER USED TO LIVE HERE and was removed from the storefront.
    *
-   * The plan asked for "flavors, tubs, cones, sundaes". Tubs are covered by the
-   * pint and half-gallon sizes, so the model needed a category only for sundaes
-   * and cones — a product is otherwise identical to a flavor. A null value
-   * means "show everything", which is the default so the catalog looks the same
-   * as it did before categories existed.
+   * It read flavor / sundae / cone, and the plan behind it asked for "flavors,
+   * tubs, cones, sundaes" — tubs are covered by the pint and half-gallon sizes, so
+   * the category existed only to isolate sundaes and cones. On the page it was
+   * labelled "Type", which was doing the filter no favours: a sundae is not a type
+   * of ice cream, and the label was the only thing distinguishing "sundae" from
+   * "the other 56 things".
+   *
+   * WHAT THIS COST. Six sundaes and two cones can no longer be isolated from the
+   * storefront, and they are the only products not already inside a named set — so
+   * they are now reachable by search or by scrolling, and by nothing else.
+   *
+   * WHAT THIS DID NOT TOUCH. The `category` field is still on the model, still
+   * written by the seeder, still validated by `categoryIsValid()` in
+   * firestore.rules, and still shown on the product detail page. Only the storefront
+   * filter is gone, so nothing about the data or the rules changed.
    */
-  readonly selectedCategory = signal<ProductCategory | null>(null);
-  readonly categoryOptions: SelectOption<ProductCategory | null>[] = [
-    { label: 'All types', value: null },
-    ...PRODUCT_CATEGORIES.map((c) => ({ label: c.label, value: c.value })),
-  ];
 
   /** The size a price is read from; falls back to the cup (see filteredProducts). */
   readonly priceBasisSize = computed<SizeVariant>(() => this.selectedSize() ?? 'cup');
@@ -202,7 +209,6 @@ export class ProductsPage implements OnInit, OnDestroy {
       this.wishlistOnly() ||
       this.selectedSize() !== null ||
       this.maxPrice() !== null ||
-      this.selectedCategory() !== null ||
       this.sortBy() !== 'featured',
   );
 
@@ -230,18 +236,12 @@ export class ProductsPage implements OnInit, OnDestroy {
       );
     }
     return [
-      { label: 'All', value: null, slug: '' },
+      { label: 'All', value: null },
       ...[...labelByNumber.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([value, label]) => ({
           label,
           value: value as FlavorSet,
-          // Pastel key, derived from the label the customer actually reads.
-          // `flavourSlug` returns '' for anything unmapped, and the template
-          // skips the modifier class in that case, so an unmapped or newly
-          // added flavour falls back to --flavor-all rather than rendering a
-          // chip with no colour at all.
-          slug: flavourSlug(label),
         })),
     ];
   });
@@ -266,12 +266,6 @@ export class ProductsPage implements OnInit, OnDestroy {
     const q = this.searchQuery().toLowerCase();
     const set = this.effectiveSet();
     if (set !== null) products = products.filter((p) => p.setNumber === set);
-
-    // productCategory() treats a missing field as 'flavor', so the 64 products
-    // seeded before categories existed stay visible under Flavors instead of
-    // dropping out of the catalog entirely.
-    const category = this.selectedCategory();
-    if (category !== null) products = products.filter((p) => productCategory(p) === category);
 
     if (q)
       products = products.filter(
@@ -428,10 +422,8 @@ export class ProductsPage implements OnInit, OnDestroy {
     this.resetPagination();
   }
 
-  onCategoryChange(event: CustomEvent): void {
-    const raw = event.detail.value as ProductCategory | null | undefined;
-    this.selectedCategory.set(raw ?? null);
-    this.resetPagination();
+  onFlavorSetChange(event: CustomEvent): void {
+    this.selectSet(event.detail.value as FlavorSet | null);
   }
 
   onSortChange(event: CustomEvent): void {
@@ -461,7 +453,6 @@ export class ProductsPage implements OnInit, OnDestroy {
     this.wishlistOnly.set(false);
     this.selectedSize.set(null);
     this.maxPrice.set(null);
-    this.selectedCategory.set(null);
     this.sortBy.set('featured');
     if (this.searchbar?.nativeElement) this.searchbar.nativeElement.value = '';
     this.resetPagination();

@@ -2,7 +2,7 @@
 <!-- Five-orites Scoop — Team Credits Page -->
 
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
@@ -39,6 +39,52 @@
     the size because this string is 36 characters to About's 17.
 
     The swell is cream and the page is cream, so it hands off with no seam.
+
+    THE PHOTO IS A FULL-BLEED BACKGROUND, styled to match the About hero. This
+    replaces a contained tile that was built and measured first and rejected on
+    evidence, so the reasoning is worth keeping.
+
+    A tile looked like the safer answer — the image survives intact, the motto
+    keeps its 7.20-7.41:1, and the brand gradient stays. It was built, rendered
+    and dropped because of the motto's WIDTH, not the photo's darkness. Fredoka
+    measures 0.4584em per character, so this 36-character string at its 48px
+    clamp is 784px wide. The band is 1022px at 1440px but only 722px at 1024px
+    once the 280px split-pane sidebar has taken its cut. So tile + motto fit side
+    by side only above roughly 1280px of viewport; between 768 and 1024 they
+    stacked AND the motto wrapped to two lines, pushing the hero to 398-416px
+    through the most common desktop range. A 150px tile still measured that way.
+    Full-bleed sidesteps the whole problem: the photo occupies the band and the
+    motto is the only thing that has to fit.
+
+    THE SCRIM IS 50%, NOT THE ABOUT HERO'S 70%, and that is the measured part.
+    Sampling the photo's actual pixels underneath the motto's bounding box on the
+    live DOM, then compositing each candidate scrim:
+
+        40% -> rgb(122,114,113)  plum 2.75:1  FAIL
+        50% -> rgb(145,138,137)  plum 3.78:1  PASS   <- this
+        60% -> rgb(167,161,161)  plum 5.06:1  PASS
+        70% -> rgb(189,185,184)  plum 6.59:1  PASS but the photo all but vanishes
+
+    About's hero needs 70% for a reason that does not apply here: its tagline
+    runs at `opacity: 0.85` (about.page.scss), which is what drags it to 4.61:1.
+    This motto is full-opacity plum, and at 48px bold it is WCAG LARGE text, so
+    it owes 3:1 rather than 4.5:1. That is the whole difference between a scrim
+    that erases the photo and one that leaves it legible.
+
+    ONE NARROW CASE, at max-width 358px in the stylesheet: there the motto's
+    `5.2vw` term puts it at 18px, which is normal text again and owes 4.5:1. At
+    50% it measures 3.83:1 and FAILS, so the scrim goes to 60% there and the
+    motto measures 5.10:1. 358px is not a guess — it is where 5.2vw equals the
+    18.66px large-text threshold. Verified either side of it: 320px 5.10:1,
+    358px 5.09:1, 359px 3.83:1.
+
+    KNOWN TRADE, stated rather than hidden: the band is 1022x300 at 1440px, a
+    3.41:1 slot, and the photo is 682x1024, a 0.666 portrait. `cover` therefore
+    shows only ~20% of the photo's height on a wide screen — the middle band of
+    scoops. The bowl and most of the drizzle fall outside the frame. On a phone
+    the hero is 375x300, a 1.25:1 slot, so the same rule keeps ~46% and far more
+    of the picture survives. Raising `min-height` to show more would cross the
+    340px mark that this hero's own comment calls turning it into a page-eater.
   -->
   <!--
     The motto: one line, in the app's own display face.
@@ -83,14 +129,33 @@
     <p class="dev-intro-sub">The team behind Five-orites Scoop</p>
   </div>
 
-  <!-- Developer Grid -->
-  <ion-grid class="dev-grid">
-    <ion-row>
-      @for (dev of developers(); track dev.id) {
-        <ion-col size="12" size-md="6" size-lg="4">
-          <ion-card class="dev-card">
-            <ion-card-content class="dev-card-content">
-              <!--
+  <!--
+    Developer grid. A FLEX CONTAINER, not ion-grid/ion-row/ion-col — those were
+    removed deliberately, for two measured reasons:
+
+      1. A PARTIAL LAST ROW LEFT A HOLE. Five developers in a three-column grid
+         is 3 + 2, and the empty third slot measured 331px at 1024px, 349px at
+         1440px and 460px at 1900px — it GREW with the viewport, which is
+         backwards. `justify-content: center` centres a partial row at every
+         column count, so this stops being a number that has to be re-checked
+         each time the team changes size.
+
+      2. CARDS IN THE SAME ROW DID NOT MATCH HEIGHT. Card height follows the
+         role-chip count: 2 chips is one row and 193px, 4-5 chips is two rows and
+         230px. Within a row the spread measured 37px at 1440px, 74px at 1024px
+         and 111px at 768px, so the short cards visibly floated above their
+         neighbours. Flexbox stretches items to their line's height by default;
+         ion-row did not.
+
+    One change, both problems. The `size-md="6" size-lg="4"` attributes went with
+    the wrappers — the responsive behaviour is now `flex: 1 1 300px` plus the
+    max-width in the stylesheet.
+  -->
+  <div class="dev-grid">
+    @for (dev of developers(); track dev.id) {
+      <ion-card class="dev-card">
+        <ion-card-content class="dev-card-content">
+          <!--
                 The photo when there is one, the initials when there is not, on the
                 same accent disc — so a card is the same size in both states and the
                 grid does not reflow the moment an owner uploads a photo.
@@ -101,19 +166,19 @@
                 and visibly soft. 128 is correct for the admin row's 56px thumbnail
                 and should stay there.
               -->
-              <ion-avatar class="dev-avatar" [style.background]="dev.accent">
-                @if (dev.photoURL) {
-                  <img class="dev-photo" [src]="dev.photoURL | cloudinary: 256" [alt]="dev.name" />
-                } @else {
-                  <div class="dev-initials">{{ initialsFor(dev) }}</div>
-                }
-              </ion-avatar>
+          <ion-avatar class="dev-avatar" [style.background]="dev.accent">
+            @if (dev.photoURL) {
+              <img class="dev-photo" [src]="dev.photoURL | cloudinary: 256" [alt]="dev.name" />
+            } @else {
+              <div class="dev-initials">{{ initialsFor(dev) }}</div>
+            }
+          </ion-avatar>
 
-              <div class="dev-info">
-                <h2 class="dev-name">{{ dev.name }}</h2>
-                <div class="dev-roles">
-                  @for (role of dev.roles; track role) {
-                    <!--
+          <div class="dev-info">
+            <h2 class="dev-name">{{ dev.name }}</h2>
+            <div class="dev-roles">
+              @for (role of dev.roles; track role) {
+                <!--
                       Explicit colours, NOT `[color]="getRoleColor(role)"`.
 
                       Ionic's `color` input derives a foreground AND a background
@@ -135,23 +200,48 @@
                       It also drops the double `getRoleColor()` call per chip that
                       the `[outline]` binding was making.
                     -->
-                    <ion-chip class="role-chip" [ngClass]="roleClass(role)">
-                      <ion-label>{{ role }}</ion-label>
-                    </ion-chip>
-                  }
-                </div>
-              </div>
-            </ion-card-content>
-          </ion-card>
-        </ion-col>
-      }
-    </ion-row>
-  </ion-grid>
+                <ion-chip class="role-chip" [ngClass]="roleClass(role)">
+                  <ion-label>{{ role }}</ion-label>
+                </ion-chip>
+              }
+            </div>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    }
+  </div>
 
   <!-- Credit -->
   <div class="dev-footer">
     <app-icon name="code" class="footer-icon" />
-    <p class="footer-text">Built with Ionic &middot; Angular &middot; Firebase</p>
+
+    <!--
+      The full tech stack, as eight chips.
+
+      These sat at the foot of the About page until recently and were wrong
+      there: /about is what a CUSTOMER opens to learn about an ice cream shop,
+      so Ionic, RxJS and TypeScript were developer-facing content in a
+      customer-facing slot, and they broke that page's ending by landing between
+      "How It Works" and the Meet the Team CTA. They were moved here, not
+      deleted — the list is unchanged.
+
+      This line REPLACED a plain-text "Built with Ionic · Angular · Firebase"
+      that sat in exactly this spot. Keeping both would have said the same thing
+      twice a few centimetres apart, in two different formats.
+
+      `.tech-chips` overrides Ionic's derived chip foreground rather than using
+      `color="primary"` — see the contrast note on that rule. The role chips
+      above were measured at 1.11:1 to 1.31:1 before they were fixed, and this
+      is the same failure waiting to happen.
+    -->
+    <div class="tech-chips">
+      @for (tech of techStack; track tech) {
+        <ion-chip class="tech-chip">
+          <ion-label>{{ tech }}</ion-label>
+        </ion-chip>
+      }
+    </div>
+
     <p class="footer-sub">Five-orites Scoop &copy; {{ currentYear }}</p>
   </div>
   <app-footer></app-footer>

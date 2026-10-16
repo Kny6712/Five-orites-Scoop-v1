@@ -2,7 +2,7 @@
 <!-- Five-orites Scoop — Product Catalog Template -->
 
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
@@ -20,192 +20,118 @@
   </ion-refresher>
 
   <!-- Sticky Filter Bar -->
-  <div class="filter-bar">
-    <!--
-      Capped at 300px and left-aligned.
+  <div class="filter-shell">
+    <div class="filter-bar">
+      <ion-searchbar
+        #searchbar
+        placeholder="Search"
+        debounce="300"
+        (ionInput)="onSearch($event)"
+        class="product-searchbar"
+        aria-label="Search ice cream flavors"
+      ></ion-searchbar>
 
-      It was unconstrained, so it spanned the full width of every screen from a
-      360px phone to a 1440px desktop — a 1440px-wide search box for a catalog
-      of 64 items, with the filter controls stacked beneath it. A search field
-      has a comfortable reading measure and no more; past ~300px it is just
-      empty space, and on a wide screen it pushed every filter below the fold.
-    -->
-    <ion-searchbar
-      #searchbar
-      placeholder="Search flavors"
-      debounce="300"
-      (ionInput)="onSearch($event)"
-      class="product-searchbar"
-      aria-label="Search ice cream flavors"
-    ></ion-searchbar>
+      <div class="filters">
+        <div class="select-panel">
+          <div class="select-row flavor-row">
+            <span class="select-label">Flavors</span>
+            <ion-select
+              id="flavor-select"
+              class="select-control"
+              interface="popover"
+              [value]="effectiveSet()"
+              (ionChange)="onFlavorSetChange($event)"
+              aria-label="Filter by flavor set"
+            >
+              @for (opt of setChips(); track opt.label) {
+                <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+              }
+            </ion-select>
+          </div>
 
-    <!-- Set Filter Chips (horizontal scroll).
-         Tracked by set number rather than label text: the number is the real
-         identity, so renaming a set cannot break the row and two sets can never
-         collide on a duplicate name. -->
-    <div class="set-chips-scroll">
-      @for (chip of setChips(); track chip.value) {
-        <!--
-          Explicit classes, NOT [color] + [outline].
-          Ionic's color input picks a foreground AND a background from one name with no
-          relationship between them. Measured on this page: the selected chip was
-          #64B6DD on #8ECAE6 (1.27:1) and the unselected one #808289 on white (3.84:1).
-          Both states failed; only the selected one was visible before any filter was
-          chosen, which is why every earlier audit of this page passed.
-          aria-pressed is unchanged and remains the real state announcement.
+          <div class="select-row">
+            <span class="select-label">Size</span>
+            <ion-select
+              id="size-select"
+              class="select-control"
+              interface="popover"
+              [value]="selectedSize()"
+              (ionChange)="onSizeChange($event)"
+              aria-label="Filter by size"
+            >
+              @for (opt of sizeOptions; track opt.label) {
+                <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+              }
+            </ion-select>
+          </div>
 
-          The array form of ngClass carries THREE things: the selected/idle state,
-          and the flavour modifier that carries the pastel. The modifier is
-          omitted entirely when `slug` is empty — the "All" chip, or any flavour
-          missing from the map — because Angular ignores the empty string, so that
-          chip just keeps the --flavor-all default declared on `.set-chip`.
-        -->
-        <ion-chip
-          [ngClass]="[
-            effectiveSet() === chip.value ? 'set-chip-active' : 'set-chip-idle',
-            chip.slug ? 'set-chip--' + chip.slug : '',
-          ]"
-          (click)="selectSet(chip.value)"
-          (keydown.enter)="selectSet(chip.value)"
-          (keydown.space)="selectSet(chip.value); $event.preventDefault()"
-          role="button"
-          tabindex="0"
-          [attr.aria-pressed]="effectiveSet() === chip.value"
-          class="set-chip"
-        >
-          <ion-label>{{ chip.label }}</ion-label>
-        </ion-chip>
-      }
-    </div>
-
-    <!--
-      Filters, in one container.
-
-      This is the consolidation. Previously the bar was seven stacked blocks —
-      a full-width searchbar, a chip scroller, two full-width toggle rows in
-      their own container, Size and Max price in a third, and Type alone in a
-      FOURTH block that existed purely to borrow that third block's padding. On a
-      640px-tall phone that was ~300px of permanently pinned chrome, roughly 40%
-      of the screen, before a single flavor card appeared.
-
-      Now: the two switches sit directly beside their own labels rather than at
-      the far end of a full-width row, and Size / Max price / Type share one
-      compact panel in the space the toggles used to occupy. Selects rather than
-      chips for all three, because each is a fixed set defined in code — a chip
-      row would imply a fourth option could appear. Each control keeps both a
-      visible label and an aria-label, so the accessible name is announced
-      either way.
-    -->
-    <div class="filters">
-      <div class="switch-rows">
-        <div class="switch-row">
-          <app-icon name="package" class="switch-icon" />
-          <label class="switch-label" for="instock-toggle">In stock only</label>
-          <ion-toggle
-            id="instock-toggle"
-            class="switch-toggle"
-            [checked]="inStockOnly()"
-            (ionChange)="onInStockToggle($event)"
-            aria-label="Show in-stock products only"
-          ></ion-toggle>
+          <div class="select-row">
+            <span class="select-label">Max price</span>
+            <ion-select
+              id="max-price-select"
+              class="select-control"
+              interface="popover"
+              [value]="maxPrice()"
+              (ionChange)="onMaxPriceChange($event)"
+              aria-label="Maximum price"
+            >
+              @for (opt of maxPriceOptions; track opt.label) {
+                <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+              }
+            </ion-select>
+          </div>
         </div>
 
-        <div class="switch-row">
-          <app-icon name="heart" class="switch-icon" />
-          <label class="switch-label" for="wishlist-toggle">Wishlist only</label>
-          <ion-toggle
-            id="wishlist-toggle"
-            class="switch-toggle"
-            [checked]="wishlistOnly()"
-            (ionChange)="onWishlistToggle($event)"
-            aria-label="Show wishlisted products only"
-          ></ion-toggle>
+        <div class="switch-rows">
+          <div class="switch-row">
+            <app-icon name="package" class="switch-icon" />
+            <ion-toggle class="switch-toggle" [checked]="inStockOnly()" (ionChange)="onInStockToggle($event)"
+              >In stock only</ion-toggle
+            >
+          </div>
+
+          <div class="switch-row">
+            <app-icon name="heart" class="switch-icon" />
+            <ion-toggle class="switch-toggle" [checked]="wishlistOnly()" (ionChange)="onWishlistToggle($event)"
+              >Wishlist only</ion-toggle
+            >
+          </div>
         </div>
       </div>
 
-      <div class="select-panel">
-        <div class="select-row">
-          <span class="select-label">Size</span>
-          <ion-select
-            id="size-select"
-            class="select-control"
-            interface="popover"
-            [value]="selectedSize()"
-            (ionChange)="onSizeChange($event)"
-            aria-label="Filter by size"
+      <div class="filter-actions">
+        <div class="sort-row">
+          <span class="filter-label sort-label" id="sort-label">Sort by</span>
+          <ion-segment
+            [value]="sortBy()"
+            (ionChange)="onSortChange($event)"
+            aria-labelledby="sort-label"
+            class="sort-segment"
           >
-            @for (opt of sizeOptions; track opt.label) {
-              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+            @for (opt of sortOptions; track opt.value) {
+              <ion-segment-button [value]="opt.value" [attr.aria-label]="opt.label">
+                <ion-label>{{ opt.short }}</ion-label>
+              </ion-segment-button>
             }
-          </ion-select>
+          </ion-segment>
         </div>
 
-        <div class="select-row">
-          <span class="select-label">Max price</span>
-          <ion-select
-            id="max-price-select"
-            class="select-control"
-            interface="popover"
-            [value]="maxPrice()"
-            (ionChange)="onMaxPriceChange($event)"
-            aria-label="Maximum price"
-          >
-            @for (opt of maxPriceOptions; track opt.label) {
-              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-            }
-          </ion-select>
-        </div>
-
-        <div class="select-row">
-          <span class="select-label">Type</span>
-          <ion-select
-            id="category-select"
-            class="select-control"
-            interface="popover"
-            [value]="selectedCategory()"
-            (ionChange)="onCategoryChange($event)"
-            aria-label="Product type"
-          >
-            @for (opt of categoryOptions; track opt.label) {
-              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-            }
-          </ion-select>
-        </div>
-      </div>
-    </div>
-
-    <!-- Sort: a segment, because it is a small fixed set of mutually exclusive
-         orders and switching between them is the point of the control. -->
-    <div class="sort-row">
-      <span class="filter-label" id="sort-label">Sort by</span>
-      <ion-segment
-        [value]="sortBy()"
-        (ionChange)="onSortChange($event)"
-        aria-labelledby="sort-label"
-        class="sort-segment"
-      >
-        @for (opt of sortOptions; track opt.value) {
-          <ion-segment-button [value]="opt.value" [attr.aria-label]="opt.label">
-            <ion-label>{{ opt.short }}</ion-label>
-          </ion-segment-button>
+        @if (hasActiveFilters()) {
+          <div class="clear-row">
+            <ion-button
+              size="small"
+              fill="clear"
+              (click)="clearFilters()"
+              class="clear-btn"
+              aria-label="Clear all filters and sorting"
+            >
+              <app-icon name="x" />
+              Clear all
+            </ion-button>
+          </div>
         }
-      </ion-segment>
-    </div>
-
-    @if (hasActiveFilters()) {
-      <div class="clear-row">
-        <ion-button
-          size="small"
-          fill="clear"
-          (click)="clearFilters()"
-          class="clear-btn"
-          aria-label="Clear all filters and sorting"
-        >
-          <app-icon name="x" />
-          Clear all
-        </ion-button>
       </div>
-    }
+    </div>
   </div>
 
   <!-- Loading Skeleton -->

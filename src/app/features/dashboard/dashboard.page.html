@@ -2,7 +2,7 @@
 <!-- Five-orites Scoop — Role-Aware Dashboard -->
 
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
@@ -185,9 +185,39 @@
        ADMIN DASHBOARD
   ═══════════════════════════════════════ -->
   @if (isAdmin()) {
-    <div class="admin-welcome">
-      <h2 class="admin-title">Admin Dashboard</h2>
-      <p class="admin-sub">{{ formatDate(null) || 'Today' }}</p>
+    <!--
+      One row holding the page title and the admin navigation, rather than two
+      separate blocks stacked on each other.
+
+      The title and these two tiles are the same kind of thing: chrome, not data.
+      The heading names the page, the tiles are the only two ways off it. Giving
+      them a row to themselves meant a 64px band that separated the title from the
+      figures and said nothing, so they now share the title's line and the band
+      costs no vertical space at all.
+
+      They are still a sibling of .kpi-grid rather than nested in it. Nesting them
+      would tie them to the grid's column structure, so this placement would break
+      the moment the grid rewrapped. Only flex positions them here, which holds at
+      every tile count.
+
+      Both sit inside .admin-header, so they share one 16px inset. Left to their own
+      wrappers the heading was at 16px and the tiles at 12px, and at 4px apart that
+      read as a misalignment rather than as breathing room.
+    -->
+    <div class="admin-header">
+      <div class="admin-welcome">
+        <h2 class="admin-title">Admin Dashboard</h2>
+      </div>
+      <div class="admin-actions">
+        <a class="action-tile" [routerLink]="'/admin/inventory'">
+          <span class="action-icon"><app-icon name="layers" /></span>
+          <span class="action-label">Inventory</span>
+        </a>
+        <a class="action-tile" [routerLink]="'/admin/orders'">
+          <span class="action-icon"><app-icon name="clipboard" /></span>
+          <span class="action-label">Fulfillment</span>
+        </a>
+      </div>
     </div>
 
     <!-- KPI Cards. Suppressed entirely when a feed failed: four zeroed tiles
@@ -242,27 +272,6 @@
           </ion-col>
         </ion-row>
       </ion-grid>
-
-      <!--
-        Admin actions, right-aligned under the toolbar.
-
-        These were full-width stacked buttons sitting in the middle of the page,
-        between the metrics and the content. They are navigation, not content, so
-        they now sit at the top-right — the same visual corner as the toolbar
-        controls they lead to, which is where a person looks for "go somewhere
-        else". Two compact tiles rather than two bars, so the row costs ~64px
-        instead of ~110px.
-      -->
-      <div class="admin-actions">
-        <a class="action-tile" [routerLink]="'/admin/inventory'">
-          <span class="action-icon"><app-icon name="layers" /></span>
-          <span class="action-label">Inventory</span>
-        </a>
-        <a class="action-tile" [routerLink]="'/admin/orders'">
-          <span class="action-icon"><app-icon name="clipboard" /></span>
-          <span class="action-label">Fulfillment</span>
-        </a>
-      </div>
     }
 
     <!--
@@ -294,16 +303,16 @@
               </div>
               <div class="low-stock-levels">
                 @if (product.stock.cup < lowStockThreshold()) {
-                  <ion-chip color="warning" class="stock-chip-sm">Cup: {{ product.stock.cup }}</ion-chip>
+                  <ion-chip [class]="chip(product.stock.cup)">Cup: {{ product.stock.cup }}</ion-chip>
                 }
                 @if (product.stock.pint < lowStockThreshold()) {
-                  <ion-chip color="warning" class="stock-chip-sm">Pint: {{ product.stock.pint }}</ion-chip>
+                  <ion-chip [class]="chip(product.stock.pint)">Pint: {{ product.stock.pint }}</ion-chip>
                 }
                 @if (product.stock.halfGallon < lowStockThreshold()) {
-                  <ion-chip color="warning" class="stock-chip-sm">½ Gal: {{ product.stock.halfGallon }}</ion-chip>
+                  <ion-chip [class]="chip(product.stock.halfGallon)">½ Gal: {{ product.stock.halfGallon }}</ion-chip>
                 }
                 @if (product.stock.gallon < lowStockThreshold()) {
-                  <ion-chip color="warning" class="stock-chip-sm">Gal: {{ product.stock.gallon }}</ion-chip>
+                  <ion-chip [class]="chip(product.stock.gallon)">Gal: {{ product.stock.gallon }}</ion-chip>
                 }
               </div>
             </li>

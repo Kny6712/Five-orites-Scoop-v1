@@ -395,30 +395,140 @@ interface SocialLink {
 
       /* ── Narrow ────────────────────────────────────────────────────────── */
       /* Three columns cannot hold this much type below ~760px. Centred and
-         stacked rather than left-aligned and ragged. */
+         stacked rather than left-aligned and ragged.
+
+         AND MUCH SHORTER, because stacked is also TALL. Measured at a 390px
+         viewport, in three passes:
+
+           288px  stacked, as first written
+           220px  after tightening (smaller logo, tighter rhythm, socials and
+                  copyright sharing one row instead of two)
+           163px  after removing .foot-bottom entirely — what ships
+
+         THE LAST 57px DID NOT COME FROM SPACING. Hiding the copyright on its own
+         saved ZERO pixels, because it already shared a row with the socials:
+         with five items on a 390px phone the height is set by how many ROWS of
+         information there are, not by how loose those rows are. There is no CSS
+         that gets a five-item footer to 120px. The only real lever is removing a
+         row, so this removes the one that should not be there.
+
+         WHY .foot-bottom IS THE RIGHT ROW TO LOSE. It holds the three contact
+         discs and the copyright, and the discs are PLACEHOLDERS — see the
+         PLACEHOLDER note in the template above. Instagram, Facebook and Email
+         currently resolve to URLs that go nowhere. On a phone, the surface where
+         a customer most expects to be able to reach the shop, three broken
+         affordances are worse than no affordances. The copyright is
+         "© 2026 Five-orites Scoop" sitting directly beneath a logo and the words
+         "Five-orites Scoop".
+
+         WHAT SURVIVES, and is the reason the footer exists at all for a shop with
+         a storefront: the brand, the opening hours, the address, and the Open in
+         Maps link.
+
+         *** WHEN REAL SOCIAL ACCOUNTS EXIST, DELETE THE .foot-bottom RULE BELOW
+         AND PUT THE ROW BACK. *** It is hidden because its contents are dead, not
+         because phones cannot use it. Leaving it hidden after adding real links
+         would hide the only working contact route on mobile. The 220px layout it
+         replaces is the one this rule used to contain, and it still applies
+         unchanged to every width above 760px. */
       @media (max-width: 760px) {
         .site-foot {
           padding: var(--space-4) var(--space-3);
+          margin-top: var(--space-5);
         }
         .foot-top {
           grid-template-columns: 1fr;
-          justify-items: center;
-          gap: var(--space-4);
+
+          /* LEFT, not centre — and this reverses a decision the comment below
+             this block used to make.
+
+             The old note read "Centred and stacked rather than left-aligned and
+             ragged", on the reasoning that centring avoids a ragged edge. It does
+             the opposite. justify-items: centre centres EACH ROW BY ITS OWN
+             WIDTH, so rows of unequal width land at unequal insets. Measured at
+             390px against a 366px content box:
+
+               brand    266px wide  ->  50px inset
+               hours    314px wide  ->  26px inset
+               address  360px wide  ->   3px inset
+
+             The brand is the NARROWEST of the three, so centring pushes it
+             furthest in, and the logo block visibly floats away from the rows
+             below it. Centring produced the ragged edge it was meant to prevent.
+             Left-aligning puts all three at 0px inset and is the only alignment
+             that actually delivers a straight edge. */
+          justify-items: start;
+          gap: var(--space-3);
+        }
+
+        /* 48px beside 13px type is a different scale from everything else in the
+           block. 36px still reads as a mark rather than a badge. */
+        .foot-logo {
+          width: 36px;
+          height: 36px;
         }
         .foot-hours {
           justify-content: start;
+
+          /* ONE LINE where the line fits. The grid above is two rows of
+             label/value because a viewport-width layout has the room to spare; at
+             390px the whole sequence measures ~330px against 366px of content
+             box, so it does not need two rows here.
+
+             flex-wrap is NOT decorative. At 320px the content box is 296px and
+             the same row overflows it, so the pair wraps to two lines rather
+             than scrolling the page sideways — which is exactly what a
+             five-track single-row attempt did before this one was measured.
+
+             The lead icon is dropped rather than kept at the front of the row:
+             it saves 17px, and each label is self-describing beside its own
+             times. */
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          justify-content: flex-start;
+          gap: 0 var(--space-2);
         }
+        .foot-hours-lead {
+          display: none;
+        }
+        .foot-hours-label {
+          font-size: 11px;
+        }
+        .foot-hours-value {
+          font-size: 11px;
+        }
+
+        /* The address already RESOLVES to one line at these widths — it was the
+           "Open in Maps" link BENEATH it that made this block two rows tall.
+           Side by side the pair measures ~180px, so they fit even at 320px and
+           the full street address stays. Nothing is shortened: the map link
+           opens exactly this address, so showing both in full was redundant
+           space rather than redundant information. */
         .foot-place {
-          justify-content: center;
+          justify-content: flex-start;
+          align-items: center;
         }
         .foot-place-text {
-          align-items: center;
+          flex-direction: row;
+          align-items: baseline;
+          gap: var(--space-2);
+        }
+        .foot-map {
+          font-size: 12px;
         }
         .foot-address {
           text-align: center;
         }
         .foot-tag {
           text-align: center;
+        }
+
+        /* Removes the discs, the copyright AND the divider rule above them —
+           hiding only the children would leave an orphaned 1px line and the
+           block's margins, which is 36px of nothing. */
+        .foot-bottom {
+          display: none;
         }
       }
     `,

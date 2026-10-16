@@ -25,7 +25,8 @@ import { CartButtonComponent } from '../../shared/components/cart-button/cart-bu
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { DeveloperService } from '../../core/services/developer.service';
-import { initialsOf } from '../../core/logic/flavor';
+import { initialsOf } from '../../core/logic/flavour';
+import { TECH_STACK } from '../../core/about-content';
 import type { Developer } from '../../core/models/developer.model';
 
 @Component({
@@ -122,10 +123,19 @@ export class DevelopersPage implements OnInit, OnDestroy {
     this.unsubscribe?.();
   }
 
-  /** Initials derived from the name, not stored — see core/logic/flavor.ts. */
+  /** Initials derived from the name, not stored — see core/logic/flavour.ts. */
   initialsFor(dev: Developer): string {
     return initialsOf(dev.name);
   }
 
   readonly currentYear = new Date().getFullYear();
+
+  /**
+   * The eight framework chips, rendered in the footer below the credits.
+   *
+   * These lived on the About page until recently and were moved here rather
+   * than deleted — see the comment on `TECH_STACK` in core/about-content.ts for
+   * why the host page changed. The data stays in that file on purpose.
+   */
+  readonly techStack = TECH_STACK;
 }

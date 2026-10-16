@@ -50,6 +50,3 @@ export type { IconNode } from './lucide-icon-data';
  * `strictTemplates` then checks every binding.
  */
 export type AppIcon = keyof typeof LUCIDE_ICON_DATA;
-
-/** Number of icons currently registered. Handy for a smoke test. */
-export const APP_ICON_COUNT = Object.keys(LUCIDE_ICON_DATA).length;

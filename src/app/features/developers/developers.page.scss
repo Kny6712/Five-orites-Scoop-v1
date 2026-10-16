@@ -1,7 +1,11 @@
 // src/app/features/developers/developers.page.scss
 
 // ── Hero ──────────────────────────────────────────────────
-/* A gradient band closed by `wave-drip`'s cream swell, carrying one line of copy.
+/* A photographic band closed by `wave-drip`'s cream swell, carrying one line of
+   copy over `vanilla-caramel-drip.jpg` under a 50% white scrim. It was a plain
+   `--gradient-brand` band until this change, and the same band on the About page
+   already runs the photo-under-scrim treatment, so the two heroes now match.
+
    It used to hold the vendor illustration in a white rounded card plus the page's
    h1 and tagline; the heading moved out to .dev-intro and the illustration went
    entirely.
@@ -65,12 +69,44 @@
      amount of tuning the tagline will fix it. */
   box-sizing: border-box;
   min-height: 300px;
+  /* The photo, full-bleed, matching the About hero's treatment.
+
+     Order matters twice over, exactly as in about.page.scss: the scrim is listed
+     FIRST so it paints ON TOP of the url (reversed, the scrim hides the photo),
+     and `background-color` sits under both so a failed image load degrades to a
+     flat surface rather than to white. --gradient-brand would also serve as that
+     fallback, but it is opaque, so using it as the top layer would hide the photo
+     completely — rendered and rejected, not assumed.
+
+     `background-color` replaces the `background: var(--gradient-brand)` shorthand
+     this rule used to carry. That shorthand set background-image, so it had to go
+     rather than be left to compete with the two layers above; the gradient itself
+     is gone from this hero now, which is the intended outcome — the photograph is
+     the band, and the pastel gradient it displaces is still on the toolbar, the
+     About hero and the menu, so the page keeps its palette.
+
+     FLAT 50%, not an angle, so the guarantee in the note below holds across the
+     whole surface. An angled scrim would be lighter at one end than the other and
+     the darkest pixel under the motto would stop being a single predictable
+     number. */
+  background-color: var(--color-brand-primary);
+  background-image:
+    linear-gradient(rgb(255 255 255 / 50%), rgb(255 255 255 / 50%)),
+    url('/assets/images/vanilla-mint-choco-drip.jpg');
+  background-size: cover;
+  background-position: center;
   /* Bottom padding is 30px, and it is NOT clearance for the copy. The --space-7
      (48px) that briefly replaced it existed to clear `.dev-hero-sub`, which used
      to be this hero's last child at 30px — a 2px gap under a swell that reaches
      27px up at the centre. That text is now `.dev-intro-sub`, on cream. What
-     cleared this hero's copy before was `justify-content: center` below, and that
-     is what clears it now; the 30px is the swell's own breathing room.
+     clears this hero's copy is `justify-content: center` below, and that is what
+     clears it now; the 30px is the swell's own breathing room.
+
+     This went to 44px while the hero held a 206px photo TILE, stacked, and came
+     back to 30px when that tile was replaced by the full-bleed background. With
+     only the motto in the band the original 30px clears the swell by ~123px,
+     measured, so the extra 14px was buying nothing and the documented value is
+     restored rather than left as an unexplained change.
 
      Geometry, corrected: .wave-drip's ::after is `height: 28px` with
      `bottom: -1px` inside an `overflow: hidden` parent, so the visible peak is
@@ -81,20 +117,64 @@
   // Plum, not white — see the header note in variables.scss. This is a
   // light-to-light pastel gradient, so white text would sit at 1.79:1.
   // Measured across the whole 135deg sweep for the tagline, which now sits here:
-  // plum is 7.20:1 at the powder end rising to 7.41:1 at mint, so it clears AA at
-  // any size on any part of the band. If a background image ever lands behind
-  // this, that stops being true and the About hero's 70% white scrim becomes the
-  // reference — its own comment has the measured ladder (50% -> 2.75:1 FAIL,
-  // 70% -> 4.61:1 PASS).
+  // plum is 7.20:1 at the powder end rising to 7.41:1 at mint on the plain
+  // gradient this band used to carry.
+  //
+  // THAT FIGURE NO LONGER APPLIES, because a photo is behind this text now, and
+  // the 50% scrim above was set from a fresh measurement rather than inherited.
+  // Sampling the photo's real pixels underneath the motto's bounding box on the
+  // live DOM and compositing each candidate scrim:
+  //
+  //   40% -> rgb(122,114,113)  plum 2.75:1  FAIL
+  //   50% -> rgb(145,138,137)  plum 3.78:1  PASS   <- in use
+  //   60% -> rgb(167,161,161)  plum 5.06:1  PASS
+  //   70% -> rgb(189,185,184)  plum 6.59:1  PASS, but the photo all but vanishes
+  //
+  // 3.78:1 clears AA because the motto is LARGE text — 48px bold at the clamp cap,
+  // which owes 3:1 rather than 4.5:1. The About hero needs 70% for a reason that
+  // does not transfer: its tagline runs at `opacity: 0.85`, which is what drags it
+  // down to 4.61:1. This motto is full-opacity plum.
+  //
+  // The one width where the motto stops being large text is handled by the
+  // max-width: 358px block further down. Do not lighten the 50% without
+  // re-measuring, and do not copy the About hero's 70% here — it would erase the
+  // photo for no accessibility gain. check:contrast cannot help: it reads a
+  // hardcoded palette table and never inspects this stylesheet.
   color: var(--color-ink);
   display: flex;
   flex-direction: column;
   align-items: center;
   /* Load-bearing: see the note above. Without it the copy sits at flex-start and
-     the 30px bottom padding looks like it is doing the clearing. With it, the
-     line is centred in the 242px content box, roughly 100px clear of the swell. */
+     the bottom padding looks like it is doing the clearing. With it, the line is
+     centred in the content box, roughly 100px clear of the swell. */
   justify-content: center;
   gap: 10px;
+}
+
+/* The one width where 50% is not enough, and the reason is the motto's size
+   rather than the photo.
+
+   `.dev-hero-tagline` is `clamp(1.125rem, 5.2vw, 3rem)`. Below 358.8px of
+   viewport the `5.2vw` term puts it under 18.66px, which is WCAG's large-text
+   threshold for bold — so the motto reverts to being NORMAL text and owes 4.5:1
+   again. At the 50% used everywhere else it measures 3.83:1 there and FAILS.
+   Raising the scrim to 60% gives 5.10:1.
+
+   Verified either side of the boundary: 320px 5.10:1, 358px 5.09:1, 359px 3.83:1.
+   The photo is slightly more washed on the narrowest phones; that is the price
+   of an accessible motto there, and 320px-class devices are rare enough for it
+   to be the right trade.
+
+   `background-image` is repeated rather than only the gradient alpha because the
+   two layers are one declaration — there is no way to restate just the alpha of
+   an existing background-image. If the photo path ever changes, BOTH blocks in
+   this file must change; the About hero has the same shape and the same hazard. */
+@media (max-width: 358px) {
+  .dev-hero {
+    background-image:
+      linear-gradient(rgb(255 255 255 / 60%), rgb(255 255 255 / 60%)),
+      url('/assets/images/vanilla-mint-choco-drip.jpg');
+  }
 }
 
 /* The motto: one line in --font-display (Fredoka), the app's own display face and
@@ -169,7 +249,12 @@
   width: 100%;
   max-width: var(--container-max);
   margin: 0 auto;
-  padding: var(--space-5) var(--space-4) var(--space-3);
+  /* Bottom padding is --space-6 (32px), not the --space-3 (12px) it was.
+     Measured, `.dev-intro`'s box bottom and `.dev-grid`'s top were 0px apart —
+     the sub-line sat directly on the first row of cards. 32px puts this heading
+     on the same band rhythm the rest of the app uses, and the cards still start
+     well above the fold on a 390x844 phone (hero 300px + this block). */
+  padding: var(--space-5) var(--space-4) var(--space-6);
   text-align: center;
 }
 
@@ -193,19 +278,77 @@
 }
 
 // ── Grid ──────────────────────────────────────────────────
+/* A flex row of wrapping cards, not a column grid. Two reasons, both measured
+   before the change and both reasons the Ionic wrappers came out — see the
+   template comment for the full numbers.
+
+   `justify-content: center` is the load-bearing declaration. It centres a
+   PARTIAL last row, which is the whole problem being solved: five developers in
+   three columns is 3 + 2, and the empty slot measured 349px at 1440px and 460px
+   at 1900px. Centring makes that a non-issue at any column count and any team
+   size.
+
+   `align-items` is left at its default, `stretch`, on purpose. That is what
+   evens the cards up: height follows the role-chip count (2 chips = 193px, 4-5
+   chips = 230px) and the within-row spread was up to 111px. Do NOT set
+   `align-items: center` or `flex-start` here — it would bring the ragged
+   bottoms straight back.
+
+   The 12px gap replaces the old `ion-col { padding: 6px }`, which produced the
+   same 12px between cards but has no effect on a flex container. */
 .dev-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
+  gap: 12px;
   padding: 12px 8px 8px;
 }
 
-ion-col {
-  padding: 6px;
-}
-
 // ── Developer Card ────────────────────────────────────────
+/* `--background`, NOT `background`. Ionic's card paints from that custom
+   property, so setting it is the supported route; a bare `background` here works
+   today and is exactly the kind of declaration that silently loses to the next
+   Ionic upgrade. It is how `.tech-chip` sets its own surfaces below.
+
+   THIS SURFACE WAS #fff9f4 UNTIL THIS CHANGE, and that was --color-cream — the
+   PAGE background. The cards were the same colour as the page they sat on and
+   were defined entirely by their shadow. Verified on the live DOM: body
+   rgb(255, 249, 244), card rgb(255, 249, 244). They now sit at #fffcee, which
+   clears the page by 1.015:1 — small, but it is the first separation the surface
+   has had rather than none at all.
+
+   That also puts this page on the same card tint as About, which is the point:
+   one token, two pages, instead of each page drifting toward its own cream.
+
+   CONTRAST, measured on the live DOM because `npm run check:contrast` cannot
+   see it — the script reads a hardcoded palette table and has no entry for
+   either `dev-card` or this hex. `.dev-name` (16px/600, --color-ink) is the only
+   text on this surface:
+
+     on the old #fff9f4   12.34:1
+     on #fffcee           12.52:1   <- marginally better, both far above 4.5:1
+
+   Unaffected by the surface change: the role chips and the avatar initials both
+   paint on their own coloured backgrounds, so they never sat on the card. */
 .dev-card {
   border-radius: 18px;
   box-shadow: var(--shadow-card);
   margin: 0;
+  --background: var(--color-card);
+
+  /* `flex: 1 1 300px` is the responsive behaviour that `size-md="6"
+     size-lg="4"` used to provide, and the `max-width` is what stops the grow
+     factor from stretching the few cards in a partial last row across the whole
+     grid — without it, two cards on the final row would each take half the
+     width and read as a different layout rather than as two of five.
+
+     300px is the basis, not a min: it is the width at which the longest name
+     ("Antonio Miguel Villanueva") and the widest role chip ("UI/UX Designer
+     Lead") still sit on one line each at 16px/11px. Below it, flex wraps to a
+     single column on a phone rather than squeezing those two strings. */
+  flex: 1 1 300px;
+  max-width: 360px;
 }
 
 .dev-card-content {
@@ -330,29 +473,171 @@ ion-col {
 }
 
 // ── Credit ────────────────────────────────────────────────
-/* No border-top here, deliberately. This block sits directly above <app-footer>,
-   which has its own hairline; two rules 8px apart read as a rendering fault
-   rather than as two things. The credit is content, the footer's edge is
-   chrome, and only the chrome gets an edge. */
+/* THE DOTTED RULE ABOVE THIS BLOCK, and it replaces a comment that used to say
+   there was deliberately no border-top here. That note was not wrong, but its
+   reasoning no longer applies. It read:
+
+     "No border-top here, deliberately. This block sits directly above
+      <app-footer>, which has its own hairline; two rules 8px apart read as a
+      rendering fault rather than as two things."
+
+   The fault it was avoiding was two rules close TOGETHER. This rule is not near
+   the app-footer's hairline — measured, they sit 223px apart, because this block
+   is ~180px tall — so the hazard it described does not arise. What it was really
+   describing is a missing divider: the credit block and the developer cards above
+   ran together with only 8px of margin, and the About page has drawn a rule at
+   every one of its section boundaries for exactly that reason.
+
+   So: `margin` and `padding` are pinned to the same 24px on both sides of the
+   rule, which is the About page's --space-5 / rule / --space-5 rhythm. Both are
+   set rather than one, because adjacent margins COLLAPSE — a single margin-top
+   would let whatever margin the grid above carries win and the gap above the
+   rule would not be 24px at all. Measured at 1440px: 24px above, 27px to the
+   <code> icon below (the extra 3px is the icon's own line box).
+
+   The token is the shared one, so this page and About now draw the identical
+   rule and there is exactly one definition of it in the codebase. */
 .dev-footer {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: var(--space-4) 16px var(--space-3);
+  border-top: var(--section-divider);
+  padding: var(--space-5) 16px var(--space-3);
   text-align: center;
-  margin: 8px 16px 0;
+  margin: var(--space-5) 16px 0;
 }
 .footer-icon {
   --icon-size: 24px;
   color: var(--color-primary-ink);
 }
-.footer-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin: 0;
+/* The 3-item "Built with Ionic · Angular · Firebase" line that used to sit here
+   was replaced by .tech-chips below. One "built with" statement, not two. */
+/* The chips run as ONE ROW from 1100px up and wrap below it.
+
+   There used to be a `max-width: 520px` here, and that single number was the
+   whole reason the eight chips broke into two rows. It was never a deliberate
+   two-row design — 520px was simply narrower than the chips need.
+
+   Measured: the eight chips total 711px including their seven 8px gaps
+   (56 + 80 + 80 + 112 + 141 + 86 + 47 + 52). Against the footer's own width:
+
+     viewport   .dev-footer   711px fits
+     390px      343px         no
+     768px      451px         no
+     900px      583px         no
+     1024px     690px         no  — 21px short
+     1100px     745px         yes  <- the switch
+     1440px     990px         yes
+     1900px    1321px         yes
+
+   1100px is where it genuinely fits, not a round number chosen for looks. Note
+   the non-monotonic column above: the footer gets NARROWER between 640px and
+   768px because ion-split-pane turns the menu into a permanent 280px sidebar
+   there. So content width rises, falls, then rises again — any single
+   `min-width` on viewport alone would have been checked against the wrong
+   column of that table.
+
+   Below the switch the chips still wrap, and they have to: 711px of chip does
+   not go into a 343px phone. `flex-wrap: wrap` stays as the base value so that
+   case degrades to the tidy centred block rather than overflowing.
+
+   The gap and the margin are unchanged. `margin: var(--space-2) 0` is a real
+   gap, not the footer's 3px — .dev-footer is a column flex with a 3px gap sized
+   for two lines of text, and chips are 24px tall and would touch at 3px. */
+.tech-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
 }
+
+@media (min-width: 1100px) {
+  .tech-chips {
+    flex-wrap: nowrap;
+  }
+}
+
+/* The label foreground is DECLARED, not derived — same reason as .role-chip
+   above, and the comment there is the long version.
+
+   Ionic's `color` input derives a foreground AND a background from the same
+   name with no contrast relationship between them. On this page that produced
+   role chips measuring 1.11:1 to 1.31:1 — all five unreadable. Declaring the
+   label colour here overrides the derivation, and --color-ink on white is
+   12.34:1.
+
+   No `color="primary"` and no `[outline]` on the markup: both are what put the
+   old About-page chips and these role chips into the derived-colour path. */
+.tech-chip {
+  --color: var(--color-ink);
+  font-size: 11px;
+  height: 24px;
+  margin: 0;
+  --background: var(--color-white);
+
+  ion-label {
+    color: var(--color-ink);
+  }
+}
+
+/* ONE PASTEL PER CHIP. `--background` rather than `background`, because that is
+   the custom property Ionic's chip paints from; setting `background` directly
+   would work today and break the first time a chip gained an outline or a hover
+   state. White here stays as the fallback for a 9th chip that the nth-child
+   rules below do not reach — an uncoloured chip is a lesser outcome than a
+   wrongly-coloured one, and it still passes at 12.34:1.
+
+   The label is 11px, so it is NORMAL text and owes 4.5:1, not the 3:1 a large
+   face would get. Every value below was measured against the label ink
+   (#3d2b45) on the live DOM. The floor is 6.40:1, nearly half again the 4.5:1
+   owed, so there is room to nudge any of these darker before it stops passing:
+
+     1 Ionic 7               #a3b5f0  periwinkle   6.40:1  --color-brand-primary
+     2 Angular 17            #5fd9b4  mint         7.41:1  --color-brand-secondary
+     3 Capacitor 5           #ffc53d  sunny        8.16:1  --color-brand-accent
+     4 Firebase Firestore    #f8a9be  blush        7.00:1  --color-brand-blush
+     5 Firebase Auth         #a8d9b8  sage         8.15:1  the high-contrast override
+     6 TypeScript 5          #cfe4ff  powder       9.94:1
+     7 RxJS                  #e2d5f7  lilac        9.26:1
+     8 SCSS                  #fff0b3  butter      11.27:1
+
+   Four are existing brand tokens so the chips inherit the palette rather than
+   inventing a second one; the other four are new tints in the same family.
+   check:contrast CANNOT verify these — it reads a hardcoded palette table and
+   never inspects this stylesheet. Re-measure on the live DOM if any value moves.
+
+   nth-child, not a data attribute: the list is a plain `@for` over a string
+   array, so a colour here would mean threading an index through the template
+   and the component for a purely decorative choice. The order is stable because
+   the array is a literal. If the array is ever reordered or extended, this
+   mapping has to follow it. */
+.tech-chip:nth-child(1) {
+  --background: #a3b5f0;
+}
+.tech-chip:nth-child(2) {
+  --background: #5fd9b4;
+}
+.tech-chip:nth-child(3) {
+  --background: #ffc53d;
+}
+.tech-chip:nth-child(4) {
+  --background: #f8a9be;
+}
+.tech-chip:nth-child(5) {
+  --background: #a8d9b8;
+}
+.tech-chip:nth-child(6) {
+  --background: #cfe4ff;
+}
+.tech-chip:nth-child(7) {
+  --background: #e2d5f7;
+}
+.tech-chip:nth-child(8) {
+  --background: #fff0b3;
+}
+
 .footer-sub {
   font-size: 12px;
   color: var(--ion-color-medium);

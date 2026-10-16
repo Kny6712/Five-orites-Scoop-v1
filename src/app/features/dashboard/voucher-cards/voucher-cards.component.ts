@@ -26,7 +26,11 @@ import { Router } from '@angular/router';
 import { IonButton, IonSpinner, IonSkeletonText } from '@ionic/angular/standalone';
 import { AppIconComponent } from '../../../shared/components/app-icon/app-icon.component';
 import { VoucherService } from '../../../core/services/voucher.service';
-import { Voucher, calculateDiscount } from '../../../core/models/voucher.model';
+import {
+  Voucher,
+  calculateDiscount,
+  PENDING_VOUCHER_KEY,
+} from '../../../core/models/voucher.model';
 import { PesoPipe } from '../../../shared/pipes/peso.pipe';
 
 @Component({
@@ -134,6 +138,3 @@ export class VoucherCardsComponent implements OnInit {
     await this.router.navigate(['/cart'], { queryParams: { voucher: voucher.code } });
   }
 }
-
-/** Where the dashboard hands a grabbed code to the cart page. */
-export const PENDING_VOUCHER_KEY = 'five_orites_pending_voucher';

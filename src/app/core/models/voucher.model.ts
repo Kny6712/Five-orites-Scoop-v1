@@ -1,9 +1,15 @@
 // src/app/core/models/voucher.model.ts
 // Five-orites Scoop — Voucher / Promo Code Data Models
 
-// The discount calculation lives in core/logic/voucher.ts so the unit tests can
-// import it without pulling in Firestore. Re-exported here.
-export { calculateDiscount, MAX_PERCENT_DISCOUNT, type VoucherType } from '../logic/voucher';
+// The discount calculation and the dashboard->cart handover key live in
+// core/logic/voucher.ts so the unit tests can import them without pulling in
+// Firestore. Re-exported here.
+export {
+  calculateDiscount,
+  MAX_PERCENT_DISCOUNT,
+  PENDING_VOUCHER_KEY,
+  type VoucherType,
+} from '../logic/voucher';
 
 import type { VoucherType } from '../logic/voucher';
 

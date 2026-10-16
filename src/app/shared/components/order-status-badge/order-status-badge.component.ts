@@ -36,6 +36,31 @@ import { OrderStatus, ORDER_STATUS_META } from '../../../core/models/order.model
       :host {
         display: inline-block;
       }
+      /* Two rules that make the chip refuse to be squeezed.
+
+         ion-chip ships "min-width: 0", and anywhere it sits in a flex row — the
+         customer ledger's status column is one such place — it is a flex item
+         with the default "flex: 0 1 auto", so it is free to shrink BELOW the
+         width its own label needs. When that happens the label re-wraps inside
+         the pill: "Preparing Your Scoops" measured 168px wide on two lines, and
+         the row it sat in grew from 63px to 75px against every other row.
+
+         flex: 0 0 auto pins it to its content size and white-space: nowrap stops
+         the label re-flowing. The pill may now overflow a column too narrow for
+         it, which is a visible layout error in the containing stylesheet — where
+         it belongs — rather than a silently clipped label. */
+      .status-chip {
+        flex: 0 0 auto;
+        white-space: nowrap;
+        /* ion-chip carries a 4px margin on every side (Ionic's gutter for chips
+           in a wrap flow). In the ledger's status column the pill is right-
+           aligned, and flex-end puts the chip's MARGIN box on the column edge —
+           so the visible pill landed 4px short of it, and of the right-aligned
+           "STATUS" caption and Total figures above and beside it. The start
+           margin stays; only the trailing one is dropped, which is a no-op
+           everywhere the chip is followed by text. */
+        margin-inline-end: 0;
+      }
       .status-chip {
         font-size: 12px;
         font-weight: 600;

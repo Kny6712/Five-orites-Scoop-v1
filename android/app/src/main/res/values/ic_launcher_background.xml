@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher background colour.
+
+  This is the ORANGE of the logo's outer rim, sampled from the artwork rather than
+  chosen: `#F58551` is what a radial scan reads at eight angles across the rim band.
+
+  It was `#FFFFFF` when the icon showed a cropped disc, because the disc sat on a
+  lavender field and white was merely a placeholder. That is no longer the artwork.
+  The logo is now the full framed roundel, whose outermost edge is an orange rim, so a
+  background that does not match it shows as a halo of a second colour around the
+  edge wherever the launcher's mask crops inside the circle.
+
+  Matching the rim means the roundel has no visible boundary against its own
+  background: the mask shape cuts into the orange and the icon reads as one solid
+  orange field carrying the roundel detail.
+
+  A NOTE ON DOUBLE HYPHENS: AAPT2 rejects a double hyphen anywhere inside an XML
+  comment, which is why no CSS custom property name is written literally in this file.
+  The build fails on it rather than warning, and the error reports a character column
+  rather than the file, so it is worth knowing before editing.
+-->
+<resources>
+    <color name="ic_launcher_background">#F58551</color>
+</resources>

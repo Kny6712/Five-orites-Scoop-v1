@@ -27,15 +27,7 @@
 // no ledger row at all — which is precisely what `findUnloggedChanges` looks for.
 
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  collection,
-  getDocs,
-  query,
-  where,
-  orderBy,
-  limit,
-} from '@angular/fire/firestore';
+import { Firestore, collection, getDocs, query, orderBy, limit } from '@angular/fire/firestore';
 
 /**
  * Why a stock level changed. Rendered as a chip, never translated.
@@ -185,25 +177,6 @@ export class StockLedgerService {
   async recent(limitRows = 100): Promise<StockMovement[]> {
     const q = query(
       collection(this.firestore, 'stockMovements'),
-      orderBy('createdAt', 'desc'),
-      limit(limitRows),
-    );
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() })) as StockMovement[];
-  }
-
-  /**
-   * Every movement for one product — the per-flavor history view.
-   *
-   * NOT the reconciliation's read path: a per-product query is correct but costs
-   * one read set per product, which is what `findUnloggedChanges` used to do for
-   * the whole catalogue. Kept for a single product's history, where it is one
-   * query and the exact answer.
-   */
-  async forProduct(productId: string, limitRows = 50): Promise<StockMovement[]> {
-    const q = query(
-      collection(this.firestore, 'stockMovements'),
-      where('productId', '==', productId),
       orderBy('createdAt', 'desc'),
       limit(limitRows),
     );

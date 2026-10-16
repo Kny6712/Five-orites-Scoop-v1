@@ -24,7 +24,7 @@ import { InventoryService } from '../../core/services/inventory.service';
 import { ImageUploadService } from '../../core/services/image-upload.service';
 import { Product, SizePricing, SizeVariant } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
-import { flavourOf } from '../../core/logic/flavor';
+import { flavourOf } from '../../core/logic/flavour';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 
 @Component({
@@ -80,7 +80,7 @@ import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
               under it. Seven of the sixty-five products name a different flavour
               inside their variant name — "Chocolate Chip Cookie Dough" is a Cookies
               & Cream, "Coffee Chocolate Chip" is a Coffee — so a name search would
-              answer "Chocolate" for every one of them. core/logic/flavor.ts lists
+              answer "Chocolate" for every one of them. core/logic/flavour.ts lists
               them.
 
               This used to be described as distinct from a Type control answering a

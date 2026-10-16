@@ -2,7 +2,7 @@
 // Five-orites Scoop — Root App Shell with ion-split-pane + ion-menu
 // Author: Five-orites Scoop team (see README)
 
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, afterNextRender } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import {
@@ -34,6 +34,22 @@ import {
   type UserRole,
 } from './core/models/user.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SplashScreen } from '@capacitor/splash-screen';
+
+/**
+ * The class `AppComponent` puts on `<html>` once the app has painted, which is what
+ * tears the boot splash down. Must match the `html.app-ready` rules in
+ * `src/index.html`.
+ *
+ * A class and not a node removal, because the splash is a pair of pseudo-elements on
+ * `<html>` (see the comment there for why it cannot be a node in `<body>`).
+ * `content: none` stops them being generated at all, so nothing is left covering the
+ * app and nothing has to be cleaned up.
+ */
+const APP_READY_CLASS = 'app-ready';
+
+/** Matches the fade timing on the splash in `src/index.html`. */
+const BOOT_SPLASH_FADE_MS = 200;
 
 interface NavItem {
   title: string;
@@ -313,6 +329,41 @@ export class AppComponent {
     this.cartService.cart$
       .pipe(takeUntilDestroyed())
       .subscribe((cart) => this.cartItemCount.set(cart.itemCount));
+
+    afterNextRender(() => this.dismissBootSplash());
+  }
+
+  /**
+   * Takes down the boot splash. There are TWO of them and this dismisses both.
+   *
+   * 1. The web one — a pair of pseudo-elements on `<html>` in `src/index.html`,
+   *    painted before Angular existed. Adding `app-ready` stops them being generated.
+   *
+   * 2. The NATIVE one — `capacitor.config.ts` sets `launchAutoHide: false`, so the
+   *    native splash waits for an explicit `hide()` rather than for a timer. A fixed
+   *    `launchShowDuration` is precisely what causes the white flash it exists to
+   *    prevent: this app's bundle is ~1.5mb and Firestore initialises on top of it,
+   *    so any fixed duration is a guess that is wrong on some device. Hiding on real
+   *    first paint ties the dismissal to something that actually happened.
+   *
+   * WHY `afterNextRender` AND NOT THE CONSTRUCTOR. The constructor runs before the
+   * shell has been rendered, so hiding there would reveal an empty screen and replace
+   * one flash with another. This callback fires once the browser has painted the
+   * first frame.
+   *
+   * On web the plugin's web implementation resolves without doing anything, so the
+   * second call is inert and costs nothing.
+   */
+  private dismissBootSplash(): void {
+    document.documentElement.classList.add(APP_READY_CLASS);
+
+    void SplashScreen.hide({ fadeOutDuration: BOOT_SPLASH_FADE_MS }).catch((err) =>
+      // Non-fatal: with no native platform there is no splash to leave stuck, and on
+      // a real device a rejection here means the native one hid itself anyway. Worth
+      // a log either way — silence here is how a stuck splash gets debugged from a
+      // screenshot instead of from the console.
+      console.error('Could not hide the native splash screen.', err),
+    );
   }
 
   /**

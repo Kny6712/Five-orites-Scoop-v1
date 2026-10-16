@@ -31,7 +31,13 @@ import { OrderService } from './order.service';
 import { NotificationService } from './notification.service';
 import { AuthService } from './auth.service';
 import { Order, OrderStatus } from '../models/order.model';
-import { buildNotificationFeed, countUnread, FeedEntry } from '../logic/notifications';
+import {
+  buildNotificationFeed,
+  collapseToOrderThreads,
+  countUnreadThreads,
+  FeedEntry,
+  OrderThread,
+} from '../logic/notifications';
 
 /**
  * How many recent orders to watch.
@@ -89,8 +95,27 @@ export class OrderNotificationService implements OnDestroy {
     buildNotificationFeed(this.orders(), this.readAt()),
   );
 
-  /** Unread count for the header badge. Derived, never stored — see the note on `readAt`. */
-  readonly unreadCount = computed(() => countUnread(this.entries()));
+  /**
+   * The feed as one card per ORDER rather than one per status event.
+   *
+   * What the page actually renders, so it lives here rather than being
+   * recomputed inside the page — the badge below reads it, and a badge derived
+   * from a different shape than the list it sits above is how you get a "15"
+   * floating over three cards.
+   */
+  readonly threads = computed<OrderThread[]>(() => collapseToOrderThreads(this.entries()));
+
+  /**
+   * Unread count for the header badge. Derived, never stored — see the note on `readAt`.
+   *
+   * COUNTS ORDERS, NOT EVENTS. `countUnread` over `entries` answered "how many
+   * status changes have I not seen", which was already the wrong question: a
+   * single order advancing through five statuses lit the badge five times, and
+   * the number on the button bore no relation to the number of rows under it.
+   * What the user can act on is "how many of my orders have moved since I last
+   * looked", so that is what is counted.
+   */
+  readonly unreadCount = computed(() => countUnreadThreads(this.threads()));
 
   constructor() {
     // Mirror the two user fields the feed depends on into signals. Done once,
