@@ -313,10 +313,7 @@
                       [disabled]="updatingId() === order.id"
                       [attr.aria-busy]="updatingId() === order.id"
                       [attr.aria-label]="
-                        'Mark order ' +
-                        order.id.slice(-6).toUpperCase() +
-                        ' as ' +
-                        getNextStatusLabel(order.status)
+                        'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + getNextStatusLabel(order.status)
                       "
                       (click)="advanceStatus(order)"
                     >

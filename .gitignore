@@ -18,8 +18,10 @@ www/
 # ── Angular CLI ──────────────────────────────────────────────────────────────────
 .angular/cache
 
-# Firebase emulator logs (npm run test:rules / npm run emulators)
-*-debug.log
+# Logs — emulator output (npm run test:rules / npm run emulators), and the
+# npm-install.log captures that used to be tracked. All regenerable, and a
+# committed log rots silently: it reads as current to everyone and never is.
+*.log
 .firebase/
 
 # Playwright scratch — page snapshots and traces from ad-hoc browser
@@ -28,6 +30,29 @@ www/
 # .playwright-mcp/  = @playwright/mcp server (see opencode.json)
 .playwright-cli/
 .playwright-mcp/
+
+# One-off layout prototypes from ad-hoc browser inspection: Ionic CSS inlined,
+# hardcoded fixture rows, no links in or out. Throwaway.
+# .playwright-mcp/ is already covered just above.
+/_*-after.html
+/*-preview.html
+
+# repomix snapshot. A generated ~4.6 MB dump of the whole tree that changes
+# every time it is regenerated, so tracking it guarantees a diff every run.
+repomix-output.xml
+
+# ── Agent tooling ───────────────────────────────────────────────────────────────
+# .claude/ = Claude Code agents and skills.  .kilo/ = Kilo scratch plans.
+# Nothing in here is project-specific: there are zero references to this
+# project across all of it, and neither a settings.json nor a CLAUDE.md is
+# tracked from .claude/, so this is machine-local configuration rather than
+# shared repo state.
+#
+# WHAT IGNORING THIS COSTS: a fresh clone gets none of it, including the skill
+# packs that exist only in the local copy. All are regenerable library packs,
+# not project knowledge, so that trade is worth making.
+.claude/
+.kilo/
 
 # ── Capacitor ────────────────────────────────────────────────────────────────────
 #

@@ -4,7 +4,7 @@
 // WHY THIS EXISTS, and why it is a function and not a lookup table.
 //
 // The nine `--flavor-*` pastels in theme/variables.scss are already paired with
-// the nine flavours by NAME, and `flavourSlug()` in core/logic/flavor.ts already
+// the nine flavours by NAME, and `flavourSlug()` in core/logic/flavour.ts already
 // produces exactly those nine keys — it was built for this and its own docstring
 // says so. So this module holds no mapping of its own. That matters: a second
 // copy of the flavour→colour table would be a second thing to forget when a
@@ -28,7 +28,7 @@
 // still lives in exactly one place (variables.scss) and a palette change is still
 // a one-line edit with no TypeScript touched.
 
-import { flavourSlug } from './flavor';
+import { flavourSlug } from './flavour';
 
 /** The nine pastels are defined in theme/variables.scss, not here. */
 export const FLAVOUR_TOKEN_FALLBACK = 'var(--flavor-all)';

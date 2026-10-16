@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Splash colour, read by `windowSplashScreenBackground` in styles.xml on Android 12
+  and newer.
+
+  NOTE ON THE COMMENT STYLE, because it cost two failed builds. AAPT2 rejects a
+  double hyphen anywhere inside an XML comment, not just at the end of a line, so
+  CSS custom property names cannot be written literally in this file. Every token
+  name below is described in words instead. The build FAILS on this rather than
+  warning, and the error points at the character column rather than at the file, so
+  it is worth knowing before editing.
+
+  #fff9f4 is the cream brand token in src/theme/variables.scss, which is also the
+  app's page background colour. All of them have to be the same value or the app
+  visibly jumps colour between the native splash and the first rendered frame. The
+  same hex appears in `capacitor.config.ts` under SplashScreen.backgroundColor and
+  StatusBar, and in the inline `<style>` in `src/index.html`. Change all four
+  together.
+-->
+<resources>
+    <color name="splashBackground">#fff9f4</color>
+</resources>

@@ -32,7 +32,7 @@ const ROOT = path.resolve(__dirname, '..');
  * products ended up imageless. It now defaults to a folder inside the repo and
  * can be overridden with `--dir=...` or the IMAGE_DIR environment variable.
  */
-const DEFAULT_IMAGE_DIR = path.resolve(ROOT, 'assets', 'images');
+const DEFAULT_IMAGE_DIR = path.resolve(ROOT, 'brand-assets', 'images');
 const CLOUDINARY_FOLDER = 'five-orites-scoop/products';
 
 const argv = process.argv.slice(2);

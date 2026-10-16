@@ -69,9 +69,6 @@ export const DEVELOPER_ACCENTS: ReadonlyArray<{ hex: string; label: string }> = 
   { hex: '#D3DDF7', label: 'Periwinkle' },
 ];
 
-/** The hexes, for the rules-parity test and for validating a write. */
-export const DEVELOPER_ACCENT_HEXES: readonly string[] = DEVELOPER_ACCENTS.map((a) => a.hex);
-
 /** A developer as the UI consumes it: the stored fields plus the document id. */
 export interface Developer extends Omit<DeveloperDoc, 'photoURL'> {
   id: string;

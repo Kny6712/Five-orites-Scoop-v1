@@ -56,7 +56,7 @@ interface SetChip {
    * It was the CSS modifier key that picked one of the nine `--flavor-*` pastels
    * per set, and a `<select>` paints no per-option background — so keeping it
    * meant a computed string that nothing read. `flavourSlug()` in
-   * core/logic/flavor.ts is exported and still has its own tests, so the helper
+   * core/logic/flavour.ts is exported and still has its own tests, so the helper
    * survives; only this page's use of it is gone.
    *
    * That last claim was wrong, and this comment is here so it is not repeated:

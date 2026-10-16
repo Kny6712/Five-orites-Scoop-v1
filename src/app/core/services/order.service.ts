@@ -348,45 +348,6 @@ export class OrderService {
   }
 
   /**
-   * Orders created at or after `since`, newest first, for reporting over a date
-   * range.
-   *
-   * Analytics used to read the newest 100 orders and then filter by date in the
-   * browser, so "last 30 days" silently ignored anything past order 100 and
-   * "all time" quietly meant "the newest 100". Filtering at the server keeps
-   * the window honest.
-   *
-   * `where('createdAt', '>=', since)` combined with `orderBy('createdAt')` is
-   * served by the single-field index on createdAt, so this needs no composite
-   * index. `snapshot.size` is compared against the limit by the caller to
-   * report truncation rather than hide it.
-   */
-  getOrdersSince(since: Date, maxResults = 500): Observable<Order[]> {
-    return new Observable<Order[]>((observer) => {
-      const ordersCol = collection(this.firestore, 'orders');
-      const q = query(
-        ordersCol,
-        where('createdAt', '>=', Timestamp.fromDate(since)),
-        orderBy('createdAt', 'desc'),
-        limit(maxResults),
-      );
-
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const orders = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Order[];
-          observer.next(orders);
-        },
-        (error) => {
-          console.error('Failed to load orders for the selected range.', error);
-          observer.error(error);
-        },
-      );
-      return () => unsubscribe();
-    });
-  }
-
-  /**
    * One page of orders for reporting, plus whether more exist.
    *
    * THE CAP THIS REPLACES

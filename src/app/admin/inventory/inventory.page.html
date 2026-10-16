@@ -92,12 +92,7 @@
             <span class="set-select-label">{{ setFilter() === 'all' ? 'All Sets' : activeSetLabel() }}</span>
             <app-icon name="chevron-down" class="set-select-arrow" />
           </button>
-          <ion-popover
-            [isOpen]="setPopoverOpen()"
-            (didDismiss)="closeSetPopover()"
-            side="bottom"
-            alignment="start"
-          >
+          <ion-popover [isOpen]="setPopoverOpen()" (didDismiss)="closeSetPopover()" side="bottom" alignment="start">
             <ng-template>
               <div class="set-popover-list">
                 <button
@@ -333,7 +328,14 @@
                           [class.stock-out-of-stock]="product.stock[size] === 0"
                           [disabled]="busySizeId() !== null"
                           [attr.aria-live]="'polite'"
-                          [attr.aria-label]="'Set ' + sizeLabels[size] + ' stock for ' + product.variantName + ', currently ' + product.stock[size]"
+                          [attr.aria-label]="
+                            'Set ' +
+                            sizeLabels[size] +
+                            ' stock for ' +
+                            product.variantName +
+                            ', currently ' +
+                            product.stock[size]
+                          "
                           (click)="promptSetStock(product, size)"
                         >
                           {{ product.stock[size] }}
@@ -380,9 +382,7 @@
                   Still a read-out. The four steppers above remain the authoritative
                   per-size figures and the only editable ones.
                 -->
-                <p class="stock-total-row">
-                  {{ totalStock(product.stock) }} units total
-                </p>
+                <p class="stock-total-row">{{ totalStock(product.stock) }} units total</p>
               </ion-card-content>
             </div>
           </div>

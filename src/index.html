@@ -209,7 +209,7 @@
         THE MARK IS A FILE, NOT AN INLINE DATA URI, and that is a deliberate change.
         It used to be a hand-drawn SVG of a disc with two scoops, inline so it could
         not 404. That drawing was not the brand: the real mark is the illustrated
-        sundae in assets/images/logo-ice_cream.png, already used as the side-menu
+        sundae in brand-assets/images/logo-ice_cream.png, already used as the side-menu
         logo. Inlining a 48KB PNG as base64 would have added ~64KB to index.html, and
         this file is on the critical path for every cold start.
 
@@ -217,7 +217,7 @@
         a decorative overlay, `pointer-events: none`, and the CSS failsafe removes it
         at 6s regardless. A failed image request costs the mark, not the app.
 
-        `src/assets/splash/mark-256.png` is the same artwork cropped to the sundae
+        `src/brand-assets/splash/mark-256.png` is the same artwork cropped to the sundae
         disc with the decorative frame cut away, and downsampled to 256px. It is
         rendered at 112px here, so 256 is sharp on high-DPI screens at a fraction of
         the source's 750KB.
@@ -225,7 +225,7 @@
       html::before {
         /* --color-cream, which is also --ion-background-color. See below. */
         background-color: #fff9f4;
-        background-image: url('/assets/splash/mark-256.png');
+        background-image: url('/brand-assets/splash/mark-256.png');
         background-repeat: no-repeat;
         /*
           SIZE, AND WHY THE WORDMARK OFFSET IS DERIVED FROM IT.

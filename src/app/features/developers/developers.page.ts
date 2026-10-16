@@ -25,7 +25,7 @@ import { CartButtonComponent } from '../../shared/components/cart-button/cart-bu
 import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { DeveloperService } from '../../core/services/developer.service';
-import { initialsOf } from '../../core/logic/flavor';
+import { initialsOf } from '../../core/logic/flavour';
 import { TECH_STACK } from '../../core/about-content';
 import type { Developer } from '../../core/models/developer.model';
 
@@ -123,7 +123,7 @@ export class DevelopersPage implements OnInit, OnDestroy {
     this.unsubscribe?.();
   }
 
-  /** Initials derived from the name, not stored — see core/logic/flavor.ts. */
+  /** Initials derived from the name, not stored — see core/logic/flavour.ts. */
   initialsFor(dev: Developer): string {
     return initialsOf(dev.name);
   }

@@ -30,7 +30,7 @@ import {
   RECONCILE_SIZES,
   STOCK_REASON_LABELS,
 } from '../src/app/core/logic/ledger-reconcile';
-import { flavourOf, initialsOf } from '../src/app/core/logic/flavor';
+import { flavourOf, initialsOf } from '../src/app/core/logic/flavour';
 import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
 import {
   describeFirestoreError,

@@ -10,7 +10,7 @@
 // image per flavor, deterministically, from the catalog itself.
 //
 // These are clearly stylised placeholders, not photography. To use real photos:
-// drop them in assets/images/ and run `npm run upload:images`.
+// drop them in brand-assets/images/ and run `npm run upload:images`.
 //
 // Run: npx ts-node --project scripts/tsconfig.json scripts/generate-placeholder-images.ts
 // or:  npm run images:generate
@@ -20,7 +20,7 @@ import * as path from 'node:path';
 import { PRODUCT_CATALOG } from './seed-products';
 
 const ROOT = path.resolve(__dirname, '..');
-const OUT_DIR = path.resolve(ROOT, 'assets', 'images');
+const OUT_DIR = path.resolve(ROOT, 'brand-assets', 'images');
 const WIDTH = 400;
 const HEIGHT = 300;
 

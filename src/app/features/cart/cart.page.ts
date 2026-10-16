@@ -36,7 +36,7 @@ import { Product, SizeVariant } from '../../core/models/product.model';
 import { PesoPipe } from '../../shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
-import { PENDING_VOUCHER_KEY } from '../dashboard/voucher-cards/voucher-cards.component';
+import { PENDING_VOUCHER_KEY } from '../../core/models/voucher.model';
 import { QtyStepperComponent } from '../../shared/components/qty-stepper/qty-stepper.component';
 import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
 import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
