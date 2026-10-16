@@ -58,6 +58,23 @@ which is the part of this file worth reading before you demo anything.
   the reset confirmation is identical whether or not an account exists, so the
   login form cannot be used to discover which addresses are registered
 
+### Boot splash
+
+- **Web / PWA — works now.** A branded splash covers the gap between first paint and
+  Angular finishing bootstrap, so a cold start no longer shows a bare white frame. It
+  is drawn as `::before` / `::after` on `<html>` in `src/index.html`, **not** as a
+  node inside `<body>` — Ionic ships `html:not(.hydrated) body { display: none }`,
+  which hides anything in `<body>` for exactly the window a splash exists to cover.
+  `AppComponent.dismissBootSplash` adds `app-ready` to `<html>` on first render, which
+  stops the pseudo-elements being generated. A pure-CSS failsafe fades the splash at
+  6s, so a bundle that never boots cannot leave a branded screen stuck on screen.
+- **Native (Android / iOS) — configured but not yet built.** `@capacitor/splash-screen`
+  is installed and `capacitor.config.ts` sets `launchAutoHide: false` with a cream
+  background matching the app, so the splash is dismissed from `afterNextRender`
+  rather than on a fixed timer. None of it takes effect until a platform is added
+  with `npx cap add android` — see "Not done yet". Source artwork for the density
+  matrix is at `assets/splash/splash-mark.svg`.
+
 ### Admin
 
 - **Inventory Manager**: Live stock view per product/size; inline edit with atomic
@@ -596,9 +613,12 @@ this field existed keep appearing in the catalog.
   the function that would do it cannot run. This is a `PRIVACY.md` disclosure, not
   a UI gap. See "Known limitations".
 - CSV bulk product import
-- App Store / Play Store signing and release pipeline. `android/` now exists and
-  a debug APK builds; there is no keystore, no iOS project, and no app icon or
-  splash artwork in `src/assets/`.
+- App Store / Play Store signing and release pipeline. **There is no `android/` or
+  `ios/` directory in this repo** — both are git-ignored and neither platform has been
+  added, so `npx cap ls` reports nothing and `npm run build:android` fails at
+  `npx cap sync android`. There is no keystore and no iOS project. Splash source
+  artwork exists at `assets/splash/splash-mark.svg`; no icon set does. See
+  **Boot splash** below for what works today.
 
 ---
 

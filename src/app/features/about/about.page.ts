@@ -16,8 +16,6 @@ import {
   IonButtons,
   IonMenuButton,
   IonButton,
-  IonChip,
-  IonLabel,
 } from '@ionic/angular/standalone';
 import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
 import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
@@ -36,7 +34,6 @@ import {
   CUSTOMER_FEATURES,
   TEAM_FEATURES,
   HOW_IT_WORKS,
-  TECH_STACK,
 } from '../../core/about-content';
 
 @Component({
@@ -52,8 +49,6 @@ import {
     IonButtons,
     IonMenuButton,
     IonButton,
-    IonChip,
-    IonLabel,
     CartButtonComponent,
     AppIconComponent,
     ScoopMapComponent,
@@ -72,7 +67,6 @@ export class AboutPage {
   readonly customerFeatures = CUSTOMER_FEATURES;
   readonly teamFeatures = TEAM_FEATURES;
   readonly howItWorks = HOW_IT_WORKS;
-  readonly techStack = TECH_STACK;
 
   readonly shop = SHOP_LOCATION;
   readonly hours = SHOP_HOURS;

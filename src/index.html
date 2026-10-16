@@ -91,18 +91,248 @@
       href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=JetBrains+Mono:wght@500;700&family=Lobster+Two:wght@700&family=Nunito:wght@400;600;700;800&display=swap"
     />
     <!--
-      Inline SVG favicon. src/favicon.ico is a 0-byte placeholder, so linking it
-      either 404s (caught by the SPA rewrite into a 200 with an HTML body) or
-      serves an empty file. A data URI issues no request at all and cannot break.
-      Recoloured to the new brand: powder bowl, sunny scoop, mint scoop.
+      THE REAL LOGO, and it is a file rather than a data URI.
+
+      This used to be an inline SVG of a powder-blue disc with a white triangle and
+      two dots — a stand-in nobody had seen outside this file, and the last place in
+      the app still showing a mark that does not exist on the shopfront.
+
+      A file, not a data URI, because base64 of the real artwork is roughly 145KB of
+      base64 inside a file on the critical path of every cold start. The old data URI
+      avoided a request at the cost of shipping artwork nobody recognised, which is
+      the worse of the two trades.
+
+      `src/assets/favicon.png` is the full framed roundel at 94% of the canvas, not
+      the 66% used for the launcher. A favicon is NOT masked to the adaptive-icon
+      safe zone, so the launcher figure would render as a small coin in a tab strip.
+
+      The 0-byte `src/favicon.ico` is still not linked: it either 404s into the SPA
+      rewrite or serves empty, and a wrong icon is worse than none.
     -->
-    <link
-      rel="icon"
-      type="image/svg+xml"
-      href="data:image/svg/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='16' fill='%238ECAE6'/%3E%3Cpath d='M9 15h14l-7 12z' fill='%23FFF9F4'/%3E%3Ccircle cx='12' cy='11' r='4' fill='%23FFC53D'/%3E%3Ccircle cx='20' cy='11' r='4' fill='%235FD9B4'/%3E%3C/svg%3E"
-    />
+    <link rel="icon" type="image/png" href="/assets/favicon.png" />
+    <!--
+      ═══════════════════════════════════════════════════════════════════════════
+      BOOT SPLASH — inline, in <head>, and on <html> rather than in <body>.
+
+      Before this, `index.html` shipped only `<app-root></app-root>`. Between the
+      browser painting the document and Angular finishing bootstrap, that element is
+      empty, so the user saw a bare white screen — and on a cold start that window is
+      real, because the bundle is ~1.5mb and Firestore initialises on top of it. The
+      same white frame is what a native splash is covering on device, which is why
+      this lives here and not in a component: the app cannot paint a splash before
+      the app exists.
+
+      WHY INLINE, NOT A STYLESHEET. The stylesheet this would otherwise live in is a
+      separate request that has not arrived yet at exactly the moment this needs to
+      paint. Inlining is the only thing that puts pixels on screen during that gap.
+      It costs a few hundred bytes and it is not subject to a request that can fail,
+      which for a screen whose entire job is to never show a flash is the point.
+
+      WHY CREAM, AND NOT POWDER BLUE. This is the one non-obvious choice here.
+      `--ion-background-color` is `var(--color-cream)` = #fff9f4 (variables.scss), so
+      cream is the colour the first real frame of the app will be. A blue splash
+      would be more emphatic and would also hand off to a cream app as a hard blue
+      flash on every cold start — the exact artefact this exists to prevent. Matching
+      the app's own background makes the transition invisible. The mark below is
+      where the brand shows through.
+
+      THE MARK is the favicon geometry, scaled up: powder disc, sunny and mint
+      scoops, cream cone. Reusing it exactly means the splash, the tab icon and the
+      app icon are the same drawing, and it needs no request of its own.
+
+      WHY IT IS A PSEUDO-ELEMENT, AND NOT A NODE IN <body>, is the part that is not
+      obvious and is explained in full in the <style> below. The short version: Ionic
+      ships `html:not(.hydrated) body { display: none }`, so anything inside <body> is
+      invisible for exactly the window a splash exists to cover.
+    -->
+    <style>
+      /* ── BOOT SPLASH ───────────────────────────────────────────────────────
+         TWO PSEUDO-ELEMENTS ON <html>. NOT a node inside <body>.
+
+         This started as a <div> in <body> and it could never be seen. The reason is
+         a rule that ships in the Ionic stylesheet:
+
+             html:not(.hydrated) body { display: none; }
+
+         That is Ionic's own anti-FOUC guard: <body> is not rendered at all until the
+         framework has hydrated. So a splash placed inside <body> is display:none for
+         exactly the window it exists to cover — the gap between first paint and
+         Angular finishing bootstrap. Measured on a real cold start, <body> computes
+         to `display: none` and a 0x0 box, and because a box-less element is never
+         rendered, the CSS entrance animation on the splash never starts either and
+         `animation-fill-mode: both` holds it at `opacity: 0` forever.
+
+         None of that is fixable with sizing. Sizing an element inside a
+         `display: none` subtree does nothing, and there is no ancestor to size that
+         is not also hidden. So the splash has to live OUTSIDE <body>, and the only
+         element outside <body> is <html> itself.
+
+         `::before` carries the backdrop and the mark; `::after` carries the wordmark.
+         A pseudo-element is generated by the element that owns it, so this paints on
+         the first frame, before any stylesheet request resolves and before any
+         script runs. Nothing here can 404, and nothing can be hidden by a framework
+         rule that has not loaded yet.
+
+         A pseudo-element is also the reason this needs no cleanup code: it stops
+         being generated the moment `html.app-ready` is present, which AppComponent
+         adds on first paint. `content: none` is the whole teardown.
+      */
+
+      html::before,
+      html::after {
+        content: '';
+        position: fixed;
+        inset: 0;
+        /* The maximum, because this has to sit above Ionic's own overlays. */
+        z-index: 2147483647;
+        /* Never swallow a tap: if the user gets a tap through, the app is up. */
+        pointer-events: none;
+
+        /*
+          FAILSAFE.
+
+          `app-ready` is added by AppComponent, so a bundle that fails to bootstrap
+          never adds it — and a branded screen that sits there forever reads as a
+          hang rather than as an error, with nothing for the user to act on.
+
+          So this also fades itself out at 6s. `forwards` holds the end state so
+          nothing pops back in. On the normal path the element is not generated at
+          all long before the delay elapses; this is only ever reached when Angular
+          did not run.
+        */
+        animation: boot-splash-failsafe 400ms ease-out 6s forwards;
+      }
+
+      /*
+        Backdrop plus the mark.
+
+        THE MARK IS A FILE, NOT AN INLINE DATA URI, and that is a deliberate change.
+        It used to be a hand-drawn SVG of a disc with two scoops, inline so it could
+        not 404. That drawing was not the brand: the real mark is the illustrated
+        sundae in assets/images/logo-ice_cream.png, already used as the side-menu
+        logo. Inlining a 48KB PNG as base64 would have added ~64KB to index.html, and
+        this file is on the critical path for every cold start.
+
+        So it is a real request, and the risk it introduces is bounded: the splash is
+        a decorative overlay, `pointer-events: none`, and the CSS failsafe removes it
+        at 6s regardless. A failed image request costs the mark, not the app.
+
+        `src/assets/splash/mark-256.png` is the same artwork cropped to the sundae
+        disc with the decorative frame cut away, and downsampled to 256px. It is
+        rendered at 112px here, so 256 is sharp on high-DPI screens at a fraction of
+        the source's 750KB.
+      */
+      html::before {
+        /* --color-cream, which is also --ion-background-color. See below. */
+        background-color: #fff9f4;
+        background-image: url('/assets/splash/mark-256.png');
+        background-repeat: no-repeat;
+        /*
+          SIZE, AND WHY THE WORDMARK OFFSET IS DERIVED FROM IT.
+
+          The roundel carries a decorative frame, so it reads much smaller than the
+          bare sundae did at the same nominal size: the eye sees the inner artwork,
+          not the orange rim. 30vmin left it looking like a token in a large empty
+          cream field, so the mark is bigger at 40vmin.
+
+          `--splash-mark` exists so the three places that depend on this size cannot
+          drift apart. The wordmark used to sit at a hard-coded `padding-top: 92px`
+          tuned against the old 112px mark; growing the mark without recomputing that
+          is how the two collide and the text lands on top of the artwork. A custom
+          property means the mark and its offset move together.
+        */
+        --splash-mark: min(40vmin, 152px);
+        background-position: center calc(50% - var(--splash-mark) / 4.6);
+        background-size: var(--splash-mark);
+      }
+
+      /*
+        The wordmark, as generated text so it scales with the viewport.
+
+        `--splash-mark` is declared on `::before`, and a pseudo-element's custom
+        properties do NOT inherit to its siblings — `::after` resolved it to nothing
+        and every `calc()` below silently collapsed to 0px, which is why the text sat
+        on top of the mark. So it is declared here as well. One value, two rules; the
+        alternative is a hard-coded pixel offset that drifts the moment the mark
+        changes, which is the bug this is replacing.
+      */
+      html::after {
+        --splash-mark: min(40vmin, 152px);
+
+        content: 'Five-orites Scoop';
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /*
+          Pushes the text clear of the mark's lower edge: half the mark height is the
+          distance from its centre to its bottom, and the rest is the gap.
+        */
+        padding-top: calc(var(--splash-mark) / 2 + 34px);
+        font-family: 'Fredoka', 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        font-weight: 600;
+        font-size: clamp(17px, 4.4vmin, 22px);
+        letter-spacing: 0.01em;
+        /* --color-ink. Plum on cream measures 12.34:1, so this is not a close call. */
+        color: #3d2b45;
+      }
+
+      /*
+        WHY CREAM, AND NOT POWDER BLUE. This is the one non-obvious colour choice.
+
+        `--ion-background-color` resolves to `var(--color-cream)` = #fff9f4, so cream
+        is the colour of the first real frame of the app. A blue splash would be more
+        emphatic and would also hand off to a cream app as a hard blue flash on every
+        cold start — the exact artefact this exists to prevent. Matching the app's own
+        background makes the transition invisible. The mark is where the brand shows.
+
+        Fredoka may not have arrived yet — it is a network request, and this paints
+        before it. The fallback chain is a rounded system face so the wordmark still
+        reads as intentional while it swaps.
+      */
+
+      /* THE TEARDOWN. AppComponent adds `app-ready` to <html> on first paint. */
+      html.app-ready::before,
+      html.app-ready::after {
+        content: none;
+      }
+
+      @keyframes boot-splash-failsafe {
+        to {
+          opacity: 0;
+          visibility: hidden;
+        }
+      }
+
+      /*
+        Reduced motion.
+
+        `AppSettingsService.effectiveReduceMotion` already exists and sets
+        `data-motion` on <html>, but it can only run once Angular has booted — which is
+        strictly after this. A media query is the only thing that can be consulted
+        here, so the preference is honoured here directly.
+
+        The failsafe is KEPT, and kept instant rather than dropped. Removing it would
+        reintroduce the stuck-on-a-broken-app hang for exactly the users least able to
+        sit and wait through a slow boot, and a 1ms state change at the same 6s mark is
+        not motion.
+      */
+      @media (prefers-reduced-motion: reduce) {
+        html::before,
+        html::after {
+          animation: boot-splash-failsafe 1ms linear 6s forwards;
+        }
+      }
+    </style>
   </head>
   <body>
+    <!--
+      No splash node here, deliberately. See the BOOT SPLASH comment in <head>: it has
+      to be a pseudo-element on <html>, because Ionic ships
+      `html:not(.hydrated) body { display: none }` and anything inside <body> is
+      invisible until Angular has booted — which is precisely the window a splash is
+      for. The first version of this file put the splash here and it could never be
+      seen.
+    -->
     <app-root></app-root>
   </body>
 </html>

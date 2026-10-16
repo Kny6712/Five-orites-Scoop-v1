@@ -1,17 +1,72 @@
 /* src/app/features/notifications/notifications.page.scss */
 /* Five-orites Scoop — notification feed styling */
 
+/* 1320px, not 720px.
+
+   The 720px cap was tuned as a READING MEASURE for a single column of prose, and
+   this feed is not prose. Measured dead space per side, content pane being the
+   viewport less the 280px ion-menu sidebar:
+
+      1280px viewport → 1000px pane →  140px dead each side (28% of the pane)
+      1440px          → 1160px      →  220px each side          (38%)
+      1600px          → 1320px      →  300px each side          (45%)
+      1920px          → 1640px      →  460px each side          (56%)
+      2560px          → 2280px      →  780px each side          (68%)
+
+   1320px is the widest pane the grid below ever fills (it reaches three columns
+   there), so above this the page stops growing and the extra width becomes
+   margin again — 160px each side at 1920. Removing the cap would let `auto-fit`
+   keep adding columns indefinitely: four at 1920, five at 2560. Three columns is
+   the point where a notification stops reading as a card and starts reading as a
+   row in a table, and the cost of one more column is a wider gap between a
+   notification's title and its timestamp, because .entry-head pushes them to
+   opposite ends with space-between. */
 .page {
-  max-width: 720px;
-  margin: 0 auto;
+  /* FILLS THE PANE — and does only that. No max-width, no auto margins: this
+     box has one job, and the cap lives on .feed below.
+
+     WHY THE SPLIT. This div is a cross-axis FLEX ITEM of the column flexbox
+     global.scss makes of `ion-content::part(scroll)`, and sizing such an item
+     is a trap in that context. `margin: 0 auto` there does not centre a capped
+     box — it suppresses the stretch and shrink-wraps the item to its content,
+     which is how this page once rendered as a 363px floating column with the
+     filter row sitting mid-screen instead of beside the menu. `width: 100%`
+     alone gives the item a definite size so it fills the pane, and every
+     alignment decision moves DOWN to a block child, where `margin: auto` and
+     `max-width` behave the way they read.
+
+     It also makes the layout stop depending on the vertical scrollbar. With
+     the cap here, a two-card window (no scrollbar) and an eight-card window
+     (scrollbar) resolved the pane differently and the cards sat at a different
+     distance from the right edge in each — the "cutoff" that only showed up on
+     the short page. The cap below is a property of the content box, not of how
+     much room the OS chrome leaves, so both windows now render identically. */
+  width: 100%;
   padding: var(--space-4) var(--space-4) var(--space-7);
 }
 
-/* ── Day sections ─────────────────────────────────────────────────────── */
+/* ── The period filter ──────────────────────────────────────────────────────
+   A select, not a segment. Modelled on the products page's .select-row /
+   .select-label / .select-control trio — so the app has ONE way of saying
+   "narrow this list" to a customer, and this is now that way rather than the
+   exception. The filter bar that used to hold four tabs holds one control, and
+   the caption survives to label it. */
+.filter-row {
+  display: flex;
+  align-items: center;
+  /* Wrap is kept as insurance rather than necessity. Caption + one control is
+     ~222px against the 358px a 390px phone has inside .page, so it fits at
+     every width — but a count that grew to three digits, or a translated
+     caption, should push the control to its own line rather than give the page
+     a horizontal scrollbar. */
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
 
-.day-label {
-  margin: var(--space-5) 0 var(--space-2);
-  padding-inline: var(--space-1);
+.filter-label {
+  /* On the base rule, deliberately — see the products note this rule inherits. */
+  white-space: nowrap;
   font-size: 0.8125rem;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -19,15 +74,111 @@
   color: var(--color-ink-soft);
 }
 
-/* ── Feed ─────────────────────────────────────────────────────────────── */
+/* The control itself, carrying its own tile surface rather than sitting in a
+   wrapper the way the products selects do.
 
+   Those wrap their select in .select-row because each one shares a row with a
+   caption of its own; here the caption is outside the control, so painting the
+   control directly is the same look with one fewer element. Same three tokens:
+   --tile-powder as the fill, --tile-powder-deep as the rim, --color-primary-ink
+   as the selected value. That exact pairing is already asserted by
+   check-contrast.mjs for products.page.scss, so this file adds no new colour
+   pairs for it to judge.
+
+   fit-content so the control shrinks to "Earlier (24)" rather than stretching
+   across all 1320px of .page — a 1300px-wide select with its label pinned at
+   one end is the same problem the segment had. max-width 100% keeps it inside a
+   phone viewport no matter how long an option gets.
+
+   NO `--width` HERE, and the omission is deliberate: see products.page.ts:53-72.
+   Setting it desyncs Ionic's JS popover positioning from the CSS box and the
+   popover overflows the control it is anchored to. */
+.period-select {
+  --padding-start: 12px;
+  --padding-end: 12px;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 36px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  background: var(--tile-powder);
+  border: 2px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+}
+
+/* No phone tier, and none is needed. The products filter bar hides its captions
+   at 479px because five controls have to share one row; this has ONE control, so
+   "SHOW" and the widest option fit together on the narrowest phone the app
+   supports. The caption therefore stays visible at every width, which also means
+   `aria-labelledby="period-label"` always resolves to something on screen. */
+
+/* ── Feed ──────────────────────────────────────────────────────────────────
+   ONE COLUMN, NOT A GRID — and this deliberately reverses the grid that used
+   to sit here.
+
+   The previous rule was `repeat(auto-fill, minmax(min(410px, 100%), 1fr))`,
+   and its multi-column case only became reachable once `.page` above was given
+   a definite width: while the page shrink-wrapped, every grid silently rendered
+   as its one-column case, so the difference had never actually been seen. With
+   the page finally filling the pane, the grid produced two and three cards
+   side by side — which reads as CLUTTER, not density. A notification is
+   something you scan one at a time, top to bottom; three across a 1133px pane
+   turns each card into a narrow strip and stretches .entry-head's
+   space-between further apart on every one.
+
+   So: a plain flex column, one delivery per row, each card the full width of
+   the pane.
+
+   There is nothing left here to guard. A flex column has none of the failure
+   modes the grid needed defending against — no hard minimum track to overflow
+   a 358px phone, no empty track to collapse under auto-fit, no arithmetic
+   thresholds tied to the 280px sidebar to re-measure when the menu width
+   changes. The only rule is `flex-direction: column` and the gap it has always
+   carried. */
 .feed {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  /* The width cap — and the LAST width governance this page needs. NO auto
+     margins: not here, not on .page above.
+
+     `margin: auto` is the property that has now broken this layout twice, and
+     both times through the same mechanism — absorbing free space in a context
+     where the box does not behave the way it reads. On .page it shrink-wrapped
+     the page into a 363px floating column with the filter row mid-screen. And
+     a max-width clamp PAIRED with auto margins made the right edge of the
+     cards depend on whether the window happened to have a vertical
+     scrollbar: a two-card window (no scrollbar) let the clamp fire and the
+     centring put the cards flush to the right edge, while an eight-card
+     window (scrollbar) sat just under the cap and looked fine. Same CSS, two
+     outcomes, decided by OS chrome. The clamp and the centring were two
+     halves of one mechanism, and removing the centring removes the boundary
+     case with it.
+
+     `min(1320px, 100%)` needs no centring and has no boundary to fall off:
+     below the cap the feed is the pane width EXACTLY, so every card ends 16px
+     — the .page padding — from the right edge in every window state,
+     scrollbar or not. Above the cap the column stops at 1320px aligned LEFT
+     with the filter row rather than floating centred, which is the more
+     coherent arrangement given what sits above it. If a centred column is
+     ever wanted back, it has to come from a wrapper that is NOT inside the
+     flex scroll context, not from margins on these boxes. */
+  width: min(1320px, 100%);
+}
+
+/* The <li> is the grid item and stretches to its row's height. Left as a block
+   it hands that height to nothing, and the <button class="entry"> inside it
+   keeps its own content height — so on any row where one card is taller than its
+   neighbour, a gap opens underneath the shorter one. Making the li a flex
+   container passes the stretched height through to the button, which is the
+   card's entire painted surface. */
+.feed > li {
+  display: flex;
 }
 
 .entry {
@@ -124,6 +275,12 @@
   flex: 0 0 auto;
   font-size: 0.75rem;
   color: var(--color-ink-soft);
+  /* nowrap so the relative label, the middot and the absolute date move as ONE
+     cluster. Wrapping between them ("12m ·" alone on the first line) reads as a
+     rendering fault; wrapping the whole cluster to a second line under the title
+     is the acceptable degradation on the narrowest phone, and that is what this
+     allows. */
+  white-space: nowrap;
   /* Kept out of the accessible name on purpose — see the aria-label below. */
 }
 
@@ -139,13 +296,71 @@
   color: var(--color-primary-ink);
 }
 
+/* ── Empty state ──────────────────────────────────────────────────────── */
+
 .entry-chevron {
   flex: 0 0 auto;
   align-self: center;
   color: var(--color-ink-soft);
 }
 
-/* ── Empty state ──────────────────────────────────────────────────────── */
+/* ── The progress strip ──────────────────────────────────────────────────────
+   Five dots on a connector line: how far along the happy path this order is.
+   It exists because collapsing the feed to one card per order threw away the
+   sense of MOVEMENT — five cards said "this happened, and then this, and then
+   this", and one card saying "Out for delivery" does not say how it got there.
+   The strip puts that back in eleven pixels of height instead of five rows of
+   scroll.
+
+   DELIBERATELY NOT COLOUR-CODED ACROSS THREE STATES. The obvious treatment is
+   green-done / blue-now / grey-todo, and the blue is the trap: the brand hue has
+   NO contrast gate, and check-contrast.mjs:694 records that the brand colour is
+   exactly the wrong choice for this job ("selected state borders must use
+   --color-primary-ink, not --color-brand-primary"). Both inks used here are
+   already asserted: --color-primary-ink on cream is 6.82:1 and on the card
+   7.12:1, --color-ink-soft on cream is 6.13:1.
+
+   SO POSITION CARRIES "YOU ARE HERE", NOT COLOUR. "done" and "now" are both
+   solid --color-primary-ink; the current step is distinguished by being LARGER,
+   and "todo" is hollow. That also survives the two ways this app can be viewed
+   at once — a monochrome print, and a colour-blind reader for whom
+   green/blue/grey at 7px is three guesses.
+
+   Hollow rather than filled-pale for "todo": a 7px dot filled with a tint at
+   this size is all but invisible against the card, so the strip would read as
+   three dots and a gap. */
+.entry-progress {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: var(--space-2);
+}
+
+.progress-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  flex: 0 0 auto;
+  background: transparent;
+  /* 1.5px on a 7px circle: thinner and the ring disappears at this size on a
+     non-retina screen, thicker and the dot reads as a blob. */
+  border: 1.5px solid var(--color-ink-soft);
+}
+
+.progress-dot--completed {
+  background: var(--color-primary-ink);
+  border-color: var(--color-primary-ink);
+}
+
+.progress-dot--active {
+  width: 10px;
+  height: 10px;
+  background: var(--color-primary-ink);
+  border-color: var(--color-primary-ink);
+  /* A ring in the card's own fill, so the enlarged dot reads as "this one" at a
+     glance rather than just as "a bigger one". */
+  box-shadow: 0 0 0 2px var(--color-white);
+}
 
 .empty {
   display: flex;
@@ -154,6 +369,13 @@
   text-align: center;
   gap: var(--space-3);
   padding: var(--space-7) var(--space-4);
+  /* Held to the width the page used to be. A centred block of text and one
+     button does not improve by being 1320px wide — it becomes a letterbox with
+     a bell floating in the middle of it — and .empty-text / .empty-note already
+     cap themselves at 46ch and 52ch, so at full page width there would be two
+     different centrelines on screen at once. */
+  max-width: 720px;
+  margin-inline: auto;
   /* 2px, not 1px. A thin border on an 18px curve is rasterised as a chain of
      separately-antialiased segments and breaks up. This is the most visible
      instance in the app, because --color-ink is the darkest border colour
@@ -196,6 +418,12 @@
 
 .scope-note {
   margin: var(--space-5) 0 0;
+  /* Capped to the shared prose measure (68ch) rather than left to run to the
+     1320px page edge. This is a three-line explanation of where the feed comes
+     from, and at full width it becomes four words of text and then a very long
+     walk to the last one. --measure-max is the token global.scss already
+     documents for exactly this. */
+  max-width: var(--measure-max);
   font-size: 0.8125rem;
   color: var(--color-ink-soft);
 }

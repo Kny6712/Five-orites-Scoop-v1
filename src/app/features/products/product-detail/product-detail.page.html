@@ -1,7 +1,7 @@
 <!-- src/app/features/products/product-detail/product-detail.page.html -->
 
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/products" text="Flavors"></ion-back-button>
     </ion-buttons>
@@ -36,7 +36,9 @@
         onerror="this.src = '/assets/placeholder-scoop.svg'"
       />
       <div class="hero-overlay">
-        <ion-badge class="set-badge-hero"> Set {{ product()!.setNumber }} · {{ product()!.setName }} </ion-badge>
+        <ion-badge class="set-badge-hero" [style.background]="setFlavourBackground()">
+          Set {{ product()!.setNumber }} · {{ product()!.setName }}
+        </ion-badge>
       </div>
     </div>
 

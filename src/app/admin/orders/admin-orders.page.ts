@@ -138,18 +138,69 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   readonly statusMeta = ORDER_STATUS_META;
   readonly nextStatus = NEXT_STATUS;
 
-  readonly filterOptions: { label: string; value: OrderStatus | 'all' }[] = [
-    { label: 'All', value: 'all' },
-    { label: 'Pending', value: 'pending' },
-    { label: 'Confirmed', value: 'confirmed' },
-    { label: 'Preparing', value: 'preparing' },
-    { label: 'Delivery', value: 'out_for_delivery' },
-    { label: 'Done', value: 'delivered' },
-    // Cancelled was missing from this list, so a cancelled order could only be
-    // found under "All" — which is exactly the list that goes incomplete once
-    // the shop passes the 100-order read cap.
-    { label: 'Cancelled', value: 'cancelled' },
+  /**
+   * The lifecycle order the status windows are listed in. Cancelled was missing
+   * from the original list, so a cancelled order could only be found under
+   * "All" — which is exactly the list that goes incomplete once the shop passes
+   * the 100-order read cap.
+   */
+  private static readonly FILTER_ORDER: readonly OrderStatus[] = [
+    'pending',
+    'confirmed',
+    'preparing',
+    'out_for_delivery',
+    'delivered',
+    'cancelled',
   ];
+
+  /**
+   * The filter's options: 'All' plus one per status, each carrying how many of
+   * the queued orders it would show.
+   *
+   * THE COUNTS ARE NOT DECORATION — the same argument the customer orders page
+   * makes for its own status dropdown. A list of bare words invites picking the
+   * longest-looking option, and "Cancelled (0)" is a decision in a way that
+   * "Cancelled" is not. On a queue this matters more than on a personal history:
+   * the admin's actual job is "what is left to do", and the number is the whole
+   * answer.
+   *
+   * ZERO COUNTS STAY VISIBLE, matching "Yesterday (0)" on the notifications page
+   * and "Cancelled (0)" on My Orders. Hiding them would make the list reshuffle
+   * as orders move through the lifecycle, and an admin who has never cancelled
+   * an order would never learn the window exists.
+   *
+   * Derived from the whole queue rather than the current page, so the counts do
+   * not change as the admin pages through.
+   *
+   * THE LABELS ARE ADMIN SHORTHAND, not the customer-facing
+   * ORDER_STATUS_META strings. "Delivery" and "Done" are what this queue calls
+   * those states; the customer page's "Out for Delivery" and "Delivered" are a
+   * different voice for a different reader, and borrowing the control from that
+   * page does not mean borrowing its wording.
+   */
+  readonly statusOptions = computed(() => {
+    const counts = new Map<OrderStatus, number>();
+    for (const order of this.allOrders()) {
+      counts.set(order.status, (counts.get(order.status) ?? 0) + 1);
+    }
+    return [
+      { value: 'all' as OrderStatus | 'all', label: 'All', count: this.allOrders().length },
+      ...AdminOrdersPage.FILTER_ORDER.map((status) => ({
+        value: status,
+        label: AdminOrdersPage.FILTER_LABELS[status],
+        count: counts.get(status) ?? 0,
+      })),
+    ];
+  });
+
+  private static readonly FILTER_LABELS: Record<OrderStatus, string> = {
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    preparing: 'Preparing',
+    out_for_delivery: 'Delivery',
+    delivered: 'Done',
+    cancelled: 'Cancelled',
+  };
 
   /**
    * Free-text search across id, customer, address and item names.

@@ -2,7 +2,7 @@
 <!-- Five-orites Scoop — Admin Order Fulfillment -->
 
 <ion-header>
-  <ion-toolbar color="primary">
+  <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
@@ -20,33 +20,102 @@
     <ion-refresher-content></ion-refresher-content>
   </ion-refresher>
 
-  <!-- Status Filter Tabs -->
-  <div class="filter-scroll">
-    <ion-segment [value]="selectedFilter()" (ionChange)="onFilterChange($event)" scrollable class="status-segment">
-      @for (opt of filterOptions; track opt.value) {
-        <ion-segment-button [value]="opt.value">
-          <ion-label>{{ opt.label }}</ion-label>
-        </ion-segment-button>
-      }
-    </ion-segment>
-  </div>
-
   <!--
-    Search, matching the one on Tracking.
+    THE CONTROL ROW. Filter and search share one line rather than stacking as two
+    full-width bands above the table.
 
-    Two admin queues answering "where is order ABC123?" differently depending on
-    which one you opened was the problem; both now search id, customer, address
-    and item name the same way.
+    They were stacked, and the two widths disagreed: the filter is shrink-to-fit
+    (it holds "All (42)"), the searchbar was the only control on the page at full
+    pane width, and the result was a toolbar that read as two unrelated strips
+    rather than one row of controls. One row, one gap, one rhythm.
+
+    `flex-wrap: wrap` is the fallback rather than a fixed second line: the pair is
+    ~120px + ~440px against the ~960px a 390px phone has inside the pane after the
+    drawer, so it fits at every width — but a control whose placeholder is this
+    long should wrap rather than hand the page a horizontal scrollbar.
+
+    NO BOTTOM GAP OF ITS OWN, deliberately. `.table-wrap` below owns the space
+    between this row and the table's top edge, and a second gap here would put two
+    different rhythms one after the other.
+
+    The FILTER is a dropdown rather than the segment it replaced, and it is the
+    same control the customer orders page and the notifications page narrow their
+    lists with. Three reasons, all of which the seven-button strip earned the hard
+    way:
+
+      1. Seven windows do not fit. The segment was `scrollable`, so "Cancelled" —
+          the state an admin goes looking for when a customer calls — lived
+          off-screen behind a horizontal scroll that no desktop-width viewport
+          ever revealed.
+      2. It was the tallest thing on the page. A 64px strip of buttons above a
+          table of 56px rows, on a screen whose whole job is scanning a queue.
+      3. It said nothing about how much was behind each window.
+
+    `interface="popover"` so it opens as a small anchored list rather than a
+    full-screen alert, matching My Orders' status select and the notifications
+    page's period select. The `status-filter-popover` width class is the global one
+    from global.scss, which exists precisely because options carrying counts get
+    clipped by Ionic's default popover width.
+
+    THE COUNTS are computed from the whole queue, not the page, so they do not
+    change as the admin pages through. See statusOptions() for the argument.
   -->
-  <ion-searchbar
-    class="order-search"
-    placeholder="Search order id, customer, address or flavor"
-    [value]="search()"
-    (ionInput)="onSearch($any($event).detail?.value)"
-    (ionBlur)="query.set(search())"
-    (ionKeyDown.enter)="query.set(search())"
-    aria-label="Search orders"
-  ></ion-searchbar>
+  <div class="filter-row">
+    <span class="filter-label" id="status-filter-label">Show</span>
+    <ion-select
+      class="status-select"
+      interface="popover"
+      [interfaceOptions]="{ cssClass: 'status-filter-popover' }"
+      [value]="selectedFilter()"
+      (ionChange)="onFilterChange($event)"
+      aria-labelledby="status-filter-label"
+    >
+      @for (opt of statusOptions(); track opt.value) {
+        <ion-select-option [value]="opt.value">{{ opt.label }} ({{ opt.count }})</ion-select-option>
+      }
+    </ion-select>
+
+    <!--
+      Search, matching the one on Tracking.
+
+      Two admin queues answering "where is order ABC123?" differently depending on
+      which one you opened was the problem; both now search id, customer, address
+      and item name the same way.
+
+      `ionBlur` and `ionKeyDown.enter` both re-commit the query, so the list
+      narrows on blur as well as on Enter — an admin who types a fragment and
+      reaches for the scrollbar gets the filtered queue either way.
+
+      The styling is not on the element and lives in `.order-search` below. This
+      searchbar used to carry NO tokens at all, which is the whole reason it looked
+      unlike every other search field in the app.
+
+      THE PLACEHOLDER IS JUST "Search". It was 44 characters — "Search order id,
+      customer, address or flavor" — which is why the control had to be 320px wide
+      to hold it, and 320px is wider than every other search field in this app
+      (products 220px, inventory 240px). At six characters the field is sized to
+      its content instead, at 220px.
+
+      What was lost is the enumeration, not the capability: `onSearch` above still
+      matches order id, customer, address and item name. The status dropdown
+      beside it now says what the list is being narrowed by, and the Order column
+      header plus the `#LNGVRO` format already say what goes in this box.
+
+      `aria-label` DELIBERATELY DOES NOT MATCH. A placeholder is not reliably used
+      as the accessible name on ion-searchbar — the aria-label is — so the two are
+      allowed to differ, and here they should: the sighted label is the one-word
+      prompt, the announced name is the fuller "Search orders".
+    -->
+    <ion-searchbar
+      class="order-search"
+      placeholder="Search"
+      [value]="search()"
+      (ionInput)="onSearch($any($event).detail?.value)"
+      (ionBlur)="query.set(search())"
+      (ionKeyDown.enter)="query.set(search())"
+      aria-label="Search orders"
+    ></ion-searchbar>
+  </div>
 
   <!-- Loading -->
   @if (isLoading()) {
@@ -212,38 +281,75 @@
               </td>
 
               <td class="col-action">
-                @if (nextStatus[order.status]) {
-                  <ion-button
-                    size="small"
-                    class="row-advance"
-                    (click)="advanceStatus(order)"
-                    [disabled]="updatingId() === order.id"
-                    [attr.aria-label]="
-                      'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + getNextStatusLabel(order.status)
-                    "
-                  >
-                    {{ updatingId() === order.id ? 'Updating...' : getNextStatusLabel(order.status) }}
-                  </ion-button>
-                }
                 <!--
-                  Any-status picker, beside the normal "next step" button.
+                  Two controls, both on the row's own baseline and both from the
+                  SAME tonal-control recipe this page's own filter and search use
+                  (powder fill, powder-deep rim, --radius-sm). The row used to mix
+                  a filled primary ion-button with a bare-text ion-select — two
+                  visual languages in one 100px cell, which is what pushed the
+                  select onto a second line under the button.
 
-                  A phone order handed over in person has no path to Delivered that
-                  does not require four false status changes first.
+                  NEITHER IS A PILL ANY MORE. Both ends were --radius-pill, which
+                  at 30px tall wraps to a 15px semicircle and read as a lozenge —
+                  while the searchbar and the filter dropdown above them were
+                  already --radius-sm. Three corner shapes on one screen; now one.
+
+                  A PLAIN <button>, not an ion-button, for the same reason My Orders
+                  documents: an ion-button brings its own padding, radius and inner
+                  shadow DOM, and every one of those has to be overridden to paint
+                  this shape — each override being somewhere it can leak.
+
+                  THE LABEL NEVER CHANGES. It used to read "Updating..." mid-write,
+                  which is 38px wider than the label it replaced and nudged the pill
+                  out of its column while the row was still being pressed. The busy
+                  state is `[disabled]` + `aria-busy` only, the same call My Orders
+                  made on Cancel for the same reason.
                 -->
-                <ion-select
-                  class="row-status-pick"
-                  interface="popover"
-                  placeholder="Set status"
-                  [value]="order.status"
-                  [disabled]="updatingId() === order.id"
-                  [attr.aria-label]="'Change status of order ' + order.id.slice(-6).toUpperCase()"
-                  (ionChange)="setStatus(order, $any($event).detail.value)"
-                >
-                  @for (s of statusOptionsFor(order); track s) {
-                    <ion-select-option [value]="s">{{ statusMeta[s].label }}</ion-select-option>
+                <div class="row-actions">
+                  @if (nextStatus[order.status]) {
+                    <button
+                      type="button"
+                      class="advance-pill"
+                      [disabled]="updatingId() === order.id"
+                      [attr.aria-busy]="updatingId() === order.id"
+                      [attr.aria-label]="
+                        'Mark order ' +
+                        order.id.slice(-6).toUpperCase() +
+                        ' as ' +
+                        getNextStatusLabel(order.status)
+                      "
+                      (click)="advanceStatus(order)"
+                    >
+                      {{ getNextStatusLabel(order.status) }}
+                      <app-icon name="arrow-right" />
+                    </button>
                   }
-                </ion-select>
+                  <!--
+                    Any-status picker, beside the normal "next step" control.
+
+                    A phone order handed over in person has no path to Delivered
+                    that does not require four false status changes first.
+
+                    It shows the CURRENT status rather than a "Set status"
+                    placeholder. A placeholder here claimed this control was empty
+                    on every row, including rows where it already held the value
+                    the admin could see two columns to the left — so the one
+                    control that could change a status to anything read as unset.
+                  -->
+                  <ion-select
+                    class="row-status-pick"
+                    interface="popover"
+                    [interfaceOptions]="{ cssClass: 'status-filter-popover' }"
+                    [value]="order.status"
+                    [disabled]="updatingId() === order.id"
+                    [attr.aria-label]="'Change status of order ' + order.id.slice(-6).toUpperCase()"
+                    (ionChange)="setStatus(order, $any($event).detail.value)"
+                  >
+                    @for (s of statusOptionsFor(order); track s) {
+                      <ion-select-option [value]="s">{{ statusMeta[s].label }}</ion-select-option>
+                    }
+                  </ion-select>
+                </div>
               </td>
             </tr>
 

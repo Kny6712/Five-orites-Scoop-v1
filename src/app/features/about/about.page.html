@@ -27,23 +27,99 @@
 
   <div class="about-body">
     <!-- ── Our story ──────────────────────────────────────────────────────
-      The heading is centred, and the story runs beside a photo of the shop and
-      a map of where it is.
+      The story runs beside a photo of the shop and a map of where it is.
 
       That pairing is the point of the section. "How Our Business Started" is the
       one heading on this page that describes a place, and it was a block of
       centred-less text with no picture of anywhere — the page had exactly one
       image on it, the logo in the hero. Putting the address next to the founding
       story means the reader learns where this actually is in the same breath as
-      why it exists. -->
-    <section class="story-section">
-      <h2 class="section-heading">{{ story.heading }}</h2>
+      why it exists.
 
+      THE HEADING IS INSIDE .story-copy, not a sibling of .story-split above it.
+      It used to span the full width on its own line, which left it floating ABOVE
+      the photo by a heading's height — the photo is the first child of
+      .story-aside, so the two could not share a top edge no matter how the
+      margins were tuned. In the copy column both start at the same y, because
+      .story-split is `align-items: start`.
+
+      Below 900px the columns stack and .story-copy still comes first, so the
+      heading stays above the paragraphs and the reading order is unchanged.
+
+      THE STORY COLUMN IS FILLED WITH A VALUES ROW, NOT WITH MORE PROSE. It
+      finished about 365px above the photo beside it, which read as a hole. Two
+      paragraphs is the right amount of story for this section, so the space is
+      taken by a 2x2 values row instead - drawn from the client's own wording, so
+      nothing on it claims something the app does not do. A stats row of four
+      figures sat here too and was removed; the values row alone leaves the
+      column about 130px short, which reads as margin rather than as a gap.
+
+      THE MAP SITS IN THE RIGHT-HAND COLUMN under the photo, not on its own row.
+      It was briefly a square map centred full-width below the split and was
+      reverted - it read as an island in the middle of the section. The name
+      triptych sits below the split at full width. -->
+    <section class="story-section">
       <div class="story-split">
         <div class="story-copy">
-          @for (paragraph of story.paragraphs; track $index) {
-            <p class="story-text">{{ paragraph }}</p>
-          }
+          <!--
+            The heading, the sells line and both paragraphs, as ONE grid row.
+
+            They were previously loose children of .story-copy, which meant the
+            values row could only be positioned as "the rest of the column" -
+            it inherited the photo's height as well as the map's and so hung up
+            to 73px above the map's top edge at 1920px wide, with only the
+            bottom edge lined up.
+
+            Wrapping them lets the two halves of the story column map onto the
+            two halves of the photo/map column: text beside the photo, cards
+            beside the map. The cards then inherit EXACTLY the map card's
+            height and align on both edges at once.
+
+            Mobile-neutral: .story-lede is an ordinary block with no margins of
+            its own, so below 900px it adds nothing to the layout.
+          -->
+          <div class="story-lede">
+            <h2 class="section-heading">{{ story.heading }}</h2>
+
+            <!--
+              WHAT WE ACTUALLY SELL, in one line.
+
+              The page used to describe the business's feel in detail and never
+              say what was on the menu - no flavor, no size, no number. A visitor
+              could read the whole page and still not know whether this shop
+              sells ice cream in cups or in tubs. These four figures are the
+              catalogue shape the README and the seeder already record: eight
+              flavor families, 64 seeded products, and the four sizes.
+
+              Not `stats` as a block of tiles - that was tried and removed. As a
+              single quiet line under the heading it answers the question without
+              becoming a widget.
+            -->
+            <p class="story-sells">
+              {{ story.sells.families }} flavor families &middot; {{ story.sells.products }} flavors &middot; Cup, Pint,
+              Half Gallon &amp; Gallon
+            </p>
+
+            @for (paragraph of story.paragraphs; track $index) {
+              <p class="story-text">{{ paragraph }}</p>
+            }
+          </div>
+
+          <!--
+            The values row. Four cards, 2x2 at desktop and stacked on a phone.
+            Every line is the client's own wording from the paragraphs above or
+            from the Mission below, so nothing here claims something the app
+            does not do.
+          -->
+          <div class="story-values">
+            @for (value of story.values; track value.title) {
+              <div class="value-card">
+                <app-icon [name]="value.icon" class="value-icon" />
+                <span class="value-title">{{ value.title }}</span>
+                <span class="value-text">{{ value.text }}</span>
+              </div>
+            }
+          </div>
         </div>
 
         <div class="story-aside">
@@ -72,9 +148,32 @@
           </figure>
 
           <figure class="store-figure store-figure--map">
+            <!--
+              The map is given THE PHOTO'S OWN ASPECT RATIO, and that is the whole
+              reason `ratio` exists on ScoopMapComponent.
+
+              It used to be height="120px" in a ~520px column - a 4.3:1 letterbox
+              showing a strip of road names and none of the surrounding blocks.
+              The obvious repair is a fixed "229px" to match the photo, but a
+              height is a single number and the photo's height is width * 5/8, so
+              the two would agree at exactly one viewport width and drift
+              everywhere else. Keying both to the same WIDTH holds them identical
+              at every size, rotation included: 366x229 at 390px, 500x313 from
+              900px up.
+
+              Deliberately NOT a square, which is worth stating because a square
+              was tried here once and reverted. A 1:1 map at 366px is 43% of a
+              phone viewport for a single element, and it is ~137px taller than
+              the photo, which pushes the hours line - real information - down
+              the page. The two cards are meant to read as one matched pair, and
+              that is worth more than the extra square of map area.
+
+              `square` is still unused on About; it remains what the admin map
+              uses, and it still works.
+            -->
             <app-scoop-map
               [markers]="shopMarkers"
-              height="200px"
+              [ratio]="'8 / 5'"
               ariaLabel="Map showing the location of Five-orites Scoop in Cainta, Rizal"
             />
             <figcaption class="store-caption">
@@ -85,19 +184,32 @@
             </figcaption>
           </figure>
 
-          <p class="store-hours">
-            <app-icon name="clock" />
-            <span>Weekdays {{ hours.weekdays }} &middot; Weekends {{ hours.weekends }}</span>
-          </p>
-          <!-- Whole row hidden while empty: `SHOP_HOURS.phone` is '' and an admin
-               may never have filled the setting in, and printing an empty line
-               reads as a bug rather than as absent information. -->
-          @if (contactPhone()) {
+          <!--
+            The two contact lines live in a wrapper so the right-hand column can
+            be flattened into .story-split at desktop and still occupy exactly
+            ONE grid row. Left as two siblings they would each claim row 3 and
+            overlap each other. The wrapper reproduces the 12px stack gap the
+            flex column used to give them, so a phone number still sits below the
+            hours rather than against them.
+
+            On a phone the wrapper is transparent - it is the same block, in the
+            same place, with the same spacing.
+          -->
+          <div class="store-aside-foot">
             <p class="store-hours">
-              <app-icon name="phone" />
-              <a [href]="'tel:' + contactPhone()">{{ contactPhone() }}</a>
+              <app-icon name="clock" />
+              <span>Weekdays {{ hours.weekdays }} &middot; Weekends {{ hours.weekends }}</span>
             </p>
-          }
+            <!-- Whole row hidden while empty: `SHOP_HOURS.phone` is '' and an admin
+                 may never have filled the setting in, and printing an empty line
+                 reads as a bug rather than as absent information. -->
+            @if (contactPhone()) {
+              <p class="store-hours">
+                <app-icon name="phone" />
+                <a [href]="'tel:' + contactPhone()">{{ contactPhone() }}</a>
+              </p>
+            }
+          </div>
         </div>
       </div>
 
@@ -105,6 +217,11 @@
         The name etymology, lifted out of the middle of the story paragraph. It is
         the most distinctive thing in the copy and read as a wall of text; three
         labelled beats give the page a real visual anchor.
+
+        Full width below the split, which is where it lived originally. It spent a
+        round inside .story-copy, and the values row fills that column instead -
+        a full-width band of three cards also reads better than three cards
+        crammed into a 624px column.
       -->
       <div class="name-triptych">
         @for (item of story.nameMeanings; track item.word) {
@@ -183,17 +300,20 @@
       </div>
     </section>
 
-    <!-- ── Built with ───────────────────────────────────────────────────── -->
-    <section class="tech-section">
-      <h2 class="section-heading">Built With</h2>
-      <div class="tech-chips">
-        @for (tech of techStack; track tech) {
-          <ion-chip color="primary" outline>
-            <ion-label>{{ tech }}</ion-label>
-          </ion-chip>
-        }
-      </div>
-    </section>
+    <!--
+      "Built With" - eight tech chips - used to sit here and was removed.
+
+      This is the page a CUSTOMER opens to learn about an ice cream shop, and
+      Ionic / RxJS / TypeScript were the only part of it that read as a README.
+      They also interrupted the ending: the chips came between "How It Works"
+      and the Meet the Team CTA, which is the one thing on this page that asks
+      the reader to do something. The list itself is unchanged and still true -
+      its natural home is the Developers page.
+
+      Removing it also shortened the page, so .how-section's bottom margin is
+      now the last thing before the CTA rather than being followed by a second
+      block. See .how-section in about.page.scss.
+    -->
 
     <div class="team-cta">
       <p class="team-cta-text">Curious who built this?</p>

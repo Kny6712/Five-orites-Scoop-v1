@@ -45,13 +45,7 @@ import {
   type GeoPoint,
 } from '../../../core/logic/geo';
 
-const STATUS_SEQUENCE: OrderStatus[] = [
-  'pending',
-  'confirmed',
-  'preparing',
-  'out_for_delivery',
-  'delivered',
-];
+import { STATUS_SEQUENCE, stepState, type StepState } from '../../../core/logic/notifications';
 
 @Component({
   selector: 'app-order-tracker',
@@ -346,14 +340,16 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
     await alert.present();
   }
 
-  getStepState(step: OrderStatus): 'completed' | 'active' | 'upcoming' {
-    const current = this.order()?.status;
-    if (!current || current === 'cancelled') return 'upcoming';
-    const currentIdx = STATUS_SEQUENCE.indexOf(current);
-    const stepIdx = STATUS_SEQUENCE.indexOf(step);
-    if (stepIdx < currentIdx) return 'completed';
-    if (stepIdx === currentIdx) return 'active';
-    return 'upcoming';
+  /**
+   * Where `step` sits relative to the order's current status.
+   *
+   * Delegates to the shared `stepState` rather than keeping the branch here.
+   * The notifications feed draws the same five steps as a progress strip, one tap
+   * from this timeline, and two copies of this three-way index comparison is two
+   * chances for a summary to disagree with the thing it summarises.
+   */
+  getStepState(step: OrderStatus): StepState {
+    return stepState(this.order()?.status, step);
   }
 
   getStepTimestamp(step: OrderStatus): string {

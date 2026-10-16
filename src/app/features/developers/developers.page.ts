@@ -26,6 +26,7 @@ import { AppFooterComponent } from '../../shared/components/app-footer/app-foote
 import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
 import { DeveloperService } from '../../core/services/developer.service';
 import { initialsOf } from '../../core/logic/flavor';
+import { TECH_STACK } from '../../core/about-content';
 import type { Developer } from '../../core/models/developer.model';
 
 @Component({
@@ -128,4 +129,13 @@ export class DevelopersPage implements OnInit, OnDestroy {
   }
 
   readonly currentYear = new Date().getFullYear();
+
+  /**
+   * The eight framework chips, rendered in the footer below the credits.
+   *
+   * These lived on the About page until recently and were moved here rather
+   * than deleted — see the comment on `TECH_STACK` in core/about-content.ts for
+   * why the host page changed. The data stays in that file on purpose.
+   */
+  readonly techStack = TECH_STACK;
 }

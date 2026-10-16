@@ -265,3 +265,23 @@ ion-content::part(scroll) {
 ion-content > * {
   flex: 0 0 auto;
 }
+
+/* ── The My Orders status filter's popover ────────────────────────────
+   NOT in orders.page.scss, and the placement is forced. Ionic's overlay
+   controller creates the popover and appends it to ion-app, outside the page's
+   own element, so it carries no _ngcontent attribute — a scoped rule there
+   compiles to a selector that matches nothing and the width silently stays at
+   the default. Same reason .scoop-pin and the ion-toggle overrides already
+   live in this file.
+
+   WHAT IT IS FIXING. The popover's default width is a fixed 200px on iOS and
+   250px on MD, and it does not size to its content or to the select that opened
+   it. The longest option, "Preparing Your Scoops (2)", is ~215px of text plus
+   padding, so the count — the part the control exists to show — was the part
+   getting cut. Measured in the browser, not estimated.
+
+   320px clears that with room for a three-figure count; the vw term caps it on a
+   phone, where a fixed 320px would otherwise exceed the screen. */
+.status-filter-popover {
+  --width: min(320px, 90vw);
+}

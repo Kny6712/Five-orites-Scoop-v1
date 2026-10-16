@@ -54,15 +54,32 @@
   position: absolute;
   top: 10px;
   left: 10px;
-  background: var(--color-brand-primary);
-  /* Plum on the powder fill: 7.20:1, where white was 1.79:1. This badge sits on
-     top of a photograph, so it also has a subtle shadow for separation. */
+  /* The fill is bound per-product from the flavour palette — see
+     `setFlavourBackground` in the component. It deliberately has no `background`
+     declaration here: a static one would win nothing and mislead the next reader
+     into thinking the badge is not tinted. */
+
+  /* Plum on every one of the nine pastels is asserted at >=4.5:1 by
+     check-contrast.mjs (`flavour chip label on <name>`), and --color-ink IS that
+     plum, so this is the same ink the gate already passes. */
   color: var(--color-ink);
   font-size: 11px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 20px;
   letter-spacing: 0.2px;
+
+  /* This badge sits ON TOP OF A PHOTOGRAPH, which is a different problem from the
+     cream-page contrast the gate asserts. Two pale pastels can share a photo:
+     `--flavor-vanilla` (#eee2c4) over a vanilla-coloured ice cream is the worst
+     case, and with only the shadow below the fill visibly dissolves into the
+     image. The hairline is what holds the edge.
+
+     At 22% it is invisible against a mid-tone or dark photo and only reads where
+     it is needed. A 45% border was tried and rejected: it works everywhere and
+     looks like an outline rather than a chip everywhere else. */
+  border: 1px solid rgb(61 43 69 / 22%);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
 }
 
 .wishlist-btn {
@@ -126,6 +143,27 @@
   --padding-top: 4px;
   --padding-bottom: 4px;
   font-size: 11px;
+
+  /* Releasing Ionic's 90px floor is what makes four sizes fit a card at all.
+     Every `ion-segment-button` is 90px wide by default, so four of them need
+     360px while this card's segment is 162-282px wide; `overflow: hidden` on
+     .size-segment then amputated the last button outright. `flex: 1 1 0` makes
+     the four share whatever the card actually has instead of each claiming a
+     fixed slice of a budget none of them can use.
+
+     --padding-start/end are cut to 2px for the same reason: at the default the
+     label's content box was 58px, and "Half Gallon" needs 83. The label text
+     itself is short now (see sizeLabelsShort), so this only has to cover the
+     widest of them.
+
+     Measured after the change: 0px overflow and 0px clipping at card widths of
+     190, 250, 270 and 310px — which is the full range the products grid
+     produces (size="6" on a phone through size-lg="3" on a desktop). */
+  min-width: 0;
+  flex: 1 1 0;
+  --padding-start: 2px;
+  --padding-end: 2px;
+
   // The INDICATOR keeps the brand hue - it is a background, which is what brand
   // hues are for. The LABEL takes ink: checked text measured 1.00:1 on the powder
   // indicator, i.e. invisible. The global rule in global.scss sets this too, but it

@@ -39,14 +39,24 @@ import {
 } from '../src/app/core/logic/firestore-error';
 import {
   buildNotificationFeed,
+  collapseToOrderThreads,
+  type OrderThread,
   countUnread,
+  countUnreadThreads,
+  filterByPeriod,
+  countByPeriod,
+  nextPopulatedPeriod,
   groupByDay,
   relativeTime,
+  absoluteTime,
+  feedTimeLabel,
+  stepState,
   toEpochMs,
   asOrderStatus,
   ORDER_STATUS_NOTICES,
   statusToastLine,
   FEED_LIMIT,
+  STATUS_SEQUENCE,
 } from '../src/app/core/logic/notifications';
 import { readCachedGeo, interpolate, distanceMetres } from '../src/app/core/logic/geo';
 import { productCategory, PRODUCT_CATEGORIES } from '../src/app/core/models/product.model';
@@ -3146,6 +3156,378 @@ describe('groupByDay', () => {
   it('returns nothing for an empty feed', () => {
     assert.deepEqual(groupByDay([], Date.now()), []);
   });
+
+  it('groups any shape carrying `at`, not just FeedEntry', () => {
+    // The generic constraint exists so the collapsed feed can reuse this function.
+    // OrderThread has `at` only on `latest`, so the page maps to a shape like
+    // this one before grouping.
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const threads = [
+      { at: now - 60_000, thread: 'today' },
+      { at: now - 5 * 86_400_000, thread: 'older' },
+    ];
+    assert.deepEqual(
+      groupByDay(threads, now).map((g) => [g.label, g.entries[0].thread]),
+      [
+        ['Today', 'today'],
+        ['Earlier', 'older'],
+      ],
+    );
+  });
+});
+
+describe('collapseToOrderThreads', () => {
+  const DAY = 86_400_000;
+  const at = (base: number) => ({ toMillis: () => base });
+
+  it('collapses one order five status steps into a single thread', () => {
+    // The whole point: a delivered order emits five entries, and the feed
+    // rendered five near-identical cards for it.
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      {
+        id: 'o1',
+        statusHistory: [
+          { status: 'pending', timestamp: at(now - 4 * 3600_000) },
+          { status: 'confirmed', timestamp: at(now - 3 * 3600_000) },
+          { status: 'preparing', timestamp: at(now - 2 * 3600_000) },
+          { status: 'out_for_delivery', timestamp: at(now - 3600_000) },
+          { status: 'delivered', timestamp: at(now - 60_000) },
+        ],
+      },
+    ]);
+
+    assert.equal(entries.length, 5, 'the raw feed really is five events');
+
+    const threads = collapseToOrderThreads(entries);
+    assert.equal(threads.length, 1);
+    assert.equal(threads[0].orderId, 'o1');
+    assert.equal(threads[0].latest.status, 'delivered');
+    assert.equal(threads[0].steps.length, 5);
+    // newest first, so the strip draws left-to-right in the order it happened.
+    assert.deepEqual(
+      threads[0].steps.map((s) => s.status),
+      ['delivered', 'out_for_delivery', 'preparing', 'confirmed', 'pending'],
+    );
+  });
+
+  it('groups by orderId, NOT by adjacency, when another order interleaves', () => {
+    // A at 10:00 and 11:00, B at 10:30. Sorted newest-first the feed is
+    // A@11:00, B@10:30, A@10:00 — so A's two steps are NOT adjacent. A
+    // contiguity scan sees two separate one-step "threads" for A and silently
+    // drops a step from its progress strip, with nothing thrown.
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      {
+        id: 'A',
+        statusHistory: [
+          { status: 'pending', timestamp: at(now - 2 * 3600_000) },
+          { status: 'confirmed', timestamp: at(now - 60_000) },
+        ],
+      },
+      { id: 'B', statusHistory: [{ status: 'pending', timestamp: at(now - 90 * 60_000) }] },
+    ]);
+
+    // Prove the feed really is interleaved, or this test proves nothing.
+    assert.deepEqual(
+      entries.map((e) => e.orderId),
+      ['A', 'B', 'A'],
+    );
+
+    const threads = collapseToOrderThreads(entries);
+    const a = threads.find((t) => t.orderId === 'A');
+    assert.ok(a, 'order A is present');
+    assert.equal(a.steps.length, 2, "both of A's steps survive the interleave");
+    assert.equal(a.latest.status, 'confirmed');
+    assert.equal(threads.length, 2);
+  });
+
+  it('is unread when ANY step is unread, not only the newest', () => {
+    // The read marker is one timestamp over the whole feed, so a thread
+    // straddling it is half-read. Using latest.read alone would drop the bold
+    // exactly when there is something new to see.
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const halfway = now - 60_000;
+    const entries = buildNotificationFeed(
+      [
+        {
+          id: 'o1',
+          statusHistory: [
+            { status: 'pending', timestamp: at(now - 4 * 3600_000) },
+            { status: 'confirmed', timestamp: at(now - 2 * 3600_000) },
+            { status: 'preparing', timestamp: at(halfway) },
+          ],
+        },
+      ],
+      halfway - 1000, // everything before this is read; `preparing` is not
+    );
+
+    const threads = collapseToOrderThreads(entries);
+    assert.equal(threads[0].latest.read, false);
+    assert.equal(threads[0].unread, true);
+    assert.equal(countUnreadThreads(threads), 1);
+  });
+
+  it('files a thread under the day its LATEST step fell on', () => {
+    // The chosen semantics: "Today" means "orders that moved today", which is the
+    // useful reading and the one that matches "what happened just now".
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      {
+        id: 'o1',
+        statusHistory: [
+          { status: 'pending', timestamp: at(now - 5 * DAY) },
+          { status: 'confirmed', timestamp: at(now - DAY - 1000) },
+          { status: 'preparing', timestamp: at(now - 60_000) },
+        ],
+      },
+    ]);
+
+    const threads = collapseToOrderThreads(entries);
+    const groups = groupByDay(
+      threads.map((t) => ({ at: t.latest.at, thread: t })),
+      now,
+    );
+    assert.deepEqual(
+      groups.map((g) => g.label),
+      ['Today'],
+      'one order, one section — not one per day it happened to span',
+    );
+  });
+
+  it('sorts threads by latest step, newest first', () => {
+    const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      { id: 'old', statusHistory: [{ status: 'pending', timestamp: at(now - 5 * 3600_000) }] },
+      { id: 'new', statusHistory: [{ status: 'pending', timestamp: at(now - 60_000) }] },
+    ]);
+    assert.deepEqual(
+      collapseToOrderThreads(entries).map((t) => t.orderId),
+      ['new', 'old'],
+    );
+  });
+
+  it('returns nothing for an empty feed', () => {
+    assert.deepEqual(collapseToOrderThreads([]), []);
+    assert.equal(countUnreadThreads([]), 0);
+  });
+});
+
+describe('stepState', () => {
+  it('marks everything before the current status completed', () => {
+    assert.equal(stepState('preparing', 'pending', STATUS_SEQUENCE), 'completed');
+    assert.equal(stepState('preparing', 'confirmed', STATUS_SEQUENCE), 'completed');
+  });
+
+  it('marks the current status active and the rest upcoming', () => {
+    assert.equal(stepState('preparing', 'preparing', STATUS_SEQUENCE), 'active');
+    assert.equal(stepState('preparing', 'delivered', STATUS_SEQUENCE), 'upcoming');
+  });
+
+  it('marks EVERYTHING upcoming once an order is cancelled', () => {
+    // `cancelled` is a branch off the side of the sequence, not a step along it:
+    // there is no "after", so nothing in the sequence has been reached. This is
+    // also why the card omits the strip entirely for a cancelled order.
+    for (const step of STATUS_SEQUENCE) {
+      assert.equal(stepState('cancelled', step, STATUS_SEQUENCE), 'upcoming');
+    }
+  });
+
+  it('treats an unknown order as having reached nothing', () => {
+    assert.equal(stepState(undefined, 'pending', STATUS_SEQUENCE), 'upcoming');
+  });
+});
+
+describe('filterByPeriod', () => {
+  const DAY = 86_400_000;
+  // Fixed local noon, so the assertions do not depend on the runner's timezone.
+  const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+
+  const feed = () => {
+    const entries = buildNotificationFeed([
+      // Distinct timestamps on purpose. With identical ones the orderId tiebreak
+      // decides, and this test would be asserting that tiebreak rather than the
+      // thing it is here to check: that the right orders land in the bucket.
+      {
+        id: 't1',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 30_000 } }],
+      },
+      {
+        id: 't2',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 60_000 } }],
+      },
+      {
+        id: 'y1',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - DAY - 1000 } }],
+      },
+      {
+        id: 'e1',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 9 * DAY } }],
+      },
+      {
+        id: 'e2',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 30 * DAY } }],
+      },
+    ]);
+    // Threads carry `at` on `.latest`, so the page maps them to the flat `{ at }`
+    // shape `filterByPeriod` constrains on. The tests mirror that mapping rather
+    // than pretending the constraint is looser than it is.
+    return collapseToOrderThreads(entries).map((thread) => ({ at: thread.latest.at, thread }));
+  };
+
+  const ids = (rows: readonly { thread: OrderThread }[]) => rows.map((r) => r.thread.orderId);
+
+  it('returns everything for "all"', () => {
+    assert.equal(filterByPeriod(feed(), 'all', now).length, 5);
+  });
+
+  it('narrows to each of the three buckets', () => {
+    assert.equal(filterByPeriod(feed(), 'today', now).length, 2);
+    assert.equal(filterByPeriod(feed(), 'yesterday', now).length, 1);
+    assert.equal(filterByPeriod(feed(), 'earlier', now).length, 2);
+  });
+
+  it('returns the RIGHT orders, not just the right number', () => {
+    assert.deepEqual(ids(filterByPeriod(feed(), 'today', now)), ['t1', 't2']);
+    assert.deepEqual(ids(filterByPeriod(feed(), 'yesterday', now)), ['y1']);
+    assert.deepEqual(ids(filterByPeriod(feed(), 'earlier', now)), ['e1', 'e2']);
+  });
+
+  it('returns an empty list for a bucket with nothing in it', () => {
+    // Not undefined, not the whole feed. An empty filter result is a real state
+    // the page has to render, and silently falling back to everything would be
+    // indistinguishable from the filter not working.
+    const onlyToday = buildNotificationFeed([
+      {
+        id: 't1',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 60_000 } }],
+      },
+    ]);
+    assert.deepEqual(filterByPeriod(onlyToday, 'yesterday', now), []);
+    assert.deepEqual(filterByPeriod(onlyToday, 'earlier', now), []);
+  });
+
+  it('never aliases its input for "all"', () => {
+    // The caller hands this the service's own array. Returning it unchanged would
+    // let a future sort() on the result reorder the service's signal in place.
+    const input = feed();
+    const out = filterByPeriod(input, 'all', now);
+    assert.notStrictEqual(out, input);
+    assert.deepEqual(ids(out), ids(input));
+  });
+
+  it('files an 11pm order under Today, not Yesterday', () => {
+    // The filter must not disagree with the headings about where midnight is.
+    const late = new Date(2026, 2, 10, 23, 0, 0, 0).getTime();
+    const entries = buildNotificationFeed([
+      {
+        id: 'x',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => late - 60_000 } }],
+      },
+    ]);
+    assert.equal(filterByPeriod(entries, 'today', late).length, 1);
+    assert.equal(filterByPeriod(entries, 'yesterday', late).length, 0);
+  });
+});
+
+describe('countByPeriod', () => {
+  const DAY = 86_400_000;
+  const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+
+  it('counts each bucket and never exceeds the whole', () => {
+    const entries = buildNotificationFeed([
+      {
+        id: 'a',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 60_000 } }],
+      },
+      {
+        id: 'b',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - DAY - 1000 } }],
+      },
+      {
+        id: 'c',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 8 * DAY } }],
+      },
+      {
+        id: 'd',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 20 * DAY } }],
+      },
+    ]);
+    const counts = countByPeriod(entries, now);
+    assert.deepEqual(counts, { all: 4, today: 1, yesterday: 1, earlier: 2 });
+    assert.equal(counts.today + counts.yesterday + counts.earlier, counts.all);
+  });
+
+  it('reports zeroes for an empty feed rather than undefined', () => {
+    // These numbers are printed on the filter control. An undefined would render
+    // as "undefined" next to a label, or silently disappear.
+    assert.deepEqual(countByPeriod([], now), { all: 0, today: 0, yesterday: 0, earlier: 0 });
+  });
+});
+
+describe('nextPopulatedPeriod', () => {
+  const DAY = 86_400_000;
+  const now = new Date(2026, 2, 10, 12, 0, 0, 0).getTime();
+
+  const counts = (today: number, yesterday: number, earlier: number) => ({
+    all: today + yesterday + earlier,
+    today,
+    yesterday,
+    earlier,
+  });
+
+  it('prefers the most recent window, however few entries the older ones hold', () => {
+    // The whole point: a user on an empty "Today" is sent to the newest thing
+    // that actually happened, not to the fullest bucket. Returning 'earlier' here
+    // because it holds more would dump them in an archive.
+    assert.equal(nextPopulatedPeriod(counts(1, 3, 40)), 'today');
+  });
+
+  it('skips empty windows rather than stopping at them', () => {
+    assert.equal(nextPopulatedPeriod(counts(0, 2, 9)), 'yesterday');
+    assert.equal(nextPopulatedPeriod(counts(0, 0, 9)), 'earlier');
+  });
+
+  it('returns null only when every window is empty', () => {
+    assert.equal(nextPopulatedPeriod(counts(0, 0, 0)), null);
+    assert.equal(nextPopulatedPeriod({ all: 0, today: 0, yesterday: 0, earlier: 0 }), null);
+  });
+
+  it('ignores counts.all', () => {
+    // `all` is the length of the whole feed, so checking it would answer "is
+    // there anything at all" — which is always yes by the time this is called,
+    // and says nothing about WHERE. A table where the buckets are zero but `all`
+    // is not must still read as empty rather than sending the user to a window
+    // that has nothing in it.
+    assert.equal(nextPopulatedPeriod({ all: 500, today: 0, yesterday: 0, earlier: 0 }), null);
+  });
+
+  it('treats a negative count as empty rather than populated', () => {
+    // `> 0`, not truthiness. A negative would be a bug upstream, but it must not
+    // be able to make this function name a window as having content.
+    assert.equal(nextPopulatedPeriod({ all: 3, today: -1, yesterday: -1, earlier: 0 }), null);
+  });
+
+  it('agrees with countByPeriod on a real feed', () => {
+    // The two halves of the escape hatch: the button's label comes from
+    // countByPeriod and its destination from nextPopulatedPeriod. If they
+    // disagreed, the empty state could send the user to a window the dropdown
+    // is simultaneously claiming is empty.
+    const entries = buildNotificationFeed([
+      {
+        id: 'a',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - DAY - 1000 } }],
+      },
+      {
+        id: 'b',
+        statusHistory: [{ status: 'pending', timestamp: { toMillis: () => now - 20 * DAY } }],
+      },
+    ]);
+    const counted = countByPeriod(entries, now);
+    assert.deepEqual(counted, { all: 2, today: 0, yesterday: 1, earlier: 1 });
+    assert.equal(nextPopulatedPeriod(counted), 'yesterday');
+    assert.ok(countByPeriod(entries, now)[nextPopulatedPeriod(counted)!] > 0);
+  });
 });
 
 describe('relativeTime', () => {
@@ -3171,6 +3553,81 @@ describe('relativeTime', () => {
     // Clock skew, or a server timestamp ahead of the device. "in 3m" would be
     // inventing a fact; "just now" is the truthful reading.
     assert.equal(relativeTime(now + 3 * 60_000, now), 'just now');
+  });
+});
+
+describe('absoluteTime', () => {
+  // Local-time components throughout, because the formatter reads the LOCAL
+  // year, month and clock — the same "today is what a person means by it" rule
+  // `groupByDay` follows. Constructing these from UTC epochs would make every
+  // assertion timezone-dependent.
+  const now = new Date(2026, 9, 15, 14, 34, 0).getTime(); // Oct 15 2026, 2:34 PM
+
+  it('omits the year for a same-year timestamp and keeps the clock time', () => {
+    const at = new Date(2026, 9, 15, 12, 0, 0).getTime();
+    const out = absoluteTime(at, now);
+    assert.ok(!out.includes('2026'), `expected no year, got ${out}`);
+    assert.ok(/\d{1,2}:\d{2}/.test(out), `expected a clock time, got ${out}`);
+  });
+
+  it('includes the year once the timestamp is from an earlier year', () => {
+    const at = new Date(2025, 8, 3, 8, 5, 0).getTime();
+    assert.ok(absoluteTime(at, now).includes('2025'));
+  });
+
+  it('keeps the year across a New Year boundary', () => {
+    // Dec 31 seen from Jan 2 is two days old but a whole year behind. Dropping
+    // the year there would date the row to next December — the one case the
+    // conditional exists for.
+    const jan2 = new Date(2026, 0, 2, 9, 0, 0).getTime();
+    const dec31 = new Date(2025, 11, 31, 23, 30, 0).getTime();
+    assert.ok(absoluteTime(dec31, jan2).includes('2025'));
+  });
+
+  it('renders nothing for an unusable timestamp', () => {
+    // buildNotificationFeed drops these before they reach here; the guard is
+    // so a component can never render "Invalid Date" if one ever does.
+    assert.equal(absoluteTime(NaN, now), '');
+    assert.equal(absoluteTime(Number.POSITIVE_INFINITY, now), '');
+  });
+});
+
+describe('feedTimeLabel', () => {
+  const now = new Date(2026, 9, 15, 14, 34, 0).getTime(); // Oct 15 2026, 2:34 PM
+
+  it('pairs the relative label with the absolute one in the named day windows', () => {
+    const at = new Date(2026, 9, 15, 13, 40, 0).getTime();
+    for (const period of ['today', 'yesterday', 'all'] as const) {
+      const out = feedTimeLabel(at, period, now);
+      assert.ok(out.includes(' · '), `expected the pair, got ${out}`);
+      assert.ok(out.startsWith('54m'), `expected the relative label first, got ${out}`);
+    }
+  });
+
+  it('shows the absolute date alone in the Earlier window', () => {
+    // "1d · Oct 13, 10:43 PM" says the same thing twice inside a window whose
+    // entire definition is "older than yesterday".
+    const at = new Date(2026, 9, 13, 22, 43, 0).getTime();
+    assert.equal(feedTimeLabel(at, 'earlier', now), absoluteTime(at, now));
+  });
+
+  it('drops the duplicated bare date for a week-old row in Earlier', () => {
+    // Past a week `relativeTime` degrades to a bare date, and the pair was
+    // printing it twice: "Sep 30 · Sep 30, 9:55 AM".
+    const at = new Date(2026, 8, 30, 21, 55, 0).getTime();
+    const out = feedTimeLabel(at, 'earlier', now);
+    const datePart = absoluteTime(at, now).split(',')[0];
+    assert.equal(times2Count(out, datePart), 1, `expected the date once, got ${out}`);
+  });
+
+  it('keeps the relative label for an old row when the window is not Earlier', () => {
+    // 'all' cannot be reached from the dropdown, but it is a valid FeedPeriod,
+    // and the relative half is what ranks a fresh row against a very old one
+    // there — the one job the absolute date cannot do. The cost, for the
+    // record: its oldest rows repeat their date. Unobservable while the
+    // dropdown offers three windows, and the line to revisit if 'all' returns.
+    const at = new Date(2026, 8, 30, 21, 55, 0).getTime();
+    assert.ok(feedTimeLabel(at, 'all', now).includes(' · '));
   });
 });
 

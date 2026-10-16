@@ -20,6 +20,7 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonChip,
+  IonPopover,
   AlertController,
   ToastController,
   ModalController,
@@ -34,6 +35,7 @@ import { Subscription } from 'rxjs';
 import { InventoryService } from '../../core/services/inventory.service';
 import { Product, SizeVariant, StockLevel } from '../../core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+import { flavourBackground } from '../../core/logic/flavour-colour';
 import { totalStock } from '../../core/logic/stock';
 import { ShopSettingsService } from '../../core/services/shop-settings.service';
 import { slug } from '../../core/logic/csv-import';
@@ -79,6 +81,7 @@ const EMPTY_CATALOGUE_MAX_SET = 0;
     IonCardHeader,
     IonCardTitle,
     IonChip,
+    IonPopover,
     AppIconComponent,
     EmptyStateComponent,
     PaginationComponent,
@@ -88,49 +91,6 @@ const EMPTY_CATALOGUE_MAX_SET = 0;
   ],
   templateUrl: './inventory.page.html',
   styleUrls: ['./inventory.page.scss'],
-  /*
-    The set-filter chip row, copied verbatim from admin/users
-    (.role-chips / .role-chip / .role-chip.active) rather than written fresh, so
-    the two admin surfaces look like one app instead of a shared design system
-    with two implementations of it.
-
-    In the decorator and not in inventory.page.scss because that file is outside
-    the ownership boundary of this change; the rules are the same three blocks,
-    and they can move next to .inv-header in the stylesheet whenever the file is
-    next opened. No `.active` rule of its own is needed on top of these — the
-    pressed state is the filled pill, exactly as on /admin/users.
-  */
-  styles: [
-    `
-      .role-chips {
-        display: flex;
-        gap: var(--space-2);
-        margin-top: var(--space-3);
-        flex-wrap: wrap;
-      }
-
-      .role-chip {
-        min-height: 38px;
-        padding: 0 var(--space-4);
-        border-radius: var(--radius-pill);
-        border: 1px solid var(--color-primary-ink);
-        background: transparent;
-        color: var(--color-primary-ink);
-        font: inherit;
-        font-size: 13px;
-        font-weight: 700;
-        cursor: pointer;
-        transition:
-          background-color 0.15s ease,
-          color 0.15s ease;
-      }
-
-      .role-chip.active {
-        background: var(--color-brand-primary);
-        color: var(--color-ink);
-      }
-    `,
-  ],
 })
 export class InventoryPage implements OnInit, OnDestroy {
   private inventoryService = inject(InventoryService);
@@ -176,6 +136,15 @@ export class InventoryPage implements OnInit, OnDestroy {
    * carries, and it is what the cards already show beside the set name.
    */
   readonly setFilter = signal<number | 'all'>('all');
+  readonly setPopoverOpen = signal(false);
+
+  openSetPopover(): void {
+    this.setPopoverOpen.set(true);
+  }
+
+  closeSetPopover(): void {
+    this.setPopoverOpen.set(false);
+  }
 
   /**
    * Everything the SEARCH admits, with the set filter deliberately not applied.
@@ -292,6 +261,19 @@ export class InventoryPage implements OnInit, OnDestroy {
    */
   readonly totalStock = totalStock;
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
+
+  /**
+   * Each card's set chip painted in its flavour pastel, the same colour the
+   * storefront card and product detail use.
+   *
+   * Exposed as a method rather than a precomputed map because it is called from
+   * the template per product and every product already carries its own set name;
+   * a map would be a second copy of that fact. The admin grid is the densest place
+   * an owner scans many flavours at once, which is exactly where "read it as a
+   * colour" earns its keep — with one shared powder fill, every set chip looked
+   * identical and the flavour was readable only from the text beneath it.
+   */
+  readonly flavourBackground = flavourBackground;
   /**
    * The admin-editable threshold.
    *
@@ -430,6 +412,65 @@ export class InventoryPage implements OnInit, OnDestroy {
     } finally {
       this.busySizeId.set(null);
     }
+  }
+
+  /**
+   * Type a stock figure directly, instead of tapping +/- one unit at a time.
+   *
+   * The steppers move by 1, so restocking a flavour that had gone to zero meant
+   * one tap per unit — a hundred taps to put back a hundred. This takes the whole
+   * number at once. It is the common case and the steppers are for the small
+   * corrections either side of it, so the numbers are now the primary target and
+   * the buttons sit on the cell edges around them.
+   *
+   * An AlertController prompt rather than an inline <input> in the cell: nine
+   * cells per card, and an input swapping in place would fight the snapshot
+   * repaint that fires when the write lands. The prompt also gets the numeric
+   * keypad on Android for free, which an inline field does not.
+   *
+   * Accepts an empty or non-numeric entry as "no change" and closes — a cancel
+   * should not be something an admin has to think about. Clamped to >= 0 because
+   * the write is a delta and a negative target would otherwise pass through as an
+   * increase.
+   */
+  async promptSetStock(product: Product, size: SizeVariant): Promise<void> {
+    if (this.busySizeId()) return;
+
+    const alert = await this.alertCtrl.create({
+      header: this.sizeLabels[size],
+      message: product.variantName,
+      inputs: [
+        {
+          name: 'qty',
+          // No `step` — not a field on Ionic's AlertInput type, and type: 'number'
+          // already raises the numeric keypad on Android. Rounding is applied in
+          // the handler below instead.
+          type: 'number',
+          min: 0,
+          placeholder: '0',
+          value: String(product.stock[size]),
+        },
+      ],
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Save',
+          handler: (data: { qty?: string }) => {
+            const next = Number(data.qty);
+            if (!Number.isFinite(next) || data.qty === undefined || data.qty.trim() === '') {
+              return;
+            }
+            const delta = Math.max(0, Math.round(next)) - product.stock[size];
+            if (delta !== 0) {
+              void this.adjustStock(product, size, delta);
+            }
+          },
+        },
+      ],
+    });
+
+    await alert.present();
+    await alert.onDidDismiss();
   }
 
   /**

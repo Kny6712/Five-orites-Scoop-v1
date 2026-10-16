@@ -26,6 +26,54 @@
   </ion-refresher>
 
   <div class="page">
+    @if (!isEmpty()) {
+      <!--
+        The period filter. A DROPDOWN of three windows — Today, Yesterday,
+        Earlier — rather than the four-tab segment this replaces, and rather than
+        a select over all four.
+
+        Three, not four: `all` was a bucket of last resort, not a window. With
+        the tabs it earned its place by being the only option that showed the
+        user anything at once. Behind an arrow it does not — what the control is
+        actually asking is "which window do I want", and "everything" is not an
+        answer to that the way "today" is. So the three named windows are the
+        options and the feed opens on the first of them.
+
+        `interface="popover"` so this opens as a small anchored list rather than
+        a full-screen alert, matching the products page's flavor/size/price
+        selects — the app's one pattern for narrowing a list, which this is now
+        part of too.
+
+        Counts ride along in the option text rather than in a styled span: options
+        inside the popover render as plain text, so there is nothing for a class
+        to hook. "Earlier" is an unbounded catch-all where the other two are
+        typically 0-5, and the count is what makes picking it a decision.
+
+        `onFilterChange` (not `[value]` + a two-way binding) because the filter
+        owns a side effect the binding cannot express — resetting the pager, which
+        nothing else will do.
+
+        NOTE THIS BAR IS NOT STICKY, unlike the products filter bar. That page
+        has a long grid to scroll through; this one is a single window of at most
+        twelve orders in three rows, so a control pinned to the top would be
+        permanently on screen over content that fits anyway.
+      -->
+      <div class="filter-row">
+        <span class="filter-label" id="period-label">Show</span>
+        <ion-select
+          class="period-select"
+          interface="popover"
+          [value]="filter()"
+          (ionChange)="onFilterChange($event)"
+          aria-labelledby="period-label"
+        >
+          @for (opt of filterOptions(); track opt.value) {
+            <ion-select-option [value]="opt.value">{{ opt.label }} ({{ opt.count }})</ion-select-option>
+          }
+        </ion-select>
+      </div>
+    }
+
     @if (isEmpty()) {
       <!--
         The empty state states the SCOPE rather than just "nothing here". A user
@@ -46,36 +94,120 @@
         </p>
         <ion-button routerLink="/orders" class="empty-action">View my orders</ion-button>
       </div>
+    } @else if (filterIsEmpty()) {
+      <!--
+        A DIFFERENT emptiness from the one above, and conflating the two is the
+        trap this page has to avoid. The feed is NOT empty — the user has
+        history, they have narrowed to a window that happens to be empty, and
+        "No notifications yet" would be a false claim about their whole account.
+
+        THIS IS THE STATE THE PAGE NOW OPENS ON for anyone whose orders did not
+        move today, which is most people who open it. That is the price of
+        defaulting to Today, and it is why this branch has to be genuinely useful
+        rather than a polite dead end.
+
+        So it names the window they are in and hands back a one-tap route to the
+        newest window that HAS something in it — not a generic "show everything",
+        which no longer exists as an option and could not be offered truthfully
+        even if the button wanted to. `rescuePeriod` reads the same counts that
+        label the dropdown, so the button cannot point at a window the control
+        claims is empty.
+
+        Guarded on `rescuePeriod` rather than assumed: an empty feed is handled
+        above and has nothing to jump to, so this branch must not render a button
+        that leads nowhere.
+      -->
+      <div class="empty">
+        <span class="empty-icon" aria-hidden="true">
+          <app-icon name="calendar" [iconSize]="40" />
+        </span>
+        <h2 class="empty-title">Nothing {{ activePeriodLabel().toLowerCase() }}</h2>
+        <p class="empty-text">None of your orders moved in this period.</p>
+        @if (rescuePeriod(); as rescue) {
+          <ion-button fill="outline" class="empty-action" (click)="showRescuePeriod()">
+            {{ rescueLabel() }}
+          </ion-button>
+        }
+      </div>
     } @else {
       @for (group of groups(); track group.label) {
-        <h2 class="day-label">{{ group.label }}</h2>
+        <!--
+          NO DAY HEADING. There used to be a TODAY / YESTERDAY / EARLIER <h2>
+          here, guarded by `@if (filter() === 'all')` — and duplicated, because
+          the guard wrapped one copy and a second unconditional one sat below it,
+          so every heading on the "All" view rendered twice.
+
+          It is gone for a better reason than that bug, though. The period control
+          is now a dropdown naming one window, and each window maps to exactly one
+          group, so this loop can produce at most one section. A heading repeating
+          the word the user just chose is the same word twice, immediately above
+          the thing it is labelling.
+
+          What the heading used to carry that the control does not — "which of
+          these moved today and which have not" — only existed on "All", and "All"
+          no longer exists.
+        -->
         <ul class="feed">
-          @for (entry of group.entries; track entry.id) {
+          @for (thread of group.entries; track thread.orderId) {
             <li>
               <!--
                 A button, not a routerLink on the <li>. It is a real control, so it
                 is reachable by keyboard and announced as one; and it has to do
                 work on activation (mark read) before navigating, which a plain
                 link cannot.
+
+                ONE CARD PER ORDER, not per status event. `buildNotificationFeed`
+                emits an entry per statusHistory step, so a delivered order
+                produces five of them and the feed used to show five near-identical
+                cards for one order — each linking to the tracker that already
+                draws that progression as a timeline. Everything below reads from
+                `thread.latest`, which is the order's current state; the strip is
+                what carries "and it got here by these steps".
               -->
               <button
                 type="button"
-                [class]="entryClasses(entry)"
-                [attr.aria-label]="entryAriaLabel(entry)"
-                (click)="open(entry)"
+                [class]="entryClasses(thread)"
+                [attr.aria-label]="entryAriaLabel(thread)"
+                (click)="open(thread)"
               >
                 <span class="entry-dot" aria-hidden="true"></span>
                 <span class="entry-body">
                   <span class="entry-head">
-                    <span class="entry-title">{{ entry.title }}</span>
+                    <span class="entry-title">{{ thread.latest.title }}</span>
                     <!-- aria-hidden: the accessible name is built in entryAriaLabel,
                          where "12m" can be expanded to "12 minutes ago". Reading a
                          bare abbreviation here would be the only place in the app
-                         where a screen reader says "12m" with no unit. -->
-                    <span class="entry-time" aria-hidden="true">{{ ago(entry) }}</span>
+                         where a screen reader says "12m" with no unit.
+
+                         The whole cluster — relative label, middot, absolute date —
+                         comes from `entryTime`, which drops the relative half in the
+                         "Earlier" window where it only restates the date. entryAriaLabel
+                         was always absolute-only, so the spoken name still matches the
+                         row whatever the window. -->
+                    <span class="entry-time" aria-hidden="true">{{ entryTime(thread) }}</span>
                   </span>
-                  <span class="entry-text">{{ entry.body }}</span>
-                  <span class="entry-order">Order {{ shortOrderId(entry.orderId) }}</span>
+                  <span class="entry-text">{{ thread.latest.body }}</span>
+                  <!--
+                    Where this order sits in the happy path. aria-hidden because
+                    entryAriaLabel already names the current status in words, and
+                    the intermediate steps are one tap away on the tracker — reading
+                    all five out per card would turn a scannable list into a
+                    monologue.
+
+                    SKIPPED ENTIRELY FOR A CANCELLED ORDER. `cancelled` is a branch
+                    off the side of the sequence, not a step along it, so a strip of
+                    five would show a progress bar for a journey that stopped. The
+                    red .entry--alert border is the whole message instead, which is
+                    also how the tracker terminates its own timeline.
+                  -->
+                  @if (thread.latest.status !== 'cancelled') {
+                    <span class="entry-progress" aria-hidden="true">
+                      @for (step of statusSequence; track step) {
+                        <span class="progress-dot" [class]="'progress-dot--' + stepStateFor(thread, step)"></span>
+                      }
+                    </span>
+                  }
+                  <span class="entry-order">Order {{ shortOrderId(thread.orderId) }}</span>
                 </span>
                 <app-icon name="chevron-right" class="entry-chevron" />
               </button>
@@ -85,8 +217,9 @@
       }
 
       <!--
-        Paged over entries, so the day headings above describe only the rows
-        beneath them and the unread badge still counts the whole feed.
+        Paged over ORDERS, so the pager's readout and the rows above it are
+        always describing the same set, and the unread badge still counts the
+        whole feed rather than this window.
       -->
       <app-pagination
         [page]="page()"

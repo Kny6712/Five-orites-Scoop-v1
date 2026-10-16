@@ -175,10 +175,49 @@ export class DashboardPage implements OnInit, OnDestroy {
   readonly LOW_STOCK_PAGE_SIZE = 12;
   readonly lowStockPage = signal(1);
 
+  /**
+   * The low-stock rows for the current page.
+   *
+   * This was briefly an `filteredLowStock()` sandwiched between the two, driving a
+   * per-size filter row that has since been removed. The intermediate is gone with
+   * it: the service already pre-filters to products with at least one size under
+   * the threshold (see `InventoryService.subscribeToLowStock`), so a second filter
+   * on the client could only ever remove rows, never add a missing one.
+   */
   readonly pagedLowStock = computed(() => {
     const start = (this.lowStockPage() - 1) * this.LOW_STOCK_PAGE_SIZE;
     return this.lowStockProducts().slice(start, start + this.LOW_STOCK_PAGE_SIZE);
   });
+
+  /**
+   * The class list for one per-size stock pill.
+   *
+   * WHY THIS IS A METHOD AND NOT A TEMPLATE EXPRESSION. The obvious binding,
+   * `[class.stock-chip-empty]="product.stock.halfGallon === 0"`, combined with the
+   * static `class="stock-chip-sm"` already on the element, made every one of these
+   * four chips long enough that prettier split the element's own closing tag across
+   * two lines:
+   *
+   *     >½ Gal: {{ product.stock.halfGallon }}</ion-chip
+   *   >
+   *
+   * which is unreadable and would have to be re-broken by hand after every edit.
+   * Binding `[class]` alone — with the base class supplied by this method — keeps
+   * each chip on one line.
+   *
+   * THE TWO DO NOT COMBINE. A `[class]` binding REPLACES the element's class
+   * attribute wholesale rather than adding to it, so leaving `class="stock-chip-sm"`
+   * on the element as well would be an either/or, not a merge. That is why the base
+   * class is returned from here instead of being written on the element.
+   *
+   * Zero is separated from low so a manager can see, down a column of rows, what is
+   * actually GONE rather than what merely needs restocking. It is a fill change
+   * only — same size, same radius, same label — so the list does not turn into a
+   * colour chart.
+   */
+  chip(qty: number): string {
+    return qty === 0 ? 'stock-chip-sm stock-chip-empty' : 'stock-chip-sm';
+  }
 
   constructor() {
     this.authService.currentUser$.pipe(takeUntilDestroyed()).subscribe((user) => {

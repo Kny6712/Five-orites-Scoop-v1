@@ -26,8 +26,10 @@
 }
 
 .set-badge-hero {
-  background: var(--color-brand-primary);
-  /* Plum on the powder fill: 7.20:1. */
+  /* Fill is bound per-product from the flavour palette — see
+     `setFlavourBackground` in the page. Plum on every one of the nine pastels is
+     asserted >=4.5:1 by check-contrast.mjs. Unlike the card badge this one sits on
+     the page rather than on a photograph, so it needs no border to hold its edge. */
   color: var(--color-ink);
   font-size: 12px;
   font-weight: 600;

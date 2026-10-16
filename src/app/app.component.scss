@@ -85,8 +85,31 @@
   text-shadow: var(--display-sticker-shadow);
 }
 
+/* PLUM, like the brand line directly above it, and this is a fix rather than a
+   preference.
+
+   `--color-ink-soft` (#6b5875) was 3.18:1 on the periwinkle end of
+   --gradient-brand and 3.68:1 on the mint end. At 12px semibold this is NOT
+   large text — WCAG calls that 18.66px bold or 24px regular — so it needs
+   4.5:1 and it failed at every point along the gradient.
+
+   It went unnoticed because check-contrast.mjs never asserted the pair. The
+   brand line's colour was reasoned about carefully in the comment above (white
+   measured 1.79:1, hence plum); the tagline below it was simply missed, and
+   `html[data-contrast='high']` already overrides --color-ink-soft to #4a3a54,
+   which clears 5.15:1 — so the app had a working fix for this and only behind
+   an opt-in setting.
+
+   Plum measures 6.40:1 and 7.41:1 on the two ends. Both are now asserted in
+   check-contrast.mjs, so this cannot silently regress the way it did once.
+
+   The cost is that the tagline is now the same colour as the brand name above
+   it. At 24px retro against 12px semibold, and with the gold sticker shadow on
+   the brand line, the hierarchy still reads — but it is a real trade, and a
+   dedicated ~#50425A would keep a lighter step at 4.60:1 if that separation is
+   wanted more than the simpler token. */
 .menu-tagline {
-  color: var(--color-ink-soft);
+  color: var(--color-ink);
   font-size: 12px;
   margin: 0;
   font-weight: 600;

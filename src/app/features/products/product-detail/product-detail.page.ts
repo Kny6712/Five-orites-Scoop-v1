@@ -43,6 +43,7 @@ import { PaginationComponent } from '../../../shared/components/pagination/pagin
 import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
 import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
+import { flavourBackground } from '../../../core/logic/flavour-colour';
 import { ShopSettingsService } from '../../../core/services/shop-settings.service';
 
 interface SizeOption {
@@ -124,6 +125,15 @@ export class ProductDetailPage implements OnInit, OnDestroy {
     { key: 'halfGallon', label: SIZE_DISPLAY_LABELS.halfGallon },
     { key: 'gallon', label: SIZE_DISPLAY_LABELS.gallon },
   ];
+
+  /**
+   * The set badge painted in this product's flavour pastel — the same colour the
+   * product card uses, so the two storefront surfaces agree.
+   *
+   * Computed over the `product` signal, so it is null-safe while the document is
+   * still loading and repaints when one arrives.
+   */
+  readonly setFlavourBackground = computed(() => flavourBackground(this.product()));
 
   /**
    * True when the loaded review set hit the query's cap, so the count and

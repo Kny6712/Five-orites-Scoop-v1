@@ -2,13 +2,23 @@
 // Five-orites Scoop — Products page filter bar & grid
 
 // ── Filter Bar ─────────────────────────────────────────
+// Container query: layout depends on actual content width (accounts for sidebar).
+.filter-shell {
+  container-type: inline-size;
+}
+
 .filter-bar {
   position: sticky;
   top: 0;
   z-index: 10;
   background: var(--color-white);
-  padding: 8px 0 4px;
+  padding: 8px 12px 10px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  row-gap: 6px;
 }
 
 // ── Search Bar ──────────────────────────────────────────
@@ -18,79 +28,47 @@
   --box-shadow: none;
   --placeholder-opacity: 0.55;
   display: block;
-  width: 100%;
-  max-width: 300px;
+  width: 220px;
+  max-width: 100%;
+  flex: 0 0 220px;
   padding: 0 8px;
-  margin: 0 8px;
+  margin: 0;
 }
 
-// ── Flavor Chips ────────────────────────────────────────
-.set-chips-scroll {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 4px 12px 8px;
-  scrollbar-width: none;
+/* The searchbar has NO VISIBLE FOCUS RING, and this is the fix.
 
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
+   WCAG 2.4.7 Focus Visible (AA). The app's global `:focus-visible` rule in
+   variables.scss is a DOCUMENT-level selector, and this input lives inside
+   ion-searchbar's shadow root — a document-level rule cannot cross that boundary,
+   so the global ring never reaches it. ion-searchbar does not replace it either:
+   its own stylesheet sets `.searchbar-input { outline: none }`, deleting the
+   user-agent ring, and ships no focus style of its own.
 
-.set-chip {
-  flex-shrink: 0;
-  font-size: 13px;
-  height: 30px;
-  --color: var(--color-ink);
-  --flavor: var(--flavor-all);
-  transition:
-    background-color 0.15s ease,
-    box-shadow 0.15s ease;
-
-  ion-label {
-    color: var(--color-ink);
-    font-weight: 600;
-  }
+   The net effect was that tabbing into the filter bar showed nothing at all on the
+   very first control. `::part()` is the only way in from here. The `::part(native)`
+   fallback is for the native `<input>` in browsers using the legacy shadow root,
+   and is ignored where the part does not exist. */
+.product-searchbar:focus-within .searchbar-input,
+.product-searchbar:focus-within {
+  border-radius: 10px;
+  box-shadow: 0 0 0 3px var(--color-primary-ink);
+  outline: none;
 }
 
-.set-chip--chocolate {
-  --flavor: var(--flavor-chocolate);
-}
-.set-chip--vanilla {
-  --flavor: var(--flavor-vanilla);
-}
-.set-chip--strawberry {
-  --flavor: var(--flavor-strawberry);
-}
-.set-chip--mango {
-  --flavor: var(--flavor-mango);
-}
-.set-chip--ube {
-  --flavor: var(--flavor-ube);
-}
-.set-chip--mint {
-  --flavor: var(--flavor-mint);
-}
-.set-chip--coffee {
-  --flavor: var(--flavor-coffee);
-}
-.set-chip--cookies-cream {
-  --flavor: var(--flavor-cookies-cream);
-}
-.set-chip--pistachio {
-  --flavor: var(--flavor-pistachio);
+ion-searchbar.product-searchbar::part(native):focus-visible {
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: -1px;
 }
 
-.set-chip-active {
-  background: var(--flavor);
-  border: 1px solid color-mix(in srgb, var(--flavor) 70%, #000);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.set-chip-idle {
-  background: color-mix(in srgb, var(--flavor) 28%, var(--color-white));
-  border: 1px solid color-mix(in srgb, var(--flavor) 60%, var(--color-white));
-}
+// ── Filter Bar ─────────────────────────────────────────
+// The set-filter CHIP ROW lived here and is gone: the same filter is now the
+// "Flavors" select in .select-panel below, so .set-chips-scroll, .set-chip and
+// its nine --flavor-* pastel modifiers were deleted with it.
+//
+// `--flavor-*` itself is NOT dead — the flavour chips in check-contrast.mjs assert
+// those nine pastels, and the set swatch on a product card is built from the same
+// token. Only the chip rules that consumed them here are gone. `.set-chip-sm` in
+// admin/inventory is a different class and was never touched.
 
 .filter-label {
   font-size: 14px;
@@ -98,17 +76,53 @@
   font-weight: 500;
 }
 
+/* THE SORT CAPTION NEVER WRAPS, at any width.
+
+   It did, and the reason was not a layout mistake — it was that this element did
+   not carry the `sort-label` class at all. It had `id="sort-label"` and nothing
+   else, so every `.sort-label { … }` rule in this file matched nothing: not the
+   hide on phones, not the hide on laptops, and not the `white-space: nowrap`
+   that was supposed to keep it on one line. The caption rendered at its default
+   inline wrapping at every width and broke "Sort by" across two lines, which is
+   what it had been doing since the container-query rewrite.
+
+   Two lessons, both worth keeping:
+   1. `white-space: nowrap` belongs on the BASE rule, not inside a container
+      query. It is a property of the text, not of the layout tier, and putting it
+      in a tier means the property is only as reliable as that tier matching.
+   2. The rules were invisible because a rule matching nothing looks exactly like
+      a rule working. Nothing failed, so nothing was reported. The class has to
+      exist before any of this means anything. */
+.sort-label {
+  white-space: nowrap;
+}
+
 // ── Filters (switches + selects) ────────────────────────
+/* A flex item of .filter-bar, so it sits BESIDE the search field and the
+   toggles instead of on its own line. `padding: 0` because the horizontal
+   inset is now the .filter-bar's own padding — leaving 12px here on top of it
+   would push the selects 12px right of the search field that used to sit
+   above them, which is the misalignment the old comment on the search bar was
+   written to prevent.
+
+   `max-width: 100%` is the part that keeps the phone layout intact: without it
+   the fixed 190px tracks inside could push this item wider than the row and
+   force a horizontal scrollbar instead of wrapping. */
 .filters {
-  padding: 0 12px 4px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 0 0 auto;
+  max-width: 100%;
 }
 
 .switch-rows {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  flex: 0 0 auto;
+  max-width: 100%;
+  grid-template-columns: repeat(2, 150px);
+  justify-content: start;
   gap: 6px;
 }
 
@@ -118,8 +132,27 @@
   gap: 5px;
   padding: 5px 8px;
   background: var(--tile-powder);
+
+  /* --tile-powder is 1.15:1 against white, which this file's own header records
+     as a failure. Without an edge, this row does not read as a control — it is a
+     pale wash that dissolves into the page. The rim is the same fix the KPI tiles
+     use, and the two filter surfaces in the app now look related. */
+  border: 2px solid var(--tile-powder-deep);
   border-radius: var(--radius-xs);
   min-width: 0;
+
+  /* 48px, and this is the whole reason the two filter surfaces looked
+     mismatched. `.select-row` declares `min-height: 32px` but renders at 48px,
+     because that is the height Ionic's own ion-select produces; the toggle row
+     had no min-height at all and sat at 30px (5px padding either side of a 20px
+     toggle). Measured across nine viewport widths from 390px to 1920px, the
+     gap was 18px at EVERY one of them — same width, different height, which is
+     why the row of controls never read as one band.
+
+     `min-height` rather than a fixed `height` because the toggle and its label
+     both centre inside this flex row; pinning the height outright would clip
+     rather than centre, and the text is what has to stay whole. */
+  min-height: 48px;
 }
 
 .switch-icon {
@@ -128,31 +161,75 @@
   flex: 0 0 auto;
 }
 
-.switch-label {
+/* The toggle's own label text, now SLOTTED into it rather than a sibling <label>.
+
+   The type moves here from the old `.switch-label` rule, which no longer has an
+   element to style. `cursor: pointer` is gone deliberately: the label is no longer
+   a separate element claiming to be clickable, and the row is not a button either.
+   What IS clickable is the toggle, and the text now lives inside it. */
+.switch-toggle {
+  /* `flex: 1`, NOT `margin-left: auto` any more — and that change is forced by
+     the slotted label rather than stylistic.
+
+     When the label was a sibling `<label>`, the toggle held only the switch, so
+     pushing the toggle right with `margin-left: auto` correctly held the switch
+     against the far edge while the text stayed beside its icon. Now the toggle
+     CONTAINS that text, so `margin-left: auto` would push the text away from the
+     icon and the two would stop reading as a pair. Growing to fill the row instead
+     lets Ionic's own `justify-content: space-between` do the work inside the host:
+     label at the left, switch at the right. */
+  flex: 1;
+
+  /* The type moves here from the old `.switch-label` rule, which no longer has an
+     element to style. `cursor: pointer` is gone deliberately: the label is no
+     longer a separate element claiming to be clickable, and the row is not a button
+     either. What IS clickable is the toggle, and the text now lives inside it. */
   font-size: 12px;
   font-weight: 700;
   color: var(--color-ink);
-  white-space: nowrap;
+  --color: var(--color-ink);
+  --color-checked: var(--color-primary-ink);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
-  cursor: pointer;
-}
+  white-space: nowrap;
 
-.switch-toggle {
-  flex: 0 0 auto;
-  margin-left: auto;
+  /* These two were dead. Ionic 7 sizes the modern track with SCSS constants, not
+     custom properties — `var(--width)` / `var(--height)` appear nowhere in its
+     toggle stylesheets — and app.config.ts sets `mode: 'md'`, so the rendered
+     switch is 36x14, not the 42x26 this asked for. Left in place with the reason,
+     because removing them would look like tidying and would change nothing.
+
+     The real fix for the size was the slotted label in the template, which
+     enlarges the host's hit box. What is left here is the focus ring, which
+     nothing else can supply. */
   --width: 42px;
   --height: 26px;
 }
 
+/* The toggle has NO VISIBLE FOCUS RING. WCAG 2.4.7 Focus Visible (AA).
+
+   Same mechanism as the searchbar above: the track the eye sees is inside the
+   shadow root, so the document-level `:focus-visible` rule in variables.scss
+   cannot reach it. Ionic's own fallback styles a 1x1px visually-hidden `<input>`,
+   so nothing visible appears either.
+
+   `.ion-focused` is the class Ionic puts on the host once the inner input takes
+   focus, and `::part(track)` is the only handle on the visible element from the
+   light DOM. */
+ion-toggle.switch-toggle.ion-focused::part(track) {
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
 // ── Select Panel ────────────────────────────────────────
-/* Three selects in a compact two-column grid.
+/* Three selects — Flavors, Size, Max price — in ONE row, sized to their content.
    Uses popover interface so tapping a select opens a small
    anchored list instead of a full-screen alert. */
 .select-panel {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 150px);
+  justify-content: start;
   gap: 5px;
   padding: 0;
 }
@@ -164,6 +241,10 @@
   min-width: 0;
   padding: 0 8px;
   background: var(--tile-powder);
+
+  /* The same rim as .switch-row — see the note there. Both are control surfaces
+     painted in a token this file already rejects at 1.15:1 against white. */
+  border: 2px solid var(--tile-powder-deep);
   border-radius: var(--radius-xs);
   min-height: 32px;
 }
@@ -184,17 +265,87 @@
   font-size: 12px;
   font-weight: 700;
   color: var(--color-primary-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-@media (max-width: 420px) {
-  .select-panel {
-    grid-template-columns: 1fr;
-  }
-}
+/* ── One-row filter band ────────────────────────────────────────────────
+   1450px, and this one IS arithmetic — unlike the 604px note above, which is
+   not (see below).
 
+   `.filter-bar` already wraps, so one row appears on its own once the
+   controls fit. What it cannot decide on its own is whether they SHOULD fit:
+   wrap has no floor, so below some width it happily squeezes the toggles until
+   their labels ellipsise. Measured on a ladder of descending widths, the exact
+   point where that happens is 160px — "Wishlist only" renders whole at 160px
+   and as "Wishlist o..." at 150px. This block supplies the floor so the band
+   goes to two rows rather than to truncated text.
+
+   The arithmetic, against a content box that is the viewport less the ~403px
+   sidebar:
+
+     5 controls x 160px floor   = 800px
+     4 gaps between them x 6px =  24px
+     2 group gaps x 10px        =  20px
+     .filter-bar padding        =  24px
+     search, pinned at 128px    = 128px
+                                -----
+                                990px content  ->  ~1375px viewport
+
+   1375 is measured rather than derived, by stepping the viewport one pixel at a
+   time: labels render whole down to 1375px and clip to "Wishlist o..." at
+   1370px. A lower number here would quietly reintroduce exactly the truncation
+   this band exists to prevent, and a higher one would drop a screen that
+   genuinely fits.
+
+   160px is not a round number someone picked. It is measured: on a ladder of
+   descending widths, "Wishlist only" renders whole at 160px and becomes
+   "Wishlist o..." at 150px. That width is icon (15px) + gap (5px) + padding
+   and border (24px) + the toggle's own 36px switch + the 78px of label text.
+   Nothing in that list is decorative — dropping the icon would save 20px and
+   still leave it short, and the label text itself is not negotiable.
+
+   Which leaves the search field as the only thing that can give, and it is the
+   right thing to give: a flavour is found by one word ("ube", "choco"), not by
+   a sentence, so a 128px field is not a downgrade. It is also why the
+   placeholder is shortened to "Search" in the template — "Search flavors" needs
+   roughly twice that width and would clip to nothing.
+
+   The search field keeps its existing 300px here rather than being narrowed to
+   reach a lower breakpoint. Squeezing it to 180px would bring the band down to
+   ~1450px, but the search is the control people reach for most and it was never
+   the thing that looked wrong; trading it for a layout that merely repeats on
+   smaller screens is the wrong trade. At a user's reported 1379px (measured
+   with DevTools docked, which eats roughly half the window) this band does not
+   left the 1379px band on two rows. That was trading the one control nobody
+   complained about to preserve a layout nobody had seen yet. Pinning the
+   search buys the single row on every desktop without shortening a single
+   label.
+
+   The 3:2 flex ratio is what makes all five controls the SAME width rather than
+   three sharing one share of the space and two the other. It divides the
+   leftover after the search field in proportion to how many controls each group
+   holds, so every track lands on the same size — measured a 1px spread, which
+   is the two different gap values rounding, not a real difference.
+
+   There is deliberately NO `min-width` on the groups. An earlier version used one
+   as a floor and it backfired: flexbox decides line breaks from flex BASIS, so
+   a basis of 0 never let the search shrink, the two groups fell onto their own
+   lines and inflated to 561px. Pinning the search's own basis to 128px is what
+   keeps all three on one line. */
 // ── Sort ────────────────────────────────────────────────
 /* A clean underline segment — the active button gets a 2px
-   indicator bar and bolder weight; inactive ones stay quiet. */
+   indicator bar and bolder weight; inactive ones stay quiet.
+
+   SOURCE ORDER IS LOAD-BEARING. Every rule in this block is overridden by a
+   container query further down, so it has to come FIRST. It used to sit after
+   them, which meant `.filter-actions { flex: 0 0 auto }` and `.sort-segment
+   { flex: 1 }` won on equal specificity and silently defeated every tier
+   override — .filter-actions could not shrink, so it rendered 1567px wide
+   inside a 390px phone bar and pushed 1189px of horizontal scroll onto the
+   page. Nothing about that looked like a CSS ordering bug in a screenshot;
+   it looked like a broken phone layout. */
 .sort-row {
   display: flex;
   align-items: center;
@@ -223,11 +374,12 @@
   }
 }
 
-// ── Clear All ───────────────────────────────────────────
-.clear-row {
+.filter-actions {
   display: flex;
-  justify-content: flex-end;
-  padding: 0 8px 2px;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: 0;
 }
 
 .clear-btn {
@@ -238,6 +390,239 @@
 }
 .clear-btn app-icon {
   --icon-size: 14px;
+}
+
+/* ── Filter bar tiers (container queries) ──────────────────────────────────
+   Layout depends on the CONTENT width of .filter-shell, not the viewport.
+   The app shell is an ion-split-pane whose menu is 280px at md and wider in
+   practice, so a viewport media query measures the wrong box: at a 1024px
+   viewport the filter bar has roughly 744px to work with, which is below every
+   breakpoint that a viewport query would have keyed on.
+
+   Four tiers, each measured rather than guessed:
+
+     <620px    phone stack. One control per row, paired where it reads well.
+     620-979   tablet. STILL STACKED — see the note on that band.
+     980-1399  the band this file spent most of its life trying to reach:
+               search + all five controls on line 1, sort + clear on line 2.
+     >=1400    the true single row.
+
+   Why 1400 and not 980. A single row has to fit five controls whose floors sum
+   to 694px (see the track table below) plus a 180px search, plus a sort
+   cluster that Ionic will not shrink below ~520px, plus 40px of gaps and
+   padding: ~1434px. At 980 the single row simply does not exist, and asking for
+   it is what produced the overlap this file used to ship. Two lines that read
+   correctly beat one line that collides.
+
+   WHY THE CONTROLS USED TO OVERLAP, since the fix is not obvious from the
+   result. `.filters` was `flex: 1 1 auto; min-width: 0`. That `min-width: 0`
+   is the defect: it let the flex item shrink to ZERO while its grid still
+   declared five tracks with hard minimums. A grid whose tracks cannot fit its
+   own box does not shrink the tracks — it overflows, and the overflow painted
+   straight over .filter-actions. Measured at a 1363px content width, the five
+   controls rendered across x=200..874 while .filter-actions occupied x=475..1351:
+   a 399px overlap, at EVERY width from 1024 to 1920. `min-width: min-content`
+   turns the track minimums back into a floor the flexbox has to respect.
+
+   And `.filter-actions` was `flex: 0 0 auto`, so it could neither grow nor
+   shrink, while the `.sort-segment` inside it is `flex: 1` and therefore
+   demands its max-content width. The pair measured 876-1596px of pure greed,
+   which is what starved `.filters` in the first place.
+
+   THE TRACK FLOORS, measured. These are each control's min-content width,
+   read off the rendered rows (chrome + icon + label + value + switch):
+
+     Flavors        96px      Size           109px
+     Max price     143px      In stock only  163px
+     Wishlist only 167px
+
+   Floors are set just above those numbers. They are load-bearing: `1fr` alone
+   lets a track shrink to nothing and ellipsise every label, which is the
+   failure mode the floors exist to prevent. Note "Max price" needs 143, not the
+   ~115 an earlier pass assumed — its value ("Any price") is wider than either
+   other select's.
+
+   A previous version of this file ALSO overrode the toggle floors with
+   `repeat(5, minmax(130px, 1fr))` at 1200px, silently dropping "Wishlist only"
+   from 167px to 130px and truncating it on wide screens — the widest screens
+   being the ones with room for it. Equal tracks are not the same as adequate
+   tracks; the floors differ because the controls differ. */
+
+/* Tier 1 — phone. One control per row, pairs where the pair reads well. */
+@container (max-width: 619px) {
+  .product-searchbar {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+  .filters {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .select-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  .flavor-row {
+    grid-column: 1 / -1;
+  }
+  .switch-rows {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .filter-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+
+    /* The caption is hidden on a phone for SPACE, not for width: this bar is
+       sticky and already stacks to five rows, so a caption that fits horizontally
+       is still a sixth row. Everywhere else it stays — see the base
+       `.sort-label` rule. It remains in the DOM either way, so aria-labelledby on
+       the segment resolves at every width, including here. */
+    flex-wrap: wrap;
+  }
+  .sort-label {
+    display: none;
+  }
+
+  /* Sort takes a row of its own so the four buttons can share the full width
+     (4 x ~91px renders "Featured" whole); Clear all drops to the next line,
+     right-aligned. It only exists when a filter is active, so the common case
+     is one row shorter than this mock suggests. */
+  .sort-row {
+    flex: 1 1 100%;
+  }
+  .clear-row {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
+
+@container (max-width: 330px) {
+  .select-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Tier 2 — tablet, 620-979. Deliberately NOT the five-across row.
+
+   At 620px there are ~596px of content box. Five tracks at their floors need
+   694px, so something has to give: measured, the toggles collapsed to "In…"
+   and "Wi…", which are worse than useless — they read as broken rather than
+   abbreviated. Stacking instead spends vertical space (a tablet has it) and
+   keeps every label whole. */
+@container (min-width: 620px) and (max-width: 979px) {
+  .product-searchbar {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+  .filters {
+    flex: 1 1 100%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .select-panel {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .switch-rows {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .filter-actions {
+    flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+}
+
+/* Tier 3 — desktop, 980-1399. The chosen two-line band. */
+@container (min-width: 980px) {
+  .filter-bar {
+    /* NOT nowrap. The single row starts at 1400; below that the bar wraps and
+       the sort cluster drops to line 2. */
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .product-searchbar {
+    /* 180, not the 140 an earlier pass used. At 140 the placeholder rendered as
+       "Sear" — the search is the control people reach for most and it must
+       read. */
+    flex: 0 0 180px;
+    width: 180px;
+    max-width: 180px;
+  }
+  .filters {
+    /* `min-content` BASIS, not just a min-width. flexbox breaks lines from the
+       flex basis, so with `auto` the grid's max-content width forced .filters
+       onto its own row at ~1024px and the bar went to three lines. Basing it at
+       min-content keeps it beside the search while still letting it grow to
+       fill line 1. */
+    flex: 1 1 min-content;
+    min-width: min-content;
+    display: grid;
+    grid-template-columns:
+      minmax(100px, 1fr) minmax(112px, 1fr) minmax(146px, 1fr)
+      minmax(166px, 1fr) minmax(170px, 1fr);
+    gap: 6px;
+  }
+  .select-panel,
+  .switch-rows {
+    display: contents;
+  }
+
+  /* Shrinkable, and pushed to the right. This cluster was the thing that ate
+     the bar; letting it shrink is half the fix. */
+  .filter-actions {
+    flex: 0 1 auto;
+    min-width: 0;
+    margin-left: auto;
+  }
+  .sort-row {
+    padding: 0;
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  /* No `.sort-label` rule here, deliberately. An earlier version hid the caption
+     across this whole band to give the sort buttons ~55px. That was measured with
+     the caption ALREADY hidden, so the number it produced could not be checked
+     against a visible caption — and the band turns out not to need it: row 2 is
+     full-width at every width in it, and the caption (55) + gap (8) + a segment
+     wide enough for "Featured" whole (510) + "Clear all" (97) comes to ~670
+     against ~956 available at 1024. Re-measured after the class fix, not
+     assumed; the segment still clears its labels across the band. */
+  .sort-segment {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .sort-segment ion-segment-button {
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+  .sort-segment ion-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .clear-row {
+    padding: 0;
+  }
+}
+
+/* Tier 4 — wide. The single row, which needs ~1434px to actually fit. */
+@container (min-width: 1400px) {
+  .filter-bar {
+    flex-wrap: nowrap;
+  }
 }
 
 // ── Product Grid ────────────────────────────────────────

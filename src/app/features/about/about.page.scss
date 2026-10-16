@@ -97,6 +97,11 @@
 }
 
 .hero-cta {
+  /* The BUTTON's fill, not a card surface. Deliberately --color-white and not
+     --color-card: this sits on the hero photograph under a 70% white scrim, so
+     an ivory pill would read as a tinted smudge against the ice cream. It is
+     also a custom property consumed by ion-button, not a `background`
+     declaration, so it was never part of the card tint. */
   --background: var(--color-white);
   --color: var(--color-primary-ink);
   --border-radius: var(--radius-pill);
@@ -109,11 +114,74 @@
 /* Capped and centred. This was full-bleed at every width, so on a tablet or a
    desktop every card on the page stretched edge to edge and the paragraphs ran
    to 200 characters — while Profile on the next screen capped itself at 640px.
-   --container-max is the shared answer. */
+   --container-max is the shared answer.
+
+   1200px, NOT the shared --container-max (1080px). At 1080 this column centres
+   inside a ~1355px content area and leaves ~145px of dead cream down BOTH sides,
+   which on the About page reads as a large empty gutter on the left of the story
+   rather than as margin. 1200px cuts that to ~77px.
+
+   Scoped to this selector on purpose: --container-max is shared with
+   Developers, .container and .page-shell, so changing the token would widen
+   every page at once. `.story-text` below is widened in the same commit for the
+   same reason — see the note there. */
 .about-body {
-  max-width: var(--container-max);
+  max-width: 1200px;
   margin: 0 auto;
   padding: var(--space-5) var(--space-4) var(--space-6);
+
+  /* ── The section divider ────────────────────────────────────────────────
+     One dotted rule between every section on this page. It exists because the
+     page had become one unbroken column: seven blocks of content, all the same
+     width on the same background, with only a heading to say a new one had
+     started. The rule makes the bands legible at a glance.
+
+     THE TOKEN NOW LIVES IN variables.scss, not here. It was declared on
+     .about-body and referenced six times, which kept this page self-consistent
+     but made the rule unreachable from anywhere else — the Developers page
+     wanted the same divider and could not have had it without re-typing the
+     value. Promoted once it is genuinely shared, and the six uses below are
+     unchanged; the weight and colour now change in one place for every page.
+
+     The reasoning for 3px over 2px, and for --color-primary-ink over the pastel
+     --color-brand-primary, moved with it and lives beside the token. */
+
+  /* ── The card surface ───────────────────────────────────────────────────
+     A warm ivory instead of --color-white, on the nine card types below.
+
+     #fffcee, chosen from four candidates by measured contrast rather than by
+     eye. The ratios below are against this colour, computed on the live DOM:
+
+       --color-ink  (titles, 14-18px)   12.52:1   AAA
+       --ion-color-medium (body, 13px)   4.79:1   AA, 0.29 over the floor
+       --tile-blush  on this card        1.14:1   (1.17:1 on white)
+       --tile-mint   on this card        1.09:1   (1.12:1 on white)
+
+     WHY THIS ONE AND NOT THE OTHERS. Three were tried and rejected:
+
+       #ffceee  3.59:1 on 13px body text - FAILS AA outright.
+       #fffee0  4.81:1 passes, but reads lemony (blue channel at 224).
+       #fef8e0  4.62:1 passes on a 0.12 margin, and pulls the icon tiles down
+                to 1.06 / 1.10 where they become near-invisible.
+       #fffcee  4.79:1 with the widest margin, and because it is so pale the
+                pastel tiles measure essentially as they do on white - so the
+                tiles stay as they are and this page keeps matching every other
+                page in the app. Its trade is that the warmth is subtle rather
+                than obvious; #fef8e0 is the one to pick if the colour change
+                needs to be SEEN rather than merely present.
+
+     THE 13px MARGIN IS NOT MUCH. 4.79:1 clears 4.5:1 by 0.29. If the body
+     text colour or this surface is ever adjusted, re-measure - `npm run
+     check:contrast` cannot help, it reads a hardcoded palette table and never
+     looks at the stylesheets.
+
+     THE TOKEN NOW LIVES IN variables.scss, not here. This note used to end
+     "Scoped here rather than added to variables.scss: this is one page's card
+     tint, and --color-white is still correct everywhere else" — true while
+     About was the only consumer, and false once the Developers cards adopted
+     the same hex. Two definitions of one card colour is exactly the drift that
+     file exists to prevent. The hex, the rejected candidates and the reasoning
+     all moved with it; the six uses below are unchanged. */
 }
 
 .section-heading {
@@ -124,23 +192,85 @@
   margin: 0 0 var(--space-3);
 }
 
-/* Was .section-heading--center, applied only to the story heading. Removed: that
-   heading spans the full .story-section width, so centring it pushed it away
-   from the copy it introduces and above the image column. Left, it lands flush
-   with .story-text, matching the four other .section-heading rules on this page. */
-
 // ── Story: copy beside the shop ──────────────────────────
-/* Every other section in .about-body owns the space below it (.mv-section and
-   .features-section --space-6, .how-section --space-4, .tech-section
-   --space-3), and .about-body is a plain block flow with no gap — so without
-   this the name triptych runs straight into the Mission & Vision grid. */
+/* ── Section rhythm ──────────────────────────────────────────────────────
+   Every top-level block below carries the same three declarations, so the page
+   reads as a stack of clearly separated bands rather than one long column:
+
+     border-top   the dotted rule (see --section-divider on .about-body)
+     padding-top  48px of air between the rule and the first content
+     margin-top   48px of air between the previous band and this rule
+
+   WHY margin-top AND margin-bottom are both set. Adjacent siblings' margins
+   COLLAPSE, so the 32px .story-section used to carry would have won against
+   the 24px here and the gaps would have stayed uneven. Pinning every section
+   to the same pair makes each boundary read as an identical
+   48px / rule / 48px rhythm whatever two sections meet.
+
+   48px, AND THIS NUMBER WAS EARNED. The rhythm has been 24px, then 32px, and
+   both were reported as still feeling tight — 32px separated the bands without
+   making the page feel open. Measured on the live DOM at 1440px, 24px left a
+   24px gap between a paragraph's last line and the next rule, and 32px left 32.
+   48px is --space-7, already a token.
+
+   48px IS THE LARGEST STEP IN THE TOKEN SCALE, so there is nowhere further to
+   go without inventing a value. If a future change wants more air than this,
+   the honest options are a new token or a taller section, not a bigger number
+   on this rule.
+
+   The page is NOT made wider to achieve this. At 1440px the content column is
+   1022px, and that is not the 1200px max-width above being hit — it is the
+   280px ion-split-pane sidebar taking its cut. The max-width does not engage
+   until somewhere between a 1520px and a 1920px viewport (measured: 1079px at
+   1520, 1200px at 1920). So raising max-width would change nothing at the
+   widths this page is actually read at, and widening the column for real would
+   mean collapsing the sidebar here alone, which no other page does. Vertical
+   air is the only lever, and it is the right one.
+
+   A border-top rather than a ::before, deliberately: .mv-section is a grid, and
+   a ::before on a grid container is a grid ITEM. It would have been auto-placed
+   into a column and pulled the auto-fit track count around. A border paints
+   above every item and cannot do that.
+
+   .features-section appears TWICE (For Ice Cream Lovers, then For Our Team), so
+   this one rule draws the divider above each. That is wanted: those two grids
+   are otherwise identical, and before this the second read as a continuation of
+   the first rather than as a section of its own.
+
+   .story-section keeps margin-top:0 because .about-body's own padding already
+   clears the hero's wave-drip swell. Its border-top is still wanted - that is
+   the line between the hero and the story. */
+.story-section,
+.mv-section,
+.features-section,
+.how-section {
+  border-top: var(--section-divider);
+  padding-top: var(--space-7);
+  margin-top: var(--space-7);
+  margin-bottom: var(--space-7);
+}
+
 .story-section {
-  margin-bottom: var(--space-6);
+  margin-top: 0;
 }
 
 /* Below 900px the aside stacks under the text. Above it, they sit side by side,
    because a founding story with the location next to it is the pairing that
-   makes the section worth the space. */
+   makes the section worth the space.
+
+   `align-items: start` is what lets the story heading and the photo share a top
+   edge: .story-copy holds the heading as its first child, .story-aside holds the
+   photo as its first child, and both start at the top of the row. Remove this
+   and the grid stretches both columns to the row height, pushing the heading's
+   baseline off the photo's top edge again.
+
+   .story-aside holds the photo, the map and the hours line. The map was briefly
+   pulled out into a full-width square row of its own and has been returned -
+   at 520x520 it was about 400px taller than the letterbox below, and centred on
+   its own row it read as an island in the middle of the section. The map now
+   carries the photo's own 8:5 ratio instead, and at 900px+ the two columns are
+   made to finish on the SAME line - see the display:contents block, which is
+   what puts the values row's bottom edge exactly on the map's. */
 .story-split {
   display: grid;
   grid-template-columns: 1fr;
@@ -149,9 +279,140 @@
 }
 
 @media (min-width: 900px) {
+  /* 1.2fr, not the old 1.35fr. The container went from 1080px to 1200px, so a
+     1.35fr split handed the copy column ~657px — past the 72ch measure above,
+     which would have left ~50px of dead space between the text and the photo.
+     At 1.2fr the copy column lands at ~620px and the aside grows to ~500px,
+     which is the better outcome anyway: the photo column was visibly
+     under-filling beside the text. */
   .story-split {
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr);
-    gap: var(--space-5);
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 1fr);
+    column-gap: var(--space-5);
+    /* The two gaps are no longer the same value. Row 1->2 is the photo-to-map
+       gap, which the flex .story-aside used to set to --space-3, so it keeps
+       --space-3 rather than inheriting the wider column gap. */
+    row-gap: var(--space-3);
+    /* Three explicit rows so the figures and the hours can each be pinned. The
+       base rule defines no rows, so without this every placement below would
+       land on an implicit row instead. */
+    grid-template-rows: auto auto auto;
+
+    /* stretch, not start - and this REVERSES the rule above, which said start
+       was what let the heading and the photo share a top edge.
+
+       start is still what gives them a shared top edge, but only because a
+       start-aligned item is exactly as tall as its content. It also meant the
+       story column could never be taller than the photo/map column, so the
+       values row stopped wherever its own content ended - up to 243px short of
+       the map's bottom edge at 1920px wide. Stretch lets the copy column take
+       the height of the rows it spans, which is the whole point below.
+
+       The heading still sits at the very top of that taller box, so the top
+       edge is unmoved. */
+    align-items: stretch;
+  }
+
+  /* FLATTEN THE RIGHT-HAND COLUMN INTO THE GRID.
+
+     The values row has to finish on the map's bottom edge, exactly. Reaching
+     that by stretching .story-aside's flex column is not possible, because its
+     last child is the hours line - the column ends 29px BELOW the map, so the
+     cards would land 29px past it.
+
+     `display: contents` drops the wrapper's own box and promotes its children
+     to grid items of .story-split, so the map figure can be told to sit on row
+     2 while the hours sit on row 3. Because .story-copy is given rows 1 / span
+     2, and the map is row 2, the two bottoms coincide BY CONSTRUCTION rather
+     than by a tuned number - which is why it still holds at any width.
+
+     Scoped to this breakpoint on purpose: on a phone the wrapper stays a real
+     flex column, so its 12px gaps and the reading order are untouched.
+
+     EVERY selector in this block is qualified with `.story-split`, and that is
+     load-bearing rather than decorative. A media query adds NO specificity, and
+     this file declares .story-aside, .story-copy, .store-figure,
+     .store-aside-foot and .story-values AGAIN, further down the file, after
+     this block. At equal specificity the later rule wins, so the first version
+     of this change silently did nothing except for the one property that
+     happened not to be redeclared - which is how the map ended up 114px wide
+     while every other rule looked correct. Qualifying every selector puts
+     these at 0,2,0 and the later base rules stay at 0,1,0. */
+
+  .story-split .story-aside {
+    display: contents;
+  }
+
+  /* Same trick as the aside above, applied to the story column: drop the
+     wrapper's box so the lede and the values row each become a grid item.
+
+     The column then splits across the two rows the right-hand column already
+     occupies - text beside the photo, cards beside the map. It used to span
+     rows 1 AND 2, which handed the values row the photo's height on top of the
+     map's and left it hanging 73px above the map's top edge at 1920px wide. */
+  .story-split .story-copy {
+    display: contents;
+  }
+
+  /* Text fills the photo's row. Stretch is inherited from align-items, so the
+     spare height falls below the last paragraph rather than above the heading -
+     the heading keeps its top edge flush with the photograph. */
+  .story-split .story-lede {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .story-split .store-figure {
+    grid-column: 2;
+    grid-row: 1;
+    /* align-self:start is load-bearing. Rows 1 and 2 are sized by their
+       content, but on a narrow desktop the COPY column is the taller of the
+       two, and a spanning grid item's extra height is distributed into the rows
+       it spans. Without this the photo and map cards would stretch to fill
+       those rows and lose the 8:5 match that .store-art and the map's ratio
+       share - the fix would trade one misalignment for a worse one. */
+    align-self: start;
+  }
+
+  .story-split .store-figure--map {
+    grid-row: 2;
+  }
+
+  .story-split .store-aside-foot {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  /* The cards fill the MAP's row, so their top AND bottom edges both land on the
+     map card's edges at once. This has been through three shapes, all of which
+     aligned exactly one edge:
+
+       margin-top:auto - dropped the row onto the map's BOTTOM, leaving a
+         ~250px hole above it between the paragraph and the cards.
+       flex:1 - grew it into that hole, top and bottom correct, but it filled
+         the photo's row as well as the map's, so it overshot the map's TOP by
+         73px at 1920px wide.
+       this - the lede takes row 1 and the cards take row 2, one row each, so
+         the card block is exactly as tall as the map card and both edges match.
+
+     grid-auto-rows: 1fr splits the height between the card rows. Rows are
+     minmax(auto, 1fr) by default, so if the cards' own text ever needs more
+     room than the map card is tall they grow past 1fr rather than clipping.
+
+     Below ~1100px this cannot hold, and the block simply overruns: the copy
+     column narrows under the 452px that two 220px cards need, so the grid
+     drops to a single column of four and the block is ~378px against a ~224px
+     map card. That range is left as it is - no alignment can make a 378px block
+     the height of a 224px one. */
+  .story-split .story-values {
+    grid-column: 1;
+    grid-row: 2;
+    grid-auto-rows: 1fr;
+    /* Zero, NOT the base --space-4. The base margin is added on top of the
+       grid's row-gap, so keeping it left the cards 16px lower than the map's
+       top edge - level at the bottom, 16px off at the top. Zeroing it puts
+       both edges on the map card exactly. The row-gap above still separates the
+       text from the cards, so nothing is left touching. */
+    margin-top: 0;
   }
 }
 
@@ -159,12 +420,23 @@
   min-width: 0;
 }
 
+/* 72ch, not the shared --measure-max (68ch).
+
+   The container was widened to 1200px, which grew the copy column to ~620px,
+   and 68ch capped the text at ~578px — so the paragraph would have stopped
+   ~40px short of its column and opened a NEW gap in the middle of the section,
+   trading the left gutter for an inner one. The measure has to track the column
+   it sits in.
+
+   Scoped to this selector rather than changing --measure-max, which `.measure` in
+   global.scss also reads. 72ch is still inside the 60-75ch comfortable band, so
+   widening the box did not cost readability. */
 .story-text {
   font-size: 15px;
   line-height: 1.65;
   color: var(--color-ink);
   margin: 0 0 var(--space-3);
-  max-width: var(--measure-max);
+  max-width: 72ch;
 }
 
 .story-aside {
@@ -174,9 +446,18 @@
   min-width: 0;
 }
 
+/* Holds the hours line and the optional phone line as a single unit. It exists
+   so the desktop grid can give them ONE row; see the display:contents block
+   above. It reproduces the 12px the flex parent was providing between them. */
+.store-aside-foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
 .store-figure {
   margin: 0;
-  background: var(--color-white);
+  background: var(--color-card);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   overflow: hidden;
@@ -238,6 +519,70 @@
   color: var(--color-primary-ink);
 }
 
+// ── What we sell ─────────────────────────────────────────────────────────
+// One quiet line under the story heading, answering a question the rest of the
+// page never did: what is actually for sale. Deliberately a paragraph of type
+// and not a block of tiles - a stats row of four figures was tried here and
+// removed as a widget; the same figures as a single line land the same
+// information without becoming something to look at instead of read.
+.story-sells {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-primary-ink);
+  font-weight: 600;
+  margin: calc(var(--space-3) * -1 + 2px) 0 var(--space-3);
+}
+
+// ── Story values ─────────────────────────────────────────────────────────
+// This block exists to bring the story column near the height of the photo/map
+// column beside it. It is here instead of a third and fourth paragraph because
+// two paragraphs is the right amount of story; padding it out to fill a layout
+// hole would be writing for the grid rather than for the reader.
+//
+// A stats row (.story-stats / .stat, four figures on --tile-lemon) sat above
+// this and was removed along with its data. Nothing else references those
+// classes - if they come back, the grid was minmax(120px, 1fr) so it went
+// 4-across in the ~624px story column and 2x2 on a phone.
+//
+// Reuses the .name-item card treatment (white, --radius-md, --shadow-card) so
+// the two families of card on this page read as one system.
+.story-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.value-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: var(--color-card);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-3) var(--space-4);
+}
+
+.value-icon {
+  --icon-size: 20px;
+  color: var(--color-primary-ink);
+  margin-bottom: 5px;
+}
+
+.value-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 2px;
+}
+
+.value-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
+
 // ── Name triptych ───────────────────────────────────────
 // The one deliberately distinctive moment on the page: three cards standing in
 // for the three words of the name. Everything else stays quiet.
@@ -248,15 +593,37 @@
 // border's width, so the two arcs are not concentric and the stripe tapers to
 // zero at each corner - 26px of taper for the 5px rule .mv-card carried. It
 // read as a hook rather than as an edge. These cards separate on --shadow-card.
+/* --space-4 on both sides, and the divider between. It was briefly --space-3
+   while this block sat inside .story-copy, where it stacked on .story-text's
+   own 12px margin and 16px gave a loose 28px join. Back at full width below
+   .story-split there is no paragraph under it, so it needs 16px to clear the
+   grid.
+
+   A border-top, not a ::before: this is a grid container, so a ::before would
+   be a grid ITEM and get auto-placed into a column. The same reason applies to
+   .mv-section.
+
+   SUBORDINATE ON PURPOSE: --space-6 (32px) each side, where the section
+   boundaries above use --space-7 (48px). This rule sits INSIDE .story-section,
+   dividing one section rather than separating two, and the smaller gap keeps
+   the hierarchy visible — if it were 48px it would read as a top-level band.
+
+   This one has been raised twice, from 16px to 24px to 32px, and each time the
+   complaint was the same: the weekend hours line above it read as too close to
+   the rule. 16px looked cramped, 24px was better but still tight, 32px is
+   enough that the hours line, the rule and the cards read as three separate
+   things. The 2:3 ratio to the top-level rhythm is unchanged from the start. */
 .name-triptych {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-3);
-  margin-top: var(--space-4);
+  border-top: var(--section-divider);
+  padding-top: var(--space-6);
+  margin-top: var(--space-6);
 }
 
 .name-item {
-  background: var(--color-white);
+  background: var(--color-card);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
@@ -283,11 +650,13 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  /* The divider, padding and margins come from the shared rule in the
+     "Section rhythm" block. Declared here once and NOT repeated, because a
+     later same-specificity declaration would silently win over it. */
 }
 
 .mv-card {
-  background: var(--color-white);
+  background: var(--color-card);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
@@ -322,8 +691,8 @@
 }
 
 // ── Features ────────────────────────────────────────────
+/* Divider and rhythm come from the shared rule in "Section rhythm" above. */
 .features-section {
-  margin-bottom: var(--space-6);
 }
 
 .features-grid {
@@ -333,7 +702,7 @@
 }
 
 .feature-card {
-  background: var(--color-white);
+  background: var(--color-card);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
@@ -382,12 +751,15 @@
 
 // ── How it works ────────────────────────────────────────
 /* Tightened. This section was ~382px tall for three steps and ended in a 64px
-   silent gap before "Built With" — 32px of section margin stacked on 32px of
-   the next one. The three steps now share one row on a wide screen, the padding
-   is tighter, and the margins no longer double up. The container is ~90px
-   shorter on a phone. */
+   silent gap before the section that followed — 32px of section margin stacked
+   on 32px of the next one. The three steps now share one row on a wide screen,
+   the padding is tighter, and the margins no longer double up. The container
+   is ~90px shorter on a phone.
+
+   The trailing margin moved from --space-4 to the shared --space-5 in the
+   "Section rhythm" block, because the divider above .team-cta needs the same
+   air on both sides as every other boundary on the page. */
 .how-section {
-  margin-bottom: var(--space-4);
 }
 
 .steps-list {
@@ -408,7 +780,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
-  background: var(--color-white);
+  background: var(--color-card);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-3);
@@ -456,31 +828,35 @@
 }
 
 // ── Tech stack ──────────────────────────────────────────
-/* margin-bottom reduced from --space-6: the CTA below already carries a 24px
-   top padding and a dashed rule, so a further 32px left ~56px of nothing. */
-.tech-section {
-  margin-bottom: var(--space-3);
-}
+/* REMOVED. `.tech-section` and `.tech-chips` rendered the eight framework
+   chips, and the page carried them to the very bottom of the About page.
 
-.tech-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+   The chips themselves were well made - note that the label colour below was
+   overridden because Ionic's derived chip foreground measured 2.17:1 on cream,
+   which is a real measurement of a real failure and would be worth restoring
+   verbatim if the chips ever come back:
 
-  // The chip LABELS measured #64B6DD on cream — 2.17:1. Ionic picks a chip label's
-  // colour from its own tint shades, and this one landed barely darker than the
-  // ground. Declaring the foreground here overrides that derivation, and ink on
-  // cream is 12.34:1.
-  ion-label {
-    color: var(--color-ink);
-  }
-}
+     ion-label { color: var(--color-ink); }   // 12.34:1 on cream
+
+   What was wrong was the placement, not the styling. This page is what a
+   customer opens to learn about an ice cream shop, and a framework list is the
+   one thing on it that read as a README. It also sat between "How It Works"
+   and the Meet the Team CTA, breaking the page's ending. */
 
 // ── CTA ─────────────────────────────────────────────────
+/* The border was `2px dashed var(--color-primary-ink)` and is now
+   var(--section-divider), the dotted rule the rest of the page uses. This was
+   the ONLY divider on the page before the others were added, which is why the
+   colour token was chosen to match it rather than the other way round - it
+   keeps the pre-existing rule visible in the new scheme instead of leaving one
+   odd dashed line behind.
+
+   margin-top is NOT set here: .how-section already owns the 48px above this
+   boundary, and a second one would collapse into it rather than add to it. */
 .team-cta {
   text-align: center;
   padding: var(--space-5) 0 0;
-  border-top: 2px dashed var(--color-primary-ink);
+  border-top: var(--section-divider);
 }
 
 .team-cta-text {

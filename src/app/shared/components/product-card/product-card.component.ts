@@ -31,6 +31,7 @@ import { WishlistService } from '../../../core/services/wishlist.service';
 import { PesoPipe } from '../../pipes/peso.pipe';
 import { CloudinaryPipe } from '../../pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
+import { flavourBackground } from '../../../core/logic/flavour-colour';
 import { ShopSettingsService } from '../../../core/services/shop-settings.service';
 
 @Component({
@@ -68,7 +69,47 @@ export class ProductCardComponent implements OnInit {
   isWished = signal(false);
 
   sizeLabels = SIZE_DISPLAY_LABELS;
+
+  /**
+   * The abbreviated labels this card's segment actually renders.
+   *
+   * DELIBERATELY LOCAL to the card. `SIZE_DISPLAY_LABELS` is read by ten other
+   * surfaces — inventory, analytics, orders, cart, product detail — and
+   * abbreviating it there would shorten every table in the app to suit a
+   * 250px-wide card.
+   *
+   * WHY ABBREVIATION IS NEEDED RATHER THAN NICER TYPOGRAPHY: Ionic gives every
+   * `ion-segment-button` a 90px floor, so four buttons cannot render in less
+   * than 360px. This card's segment measures 162px at a 190px card and 282px
+   * at a 310px one — below the floor at EVERY width, which is why `.size-
+   * segment { overflow: hidden }` was amputating the last button ("Gallon"
+   * rendered as "GALLO"). "Half Gallon" needs 83px of text and its button
+   * offers 58px, so it ellipsised too. No font size or padding change fixes
+   * that; the labels have to be shorter and the floor has to be released (see
+   * `.size-btn` in the component's SCSS).
+   *
+   * `sizeLabels` is still the source of truth for the FULL word, and the
+   * template puts it on each button's aria-label, so a screen reader announces
+   * "Half Gallon" and "Gallon" rather than the abbreviations below.
+   */
+  readonly sizeLabelsShort: Record<SizeVariant, string> = {
+    cup: 'Cup',
+    pint: 'Pint',
+    halfGallon: '½ Gal',
+    gallon: 'Gal',
+  };
+
   sizes: SizeVariant[] = ['cup', 'pint', 'halfGallon', 'gallon'];
+
+  /**
+   * The set badge painted in this product's flavour pastel.
+   *
+   * A computed rather than a plain getter so a card re-rendered with a different
+   * `product` input repaints the badge. The fallback is `--flavor-all`, which is
+   * the brand primary — the colour this badge wore before it was tinted — so an
+   * unrecognised flavour degrades to the status quo instead of to nothing.
+   */
+  readonly setFlavourBackground = computed(() => flavourBackground(this.product));
 
   /**
    * The admin-editable low-stock cutoff, not the build-time constant.

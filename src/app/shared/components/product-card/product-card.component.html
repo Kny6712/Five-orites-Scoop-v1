@@ -13,7 +13,9 @@
       (load)="onImageLoad()"
       (error)="onImageError($event)"
     />
-    <div class="set-badge">Set {{ product.setNumber }} · {{ product.setName }}</div>
+    <div class="set-badge" [style.background]="setFlavourBackground()">
+      Set {{ product.setNumber }} · {{ product.setName }}
+    </div>
     <button
       type="button"
       class="wishlist-btn"
@@ -31,8 +33,19 @@
 
     <ion-segment [value]="selectedSize()" (ionChange)="onSizeChange($event)" class="size-segment" mode="md">
       @for (size of sizes; track size) {
-        <ion-segment-button [value]="size" class="size-btn">
-          <ion-label>{{ sizeLabels[size] }}</ion-label>
+        <!--
+          Short label rendered, full label announced. "Half Gallon" does not fit
+          a card-sized segment button at any card width, but "Half Gallon" is
+          still the name of the thing being bought, so it stays on the button as
+          its accessible name and as a tooltip for a mouse user.
+        -->
+        <ion-segment-button
+          [value]="size"
+          class="size-btn"
+          [attr.aria-label]="sizeLabels[size]"
+          [title]="sizeLabels[size]"
+        >
+          <ion-label>{{ sizeLabelsShort[size] }}</ion-label>
         </ion-segment-button>
       }
     </ion-segment>
@@ -64,7 +77,32 @@
 
     <ion-button expand="block" class="add-to-cart-btn" [disabled]="isOutOfStock() || isAdding()" (click)="addToCart()">
       <app-icon name="cart" slot="start" />
-      {{ isAdding() ? 'Adding...' : isOutOfStock() ? 'Out of Stock' : 'Add to Cart' }}
+      <!--
+        "Sold Out", not "Out of Stock".
+
+        Two reasons, one of them a visible defect. This button has almost no
+        slack: on a 390px phone two cards per row leaves a 147px body
+        (.products-grid 8px + ion-col 6px + .card-body 14px per side), and the
+        row spends 30px of that on Ionic's button padding and 20px on the icon.
+        Measured clearance between the label and the right padding, per label:
+
+          Out of Stock   -3.5px   <- overflows; this is the reported defect
+          Add to Cart     0.4px   <- effectively zero, one edit away from same
+          Sold Out       12.7px
+          Adding...      13.7px
+
+        "Sold Out" buys ~16px of headroom and is now the shortest label the
+        button can ever show. Note that Ionic's own
+        `::slotted(ion-icon[slot=start]) { margin-inline-end: .3em }` does NOT
+        apply here — this button uses <app-icon>, not <ion-icon> — so the icon
+        carries no built-in gap and only the template whitespace separates it
+        from the label. Keep that in mind before making any label longer.
+
+        The second reason is that the stock chip DIRECTLY ABOVE already reads
+        "Out of Stock". Repeating those exact words underneath was redundant
+        regardless of width.
+      -->
+      {{ isAdding() ? 'Adding...' : isOutOfStock() ? 'Sold Out' : 'Add to Cart' }}
     </ion-button>
   </ion-card-content>
 </ion-card>
