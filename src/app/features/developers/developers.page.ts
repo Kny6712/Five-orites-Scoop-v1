@@ -20,14 +20,14 @@ import {
   IonChip,
   IonLabel,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
-import { DeveloperService } from '../../core/services/developer.service';
-import { initialsOf } from '../../core/logic/flavour';
-import { TECH_STACK } from '../../core/about-content';
-import type { Developer } from '../../core/models/developer.model';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
+import { DeveloperService } from '@core/services/developer.service';
+import { initialsOf } from '@core/logic/flavour';
+import { TECH_STACK } from '@shared/content/about-content';
+import type { Developer } from '@core/models/developer.model';
 
 @Component({
   selector: 'app-developers',

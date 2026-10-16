@@ -17,15 +17,15 @@ import {
   IonMenuButton,
   IonButton,
 } from '@ionic/angular/standalone';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 import {
   ScoopMapComponent,
   type MapMarker,
-} from '../../shared/components/scoop-map/scoop-map.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { SHOP_LOCATION, SHOP_HOURS } from '../../core/config/shop.config';
-import { ShopSettingsService } from '../../core/services/shop-settings.service';
+} from '@shared/components/scoop-map/scoop-map.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { SHOP_LOCATION, SHOP_HOURS } from '@core/config/shop.config';
+import { ShopSettingsService } from '@core/services/shop-settings.service';
 import {
   HERO,
   STORY,
@@ -34,7 +34,7 @@ import {
   CUSTOMER_FEATURES,
   TEAM_FEATURES,
   HOW_IT_WORKS,
-} from '../../core/about-content';
+} from '@shared/content/about-content';
 
 @Component({
   selector: 'app-about',

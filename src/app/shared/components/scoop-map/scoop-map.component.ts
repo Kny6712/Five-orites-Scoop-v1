@@ -39,7 +39,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonSpinner } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 
 export interface MapMarker {
   id: string;

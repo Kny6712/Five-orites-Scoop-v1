@@ -25,7 +25,7 @@
 
 import { Injectable, inject, signal, computed } from '@angular/core';
 import { Firestore, doc, getDoc, setDoc, onSnapshot } from '@angular/fire/firestore';
-import { environment } from '../../../environments/environment';
+import { environment } from '@env/environment';
 
 export interface ShopSettings {
   /** Units at or below which a SKU is flagged low. */

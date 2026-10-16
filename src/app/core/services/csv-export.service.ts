@@ -44,7 +44,9 @@
 // the thing to add.
 
 import { Injectable, inject } from '@angular/core';
-import { Platform } from '@ionic/angular/standalone';
+import { NativeService } from '@core/platform/native.service';
+import { FileService } from '@core/platform/file.service';
+import { ShareService } from '@core/platform/share.service';
 
 /** Outcome of one export, so callers can tell success from a silent no-op. */
 export type CsvExportResult =
@@ -52,7 +54,9 @@ export type CsvExportResult =
 
 @Injectable({ providedIn: 'root' })
 export class CsvExportService {
-  private platform = inject(Platform);
+  private native = inject(NativeService);
+  private files = inject(FileService);
+  private share = inject(ShareService);
 
   /**
    * Hands a CSV to the admin, by whichever route the platform actually has.
@@ -78,7 +82,7 @@ export class CsvExportService {
    *     somewhere" — on native it means the share sheet closed.
    */
   async export(csv: string, filename: string): Promise<CsvExportResult> {
-    return this.platform.is('capacitor')
+    return this.native.isNative()
       ? this.exportNative(csv, filename)
       : this.exportWeb(csv, filename);
   }
@@ -98,39 +102,25 @@ export class CsvExportService {
   private static readonly BOM = '\uFEFF';
 
   private async exportNative(csv: string, filename: string): Promise<CsvExportResult> {
-    // Dynamic imports: both plugins are native-only, and a static import would pull
-    // them into the web bundle where they can never work.
+    // The plugin calls now live in core/platform/, which owns the dynamic imports
+    // and the Directory.Cache decision. What stays HERE is the sequence, because
+    // the sequence is the part specific to exporting a CSV: write, share, and
+    // delete only once the share sheet has closed.
     try {
-      const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
-      const { Share } = await import('@capacitor/share');
-
-      // Directory.Cache, and the filename is reused verbatim: the share sheet
-      // shows this name, so a mangled one is the admin's only clue about what
-      // they just exported.
-      const written = await Filesystem.writeFile({
-        path: filename,
-        data: CsvExportService.BOM + csv,
-        directory: Directory.Cache,
-        encoding: Encoding.UTF8,
-      });
+      // The filename is reused verbatim: the share sheet shows this name, so a
+      // mangled one is the admin's only clue about what they just exported.
+      const written = await this.files.writeCacheFile(filename, CsvExportService.BOM + csv);
 
       try {
-        await Share.share({
-          title: filename,
-          // `uri`, not `url`: a filesystem path from writeFile is not a URL, and
-          // passing it as `url` produces a share with no attachment.
-          url: written.uri,
-          dialogTitle: 'Export CSV',
-        });
+        await this.share.shareFile(written.uri, filename, 'Export CSV');
         return { ok: true, via: 'share' };
       } finally {
         // Clean up whether or not the share succeeded. Leaving exports to pile up
         // in the cache is how a long-running admin session fills the device.
-        // Best-effort: a failed cleanup is not worth failing the export over,
-        // since the admin already has their file.
-        await Filesystem.deleteFile({ path: filename, directory: Directory.Cache }).catch(
-          () => undefined,
-        );
+        // Best-effort by construction: FileService.deleteCacheFile swallows its
+        // own failures, because the admin already has their file and a failed
+        // cleanup is not worth reporting as a failed export.
+        await this.files.deleteCacheFile(written.filename);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

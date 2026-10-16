@@ -29,7 +29,7 @@ import {
   serverTimestamp,
 } from '@angular/fire/firestore';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { AppUser, isStaffRole } from '../models/user.model';
+import { AppUser, isStaffRole } from '@core/models/user.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {

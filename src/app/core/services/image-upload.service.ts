@@ -2,7 +2,7 @@
 // Five-orites Scoop — Product image upload via Cloudinary (unsigned preset, no secret in app)
 
 import { Injectable } from '@angular/core';
-import { environment } from '../../../environments/environment';
+import { environment } from '@env/environment';
 
 // Uploads are downscaled client-side first to keep them fast and small.
 // This is also the ceiling for delivery: the CloudinaryPipe never asks for

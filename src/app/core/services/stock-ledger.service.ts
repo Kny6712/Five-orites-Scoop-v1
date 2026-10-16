@@ -44,7 +44,7 @@ import {
   RESET_REASONS,
   STOCK_REASON_LABELS,
   type StockReason,
-} from '../logic/ledger-reconcile';
+} from '@core/logic/ledger-reconcile';
 
 /**
  * Re-exported, not redefined.

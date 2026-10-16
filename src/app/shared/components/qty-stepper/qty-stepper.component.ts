@@ -16,7 +16,7 @@
 // keyboard and announced with its value and what it does.
 
 import { Component, input, model, output } from '@angular/core';
-import { AppIconComponent } from '../app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 
 @Component({
   selector: 'app-qty-stepper',

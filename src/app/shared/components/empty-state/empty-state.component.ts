@@ -13,8 +13,8 @@
 
 import { Component, input, output } from '@angular/core';
 import { IonButton } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../app-icon/app-icon.component';
-import type { AppIcon } from '../../../core/icons/app-icons';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import type { AppIcon } from '@core/icons/app-icons';
 
 @Component({
   selector: 'app-empty-state',

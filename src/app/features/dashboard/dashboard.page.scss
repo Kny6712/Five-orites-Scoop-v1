@@ -870,7 +870,7 @@
      always beats height. The chips have been rendering at 32px with 4px of margin
      on all four sides inside a row padded by 9px — which is most of why they
      looked oversized and misaligned. Same Ionic trap, same explanation, as
-     .set-chip-sm in admin/inventory/inventory.page.scss:150-160.
+     .set-chip-sm in features/admin/inventory/inventory.page.scss:150-160.
 
      The vertical padding is pulled in for the same reason `min-height` alone was
      not enough: ion-chip ships `padding-top/bottom: 6px`, which on its own drove

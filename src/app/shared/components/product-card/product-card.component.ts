@@ -24,15 +24,15 @@ import {
   IonSegmentButton,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../app-icon/app-icon.component';
-import { Product, SizeVariant } from '../../../core/models/product.model';
-import { CartService } from '../../../core/services/cart.service';
-import { WishlistService } from '../../../core/services/wishlist.service';
-import { PesoPipe } from '../../pipes/peso.pipe';
-import { CloudinaryPipe } from '../../pipes/cloudinary.pipe';
-import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
-import { flavourBackground } from '../../../core/logic/flavour-colour';
-import { ShopSettingsService } from '../../../core/services/shop-settings.service';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { Product, SizeVariant } from '@core/models/product.model';
+import { CartService } from '@core/services/cart.service';
+import { WishlistService } from '@core/services/wishlist.service';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
+import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
+import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
+import { flavourBackground } from '@core/logic/flavour-colour';
+import { ShopSettingsService } from '@core/services/shop-settings.service';
 
 @Component({
   selector: 'app-product-card',

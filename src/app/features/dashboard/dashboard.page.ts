@@ -28,25 +28,25 @@ import {
   IonRefresherContent,
   IonToggle,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { VoucherCardsComponent } from './voucher-cards/voucher-cards.component';
-import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { VoucherCardsComponent } from '@features/dashboard/voucher-cards/voucher-cards.component';
+import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
 import { Subscription, catchError, of, Observable } from 'rxjs';
-import { AuthService } from '../../core/services/auth.service';
-import { InventoryService } from '../../core/services/inventory.service';
-import { OrderService } from '../../core/services/order.service';
-import { NotificationService } from '../../core/services/notification.service';
-import { ShopSettingsService } from '../../core/services/shop-settings.service';
-import { describeFirestoreError } from '../../core/logic/firestore-error';
-import { Product } from '../../core/models/product.model';
-import { Order } from '../../core/models/order.model';
-import { AppUser, isStaffRole } from '../../core/models/user.model';
-import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
+import { AuthService } from '@core/services/auth.service';
+import { InventoryService } from '@core/services/inventory.service';
+import { OrderService } from '@core/services/order.service';
+import { NotificationService } from '@core/services/notification.service';
+import { ShopSettingsService } from '@core/services/shop-settings.service';
+import { describeFirestoreError } from '@core/logic/firestore-error';
+import { Product } from '@core/models/product.model';
+import { Order } from '@core/models/order.model';
+import { AppUser, isStaffRole } from '@core/models/user.model';
+import { ProductCardComponent } from '@shared/components/product-card/product-card.component';
 
-import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { PesoPipe } from '../../shared/pipes/peso.pipe';
+import { OrderStatusBadgeComponent } from '@shared/components/order-status-badge/order-status-badge.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({

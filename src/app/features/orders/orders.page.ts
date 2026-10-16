@@ -26,16 +26,16 @@ import {
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
 import { Subscription, catchError, of } from 'rxjs';
-import { OrderService } from '../../core/services/order.service';
-import { AuthService } from '../../core/services/auth.service';
-import { Order, ORDER_STATUS_META, type OrderStatus } from '../../core/models/order.model';
-import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { PesoPipe } from '../../shared/pipes/peso.pipe';
+import { OrderService } from '@core/services/order.service';
+import { AuthService } from '@core/services/auth.service';
+import { Order, ORDER_STATUS_META, type OrderStatus } from '@core/models/order.model';
+import { OrderStatusBadgeComponent } from '@shared/components/order-status-badge/order-status-badge.component';
+import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
 
 @Component({
   selector: 'app-orders',

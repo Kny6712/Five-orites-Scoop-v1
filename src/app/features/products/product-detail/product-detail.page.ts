@@ -25,26 +25,26 @@ import {
   ToastController,
   AlertController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../../shared/components/app-icon/app-icon.component';
-import { QtyStepperComponent } from '../../../shared/components/qty-stepper/qty-stepper.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { QtyStepperComponent } from '@shared/components/qty-stepper/qty-stepper.component';
 import { Subscription, catchError, of } from 'rxjs';
-import { InventoryService } from '../../../core/services/inventory.service';
-import { CartService } from '../../../core/services/cart.service';
-import { ReviewService, REVIEWS_PAGE_LIMIT } from '../../../core/services/review.service';
-import { WishlistService } from '../../../core/services/wishlist.service';
-import { Product, SizeVariant } from '../../../core/models/product.model';
-import { Review } from '../../../core/models/review.model';
-import { AuthService } from '../../../core/services/auth.service';
-import { summarizeRatings } from '../../../core/logic/rating';
-import { PesoPipe } from '../../../shared/pipes/peso.pipe';
-import { CloudinaryPipe } from '../../../shared/pipes/cloudinary.pipe';
-import { StarRatingComponent } from '../../../shared/components/star-rating/star-rating.component';
-import { PaginationComponent } from '../../../shared/components/pagination/pagination.component';
-import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
-import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
-import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
-import { flavourBackground } from '../../../core/logic/flavour-colour';
-import { ShopSettingsService } from '../../../core/services/shop-settings.service';
+import { InventoryService } from '@core/services/inventory.service';
+import { CartService } from '@core/services/cart.service';
+import { ReviewService, REVIEWS_PAGE_LIMIT } from '@core/services/review.service';
+import { WishlistService } from '@core/services/wishlist.service';
+import { Product, SizeVariant } from '@core/models/product.model';
+import { Review } from '@core/models/review.model';
+import { AuthService } from '@core/services/auth.service';
+import { summarizeRatings } from '@core/logic/rating';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
+import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
+import { StarRatingComponent } from '@shared/components/star-rating/star-rating.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
+import { flavourBackground } from '@core/logic/flavour-colour';
+import { ShopSettingsService } from '@core/services/shop-settings.service';
 
 interface SizeOption {
   key: SizeVariant;

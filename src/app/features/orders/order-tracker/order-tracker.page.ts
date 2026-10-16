@@ -22,30 +22,30 @@ import {
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../../shared/components/app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 import {
   ScoopMapComponent,
   type MapMarker,
-} from '../../../shared/components/scoop-map/scoop-map.component';
+} from '@shared/components/scoop-map/scoop-map.component';
 import { Subscription, catchError, of } from 'rxjs';
 import { Firestore, doc, setDoc } from '@angular/fire/firestore';
-import { OrderService } from '../../../core/services/order.service';
-import { Order, OrderStatus, ORDER_STATUS_META } from '../../../core/models/order.model';
-import { OrderStatusBadgeComponent } from '../../../shared/components/order-status-badge/order-status-badge.component';
-import { AppFooterComponent } from '../../../shared/components/app-footer/app-footer.component';
-import { CartButtonComponent } from '../../../shared/components/cart-button/cart-button.component';
-import { PesoPipe } from '../../../shared/pipes/peso.pipe';
-import { SIZE_DISPLAY_LABELS } from '../../../core/config/pricing.config';
-import { SHOP_LOCATION } from '../../../core/config/shop.config';
+import { OrderService } from '@core/services/order.service';
+import { Order, OrderStatus, ORDER_STATUS_META } from '@core/models/order.model';
+import { OrderStatusBadgeComponent } from '@shared/components/order-status-badge/order-status-badge.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
+import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
+import { SHOP_LOCATION } from '@core/config/shop.config';
 import {
   geocodeAddress,
   readCachedGeo,
   interpolate,
   distanceMetres,
   type GeoPoint,
-} from '../../../core/logic/geo';
+} from '@core/logic/geo';
 
-import { STATUS_SEQUENCE, stepState, type StepState } from '../../../core/logic/notifications';
+import { STATUS_SEQUENCE, stepState, type StepState } from '@core/logic/notifications';
 
 @Component({
   selector: 'app-order-tracker',

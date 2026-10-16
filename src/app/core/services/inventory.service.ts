@@ -26,10 +26,10 @@ import {
   ProductFilter,
   ProductCategory,
   productCategory,
-} from '../models/product.model';
-import { normaliseStockLines, SIZE_VARIANTS } from '../logic/stock';
-import { AuthService } from './auth.service';
-import { ShopSettingsService } from './shop-settings.service';
+} from '@core/models/product.model';
+import { normaliseStockLines, SIZE_VARIANTS } from '@core/logic/stock';
+import { AuthService } from '@core/services/auth.service';
+import { ShopSettingsService } from '@core/services/shop-settings.service';
 
 @Injectable({ providedIn: 'root' })
 export class InventoryService {

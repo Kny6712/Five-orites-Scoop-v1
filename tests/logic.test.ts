@@ -10,11 +10,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  DELIVERY_FEE,
-  FREE_DELIVERY_THRESHOLD,
-  getDeliveryFee,
-} from '@core/logic/delivery';
+import { DELIVERY_FEE, FREE_DELIVERY_THRESHOLD, getDeliveryFee } from '@core/logic/delivery';
 import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '@core/logic/voucher';
 import { summarizeRatings } from '@core/logic/rating';
 import {
@@ -69,12 +65,7 @@ import {
   bucketize,
   runningTotal,
 } from '@core/logic/series';
-import {
-  parseCsvLine,
-  parseProductCsv,
-  slug,
-  PRODUCT_CSV_TEMPLATE,
-} from '@core/logic/csv-import';
+import { parseCsvLine, parseProductCsv, slug, PRODUCT_CSV_TEMPLATE } from '@core/logic/csv-import';
 import {
   ROLE_CAPABILITIES,
   ROLE_LABELS,

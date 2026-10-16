@@ -3,8 +3,8 @@
 
 import { Component, Input, Output, EventEmitter, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import type { AppIcon } from '../../../core/icons/app-icons';
-import { AppIconComponent } from '../app-icon/app-icon.component';
+import type { AppIcon } from '@core/icons/app-icons';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 
 @Component({
   selector: 'app-star-rating',

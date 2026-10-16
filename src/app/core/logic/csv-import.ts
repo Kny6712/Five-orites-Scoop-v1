@@ -14,7 +14,7 @@
 // README lists "CSV bulk product import" under Out of Scope, and
 // REFACTOR_PLAN.md:245 repeats it. This is that feature.
 
-import type { ProductCategory } from '../models/product.model';
+import type { ProductCategory } from '@core/models/product.model';
 
 export interface ProductRow {
   setNumber: number;

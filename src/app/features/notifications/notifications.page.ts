@@ -37,7 +37,7 @@ import {
 } from '@ionic/angular/standalone';
 import { ToastController } from '@ionic/angular/standalone';
 import type { ViewWillEnter } from '@ionic/angular';
-import { OrderNotificationService } from '../../core/services/order-notification.service';
+import { OrderNotificationService } from '@core/services/order-notification.service';
 import {
   groupByDay,
   countByPeriod,
@@ -49,11 +49,11 @@ import {
   absoluteTime,
   STATUS_SEQUENCE,
   stepState,
-} from '../../core/logic/notifications';
-import type { OrderStatus } from '../../core/models/order.model';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+} from '@core/logic/notifications';
+import type { OrderStatus } from '@core/models/order.model';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
 
 @Component({
   selector: 'app-notifications',

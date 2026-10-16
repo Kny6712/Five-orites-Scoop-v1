@@ -16,7 +16,7 @@
 
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { IonButton } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 
 /** How many numbered buttons to show either side of the current page. */
 const WINDOW = 1;

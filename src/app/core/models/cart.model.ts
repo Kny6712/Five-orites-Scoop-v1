@@ -2,7 +2,7 @@
 // Five-orites Scoop — Cart Data Models
 // Author: Five-orites Scoop team (see README)
 
-import { SizeVariant } from './product.model';
+import { SizeVariant } from '@core/models/product.model';
 
 export interface CartItem {
   productId: string;
@@ -22,7 +22,7 @@ export interface Cart {
 
 // Delivery figures live in core/logic/delivery.ts so the unit tests can import
 // them without pulling in Angular. Re-exported here for existing call sites.
-export { FREE_DELIVERY_THRESHOLD, getDeliveryFee } from '../logic/delivery';
+export { FREE_DELIVERY_THRESHOLD, getDeliveryFee } from '@core/logic/delivery';
 
 export const EMPTY_CART: Cart = {
   items: [],

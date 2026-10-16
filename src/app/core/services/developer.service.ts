@@ -29,8 +29,12 @@ import {
   serverTimestamp,
 } from '@angular/fire/firestore';
 
-import { AuthService } from './auth.service';
-import { DEFAULT_DEVELOPERS, type Developer, type DeveloperDoc } from '../models/developer.model';
+import { AuthService } from '@core/services/auth.service';
+import {
+  DEFAULT_DEVELOPERS,
+  type Developer,
+  type DeveloperDoc,
+} from '@core/models/developer.model';
 
 @Injectable({ providedIn: 'root' })
 export class DeveloperService {

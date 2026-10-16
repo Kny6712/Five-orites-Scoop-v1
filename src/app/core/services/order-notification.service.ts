@@ -27,17 +27,17 @@
 import { Injectable, DestroyRef, inject, signal, computed, OnDestroy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, catchError, of } from 'rxjs';
-import { OrderService } from './order.service';
-import { NotificationService } from './notification.service';
-import { AuthService } from './auth.service';
-import { Order, OrderStatus } from '../models/order.model';
+import { OrderService } from '@core/services/order.service';
+import { NotificationService } from '@core/services/notification.service';
+import { AuthService } from '@core/services/auth.service';
+import { Order, OrderStatus } from '@core/models/order.model';
 import {
   buildNotificationFeed,
   collapseToOrderThreads,
   countUnreadThreads,
   FeedEntry,
   OrderThread,
-} from '../logic/notifications';
+} from '@core/logic/notifications';
 
 /**
  * How many recent orders to watch.

@@ -19,28 +19,23 @@ import {
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 import { catchError, of } from 'rxjs';
-import { CartService } from '../../core/services/cart.service';
-import { OrderService } from '../../core/services/order.service';
-import { AddressService } from '../../core/services/address.service';
-import { VoucherService } from '../../core/services/voucher.service';
-import { InventoryService } from '../../core/services/inventory.service';
-import {
-  Cart,
-  CartItem,
-  getDeliveryFee,
-  FREE_DELIVERY_THRESHOLD,
-} from '../../core/models/cart.model';
-import { Product, SizeVariant } from '../../core/models/product.model';
-import { PesoPipe } from '../../shared/pipes/peso.pipe';
-import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
-import { SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
-import { PENDING_VOUCHER_KEY } from '../../core/models/voucher.model';
-import { QtyStepperComponent } from '../../shared/components/qty-stepper/qty-stepper.component';
-import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
-import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+import { CartService } from '@core/services/cart.service';
+import { OrderService } from '@core/services/order.service';
+import { AddressService } from '@core/services/address.service';
+import { VoucherService } from '@core/services/voucher.service';
+import { InventoryService } from '@core/services/inventory.service';
+import { Cart, CartItem, getDeliveryFee, FREE_DELIVERY_THRESHOLD } from '@core/models/cart.model';
+import { Product, SizeVariant } from '@core/models/product.model';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
+import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
+import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
+import { PENDING_VOUCHER_KEY } from '@core/models/voucher.model';
+import { QtyStepperComponent } from '@shared/components/qty-stepper/qty-stepper.component';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
 
 /**
  * Ceiling used when live stock is unknown.

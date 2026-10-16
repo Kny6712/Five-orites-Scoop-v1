@@ -35,18 +35,18 @@ import {
   IonSegmentButton,
   IonButton,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
+import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
 import { Subscription } from 'rxjs';
 import { catchError, of } from 'rxjs';
-import { InventoryService } from '../../core/services/inventory.service';
-import { WishlistService } from '../../core/services/wishlist.service';
-import { Product, FlavorSet, SizeVariant, ProductSort } from '../../core/models/product.model';
-import { ProductCardComponent } from '../../shared/components/product-card/product-card.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-import { SET_NAMES, SIZE_DISPLAY_LABELS } from '../../core/config/pricing.config';
+import { InventoryService } from '@core/services/inventory.service';
+import { WishlistService } from '@core/services/wishlist.service';
+import { Product, FlavorSet, SizeVariant, ProductSort } from '@core/models/product.model';
+import { ProductCardComponent } from '@shared/components/product-card/product-card.component';
+import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { SET_NAMES, SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 interface SetChip {
   label: string;
   value: FlavorSet | null;

@@ -40,8 +40,8 @@
 
 import { Injectable, inject } from '@angular/core';
 import { ToastController } from '@ionic/angular/standalone';
-import { OrderStatus } from '../models/order.model';
-import { ORDER_STATUS_NOTICES, statusToastLine } from '../logic/notifications';
+import { OrderStatus } from '@core/models/order.model';
+import { ORDER_STATUS_NOTICES, statusToastLine } from '@core/logic/notifications';
 
 @Injectable({ providedIn: 'root' })
 export class NotificationService {

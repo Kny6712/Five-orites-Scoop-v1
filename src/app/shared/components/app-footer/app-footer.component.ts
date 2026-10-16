@@ -43,7 +43,7 @@
 
 import { Component } from '@angular/core';
 
-import { SHOP_FOUNDED_YEAR, SHOP_HOURS, SHOP_LOCATION } from '../../../core/config/shop.config';
+import { SHOP_FOUNDED_YEAR, SHOP_HOURS, SHOP_LOCATION } from '@core/config/shop.config';
 
 interface SocialLink {
   /** Network name, used for the accessible name only. */

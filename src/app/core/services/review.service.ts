@@ -18,8 +18,8 @@ import {
   serverTimestamp,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
-import { Review } from '../models/review.model';
-import { AuthService } from './auth.service';
+import { Review } from '@core/models/review.model';
+import { AuthService } from '@core/services/auth.service';
 
 /**
  * How many reviews a product detail page loads.

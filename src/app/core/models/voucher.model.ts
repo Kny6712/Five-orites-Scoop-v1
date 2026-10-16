@@ -9,9 +9,9 @@ export {
   MAX_PERCENT_DISCOUNT,
   PENDING_VOUCHER_KEY,
   type VoucherType,
-} from '../logic/voucher';
+} from '@core/logic/voucher';
 
-import type { VoucherType } from '../logic/voucher';
+import type { VoucherType } from '@core/logic/voucher';
 
 export interface Voucher {
   id: string;

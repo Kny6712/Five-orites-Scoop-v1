@@ -3,7 +3,7 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Firestore, collection, query, where, limit, getDocs } from '@angular/fire/firestore';
-import { Voucher, calculateDiscount, voucherUsability } from '../models/voucher.model';
+import { Voucher, calculateDiscount, voucherUsability } from '@core/models/voucher.model';
 
 @Injectable({ providedIn: 'root' })
 export class VoucherService {

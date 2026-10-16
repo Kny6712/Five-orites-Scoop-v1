@@ -6,10 +6,10 @@
 
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { Cart, CartItem, EMPTY_CART } from '../models/cart.model';
-import { SizeVariant, Product } from '../models/product.model';
-import { assertCanAddToCart, clampToStock } from '../logic/stock';
-import { AuthService } from './auth.service';
+import { Cart, CartItem, EMPTY_CART } from '@core/models/cart.model';
+import { SizeVariant, Product } from '@core/models/product.model';
+import { assertCanAddToCart, clampToStock } from '@core/logic/stock';
+import { AuthService } from '@core/services/auth.service';
 
 const CART_STORAGE_KEY = 'five_orites_carts_v1';
 

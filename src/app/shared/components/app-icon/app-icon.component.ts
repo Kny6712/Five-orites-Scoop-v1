@@ -26,7 +26,7 @@
 //   <app-icon name="home" title="Home" />       named (so NOT hidden)
 
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { LUCIDE_ICON_DATA, type AppIcon, type IconNode } from '../../../core/icons/app-icons';
+import { LUCIDE_ICON_DATA, type AppIcon, type IconNode } from '@core/icons/app-icons';
 
 @Component({
   selector: 'app-icon',

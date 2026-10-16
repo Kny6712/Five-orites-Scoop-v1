@@ -7,7 +7,7 @@ import { Timestamp } from '@angular/fire/firestore';
 // it without pulling in AngularFire. Re-exported here, and that re-export is
 // what makes the type available below -- a second `import type` of the same name
 // was shadowing nothing and reading as if the re-export did not cover it.
-export { summarizeRatings, type RatingSummary } from '../logic/rating';
+export { summarizeRatings, type RatingSummary } from '@core/logic/rating';
 
 export interface Review {
   id: string;

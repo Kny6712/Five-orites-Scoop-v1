@@ -44,7 +44,7 @@
 // `Timestamp`, so this file can be unit-tested by `tests/logic.test.ts` with
 // `node:test` - the same rule every other module in `core/logic` follows.
 
-import type { OrderStatus } from '../models/order.model';
+import type { OrderStatus } from '@core/models/order.model';
 
 /**
  * The customer-facing sentence for each status.

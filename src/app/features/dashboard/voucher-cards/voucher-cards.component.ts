@@ -24,14 +24,10 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { IonButton, IonSpinner, IonSkeletonText } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../../shared/components/app-icon/app-icon.component';
-import { VoucherService } from '../../../core/services/voucher.service';
-import {
-  Voucher,
-  calculateDiscount,
-  PENDING_VOUCHER_KEY,
-} from '../../../core/models/voucher.model';
-import { PesoPipe } from '../../../shared/pipes/peso.pipe';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { VoucherService } from '@core/services/voucher.service';
+import { Voucher, calculateDiscount, PENDING_VOUCHER_KEY } from '@core/models/voucher.model';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
 
 @Component({
   selector: 'app-voucher-cards',

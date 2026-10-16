@@ -6,9 +6,9 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { IonButton } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { CartService } from '../../../core/services/cart.service';
+import { CartService } from '@core/services/cart.service';
 
 /**
  * Cart button for a page toolbar.

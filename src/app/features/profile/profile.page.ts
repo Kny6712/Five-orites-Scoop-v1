@@ -32,15 +32,15 @@ import {
   IonToggle,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { CloudinaryPipe } from '../../shared/pipes/cloudinary.pipe';
-import { AuthService } from '../../core/services/auth.service';
-import { ImageUploadService } from '../../core/services/image-upload.service';
-import { NotificationService } from '../../core/services/notification.service';
-import type { AppUser } from '../../core/models/user.model';
-import { isStaffRole } from '../../core/models/user.model';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
+import { AuthService } from '@core/services/auth.service';
+import { ImageUploadService } from '@core/services/image-upload.service';
+import { NotificationService } from '@core/services/notification.service';
+import type { AppUser } from '@core/models/user.model';
+import { isStaffRole } from '@core/models/user.model';
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 

@@ -3,7 +3,7 @@
 
 import { Injectable, inject } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { AuthService } from './auth.service';
+import { AuthService } from '@core/services/auth.service';
 
 const GLOBAL_KEY = 'five_orites_wishlist_v1';
 

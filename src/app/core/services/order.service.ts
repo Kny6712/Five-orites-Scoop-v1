@@ -28,10 +28,10 @@ import type {
   DocumentReference,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
-import { getDeliveryFee } from '../models/cart.model';
-import { normaliseStockLines } from '../logic/stock';
-import { isPermissionDeniedError } from '../logic/firestore-error';
-import type { Product, SizeVariant } from '../models/product.model';
+import { getDeliveryFee } from '@core/models/cart.model';
+import { normaliseStockLines } from '@core/logic/stock';
+import { isPermissionDeniedError } from '@core/logic/firestore-error';
+import type { Product, SizeVariant } from '@core/models/product.model';
 
 /**
  * One page of reporting results.
@@ -50,11 +50,11 @@ export interface OrdersPage {
   cursor: unknown;
 }
 
-import { Order, OrderItem, OrderStatus } from '../models/order.model';
-import { AuthService } from './auth.service';
-import { CartService } from './cart.service';
-import { InventoryService } from './inventory.service';
-import { VoucherService } from './voucher.service';
+import { Order, OrderItem, OrderStatus } from '@core/models/order.model';
+import { AuthService } from '@core/services/auth.service';
+import { CartService } from '@core/services/cart.service';
+import { InventoryService } from '@core/services/inventory.service';
+import { VoucherService } from '@core/services/voucher.service';
 
 /**
  * Statuses at which the shop is still physically holding the order's stock.

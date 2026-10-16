@@ -20,11 +20,11 @@ import {
   IonRouterOutlet,
   MenuController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from './shared/components/app-icon/app-icon.component';
-import { AuthService } from './core/services/auth.service';
-import { CartService } from './core/services/cart.service';
-import { OrderNotificationService } from './core/services/order-notification.service';
-import type { AppIcon } from './core/icons/app-icons';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { AuthService } from '@core/services/auth.service';
+import { CartService } from '@core/services/cart.service';
+import { OrderNotificationService } from '@core/services/order-notification.service';
+import type { AppIcon } from '@core/icons/app-icons';
 import {
   can,
   isStaffRole,
@@ -32,9 +32,9 @@ import {
   ROLE_RANK,
   type Capability,
   type UserRole,
-} from './core/models/user.model';
+} from '@core/models/user.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { SplashScreen } from '@capacitor/splash-screen';
+import { NativeService } from '@core/platform/native.service';
 
 /**
  * The class `AppComponent` puts on `<html>` once the app has painted, which is what
@@ -139,8 +139,9 @@ export class AppComponent {
   private router = inject(Router);
   private menuCtrl = inject(MenuController);
   private orderNotifications = inject(OrderNotificationService);
+  private native = inject(NativeService);
 
-  currentUser = signal<import('./core/models/user.model').AppUser | null>(null);
+  currentUser = signal<import('@core/models/user.model').AppUser | null>(null);
   cartItemCount = signal(0);
 
   readonly customerNavItems: NavItem[] = [
@@ -353,17 +354,16 @@ export class AppComponent {
    *
    * On web the plugin's web implementation resolves without doing anything, so the
    * second call is inert and costs nothing.
+   *
+   * The platform call itself lives in NativeService. What matters here is only
+   * WHEN it happens — see `afterNextRender` above — and that ordering is a
+   * property of this method, not of the plugin. The service does the hiding; it
+   * does not decide that the app has painted.
    */
   private dismissBootSplash(): void {
     document.documentElement.classList.add(APP_READY_CLASS);
 
-    void SplashScreen.hide({ fadeOutDuration: BOOT_SPLASH_FADE_MS }).catch((err) =>
-      // Non-fatal: with no native platform there is no splash to leave stuck, and on
-      // a real device a rejection here means the native one hid itself anyway. Worth
-      // a log either way — silence here is how a stuck splash gets debugged from a
-      // screenshot instead of from the console.
-      console.error('Could not hide the native splash screen.', err),
-    );
+    this.native.hideSplash(BOOT_SPLASH_FADE_MS);
   }
 
   /**

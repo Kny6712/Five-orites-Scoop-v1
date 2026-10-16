@@ -6,7 +6,7 @@
 // src/app/core/logic/image-url.ts for the logic and its tests.
 
 import { Pipe, PipeTransform } from '@angular/core';
-import { buildCloudinaryUrl } from '../../core/logic/image-url';
+import { buildCloudinaryUrl } from '@core/logic/image-url';
 
 @Pipe({
   name: 'cloudinary',

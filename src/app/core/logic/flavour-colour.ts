@@ -28,7 +28,7 @@
 // still lives in exactly one place (variables.scss) and a palette change is still
 // a one-line edit with no TypeScript touched.
 
-import { flavourSlug } from './flavour';
+import { flavourSlug } from '@core/logic/flavour';
 
 /** The nine pastels are defined in theme/variables.scss, not here. */
 export const FLAVOUR_TOKEN_FALLBACK = 'var(--flavor-all)';

@@ -860,10 +860,10 @@ ion-button {
    either side: none ellipsise and none collide at 19px. The titles carrying the
    risk are the long ones, and the full list of 14 characters or more is:
 
-     17  Inventory Manager    admin/inventory/inventory.page.html
-     16  Order Fulfillment    admin/orders/admin-orders.page.html
-     15  Sales Analytics      admin/analytics/analytics.page.html
-     14  Bulk import flavors  admin/inventory/csv-import-modal (a MODAL, and
+     17  Inventory Manager    features/admin/inventory/inventory.page.html
+     16  Order Fulfillment    features/admin/orders/admin-orders.page.html
+     15  Sales Analytics      features/admin/analytics/analytics.page.html
+     14  Bulk import flavors  features/admin/inventory/csv-import-modal (a MODAL, and
                                modals are narrower than pages at 320px)
      14  Product Detail       products/product-detail — see below
 

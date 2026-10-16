@@ -27,12 +27,12 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 
-import { AppSettingsService } from '../../core/services/app-settings.service';
-import { NotificationService } from '../../core/services/notification.service';
-import { AuthService } from '../../core/services/auth.service';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { SectionHeaderComponent } from '../../shared/components/section-header/section-header.component';
+import { AppSettingsService } from '@core/services/app-settings.service';
+import { NotificationService } from '@core/services/notification.service';
+import { AuthService } from '@core/services/auth.service';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { SectionHeaderComponent } from '@shared/components/section-header/section-header.component';
 
 @Component({
   selector: 'app-settings',

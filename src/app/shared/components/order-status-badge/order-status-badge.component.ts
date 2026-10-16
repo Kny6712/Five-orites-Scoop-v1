@@ -5,8 +5,8 @@
 import { Component, Input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { IonChip, IonLabel } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../app-icon/app-icon.component';
-import { OrderStatus, ORDER_STATUS_META } from '../../../core/models/order.model';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { OrderStatus, ORDER_STATUS_META } from '@core/models/order.model';
 
 @Component({
   selector: 'app-order-status-badge',

@@ -19,8 +19,8 @@
 // so they are polite rather than interrupting a screen reader mid-sentence.
 
 import { Component, input, output } from '@angular/core';
-import { AppIconComponent } from '../app-icon/app-icon.component';
-import type { AppIcon } from '../../../core/icons/app-icons';
+import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import type { AppIcon } from '@core/icons/app-icons';
 
 export type AlertTone = 'danger' | 'warning' | 'success' | 'info';
 
