@@ -2,6 +2,45 @@
   "compileOnSave": false,
   "compilerOptions": {
     "outDir": "./dist/out-tsc",
+    // WHY THERE IS NO baseUrl HERE
+    //
+    // The obvious way to write these aliases is `baseUrl: "./src/app"` with
+    // `"@core/*": ["core/*"]`, and it is worse. Setting baseUrl switches on
+    // non-relative module resolution for the WHOLE project, not just for these
+    // four patterns. From then on a typo that drops the `@` -- `from
+    // 'core/models/order.model'` -- stops being a compile error and starts
+    // quietly resolving to a real file. A refactor that made a misspelled
+    // import compile is a refactor that can hide a broken one.
+    //
+    // TypeScript resolves `paths` entries relative to the tsconfig that declares
+    // them when baseUrl is absent, so spelling the `src/app/` prefix out in each
+    // pattern gets the same result with none of that blast radius. The `./`
+    // leading slash on each value is required, not stylistic: without baseUrl,
+    // TS5090 rejects a bare `src/app/core/*` as a non-relative path and tells
+    // you so. The cost is that the prefix is repeated four times; the benefit is
+    // that a wrong import is still a wrong import.
+    //
+    // WHY THIS IS THE ROOT tsconfig AND NOT tsconfig.app.json
+    // The root is what tsx resolves when `npm run test:logic` loads tests/*.ts,
+    // and those files import from core/. Aliases declared only in
+    // tsconfig.app.json would leave the test suite unable to resolve them.
+    //
+    // WHY @env/ EXISTS
+    // It is the only alias that points outside src/app, and it exists because
+    // app.config.ts otherwise needed `../environments/environment` -- the single
+    // ugliest import path in the codebase. Worth an alias precisely because it
+    // is a one-off.
+    //
+    // NO angular.json CHANGE IS NEEDED. The `application` builder honours
+    // TypeScript `paths` natively. The `paths` alias object under the old
+    // `webpack` builder was a separate, deprecated mechanism; adding one would
+    // mean configuring resolution twice and having them disagree.
+    "paths": {
+      "@core/*": ["./src/app/core/*"],
+      "@shared/*": ["./src/app/shared/*"],
+      "@features/*": ["./src/app/features/*"],
+      "@env/*": ["./src/environments/*"]
+    },
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitOverride": true,

@@ -14,29 +14,29 @@ import {
   DELIVERY_FEE,
   FREE_DELIVERY_THRESHOLD,
   getDeliveryFee,
-} from '../src/app/core/logic/delivery';
-import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '../src/app/core/logic/voucher';
-import { summarizeRatings } from '../src/app/core/logic/rating';
+} from '@core/logic/delivery';
+import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '@core/logic/voucher';
+import { summarizeRatings } from '@core/logic/rating';
 import {
   assertCanAddToCart,
   clampToStock,
   normaliseStockLines,
   totalStock,
   SIZE_VARIANTS,
-} from '../src/app/core/logic/stock';
+} from '@core/logic/stock';
 import {
   reconcileSize,
   RESET_REASONS,
   RECONCILE_SIZES,
   STOCK_REASON_LABELS,
-} from '../src/app/core/logic/ledger-reconcile';
-import { flavourOf, initialsOf } from '../src/app/core/logic/flavour';
-import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
+} from '@core/logic/ledger-reconcile';
+import { flavourOf, initialsOf } from '@core/logic/flavour';
+import { buildCloudinaryUrl } from '@core/logic/image-url';
 import {
   describeFirestoreError,
   isMissingIndexError,
   isPermissionDeniedError,
-} from '../src/app/core/logic/firestore-error';
+} from '@core/logic/firestore-error';
 import {
   buildNotificationFeed,
   collapseToOrderThreads,
@@ -57,24 +57,24 @@ import {
   statusToastLine,
   FEED_LIMIT,
   STATUS_SEQUENCE,
-} from '../src/app/core/logic/notifications';
-import { readCachedGeo, interpolate, distanceMetres } from '../src/app/core/logic/geo';
-import { productCategory, PRODUCT_CATEGORIES } from '../src/app/core/models/product.model';
-import * as voucherModel from '../src/app/core/models/voucher.model';
-import { toCsv, sanitiseCell, csvFilename, toIsoDate } from '../src/app/core/logic/csv';
+} from '@core/logic/notifications';
+import { readCachedGeo, interpolate, distanceMetres } from '@core/logic/geo';
+import { productCategory, PRODUCT_CATEGORIES } from '@core/models/product.model';
+import * as voucherModel from '@core/models/voucher.model';
+import { toCsv, sanitiseCell, csvFilename, toIsoDate } from '@core/logic/csv';
 import {
   calendarBuckets,
   weeklyBuckets,
   bucketsFor,
   bucketize,
   runningTotal,
-} from '../src/app/core/logic/series';
+} from '@core/logic/series';
 import {
   parseCsvLine,
   parseProductCsv,
   slug,
   PRODUCT_CSV_TEMPLATE,
-} from '../src/app/core/logic/csv-import';
+} from '@core/logic/csv-import';
 import {
   ROLE_CAPABILITIES,
   ROLE_LABELS,
@@ -84,7 +84,7 @@ import {
   asRole,
   type Capability,
   type UserRole,
-} from '../src/app/core/models/user.model';
+} from '@core/models/user.model';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, relative } from 'node:path';
