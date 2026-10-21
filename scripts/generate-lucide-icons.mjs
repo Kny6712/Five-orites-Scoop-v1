@@ -53,6 +53,12 @@ const WANTED = {
   info: ['Info'],
   users: ['Users', 'Users2'],
   user: ['User'],
+  // The photo placeholder in the developer sheet. `User` is a circle head on a
+  // SQUARE body — a robot, not a person — so the empty-photo placeholder
+  // read as a pictogram of a machine. `UserRound` is the same bust with round
+  // shoulders, and filled (see the `filled` input on app-icon) it is an actual
+  // silhouette, which is what an avatar placeholder has to be.
+  'user-round': ['UserRound'],
   'user-cog': ['UserCog'],
   'log-out': ['LogOut'],
   menu: ['Menu'],
@@ -102,6 +108,15 @@ const WANTED = {
   frown: ['Frown'],
   image: ['Image', 'ImageIcon'],
   camera: ['Camera'],
+  // A PLAIN PAGE, for the CSV buttons.
+  //
+  // This was `file-chart-line` — a page with a scribble of lines and a chart
+  // drawn on it — and the scribble was the problem: at 16px the lines inside
+  // the page collapsed into a smudge, so the icon read as a smudge in a box
+  // rather than as a document. `file` is the same sheet of paper with a
+  // folded corner and nothing on it, which is what the button is: a file you
+  // are going to get.
+  file: ['File'],
   package: ['Package'],
   store: ['Store'],
   truck: ['Truck'],

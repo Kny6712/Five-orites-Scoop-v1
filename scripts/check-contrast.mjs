@@ -48,6 +48,11 @@ const P = {
   blushInk: '#A63A5E',
   plum: '#3D2B45',
   cream: '#FFF9F4',
+  // --color-photo-placeholder. The app's only DARK surface: the disc a
+  // developer's photo sits in when there is no photo yet, with a white person
+  // drawn on it. White on it is 11.9:1, and the disc itself is far enough
+  // from the white sheet it sits on to read as a filled area.
+  photoEmpty: '#333A3F',
   // --color-card. The cream the majority of the app's text actually sits on:
   // every .cart-card, .value-card and .name-item is this colour, and until now
   // the gate only knew the page ground (P.cream) and P.white. Card sits between
@@ -63,11 +68,12 @@ const P = {
   // asserting the blend is what actually matters - the selected row's text is
   // plum on top of it.
   tintedSurface: '#DCE8EE',
-  // --ion-color-light. The one contained-surface token on the cart: the item rows,
-  // the saved-address rows, the text fields and now the order summary all paint
-  // this exact colour, so every ink that sits in any of them is asserted against
-  // it here. Added after the summary moved onto it - which is also what exposed
-  // the Total divider going invisible, see P.dividerBelow.
+  // --ion-color-light. The one contained-surface token the app still paints
+  // rows on: the fulfilment queue's tables, the inventory's panels, the
+  // vouchers' cards, the reviews' filter. The cart used it for its item rows
+  // and its summary, and moved those to white inside the warm cards; the
+  // token and the pairs below stay, because every one of those other
+  // surfaces still carries text on it.
   contained: '#F2F7FA',
   // --ion-color-light-shade, the border the Total row was drawn with. Recorded
   // against P.contained because that is where it broke: #E4EDF3 on #F2F7FA is
@@ -138,7 +144,6 @@ const KPI = {
   pendingBg: '#EBEBDB',
   pendingInk: '#7A4B00',
   pendingRim: '#B8A378',
-  pendingDisc: '#E0DBC5',
   lowstockBg: '#E8D8D8',
   lowstockInk: '#8F1F38',
   lowstockRim: '#C08590',
@@ -147,22 +152,39 @@ const KPI = {
   totalRim: '#8199B2',
 };
 
-// The dashboard's Low Stock panel, repainted to a powder fill and SCOPED to that
-// panel — `--tone-peach-*` still paints admin-tracking's unmapped-orders block, so
-// these are deliberately separate values rather than an edit of the shared peach.
+// The dashboard's Low Stock panel, retinted to ORANGE — the family the app
+// already calls a low-stock alert (--tone-warning-*, the storefront's "Low
+// Stock" chip) — and SCOPED to that panel. `--tone-peach-*` still paints
+// admin-tracking's unmapped-orders block, so these are deliberately separate
+// values rather than an edit of the shared peach.
 //
-// `--lowstock-bg` is H36 S46 L82, not the S25 L88 a KPI tile can afford, and the
-// tinted row is why: the rows are 40% white over this fill, and at S25 L88 that
-// pair measures 1.11:1 and fails. Everything else here clears with room; that one
-// clears at 1.16, which is thin by design and is the first number to re-check if
-// the fill ever moves.
+// `--lowstock-bg` is a WHISPER of orange — H30 S47 L89 — because the owner's
+// call was that the panel's surface must stay quiet so that the pure orange
+// edge and the pure orange warning glyph are the only saturated things on the
+// screen. It still clears 1.17:1 against the cream page, so the panel reads as
+// a surface from its fill as well as from its edge, and the white pills on it
+// (1.22:1) still read as pills.
+//
+// It is a whisper and NOT the chip's own #FCEBC4 (L88): that one is too close
+// to white for the pills to sit on it.
+//
+// TWO ORANGES. `bg` is the whisper-orange surface; `accent` is the PURE orange
+// the panel's edge and its warning glyph are drawn in. A brighter orange was
+// tried and rejected: #F0821E measures 2.54:1 on cream and 2.65:1 on white, so
+// the edge would sink into the page and the glyph would miss the 3:1 a
+// non-text element owes. #E2660A clears both and still reads as orange.
+//
+// THERE IS NO ROW FILL. The row used to be 40% white over this panel, which on
+// a whisper is 1.11:1 — no band at all — so the row stopped having a fill and
+// the row rows below are about the panel's own surface.
 const LOW = {
-  bg: '#E6D5BC',
-  border: '#B59767',
+  bg: '#F8E6CE',
+  accent: '#E2660A',
+  // The muted divider inside the panel. Not the accent: it sits directly under
+  // the Restock button, and a saturated line there would compete with the
+  // action it is meant to sit under.
+  rule: '#C88B3C',
   ink: '#7A4B00',
-  // 40% white over LOW.bg. Written as a solid because this file reads solid
-  // pairs; the stylesheet keeps it as a live alpha that tracks the fill.
-  row: '#F0E6D7',
 };
 
 // Flavour chip pastels. Kept as their own table because they are matched as a
@@ -199,6 +221,13 @@ const PROMO = { bg: '#F8A9BE', border: '#1B5E7E' };
 const PAIRS = [
   [P.plum, P.cream, 4.5, 'body text on cream'],
   [P.plum, P.white, 4.5, 'body text on white card'],
+
+  // THE EMPTY-PHOTO DISC. A white person on a charcoal circle — the one place
+  // in the app where white is the ink and the surface is the dark one — and
+  // the disc itself against the white sheet it is drawn on, so the filled
+  // area reads as a filled area and not as a smudge.
+  [P.white, P.photoEmpty, 4.5, 'the white placeholder person on the empty-photo disc'],
+  [P.photoEmpty, P.white, 1.2, 'the empty-photo disc against the sheet it sits on'],
 
   // ON A CARD SURFACE. Every panel on the cart, About and the tracker is
   // --color-card, which was ungated: a pair could be asserted against white and
@@ -257,6 +286,10 @@ const PAIRS = [
   [P.plum, P.blush, 4.5, 'plum on blush (accent surface)'],
   [P.powderInk, P.cream, 4.5, 'primary-ink text on cream'],
   [P.powderInk, P.white, 4.5, 'primary-ink text on white card'],
+  // The gold CTA's HOVER: a teal fill with white ink. The button states itself
+  // in the app's primary ink rather than wearing a teal outline around itself,
+  // so this pair is the one that carries the state.
+  [P.white, P.powderInk, 4.5, 'white on primary ink (the gold CTA in its teal state)'],
   [P.mintInk, P.cream, 4.5, 'mint-ink text on cream'],
   [P.sunnyInk, P.cream, 4.5, 'sunny-ink text on cream'],
   [P.blushInk, P.white, 4.5, 'blush-ink text on white card'],
@@ -267,6 +300,27 @@ const PAIRS = [
   [TONES.warningInk, TONES.warningBg, 4.5, 'warning ink on its banner bg'],
   [TONES.dangerInk, TONES.dangerBg, 4.5, 'danger ink on its banner bg'],
   [TONES.infoInk, TONES.infoBg, 4.5, 'info ink on its banner bg'],
+
+  // ── The status chip on hover ───────────────────────────────────────────────
+  //
+  // The fulfilment queue's status chip IS the control, so hovering it repaints
+  // the chip's ink in the app's navy while the fill stays the state colour.
+  // That is a new ink on a surface the app paints in six tones, and it is
+  // asserted rather than assumed.
+  //
+  // THE INK IS THE SAME ON ALL SIX, but the surfaces are not, so the palest
+  // fill is the one worth naming. Five rows, not six: "Preparing Your Scoops"
+  // is drawn on --tile-powder, which is the same #E4F1F8 as --tone-info-bg,
+  // so the info row covers it.
+  //
+  // "Out for Delivery" is on --tile-mint (#E4F6EA), which is NOT P.mint — that
+  // one is #C6E2D4, the flavour swatch. The first run of this row used it and
+  // the gate said 4.09:1, which is the swatch's number and not the tile's.
+  [P.powderInk, TONES.warningBg, 4.5, 'status chip on hover: primary-ink on the warning tint'],
+  [P.powderInk, TONES.infoBg, 4.5, 'status chip on hover: primary-ink on the info tint'],
+  [P.powderInk, '#E4F6EA', 4.5, 'status chip on hover: primary-ink on the mint tile'],
+  [P.powderInk, TONES.successBg, 4.5, 'status chip on hover: primary-ink on the success tint'],
+  [P.powderInk, TONES.dangerBg, 4.5, 'status chip on hover: primary-ink on the danger tint'],
 
   // WHITE ON A TONE INK — the inverse of the four rows above, and the one the
   // dashboard's "Restock" button depends on.
@@ -360,11 +414,45 @@ const PAIRS = [
   [TONES.dangerBorder, TONES.dangerBg, 1.4, 'danger banner border vs its bg'],
   [TONES.infoBorder, TONES.infoBg, 1.4, 'info banner border vs its bg'],
 
+  // ── The cart's warm cards ──────────────────────────────────────────────────
+  // The cart's four cards — Your Items, Order Summary, Voucher and Delivery
+  // Details — are --tile-lemon (#FFF3D6), the app's pale warm tile: the
+  // customer side is a warm place and the card is the thing that says so.
+  //
+  // THE BLOCKS INSIDE THEM ARE WHITE. The item rows, the summary panel and the
+  // saved-address list are contained blocks, not containers: a pale fill
+  // inside a pale card is one beige field with a slightly different beige on
+  // it, and nothing reads as "these are the things you are buying".
+  //
+  // THE FIELDS AND TEXT AREAS ARE NOT IN THIS. A field is something you type
+  // into, and a warm fill under it reads as a panel rather than as an input,
+  // so the text areas and the promo field stay white.
+  //
+  // THE CARD CANNOT CARRY ITS OWN EDGE: #FFF3D6 on the cream page is 1.05:1,
+  // which is no edge at all — the same deal as the app's white flat cards,
+  // where the rim does the work. These rows are that rim, and the inks that
+  // now sit on the warm card.
+  ['#9DC2E0', P.cream, 1.4, 'cart card rim vs the cream page'],
+  ['#9DC2E0', '#FFF3D6', 1.4, 'cart card rim vs its own lemon fill'],
+  ['#FFF3D6', P.cream, 1.05, 'the cart lemon card has no edge of its own on the cream page'],
+  // The inks on the warm card: plum (the card titles and the field labels),
+  // primary-ink (the Manage link) and the medium ink (the voucher message).
+  [P.plum, '#FFF3D6', 4.5, 'card title on a lemon card'],
+  [P.powderInk, '#FFF3D6', 4.5, 'the Manage link on a lemon card'],
+  ['#5B4C66', '#FFF3D6', 4.5, 'the voucher message on a lemon card'],
+  // …and the meta ink on the WHITE blocks inside them. The item row's second
+  // line is --color-ink-soft, and that row used to be on the blue contained
+  // surface; it is on white now.
+  [P.inkSoft, P.white, 4.5, 'item meta text on a white item row'],
+
   // ── The peach low-stock surfaces ────────────────────────────────────────
-  // The dashboard's Low Stock panel and the tracking page's unmapped block. Both
-  // carry four pieces of text on this fill and all four are asserted, because the
-  // redesign moved the rows OFF a white card ONTO the tint — which is precisely
-  // the change that makes an unasserted colour pair dangerous.
+  // The tracking page's notice strip. It carries two pieces of text on this
+  // fill and both are asserted, because a surface that holds text is a surface
+  // whose ink has to be measured rather than assumed.
+  //
+  // The dashboard's Low Stock panel was repainted to a scoped powder fill and
+  // carries its own rows further down, so the peach belongs to the tracking
+  // page alone.
   //
   // Two of these rows exist because the obvious choice FAILS. --ion-color-medium
   // is the ink this text used to be, and it is what the rest of the app uses for
@@ -374,7 +462,7 @@ const PAIRS = [
   // catching it on the same run.
   [TONES.peachInk, TONES.peachBg, 4.5, 'peach ink on peach bg (subtitle, set name)'],
   [P.plum, TONES.peachBg, 4.5, 'plum on peach bg (panel title, flavour name)'],
-  [TONES.peachInk, P.white, 4.5, 'peach ink on a white pill (low-stock chip)'],
+  [TONES.peachInk, P.white, 4.5, 'peach ink on white (the "No pin yet" flag)'],
   [P.white, TONES.peachInk, 4.5, 'white on peach ink (empty chip, Restock CTA)'],
   // The fill needs its own edge against the cream page, and the border needs one
   // against the fill — or the panel is a shape with no boundary.
@@ -406,20 +494,23 @@ const PAIRS = [
   // ratio rises and the ink ratio falls, and 40% is where the two were last
   // measured together.
   //
-  // THESE THREE ROWS COVER BOTH PANELS. The dashboard's low-stock list and the
-  // tracking page's unmapped-orders list are the same surface in two places, and
-  // both use this exact composite — so there is deliberately no second set of
-  // rows for the tracking list. If one is ever retinted independently, add its
-  // own rows here rather than assuming these still describe it.
-  ['#FEE0B6', TONES.peachBg, 1.15, 'tinted low-stock row vs the peach panel'],
-  [TONES.peachInk, '#FEE0B6', 4.5, 'peach ink on a tinted low-stock row'],
-  [P.plum, '#FEE0B6', 4.5, 'plum on a tinted low-stock row'],
+  // THESE THREE ROWS WENT WITH THE TRACKING PAGE'S LIST. The composite had two
+  // consumers — the dashboard's low-stock list and admin-tracking's unmapped
+  // orders — and the tracking list was the one that used this exact peach. It is
+  // now a flag on the route's own rows instead of a tinted band, so the
+  // composite has no consumer and asserting it would be documenting a colour
+  // nothing paints.
+  //
+  // The dashboard's panel did NOT go with it: it was retinted to its own scoped
+  // orange and carries its own rows (LOW, below). The peach panel itself
+  // survives as the tracking page's notice strip, and the rows above still
+  // describe it.
 
-  // ── The DASHBOARD low-stock panel (powder) ───────────────────────────────
+  // ── The DASHBOARD low-stock panel (orange) ───────────────────────────────
   //
   // A SECOND set of rows, and that is deliberate: the peach block above is now
   // describing admin-tracking's unmapped-orders block ONLY, because the dashboard
-  // panel was repainted to a scoped powder fill. The note at the end of the peach
+  // panel was retinted to its own scoped orange. The note at the end of the peach
   // block anticipates exactly this case — "if one is ever retinted independently,
   // add its own rows here rather than assuming these still describe it".
   //
@@ -431,16 +522,39 @@ const PAIRS = [
   // LOW is declared above PAIRS, with KPI and FLAVORS, because PAIRS spreads it
   // at module-evaluation time and a `const` down here would be in its temporal
   // dead zone.
-  [LOW.ink, LOW.bg, 4.5, 'lowstock ink on the powder panel (subtitle, set name)'],
-  [P.plum, LOW.bg, 4.5, 'plum on the powder panel (panel title, flavour name)'],
-  [LOW.ink, P.white, 4.5, 'lowstock ink on a white pill (low-stock chip)'],
-  [P.white, LOW.ink, 4.5, 'white on lowstock ink (empty chip, Restock CTA)'],
-  [LOW.bg, P.cream, 1.15, 'powder panel bg vs the cream page'],
-  [LOW.border, LOW.bg, 1.4, 'powder panel border vs its own bg'],
-  [P.white, LOW.bg, 1.15, 'white pill vs the powder panel'],
-  [LOW.row, LOW.bg, 1.15, 'tinted low-stock row vs the powder panel'],
-  [LOW.ink, LOW.row, 4.5, 'lowstock ink on a tinted row'],
-  [P.plum, LOW.row, 4.5, 'plum on a tinted row'],
+  [LOW.ink, LOW.bg, 4.5, 'lowstock ink on the whisper panel (subtitle, set name)'],
+  [P.plum, LOW.bg, 4.5, 'plum on the whisper panel (panel title, flavour name)'],
+  [LOW.ink, P.white, 4.5, 'lowstock ink on a white pill (the stock chips, the Restock CTA)'],
+  [LOW.bg, P.cream, 1.15, 'whisper panel bg vs the cream page'],
+  [LOW.accent, LOW.bg, 1.4, 'the pure-orange panel edge vs its own fill'],
+  [LOW.accent, P.cream, 3, 'the pure-orange panel edge on the cream page'],
+  [LOW.accent, P.white, 3, 'the warning glyph and the chip outlines on white'],
+  [LOW.rule, LOW.bg, 1.4, 'the muted divider inside the panel'],
+  [P.white, LOW.bg, 1.15, 'white pill vs the whisper panel'],
+
+  // ── The staff-reply tile ───────────────────────────────────────────────
+  //
+  // The block a staff reply is drawn on: the app's pale mint, with a one-pixel
+  // rim in the saturated mint.
+  //
+  // THE FILL IS NOT ASSERTED AGAINST THE WHITE CARD, and that is the point
+  // rather than an omission. #E4F6EA on white measures 1.13:1, under the
+  // 1.15:1 the banner surfaces owe — which is exactly why this block used to
+  // carry a FOUR-PIXEL mint bar down its left edge: the fill could not hold
+  // the edge on its own, so something heavier had to. The bar is now a
+  // one-pixel rim of the same hue, and the RIM is what carries the boundary
+  // (1.74:1 against the card it sits in, 1.55:1 against its own fill).
+  //
+  // This is the same reasoning the KPI tiles above use: a fill that cannot
+  // carry the edge is drawn with a rim precisely because of that.
+  //
+  // The two text rows are the load-bearing ones. The label is mint-ink on the
+  // mint (5.17:1) and the reply itself is plum (11.45:1) — both solid, both
+  // asserted here rather than assumed.
+  [P.mintInk, '#E4F6EA', 4.5, 'mint ink on the staff-reply tile (the "replied" label)'],
+  [P.plum, '#E4F6EA', 4.5, 'plum on the staff-reply tile (the reply text)'],
+  ['#5FD9B4', '#E4F6EA', 1.4, 'staff-reply tile rim vs its own mint fill'],
+  ['#5FD9B4', P.white, 1.4, 'staff-reply tile rim vs the white card it sits in'],
 
   // ── Dashboard KPI tiles ─────────────────────────────────────────────────
   // A supplied four-swatch pastel palette, one swatch per tile. Asserted as three
@@ -495,8 +609,18 @@ const PAIRS = [
   // pending pastel measured 1.04:1 — the circle disappeared and the glyph floated
   // on bare background. That tile gets a disc nudged 10% toward its own ink, which
   // reads at 1.16:1 and leaves the glyph at 6.14:1 on top of it.
-  [KPI.pendingDisc, KPI.pendingBg, 1.15, 'pending badge disc vs its tile fill'],
-  [KPI.pendingInk, KPI.pendingDisc, 4.5, 'pending glyph on its own badge disc'],
+  //
+  // BOTH ROWS ARE GONE, because the disc is no longer white and no longer
+  // nudged: the tiles are flat cards now and the disc is the tile's own pastel,
+  // which the four ink rows above already assert against.
+  //
+  // What replaced them is the rim against the WHITE CARD it sits on. The rim
+  // used to draw the edge of a tile standing on the cream page; it now draws
+  // the edge of a disc sitting on a white card, and that is a different pair.
+  [KPI.revenueRim, P.white, 1.4, 'revenue KPI disc rim vs the white card'],
+  [KPI.pendingRim, P.white, 1.4, 'pending KPI disc rim vs the white card'],
+  [KPI.lowstockRim, P.white, 1.4, 'low-stock KPI disc rim vs the white card'],
+  [KPI.totalRim, P.white, 1.4, 'total-orders KPI disc rim vs the white card'],
 
   // ── Dashboard welcome banner ────────────────────────────────────────────
   // The supplied teal. It replaced a deeper lemon, and the value that is now on
@@ -618,6 +742,18 @@ const PAIRS = [
     [P.plum, hex, 4.5, `flavour chip label on ${name}`],
     [hex, P.cream, 1.2, `${name} chip against the cream page`],
   ]),
+
+  // The ADMIN's set-number chip. It is the same nine pastels, but drawn as a
+  // RIM on a white chip rather than as a fill — so what has to be visible is the
+  // outline against the white inventory card, not a filled area.
+  //
+  // 1.2, the same floor the flavour chips above use, and for the same reason:
+  // this is a LABEL, not a control. The set's name is written next to the chip,
+  // so the colour was always a second cue for something the line beside it
+  // already says — it does not have to carry a control's 1.4:1 edge.
+  ...Object.entries(FLAVORS).flatMap(([name, hex]) => [
+    [hex, P.white, 1.2, `${name} set-chip rim on the white inventory card`],
+  ]),
   [P.plum, PROMO.bg, 4.5, 'promo-banner title (plum on blush)'],
   [P.powderInk, PROMO.bg, 3, 'promo-banner dashed border on blush'],
   [PROMO.bg, P.cream, 1.2, 'promo-banner blush against the cream page'],
@@ -655,6 +791,136 @@ const PAIRS = [
   // clears 1.4:1 against the white it is supposed to be standing out from.
   ['#9DC2E0', '#E4F1F8', 1.4, 'filter-row rim vs its own powder fill'],
   ['#9DC2E0', P.white, 1.4, 'filter-row rim vs the white page'],
+
+  /* ── The credits admin rows ───────────────────────────────────────────
+     The Team Credits page is a PREVIEW of the public credits page: it exists so
+     an admin editing a record can see what a visitor will get. That only holds
+     while the two render the same chips in the same colours, so the five role
+     tints and the five avatar discs are pinned here — if a public-page chip is
+     retinted, these rows fail and the preview stops being trustworthy.
+
+     The chips carry plum on every tile. Plum clears 9:1 on all five, which is
+     why the page switched its initials from --color-primary-ink (#1B5E7E, which
+     measured 5.17-5.93:1 and, more to the point, was a DIFFERENT COLOUR from the
+     one the public page renders) to --color-ink. */
+  [P.plum, '#E4F1F8', 4.5, 'credits role chip: lead, plum on tile-powder'],
+  [P.plum, '#E4F6EA', 4.5, 'credits role chip: dev, plum on tile-mint'],
+  [P.plum, '#FDE8EE', 4.5, 'credits role chip: design, plum on tile-blush'],
+  [P.plum, '#FFF3D6', 4.5, 'credits role chip: qa, plum on tile-lemon'],
+  [P.plum, '#E8EEF9', 4.5, 'credits role chip: unrecognised role, plum on ion-light'],
+
+  /* The five accent discs behind the initials. These are the hexes stored on the
+     documents (DEVELOPER_ACCENTS), not design tokens — firestore.rules restricts
+     a write to exactly these five values, so they are the palette and are
+     asserted here at the same 4.5:1 the public page's initials are held to. */
+  [P.plum, '#CFE4F2', 4.5, 'credits avatar initials: plum on accent Powder'],
+  [P.plum, '#CDEAD9', 4.5, 'credits avatar initials: plum on accent Mint'],
+  [P.plum, '#F8D2DD', 4.5, 'credits avatar initials: plum on accent Blush'],
+  [P.plum, '#FBE9BE', 4.5, 'credits avatar initials: plum on accent Lemon'],
+  [P.plum, '#D3DDF7', 4.5, 'credits avatar initials: plum on accent Periwinkle'],
+
+  /* The primary action on that page.
+
+     It is plum on sunny, and that is not a fresh choice: #ffc53d is documented
+     in variables.scss as the CTA hue and .place-order-btn on the cart page
+     already uses this exact pairing. What is new is WHERE it sits — this one is
+     on cream, not on the toolbar.
+
+     The second row is the reason the toolbar version could not be kept. A solid
+     ion-button with no fill attribute resolves its background from
+     --ion-color-primary (#A3B5F0), and the toolbar background is
+     --color-brand-primary — the same value. 1.00:1: the "Add" button had no
+     visible box at all. Asserting it here means putting the button back into the
+     toolbar fails the gate rather than shipping another invisible control. */
+  [P.plum, '#FFC53D', 4.5, 'credits "Add developer" CTA: plum on sunny'],
+  ['#A3B5F0', '#A3B5F0', 1.0, 'REJECTED: solid ion-button on the periwinkle toolbar (invisible)'],
+
+  /* The row rim, reused from the filter bar above so the credits cards do not
+     introduce a second unmeasured edge colour.
+
+     THE CARD IS WHITE NOW, not --color-card. --color-card (#fffcee) sat 1.01:1
+     from the cream page behind it, so the card had no surface of its own and
+     the rim was doing all the work — a 2px band plus a drop shadow around what
+     was, in substance, the page. It is a white card with a hairline now, which
+     is the app's flat card, and the hairline is asserted here against the
+     white it actually sits on.
+
+     The same value draws the avatar's ring, the camera badge and the rule
+     between the action groups, so they are all one edge colour rather than
+     four that happen to match. */
+  [
+    '#9DC2E0',
+    P.white,
+    1.4,
+    'credits row rim, avatar ring, camera badge and action divider on the white card',
+  ],
+
+  /* The delete glyph. The same danger red it has always worn, but it no longer
+     sits on a filled powder block — it is a bare red glyph on a white card
+     now, so the pair it draws on is asserted here rather than inherited from
+     the block that used to be there. */
+  [P.danger, P.white, 4.5, 'the delete glyph on the white credits card'],
+
+  /* ── The analytics page's flat cards ────────────────────────────────────────
+     THE PANELS USED TO BE ion-cards, WHOSE BACKGROUND IS #FFF9F4 — the same
+     cream as the page. Six panels were separated from the page by a drop
+     shadow and by nothing else, and the flat vocabulary forbids the shadow,
+     so they became white cards with a hairline. The hairline is what carries
+     the edge now, and it is asserted here against the page it sits on.
+
+     The card's own fill is 1.04:1 against the cream, which is why the rim is
+     not optional decoration: it is the only thing drawing the card's edge. */
+  ['#9DC2E0', P.cream, 1.4, 'analytics flat card rim vs the cream page'],
+
+  /* The card's 12px subtitle, in --ion-color-medium. The token was in use on
+     this page before, against the cream card, and nothing asserted it there
+     either. */
+  ['#7A6B84', P.white, 4.5, 'analytics card subtitle on a white card'],
+
+  /* The admin footer's line of text, in the same token on the same white. A
+     separate row for a separate surface: the admin footer is a different piece
+     of chrome from a card's subtitle, and a change to one should not be able
+     to borrow the other's coverage. */
+  ['#7A6B84', P.white, 4.5, 'admin footer text on a white bar'],
+
+  /* ── The four KPI discs ─────────────────────────────────────────────────────
+     The tiles were four pastel panels with no border at all, measuring 1.06:1
+     to 1.12:1 against the page. The pastel now sits on a 36px disc behind the
+     glyph, and the disc is rimmed — because the fills are 1.10:1 to 1.18:1
+     against the white card, which is below the floor for a filled surface, so
+     the RIM carries the edge. These four rows are that rim against the card.
+
+     The rim against its OWN fill is already asserted for the two triples that
+     have one (the tone banners, and the staff-reply tile's mint), and the
+     inks on their own fills are asserted by the tone rows and by the staff
+     reply's — so these four are the only pairs that are genuinely new. */
+  [TONES.successBorder, P.white, 1.4, 'analytics KPI disc rim: success vs the white card'],
+  [TONES.infoBorder, P.white, 1.4, 'analytics KPI disc rim: info vs the white card'],
+  ['#5FD9B4', P.white, 1.4, 'analytics KPI disc rim: mint vs the white card'],
+  [TONES.warningBorder, P.white, 1.4, 'analytics KPI disc rim: warning vs the white card'],
+
+  /* The icon inside each disc, in that disc's own ink. */
+  [P.mintInk, '#E4F6EA', 4.5, 'analytics KPI disc: mint ink on the mint fill'],
+  [TONES.warningInk, TONES.warningBg, 4.5, 'analytics KPI disc: warning ink on the warning fill'],
+
+  /* ── The bar chart's track and its fills ────────────────────────────────────
+     The track was --ion-color-light (#F2F7FA), which measures 1.08:1 against
+     a white card: the EMPTY part of every bar was invisible, so each bar was
+     drawn as a shape floating on the card rather than as a proportion of
+     something. It is now powder with a hairline rim, and the two rows below
+     are the fills against that powder.
+
+     Both are under the 3:1 that WCAG asks of a graphical object, and both are
+     asserted anyway: the VALUE is printed in ink beside every bar, so the
+     colour is not carrying the information — the bar's LENGTH is. */
+  [P.sunny, '#E4F1F8', 1.15, 'analytics bar fill (sunny) on the powder track'],
+  [P.mint, '#E4F1F8', 1.15, 'analytics bar fill (mint) on the powder track'],
+
+  /* The trend line. It was --color-brand-primary, a pastel measuring 2.01:1
+     against the card — a chart whose entire content is the shape of a line,
+     drawn in a colour that barely differs from the paper. The navy is the
+     app's value ink, and 3:1 is the non-text requirement; it measures 7.12:1. */
+  [P.powderInk, P.white, 3, 'analytics trend line on a white card'],
 ];
 
 let fails = 0;

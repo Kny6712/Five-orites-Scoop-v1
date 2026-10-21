@@ -1,0 +1,163 @@
+<!-- src/app/shared/components/commerce/product-card.component.html -->
+
+<!--
+  THE LINK, as a QUERY PARAMETER rather than a route of its own.
+
+  The product detail is a dialog over this page, so a card cannot link to a
+  page — it asks the listing to open the quick-view, and the flavour's id
+  rides in the URL as `?open=` so the link is still shareable and the
+  browser's back button still behaves.
+-->
+<ion-card class="product-card" [routerLink]="['/products']" [queryParams]="{ open: product.id }">
+  <div class="card-image-wrap">
+    @if (!imageLoaded()) {
+      <ion-skeleton-text animated class="image-skeleton"></ion-skeleton-text>
+    }
+    <img
+      [src]="(product.imageUrl | cloudinary: 400) || '/assets/placeholder-scoop.svg'"
+      [alt]="product.variantName"
+      class="card-image"
+      [class.image-visible]="imageLoaded()"
+      (load)="onImageLoad()"
+      (error)="onImageError($event)"
+    />
+    <div class="set-badge" [style.background]="setFlavourBackground()">
+      Set {{ product.setNumber }} · {{ product.setName }}
+    </div>
+    <button
+      type="button"
+      class="wishlist-btn"
+      (click)="toggleWishlist($event)"
+      [attr.aria-label]="isWished() ? 'Remove from wishlist' : 'Save to wishlist'"
+    >
+      <!-- One Lucide glyph for both states; the filled look comes from
+           .wished setting `fill: currentColor`, so there is no second icon. -->
+      <app-icon name="heart" class="wishlist-icon" [class.wished]="isWished()" />
+    </button>
+  </div>
+
+  <ion-card-content class="card-body" (click)="$event.stopPropagation()">
+    <h3 class="variety-name">{{ product.variantName }}</h3>
+
+    <ion-segment
+      [value]="selectedSize()"
+      (ionChange)="onSizeChange($event)"
+      class="size-segment"
+      mode="md"
+      scrollable="true"
+    >
+      @for (size of sizes; track size) {
+        <!--
+          Short label rendered, full label announced. "Half Gallon" does not fit
+          a card-sized segment button at any card width, but "Half Gallon" is
+          still the name of the thing being bought, so it stays on the button as
+          its accessible name and as a tooltip for a mouse user.
+        -->
+        <ion-segment-button
+          [value]="size"
+          class="size-btn"
+          [attr.aria-label]="sizeLabels[size]"
+          [title]="sizeLabels[size]"
+        >
+          <ion-label>{{ sizeLabelsShort[size] }}</ion-label>
+        </ion-segment-button>
+      }
+    </ion-segment>
+
+    <div class="price-stock-row">
+      <!--
+        A product whose document has no price for this size shows an em dash,
+        not ₱0. The price is read through `sizePrice()`, which returns null for
+        a missing price; a missing price is not the same as a free one.
+      -->
+      <span class="price">{{ hasPrice() ? (currentPrice() | peso) : '—' }}</span>
+      <!--
+        Explicit tone classes, NOT [color].
+        Ionic's color input derives a foreground AND a background from one name with no
+        relationship between them, which is why "In Stock" measured 1.12:1 - the label
+        and the pill within a percent of the same lightness. color is built for tints,
+        not for text contrast. Same defect already fixed on /developers.
+
+        A PLAIN <span>, NOT AN <ion-chip>. The same swap as
+        order-status-badge, for the same reason: ion-chip hard-codes a 16px
+        border-radius and exposes no custom property for it, so a rectangular chip
+        is not an ion-chip. The box comes from the global ".chip" class; only the
+        height, the type and the tone live in product-card.component.scss.
+      -->
+      <span
+        [ngClass]="
+          currentStock() === 0
+            ? 'stock-chip-out'
+            : currentStock() < lowStockThreshold()
+              ? 'stock-chip-low'
+              : 'stock-chip-ok'
+        "
+        class="chip stock-chip"
+      >
+        <span class="stock-chip-text">
+          {{ currentStock() === 0 ? 'Out of Stock' : currentStock() < lowStockThreshold() ? 'Low Stock' : 'In Stock' }}
+        </span>
+      </span>
+    </div>
+
+    <!--
+      THE GOLD CTA, as a PLAIN <button>.
+
+      It was an <ion-button>, and Ionic's md button brings three things this
+      vocabulary does not allow: a three-layer elevation shadow under the fill,
+      `text-transform: uppercase` on the label, and a fixed inner padding that
+      cannot be measured against the row it sits in. The result read as
+      "ADD TO CART" in a floating gold slab — the same slab on every card on
+      the page, forty times over.
+
+      The plain button is the app's own pattern: every gold CTA in the admin
+      is one, and the Edit Product modal's Save is the same treatment. Amber
+      fill, plum ink, a pill, and the hover is the button ITSELF changing —
+      teal fill with white ink — rather than a teal outline drawn around it,
+      which reads as a sticker stuck on the gold.
+
+      THE GAP IS DECLARED, because it never was. `slot="start"` gives a margin
+      to an <ion-icon>; this is an <app-icon>, so the only thing separating the
+      glyph from the label was the template's whitespace, which collapses to
+      nothing — the screenshot read "🛒ADD TO CART" with the cart's wheel
+      touching the A.
+
+      The labels are unchanged: "Adding...", "Sold Out", "Add to Cart". "Sold
+      Out" is still the shortest string this button can show, and the reason
+      it is — the width arithmetic below — is still true.
+
+      Two reasons the label is "Sold Out" rather than "Out of Stock", and
+      neither of them has changed:
+
+        1. This button has almost no slack: on a 390px phone two cards per row
+           leaves a 147px body (.products-grid 8px + ion-col 6px + .card-body
+           14px per side), and the row spends 30px of that on the button's
+           padding and 18px on the icon. Measured clearance between the label
+           and the right padding, per label:
+
+             Out of Stock   -3.5px   <- overflows; this is the reported defect
+             Add to Cart     0.4px   <- effectively zero, one edit away from same
+             Sold Out       12.7px
+             Adding...      13.7px
+
+           "Sold Out" buys ~16px of headroom and is now the shortest label the
+           button can ever show. Note that Ionic's own
+           `::slotted(ion-icon[slot=start]) { margin-inline-end: .3em }` does NOT
+           apply here — this button uses <app-icon>, not <ion-icon> — so the gap
+           above is the only one there is, and it is 8px by declaration.
+
+        2. The stock chip DIRECTLY ABOVE already reads "Out of Stock".
+           Repeating those exact words underneath was redundant regardless of
+           width.
+    -->
+    <button
+      type="button"
+      class="add-to-cart-btn"
+      [disabled]="isOutOfStock() || isAdding() || !hasPrice()"
+      (click)="addToCart()"
+    >
+      <app-icon name="cart" class="cart-glyph" />
+      <span>{{ isAdding() ? 'Adding...' : isOutOfStock() ? 'Sold Out' : 'Add to Cart' }}</span>
+    </button>
+  </ion-card-content>
+</ion-card>

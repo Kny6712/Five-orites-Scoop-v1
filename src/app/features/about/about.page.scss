@@ -96,18 +96,58 @@
   font-style: italic;
 }
 
+/* THE HERO CTA, as a plain link-button.
+
+   It was an <ion-button>, so it carried Ionic's md treatment: an uppercased
+   label and a three-layer elevation shadow under the fill. On a photograph
+   under a white scrim, a shadow under a floating pill adds weight and
+   nothing else — and the rest of the app says its button labels in sentence
+   case, so "EXPLORE FLAVORS" was the loudest label in the customer app.
+
+   The FILL stays white, and that is not a default: this sits on the hero
+   photograph under a 70% white scrim, so an ivory or gold pill would read as
+   a tinted smudge against the ice cream. White is the one fill that stays
+   clean on that background, and the reason is the same one the original
+   note gave for --color-white over --color-card.
+
+   The hover is the app's CTA hover: the fill changes to the brand ink and
+   the label to white, so the button itself is what responds — never a ring
+   drawn around it. */
 .hero-cta {
-  /* The BUTTON's fill, not a card surface. Deliberately --color-white and not
-     --color-card: this sits on the hero photograph under a 70% white scrim, so
-     an ivory pill would read as a tinted smudge against the ice cream. It is
-     also a custom property consumed by ion-button, not a `background`
-     declaration, so it was never part of the card tint. */
-  --background: var(--color-white);
-  --color: var(--color-primary-ink);
-  --border-radius: var(--radius-pill);
-  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: var(--space-4);
+  padding: 12px 22px;
   min-height: 46px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.hero-cta:hover {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+
+.hero-cta:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.hero-cta-glyph {
+  --icon-size: 18px;
+  --icon-stroke: 2;
+  flex: 0 0 auto;
 }
 
 // ── Body ────────────────────────────────────────────────
@@ -181,7 +221,20 @@
      About was the only consumer, and false once the Developers cards adopted
      the same hex. Two definitions of one card colour is exactly the drift that
      file exists to prevent. The hex, the rejected candidates and the reasoning
-     all moved with it; the six uses below are unchanged. */
+     all moved with it; the six uses below are unchanged.
+
+     ── AND NOW THE EDGE, which these cards did not have ──
+
+     Every card below is a pale surface on a cream page: #fffcee against the
+     page's #FFF9F4 is 1.02:1. The app's own rule is that a pale fill has to
+     carry an edge or it is not a surface — a hairline of --tile-powder-deep
+     (#9dc2e0) is what draws the boundary, and it is the same hairline the
+     order list's rows, the tracker's cards and the cart's inner panels use.
+
+     The soft shadow stays, so the card has both: an edge that says where the
+     card is, and a lift that says it sits above the page. That is the same
+     treatment the cart's cards carry — the one place the customer app has
+     settled on "a hairline AND an elevation" rather than one or the other. */
 }
 
 .section-heading {
@@ -458,6 +511,9 @@
 .store-figure {
   margin: 0;
   background: var(--color-card);
+  /* The hairline, like every other card on this page. See the note on
+     .about-body. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   overflow: hidden;
@@ -525,12 +581,27 @@
 // and not a block of tiles - a stats row of four figures was tried here and
 // removed as a widget; the same figures as a single line land the same
 // information without becoming something to look at instead of read.
+//
+// The 4px gap under the heading is a GAP, not a margin trick. It used to be a
+// negative top margin (calc(--space-3 * -1 + 2px)) pulling itself up into the
+// heading's own 12px, which collapsed to 2px — the line and the heading nearly
+// touched, and the negative margin was doing arithmetic on the heading's
+// margin to get there. The heading's bottom margin is now zeroed where this
+// line follows it (see .story-lede .section-heading) and the 4px is stated.
 .story-sells {
   font-size: 13px;
   line-height: 1.5;
   color: var(--color-primary-ink);
   font-weight: 600;
-  margin: calc(var(--space-3) * -1 + 2px) 0 var(--space-3);
+  margin: 4px 0 var(--space-3);
+}
+
+/* The heading above the sells line hands its bottom margin to the line
+   instead of adding to it. The heading is a shared class with a 12px margin
+   under it everywhere else on the page, and this is the one place a second
+   line follows it immediately. */
+.story-lede .section-heading {
+  margin-bottom: 0;
 }
 
 // ── Story values ─────────────────────────────────────────────────────────
@@ -558,6 +629,8 @@
   flex-direction: column;
   align-items: flex-start;
   background: var(--color-card);
+  /* The hairline, like every other card on this page. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-3) var(--space-4);
@@ -624,6 +697,8 @@
 
 .name-item {
   background: var(--color-card);
+  /* The hairline, like every other card on this page. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
@@ -657,7 +732,14 @@
 
 .mv-card {
   background: var(--color-card);
-  border-radius: var(--radius-lg);
+  /* The hairline, like every other card on this page.
+
+     --radius-md, NOT --radius-lg. These two cards were the only things on the
+     page with a 26px corner, so the pair read as a different family from the
+     six card types above them — and they are the same thing: a title, a line
+     of body copy and a fill. One radius for one family. */
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-5);
 }
@@ -703,6 +785,8 @@
 
 .feature-card {
   background: var(--color-card);
+  /* The hairline, like every other card on this page. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-4);
@@ -740,6 +824,29 @@
   font-weight: 600;
   color: var(--color-ink);
   margin: 0 0 4px;
+  /* TWO LINES' WORTH OF HEIGHT, so the four descriptions in a row start on
+     the same line.
+
+     "Premium Ice Cream, 8 Flavor Families" wraps to two lines and the other
+     three titles do not, so before this the descriptions began at four
+     different heights in one row and the row could not be read across. The
+     min-height is on the TITLE, not on the description: the titles then
+     start together, end together, and the descriptions start together.
+
+     2.6em is two lines at the title's 1.3 line-height, which is set below
+     rather than inherited — the inherited 1.5 would make the reservation
+     45px and a third of a line too tall.
+
+     Only once the grid has more than one column. On a phone the cards are
+     one per row and a two-line reservation would leave a hole under every
+     single-line title. */
+  line-height: 1.3;
+}
+
+@media (min-width: 560px) {
+  .feature-title {
+    min-height: 2.6em;
+  }
 }
 
 .feature-desc {
@@ -781,6 +888,8 @@
   align-items: flex-start;
   gap: var(--space-3);
   background: var(--color-card);
+  /* The hairline, like every other card on this page. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
   padding: var(--space-3);
@@ -867,12 +976,39 @@
 }
 
 .team-cta-btn {
-  --border-radius: var(--radius-pill);
-  // Declared because an `ion-button` with `fill="outline"` otherwise inherits
-  // `--ion-color-primary` — the powder brand hue — which measured 1.71:1 on this
-  // page's cream ground. At 14px/800 it is NOT WCAG large text, so it needs the
-  // full 4.5:1, and primary-ink clears it.
-  --color: var(--color-primary-ink);
-  font-weight: 800;
+  /* THE APP'S QUIET CONTROL: a white pill, one hairline, a teal label.
+
+     It was an <ion-button fill="outline">, which is a 4px-radius box with
+     Ionic's blue rim, an uppercased label and an elevation shadow — three
+     things the flat vocabulary does not have, on the one control that ends
+     the page. The shape here is the same one the cart's Apply button and
+     the order tracker's quiet controls use.
+
+     The rim is the app's own --tile-powder-deep rather than Ionic's blue,
+     and the label is --color-primary-ink, which clears AA at this size on
+     this ground. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 44px;
+  padding: 0 22px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.team-cta-btn:hover {
+  border-color: var(--color-primary-ink);
+}
+
+.team-cta-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
 }

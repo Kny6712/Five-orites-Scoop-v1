@@ -1,0 +1,225 @@
+// src/app/features/admin/vouchers/voucher-form-modal.component.scss
+// Five-orites Scoop — Voucher form modal sheet styles.
+//
+// Reuses the class names from the old inline editor (.editor, .field,
+// .editor-actions, .save-btn, .example*, .date-input, .toggle-row*) so the look
+// is unchanged, now scoped inside a modal sheet.
+
+.sheet {
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  overflow-y: auto;
+  max-height: min(90vh, 720px);
+}
+
+.sheet-head {
+  margin-bottom: var(--space-4);
+}
+
+.sheet-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.sheet-sub {
+  margin: 3px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
+
+.field {
+  display: block;
+  margin-bottom: var(--space-3);
+  min-width: 0;
+}
+
+.field ion-input,
+.field ion-select {
+  --border-color: var(--tile-powder-deep);
+  --border-focus-color: var(--tile-powder-deep);
+  --border-color-focus: var(--tile-powder-deep);
+  --border-width: 1px;
+  --border-focus-width: 1px;
+  --border-style: solid;
+  --underline-color: var(--tile-powder-deep);
+  --underline-width: 1px;
+  --inner-shadow-alpha: 0;
+  --inner-shadow-focus-alpha: 0;
+  --color: var(--color-ink);
+  background: var(--color-white);
+}
+
+.field--row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  min-width: 0;
+}
+
+.field--col {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.field--compact ion-input::part(input),
+.field--compact ion-input::part(native) {
+  max-width: 110px;
+  width: 110px;
+}
+
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  margin-bottom: 6px;
+}
+
+.field-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+// ── Worked example ───────────────────────────────────────
+.example {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  background: var(--tile-mint);
+  border: 1px solid var(--tone-success-border);
+  border-radius: var(--radius-sm);
+}
+
+.example--blocked {
+  background: var(--tone-warning-bg);
+  border-color: var(--tone-warning-border);
+}
+
+.example-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--color-white);
+}
+
+.example-badge app-icon {
+  --icon-size: 16px;
+  color: var(--color-primary-ink);
+}
+.example--blocked .example-badge app-icon {
+  color: var(--tone-warning-ink);
+}
+
+.example-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink);
+}
+.example-text strong {
+  font-weight: 800;
+  color: var(--color-primary-ink);
+}
+
+// ── Active toggle ────────────────────────────────────────
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+}
+
+.toggle-text {
+  min-width: 0;
+}
+.toggle-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+.toggle-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+// ── Actions ──────────────────────────────────────────────
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.save-btn {
+  --background: var(--color-brand-primary);
+  --color: var(--color-ink);
+  --border-radius: var(--radius-control);
+  font-weight: 700;
+  width: 200px;
+  min-height: 46px;
+}
+
+// ── Date input ───────────────────────────────────────────
+.date-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+}
+.date-input:focus-visible {
+  outline: 3px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+// ── Modal text input (mirrors .date-input box look) ──────
+// Host element, not ::part(input): Ionic 7 exposes no shadow part on
+// ion-input, so ::part(input) matched nothing. The text inset comes from
+// --padding-start / --padding-end in global.scss.
+.field ion-input.modal-input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--tile-powder-deep) !important;
+  border-radius: var(--radius-xs) !important;
+  background: var(--color-white) !important;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+}
+.field ion-input.modal-input:focus-within {
+  border-color: var(--color-primary-ink) !important;
+}
+
+.sheet-error {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-xs);
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-border);
+  color: var(--tone-danger-ink);
+  font-size: 13px;
+  line-height: 1.45;
+}

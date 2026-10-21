@@ -2,7 +2,7 @@
 // Five-orites Scoop — Authoritative Pricing Matrix
 // Author: Five-orites Scoop team (see README)
 
-import { SizePricing, SizeVariant } from '../models/product.model';
+import { SizePricing, SizeVariant } from '@core/models/product.model';
 
 export const PRICING_MATRIX: Record<number, SizePricing> = {
   1: { cup: 65, pint: 200, halfGallon: 500, gallon: 950 }, // Chocolates

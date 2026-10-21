@@ -35,10 +35,10 @@
 // three failures are not "fixed" so much as made structurally impossible — there
 // is no registry to get out of sync.
 
-import { LUCIDE_ICON_DATA } from './lucide-icon-data';
+import { LUCIDE_ICON_DATA } from '@core/icons/lucide-icon-data';
 
 export { LUCIDE_ICON_DATA };
-export type { IconNode } from './lucide-icon-data';
+export type { IconNode } from '@core/icons/lucide-icon-data';
 
 /**
  * Every icon name the app may reference.

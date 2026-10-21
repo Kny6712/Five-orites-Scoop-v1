@@ -26,16 +26,16 @@ import {
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { EmptyStateComponent } from '../../shared/components/empty-state/empty-state.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
 import { Subscription, catchError, of } from 'rxjs';
-import { OrderService } from '../../core/services/order.service';
-import { AuthService } from '../../core/services/auth.service';
-import { Order, ORDER_STATUS_META, type OrderStatus } from '../../core/models/order.model';
-import { OrderStatusBadgeComponent } from '../../shared/components/order-status-badge/order-status-badge.component';
-import { CartButtonComponent } from '../../shared/components/cart-button/cart-button.component';
-import { PaginationComponent } from '../../shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { PesoPipe } from '../../shared/pipes/peso.pipe';
+import { OrderService } from '@core/services/orders/order.service';
+import { AuthService } from '@core/services/identity/auth.service';
+import { Order, ORDER_STATUS_META, type OrderStatus } from '@core/models/order.model';
+import { OrderStatusBadgeComponent } from '@shared/components/commerce/order-status-badge.component';
+import { CartButtonComponent } from '@shared/components/commerce/cart-button.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
 
 @Component({
   selector: 'app-orders',
@@ -328,32 +328,23 @@ export class OrdersPage implements OnInit, OnDestroy {
   /**
    * Which of the three notification-card treatments a row wears.
    *
-   * The states are the notifications page's, not new ones. `.entry` has a base
-   * card (white, plum hairline) and exactly two modifiers — `--unread` and
-   * `--alert` — and status maps onto them 1:1 here so a customer reading My
-   * Orders and Notifications sees one card system rather than two:
+   * THERE ISN'T ONE ANY MORE, and this is the deletion rather than an omission.
    *
-   *   pending | confirmed | preparing | out_for_delivery
-   *       -> `order-item--active`, cream + primary-ink, .entry--unread's pair
-   *   cancelled
-   *       -> `order-item--cancelled`, cream + danger, .entry--alert's pair
-   *   delivered
-   *       -> no class at all. It IS the base rule, the same way a read
-   *          notification row is, and a modifier that only restates the base is
-   *          one more place for the two to drift apart.
+   * The row used to be tinted by status — a teal border while the order was
+   * still moving, a red one once it had been cancelled, and nothing at all for
+   * a delivered order — so that a customer reading My Orders and Notifications
+   * saw one card system rather than two.
    *
-   * A string bound through [ngClass], not `[class]`. The notifications page
-   * learned this the hard way: a `[class]` binding replaces the class attribute
-   * wholesale, so a sibling `[class.foo]` is silently dropped and the styling
-   * simply never appears — a bug that reads as a CSS mistake and is actually a
-   * binding one. `class="order-item"` + `[ngClass]` compose.
+   * But the status chip on each row already carries the state, in the app's own
+   * six tones, and a second signal on the same row says it twice. On a page of
+   * thirteen orders, three of them cancelled and four still moving, the tinted
+   * borders turned the page into a page of alerts: the eye went to the loud
+   * rows rather than to the newest one, which is the order a customer actually
+   * came back for.
+   *
+   * So every row is the same flat card now, and the chip is the only thing that
+   * says where the order has got to.
    */
-  rowClass(order: Order): string {
-    if (order.status === 'cancelled') return 'order-item--cancelled';
-    if (order.status === 'delivered') return '';
-    return 'order-item--active';
-  }
-
   async cancelOrder(order: Order, event: Event): Promise<void> {
     event.stopPropagation();
     event.preventDefault();

@@ -3,8 +3,8 @@
 // Author: Five-orites Scoop team (see README)
 
 import { Routes } from '@angular/router';
-import { authGuard } from './core/guards/auth.guard';
-import { adminGuard, capabilityGuard, teamGuard } from './core/guards/admin.guard';
+import { authGuard } from '@core/guards/auth.guard';
+import { adminGuard, capabilityGuard, teamGuard } from '@core/guards/admin.guard';
 
 export const routes: Routes = [
   {
@@ -14,41 +14,39 @@ export const routes: Routes = [
   },
   {
     path: 'dashboard',
-    loadComponent: () => import('./features/dashboard/dashboard.page').then((m) => m.DashboardPage),
+    loadComponent: () => import('@features/dashboard/dashboard.page').then((m) => m.DashboardPage),
     canActivate: [authGuard],
   },
   {
     path: 'products',
-    loadComponent: () => import('./features/products/products.page').then((m) => m.ProductsPage),
+    loadComponent: () => import('@features/products/products.page').then((m) => m.ProductsPage),
     canActivate: [authGuard],
   },
   {
     path: 'products/:id',
     loadComponent: () =>
-      import('./features/products/product-detail/product-detail.page').then(
-        (m) => m.ProductDetailPage,
-      ),
+      import('@features/product-detail/product-detail.page').then((m) => m.ProductDetailPage),
     canActivate: [authGuard],
   },
   {
     path: 'cart',
-    loadComponent: () => import('./features/cart/cart.page').then((m) => m.CartPage),
+    loadComponent: () => import('@features/cart/cart.page').then((m) => m.CartPage),
     canActivate: [authGuard],
   },
   {
     path: 'orders',
-    loadComponent: () => import('./features/orders/orders.page').then((m) => m.OrdersPage),
+    loadComponent: () => import('@features/orders/orders.page').then((m) => m.OrdersPage),
     canActivate: [authGuard],
   },
   {
     path: 'orders/:id',
     loadComponent: () =>
-      import('./features/orders/order-tracker/order-tracker.page').then((m) => m.OrderTrackerPage),
+      import('@features/order-tracker/order-tracker.page').then((m) => m.OrderTrackerPage),
     canActivate: [authGuard],
   },
   {
     path: 'profile',
-    loadComponent: () => import('./features/profile/profile.page').then((m) => m.ProfilePage),
+    loadComponent: () => import('@features/profile/profile.page').then((m) => m.ProfilePage),
     canActivate: [authGuard],
   },
   {
@@ -57,28 +55,46 @@ export const routes: Routes = [
     // a guest and no document a guest could read.
     path: 'notifications',
     loadComponent: () =>
-      import('./features/notifications/notifications.page').then((m) => m.NotificationsPage),
+      import('@features/notifications/notifications.page').then((m) => m.NotificationsPage),
     canActivate: [authGuard],
   },
   {
     path: 'about',
-    loadComponent: () => import('./features/about/about.page').then((m) => m.AboutPage),
+    loadComponent: () => import('@features/about/about.page').then((m) => m.AboutPage),
   },
   {
     path: 'developers',
     loadComponent: () =>
-      import('./features/developers/developers.page').then((m) => m.DevelopersPage),
+      import('@features/developers/developers.page').then((m) => m.DevelopersPage),
   },
   {
     path: 'auth',
-    loadComponent: () => import('./features/auth/auth.page').then((m) => m.AuthPage),
+    loadComponent: () => import('@features/auth/auth.page').then((m) => m.AuthPage),
   },
   {
     path: 'settings',
-    loadComponent: () => import('./features/settings/settings.page').then((m) => m.SettingsPage),
+    loadComponent: () => import('@features/settings/settings.page').then((m) => m.SettingsPage),
     canActivate: [authGuard],
   },
   {
+    // DO NOT RENAME THIS `path`, AND DO NOT MOVE IT UP TO THE TOP LEVEL.
+    //
+    // AdminAwarePreloadingStrategy in app.config.ts excludes the admin subtree
+    // from PreloadAllModules. It recognises those routes two ways: by matching
+    // each `loadComponent` against a set collected at boot, and — as a fallback —
+    // by string-splitting `route.path` and looking for the segment 'admin'.
+    //
+    // Renaming this segment to something like 'backoffice', or restructuring so
+    // no route path contains 'admin', makes both recognition strategies fail at
+    // once. Every admin chunk then gets preloaded into every customer session,
+    // which is exactly the cost the strategy exists to avoid. The guards still
+    // hold — adminGuard protects the route and firestore.rules protects the
+    // data — so nothing leaks, but the code-splitting quietly stops working and
+    // nobody notices until someone measures the bundle.
+    //
+    // The file location of these pages is unrelated and free to change: the
+    // primary strategy keys on `loadComponent` function identity, which survives
+    // a move. `admin/` was relocated under `features/` without touching this.
     path: 'admin',
     canActivate: [authGuard, adminGuard],
     children: [
@@ -86,48 +102,49 @@ export const routes: Routes = [
         path: 'inventory',
         canActivate: [capabilityGuard('manage_inventory')],
         loadComponent: () =>
-          import('./admin/inventory/inventory.page').then((m) => m.InventoryPage),
+          import('@features/admin/inventory/inventory.page').then((m) => m.InventoryPage),
       },
       {
         path: 'orders',
         canActivate: [capabilityGuard('manage_orders')],
         loadComponent: () =>
-          import('./admin/orders/admin-orders.page').then((m) => m.AdminOrdersPage),
+          import('@features/admin/orders/admin-orders.page').then((m) => m.AdminOrdersPage),
       },
       {
         path: 'reviews',
         canActivate: [capabilityGuard('moderate_reviews')],
         loadComponent: () =>
-          import('./admin/reviews/admin-reviews.page').then((m) => m.AdminReviewsPage),
+          import('@features/admin/reviews/admin-reviews.page').then((m) => m.AdminReviewsPage),
       },
       {
         path: 'settings',
         canActivate: [capabilityGuard('manage_settings')],
         loadComponent: () =>
-          import('./admin/settings/admin-settings.page').then((m) => m.AdminSettingsPage),
+          import('@features/admin/settings/admin-settings.page').then((m) => m.AdminSettingsPage),
       },
       {
         path: 'analytics',
         canActivate: [capabilityGuard('view_analytics')],
         loadComponent: () =>
-          import('./admin/analytics/analytics.page').then((m) => m.AnalyticsPage),
+          import('@features/admin/analytics/analytics.page').then((m) => m.AnalyticsPage),
       },
       {
         path: 'vouchers',
         canActivate: [capabilityGuard('manage_vouchers')],
         loadComponent: () =>
-          import('./admin/vouchers/admin-vouchers.page').then((m) => m.AdminVouchersPage),
+          import('@features/admin/vouchers/admin-vouchers.page').then((m) => m.AdminVouchersPage),
       },
       {
         path: 'users',
         canActivate: [capabilityGuard('manage_users')],
-        loadComponent: () => import('./admin/users/admin-users.page').then((m) => m.AdminUsersPage),
+        loadComponent: () =>
+          import('@features/admin/users/admin-users.page').then((m) => m.AdminUsersPage),
       },
       {
         path: 'tracking',
         canActivate: [capabilityGuard('manage_orders')],
         loadComponent: () =>
-          import('./admin/tracking/admin-tracking.page').then((m) => m.AdminTrackingPage),
+          import('@features/admin/tracking/admin-tracking.page').then((m) => m.AdminTrackingPage),
       },
       {
         // Manager and owner, NOT admin — `teamGuard` rather than a capabilityGuard,
@@ -136,7 +153,9 @@ export const routes: Routes = [
         path: 'developers',
         canActivate: [teamGuard()],
         loadComponent: () =>
-          import('./admin/developers/admin-developers.page').then((m) => m.AdminDevelopersPage),
+          import('@features/admin/developers/admin-developers.page').then(
+            (m) => m.AdminDevelopersPage,
+          ),
       },
     ],
   },

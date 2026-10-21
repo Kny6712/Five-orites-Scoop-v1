@@ -7,13 +7,29 @@
   gap: var(--space-2);
 }
 
+/* THE APP'S FLAT CARD: white, one hairline, no shadow.
+
+   It was a white panel with a --shadow-card drop shadow under it and a 26px
+   radius (--radius-lg) — the poster treatment, and the loudest thing on a
+   page whose whole job is two switches and three links. The shadow was doing
+   a border's job and doing it badly: on a cream page it read as a lifted
+   sheet of paper rather than as a panel.
+
+   --radius-sm, because that is what every flat card in the app uses and
+   because a hairline on a 26px curve breaks up as it rasterises — which is
+   what the 2px rim around this panel used to be for. */
 .panel {
   background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-4) var(--space-3);
   margin-bottom: var(--space-3);
 }
+
+/* The switch's knob shadow — 0 2px 5px — was the last shadow left on this
+   screen. It is gone, and it goes in src/global.scss rather than here: the
+   switch is one component in the app, and a shadow on it in one page and not in
+   another is the inconsistency the flat vocabulary exists to prevent. */
 
 .row {
   display: flex;

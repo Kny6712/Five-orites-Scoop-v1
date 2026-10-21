@@ -71,9 +71,15 @@ const TONE_FILL: Record<NonNullable<BarDatum['tone']>, string> = {
 
       .bar-row {
         display: grid;
-        /* label | track | value | note — the note collapses when absent, so the
-         track absorbs the difference and the value column stays aligned. */
-        grid-template-columns: minmax(80px, 34%) 1fr auto;
+        /* label | track | value | note — the note is on the SAME ROW as the
+           value now.
+
+           It used to be pinned to column 3, which put it on a second line under
+           the value, and every row of every chart was two lines tall with a
+           ragged right edge: the number on one line and its money on the next,
+           eight pixels apart. The annotation is the value's other half, so it
+           belongs beside it. */
+        grid-template-columns: minmax(80px, 34%) 1fr auto auto;
         align-items: center;
         gap: var(--space-2);
       }
@@ -89,10 +95,19 @@ const TONE_FILL: Record<NonNullable<BarDatum['tone']>, string> = {
 
       .bar-track {
         /* 10px tall with a full pill radius: the brief asks for soft, rounded
-         shapes, and a square bar reads as a different design language. */
+         shapes, and a square bar reads as a different design language.
+
+         THE TRACK IS A RIMMED RAIL. It was --ion-color-light (#F2F7FA), which
+         measures 1.08:1 against a white card — the empty part of the bar was
+         invisible, and only the filled part was drawn. Now it is powder with a
+         1px hairline in the app's standard rim colour, and the rim carries the
+         edge the fill cannot: #E4F1F8 on white is 1.15:1, #9DC2E0 on white is
+         1.87:1. */
         height: 10px;
+        box-sizing: border-box;
+        border: 1px solid var(--tile-powder-deep);
         border-radius: var(--radius-pill);
-        background: var(--ion-color-light);
+        background: var(--tile-powder);
         overflow: hidden;
       }
 
@@ -122,7 +137,7 @@ const TONE_FILL: Record<NonNullable<BarDatum['tone']>, string> = {
       }
 
       .bar-note {
-        grid-column: 3;
+        grid-column: 4;
         font-size: 12px;
         color: var(--ion-color-medium);
         white-space: nowrap;

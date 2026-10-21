@@ -796,7 +796,7 @@ service cloud.firestore {
       // otherwise strand every admin page permanently, with the only recovery
       // being another owner promoting a replacement first — so `deleteAccount` in
       // AuthService refuses while the user holds a staff role and says so.
-      allow delete: if request.auth != null && uid == request.auth.uid;
+      allow delete: if request.auth != null && (uid == request.auth.uid || canManageUsers());
     }
 
     // ── Reviews ──────────────────────────────────────────────────────

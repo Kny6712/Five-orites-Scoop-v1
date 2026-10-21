@@ -13,10 +13,10 @@ import {
   IonSpinner,
   IonLabel,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '../../shared/components/app-icon/app-icon.component';
-import { AppFooterComponent } from '../../shared/components/app-footer/app-footer.component';
-import { AlertBannerComponent } from '../../shared/components/alert-banner/alert-banner.component';
-import { AuthService } from '../../core/services/auth.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { AuthService } from '@core/services/identity/auth.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { filter } from 'rxjs/operators';
 

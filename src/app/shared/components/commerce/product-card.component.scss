@@ -1,0 +1,478 @@
+// src/app/shared/components/commerce/product-card.component.scss
+
+:host {
+  display: block;
+}
+
+.product-card {
+  border-radius: 16px;
+  box-shadow: var(--shadow-card);
+  margin: 0;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-raised);
+  }
+}
+
+// ── Image ──────────────────────────────────────────────
+.card-image-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 66%;
+  background: var(--color-brand-light);
+  overflow: hidden;
+}
+
+.image-skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+
+  &.image-visible {
+    opacity: 1;
+  }
+}
+
+.set-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  /* The fill is bound per-product from the flavour palette — see
+     `setFlavourBackground` in the component. It deliberately has no `background`
+     declaration here: a static one would win nothing and mislead the next reader
+     into thinking the badge is not tinted. */
+
+  /* Plum on every one of the nine pastels is asserted at >=4.5:1 by
+     check-contrast.mjs (`flavour chip label on <name>`), and --color-ink IS that
+     plum, so this is the same ink the gate already passes. */
+  color: var(--color-ink);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.2px;
+
+  /* This badge sits ON TOP OF A PHOTOGRAPH, which is a different problem from the
+     cream-page contrast the gate asserts. Two pale pastels can share a photo:
+     `--flavor-vanilla` (#eee2c4) over a vanilla-coloured ice cream is the worst
+     case, and with only the shadow below the fill visibly dissolves into the
+     image. The hairline is what holds the edge.
+
+     At 22% it is invisible against a mid-tone or dark photo and only reads where
+     it is needed. A 45% border was tried and rejected: it works everywhere and
+     looks like an outline rather than a chip everywhere else. */
+  border: 1px solid rgb(61 43 69 / 22%);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 12%);
+
+  /* LEAVE THE HEART ITS CORNER.
+
+     The badge is absolutely positioned at the card's top-left and the
+     wishlist heart at its top-right, and the badge had no width limit — so
+     a long set name ("Set 3 · Strawberry", "Set 8 · Cookies & Cream") ran
+     under the heart.
+
+     62px is the heart's 44px plus its 6px inset plus the badge's own 10px
+     inset plus 2px of air. The badge stops there, and a name too long for
+     that is ellipsised rather than hidden under a control.
+
+     This is a PHONE rule: at 320px and 375px the card is 140–175px wide and
+     the set names are the long ones. On a wider card the badge has room and
+     the clamp would only cost it. */
+  @media (max-width: 768px) {
+    max-width: calc(100% - 62px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.wishlist-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  /* Was 34px. Still above the WCAG 2.2 AA floor of 24px, but well short of the
+     44px enhanced target, and this is a small floating control that people tap
+     one-handed on a phone. 40px is proportionate for a card overlay while being
+     a meaningfully easier target. */
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ion-color-medium);
+}
+
+/* Lucide ships a single outline heart. The "saved" state is that same glyph with
+   `fill: currentColor`, which inherits the danger colour — so the two ionicons
+   states collapse into one icon plus one class. */
+.wishlist-icon {
+  --icon-size: 20px;
+  transition: color 0.15s ease;
+}
+.wishlist-icon.wished {
+  color: var(--ion-color-danger);
+}
+.wishlist-icon.wished svg {
+  fill: currentColor;
+}
+
+// ── Card Body ──────────────────────────────────────────
+.card-body {
+  padding: 12px 14px 14px;
+}
+
+.variety-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ion-color-dark);
+  margin: 0 0 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+// ── Size Segment ───────────────────────────────────────
+/* FOUR CHIPS, NOT A TABBED WELL.
+
+   It was a pale tile with no edge, holding four equal columns, with the
+   chosen one marked by a 2px brand-coloured rule under it. Three things were
+   wrong with that, and all three are the same mistake in different clothes:
+
+     1. The tile was a fill with no hairline, so at 1.15:1 against the white
+        card it was a wash rather than a control. The app's own rule is that a
+        --tile-powder surface must carry an edge or it does not read as a
+        surface at all.
+     2. The indicator was as wide as the COLUMN, not as wide as the word. A
+        150px rule under a 60px label is a divider drawn across the card, not
+        an underline of "Cup" — the same defect the products page's sort
+        segment had, with the same fix.
+     3. The whole thing was 48px tall, because that is Ionic's md segment
+        button floor and the md stylesheet adds 12px of margin above and below
+        the slotted label on top of it. Half of the card's height was the
+        size picker.
+
+   So it is the app's small chip instead: a white pill with one hairline, the
+   chosen one filled with the brand periwinkle and rimmed in the brand ink,
+   and no indicator at all — the fill IS the state, the way `.filter-chip.is-on`
+   says it. 26px tall, four of them, hugging their labels.
+
+   `scrollable` is Ionic's own answer to the width problem: it sets
+   `width: auto` and `grid-auto-columns: minmax(min-content, 1fr)`, so the
+   columns fall to the width of their labels instead of splitting the card
+   four ways. It is the same attribute the products page's sort segment uses. */
+.size-segment {
+  --background: transparent;
+  --min-height: 0;
+  margin-bottom: 10px;
+  gap: 4px;
+  /* Visible, not hidden: the chips carry their own borders and a focus ring
+     is drawn outside them. */
+  overflow: visible;
+}
+
+/* WHEN THE CARD IS TOO NARROW FOR ONE ROW, THE CHIPS WRAP INTO TWO ROWS OF TWO.
+
+   Ionic's `scrollable` answers the width problem by making the segment a
+   horizontal scroll container. That is a reasonable answer for a filter bar
+   across the top of a page, and the wrong one here, for two reasons:
+
+     1. It was overridden. The `overflow: visible` above beats Ionic's own
+        `overflow-x: auto` on the same host, because a document rule on the
+        element beats a `:host()` rule in its shadow stylesheet. So the
+        segment did not scroll - it spilled, and `ion-card`'s `overflow: hidden`
+        amputated the overflow.
+
+     2. The result was that two of the four sizes did not exist on screen.
+        Measured chip widths, at their min-content: Cup 42px, Pint 45px,
+        "Half Gal" 56px, Gal 42px, plus three 4px gaps - 198px of chips. The
+        segment's width on a 390px phone is 147px, and on the dashboard at
+        768px it is 83px. So "Half Gal" and "Gal" were not merely off to the
+        right: they were clipped away by the card.
+
+        They were not reachable either. A hit test at the centre of the "Gal"
+        chip returned ION-CARD-CONTENT, not the chip. On a phone a customer
+        could only ever buy a Cup or a Pint.
+
+   THE CHIPS WRAP, AND THEY WRAP BECAUSE THEY RUN OUT OF ROOM.
+
+   This is deliberately not a breakpoint. A `max-width` media query would have
+   had to be wrong in both directions at once: the same card is 225px wide at
+   1340px in the products grid and 111px wide at 768px on the dashboard, so
+   the card that is wider is on the SMALLER screen. A viewport query cannot
+   express that.
+
+   A container query could, but `container-type: inline-size` turned out to be
+   the wrong instrument here too: it applies size containment, and Ionic's grid
+   chain sizes its columns from the CONTENT of the cards. Contain the card's
+   inline size and it stops contributing that width, and the whole grid
+   collapses - measured, the card went from 175px to 60px the moment
+   `container-type` was set.
+
+   So the chips wrap on their own, which is the honest condition anyway: they
+   take as many per row as fit and the rest go to the next line. At 302px of
+   segment (the widest the card ever gets) all four sit on one row, exactly as
+   before. At 147px, which is a 390px phone, they are two rows of two. At 83px,
+   the dashboard at 768px, they are still two rows of two and every one of
+   them is reachable.
+
+   `flex-wrap` rather than a grid, because a grid does not wrap: its columns
+   are fixed and the overflow spills. Flex wraps, and the chip's own width
+   comes from its label, so a row is filled to the width the card allows and
+   no further. `flex: 0 0 auto` keeps each chip at its label's width instead
+   of letting it shrink - a chip narrower than its own word is a chip with an
+   ellipsis in it. */
+.size-segment {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.size-btn {
+  flex: 0 0 auto;
+}
+
+.size-btn {
+  --padding-top: 4px;
+  --padding-bottom: 4px;
+  font-size: 11px;
+
+  /* Releasing Ionic's 90px floor is what makes four sizes fit a card at all.
+     Every `ion-segment-button` is 90px wide by default, so four of them need
+     360px while this card's segment is 162-282px wide; `overflow: hidden` on
+     .size-segment then amputated the last button outright. `min-width: 0` makes
+     the four share whatever the card actually has instead of each claiming a
+     fixed slice of a budget none of them can use.
+
+     --padding-start/end are cut to 2px for the same reason: at the default the
+     label's content box was 58px, and "Half Gallon" needs 83. The label text
+     itself is short now (see sizeLabelsShort), so this only has to cover the
+     widest of them.
+
+     NOTE ON THE OLD MEASUREMENT, because it is what let a real bug ship.
+     This comment used to claim "0px overflow and 0px clipping at card widths
+     of 190, 250, 270 and 310px - which is the full range the products grid
+     produces". It was not the full range. The products grid at size="6" on a
+     390px phone produces a 175px card, and the dashboard's featured grid at
+     768px produces an 111px one. Both are outside the range that was measured,
+     and in both of them the "Half Gallon" and "Gal" chips were clipped away
+     by the card and could not be tapped.
+
+     The chips are now measured for real, at their min-content: Cup 42px,
+     Pint 45px, "Half Gallon" 56px, Gal 42px, plus three 4px gaps = 198px.
+     That is the width one row of four needs, and it is what the 225px
+     container query above is measured against. */
+  min-width: 0;
+  /* And the 48px FLOOR, which is the other half of that measurement: Ionic's
+     md segment button declares `min-height: 48px`, and its md stylesheet
+     adds 12px of margin above and below the slotted label on top of that.
+     The chip is 26px — its own 16px line box, 4px of padding either side and
+     a 1px rim. */
+  min-height: 0;
+  --padding-start: 8px;
+  --padding-end: 8px;
+
+  /* THE CHIP'S BOX. Ionic's md segment button exposes every part of this as
+     a custom property, so the chip is drawn with the same tokens as every
+     other small chip in the app rather than with a bespoke box. */
+  --background: var(--color-white);
+  --background-checked: var(--color-brand-primary);
+  --border-width: 1px;
+  --border-style: solid;
+  --border-color: var(--tile-powder-deep);
+  /* 8px, not the chip token's 12px. --radius-chip is right for the app's
+     36px chips, where 12px on a 36px box is a rounded rectangle; this chip is
+     26px tall, and 12px on a 26px box wraps both ends into 12px semicircles —
+     a lozenge, not a chip. The smallest step on the radius scale is the one
+     that still reads as a rectangle at this height. */
+  --border-radius: var(--radius-xs);
+
+  /* The label takes ink and the fill carries the state. The checked text
+     measured 1.00:1 on the powder indicator before, which is why the
+     indicator was there at all; on the brand periwinkle, plum is 7.20:1. */
+  --color: var(--color-ink);
+  --color-checked: var(--color-ink);
+
+  /* NO INDICATOR. The fill is the selection, and an indicator would be a
+     second thing saying the same thing — a rule under a word that is already
+     filled in. */
+  --indicator-color: transparent;
+  --indicator-height: 0;
+
+  /* The chosen chip is rimmed in the brand ink: the periwinkle fill measures
+     2.01:1 against the white card, so the fill cannot carry its own edge and
+     the rim has to. This is the same pair `.filter-chip.is-on` uses. */
+  &.segment-button-checked {
+    --border-color: var(--color-primary-ink);
+  }
+
+  /* The slotted label, which Ionic's md stylesheet gives a 22px line box and
+     12px of margin above and below. The margin is what made the control
+     48px tall; a document rule beats a ::slotted() one, so it can be
+     switched off from here. */
+  ion-label {
+    margin: 0;
+    line-height: 16px;
+  }
+}
+
+// ── Price + Stock ──────────────────────────────────────
+.price-stock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.price {
+  font-size: 18px;
+  font-weight: 700;
+  // 18px/700 is NOT WCAG large text - that needs 24px, or 18.66px at weight 700+ -
+  // so this owes the full 4.5:1, and the brand hue only offers 1.71:1 on cream.
+  color: var(--color-primary-ink);
+}
+
+/* The box — padding, min-height, inline-flex, the 12px radius, the margin reset —
+   is the global `.chip` class. Only what is specific to a stock chip is here.
+
+   24px, not `.chip`'s 32px default: this chip sits in the top corner of a product
+   card beside the price, where a 32px pill would be taller than the two lines it
+   sits between. It was already 24px as an ion-chip and is unchanged by the swap.
+
+   Both halves declared, and the reason has changed. This used to be
+   `--color: var(--color-ink)` with the comment "ion-chip paints its label colour
+   from its own defaults (rgba(0,0,0,0.87)) unless told otherwise" — that
+   explanation was about ion-chip's default ink, not about this pill. It is now a
+   plain `color`, like every other ink in the app, and the label is a span rather
+   than an <ion-label>. */
+.stock-chip {
+  height: 24px;
+  font-size: 11px;
+  color: var(--color-ink);
+}
+
+.stock-chip-text {
+  color: var(--color-ink);
+}
+
+/* Tone pairs for the stock chip. These classes are applied by an [ngClass] ternary in
+   the template, so a rule that is missing here shows up as a chip with no background
+   at all rather than as a compile error - which is exactly how the first attempt went
+   unnoticed. Ink on each of these tints is asserted in check-contrast.mjs. */
+.stock-chip-ok {
+  background: var(--tone-success-bg);
+  border: 1px solid var(--tone-success-border);
+}
+
+.stock-chip-low {
+  background: var(--tone-warning-bg);
+  border: 1px solid var(--tone-warning-border);
+}
+
+.stock-chip-out {
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-border);
+}
+
+// ── Add to Cart ────────────────────────────────────────
+/* THE APP'S GOLD CTA: a plain button, an amber fill, plum ink, a pill, and a
+   hover that changes the button itself.
+
+   Plum, not white: white on the sunny accent measures 1.58:1. This button is on
+   every product card, so it is the most-repeated contrast decision in the app.
+
+   It was an <ion-button>, which brought Ionic's md treatment with it: a
+   three-layer elevation shadow under the fill, `text-transform: uppercase` on
+   the label (so every card in the catalogue read "ADD TO CART"), and a padding
+   the row could not measure itself against. The plain button is the app's own
+   pattern — every gold CTA in the admin is one, and the Edit Product modal's
+   Save is the same treatment.
+
+   THE HOVER IS TEAL, and the focus ring goes with it, for the same reason the
+   admin's gold CTAs do it: a teal outline drawn around a gold button reads as
+   a sticker around it; a teal fill is the button itself changing state. */
+.add-to-cart-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  /* The height the ion-button was already rendering at (10px of padding either
+     side of a 20px line box), so the card's layout does not move. */
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  /* Zeroed: Ionic's own letter-spacing on a button label is a fifth of a
+     pixel of trailing track, and this button has almost no width to spare. */
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.add-to-cart-btn:hover:not(:disabled) {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+
+.add-to-cart-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.add-to-cart-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 44px ON A PHONE.
+
+   This button sets its own `min-height: 40px`, so the app-wide
+   `button { min-height: 44px }` rule does not reach it — a rule that sets a
+   minimum needs the same specificity to replace another minimum.
+
+   40px is the desktop size and it stays the desktop size. On a phone the
+   card is 175px wide and this is the button that puts the flavour in the
+   basket, so it is the control a thumb is aiming for. */
+@media (max-width: 768px) {
+  .add-to-cart-btn {
+    min-height: 44px;
+  }
+}
+
+/* The glyph, at the size the row can afford: 18px, not Ionic's 20, because the
+   label has 147px of body to live in on the narrowest card the grid produces.
+   The stroke is the app's lighter one for the same reason the cart button's
+   is: at 18px the default 2.25px stroke closes the gaps in the trolley. */
+.cart-glyph {
+  --icon-size: 18px;
+  --icon-stroke: 1.75;
+  flex: 0 0 auto;
+}

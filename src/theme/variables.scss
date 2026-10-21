@@ -211,6 +211,22 @@
   --color-cream: #fff9f4;
   --color-white: #ffffff;
 
+  // ── The empty-photo disc ───────────────────────────────────
+  /* The disc a developer's photo sits in, when there is no photo yet: a
+     charcoal circle with a white person in it.
+
+     It is the app's only DARK surface, and it is dark on purpose. The pastel
+     accent disc is a developer's own colour — it is what their initials are
+     drawn on in the public credits page — so painting an absent photo in it
+     would claim a colour for a person who has no picture and no initials
+     yet. A neutral dark disc says "nothing here" instead of "here is a
+     pastel, and a person-shaped thing on it".
+
+     The glyph on it is white, which is 11.5:1 — and it is the only place in
+     the app where white is the ink and the surface is the dark one. The pair
+     is asserted in check-contrast.mjs. */
+  --color-photo-placeholder: #333a3f;
+
   // ── Status ───────────────────────────────────────────────
   --color-success: #17803f;
   --color-warning: #b45309;
@@ -261,12 +277,12 @@
 
   /* ── Dashboard low-stock panel ────────────────────────────────────────────
 
-     A powder version of the peach above, SCOPED TO THE DASHBOARD and not a
-     replacement for it. --tone-peach-* has a second consumer in
-     admin-tracking.page.scss (the unmapped-orders block) that was not part of
-     this request, so editing the shared token would have silently repainted a
-     page nobody looked at. These three exist so the dashboard can move without
-     dragging that one along.
+     The dashboard's own copy of the low-stock surface, SCOPED TO THE DASHBOARD
+     and not a rename of the shared peach. --tone-peach-* has a second consumer
+     in admin-tracking.page.scss (the unmapped-orders block) that was not part
+     of this request, so editing the shared token would have silently
+     repainted a page nobody looked at. These three exist so the dashboard can
+     move without dragging that one along.
 
      WHY THE SHARED TOKEN WAS NOT TOUCHED, since the gate makes the same call:
      check-contrast.mjs carries a set of peach rows covering BOTH panels and says
@@ -275,22 +291,62 @@
      tracking page, the lowstock rows below describe this panel, and the two are
      asserted independently.
 
-     #fdcc85 is H36 S97 L76 — the same defect the KPI tiles had, 97% saturation.
-     This is H36 S46 L82. Hue is held constant; saturation is the variable.
+     ORANGE, and the same orange the app already calls a low-stock alert: this
+     is the family behind the storefront's "Low Stock" chip
+     (--tone-warning-*), deepened so the panel can hold the things the chip
+     cannot — a 40%-white row and a white pill.
 
-     WHY IT CANNOT GO AS PALE AS A KPI TILE. The rows are 40% white over this
-     fill, and that pair is the binding constraint on the whole panel: at S25 L88
-     the row edge measures 1.11:1 and FAILS the 1.15 floor. A paler panel leaves
-     a white overlay nothing to separate from. So this is held at 1.16:1 — thin,
-     and deliberately so; it is the number to re-check first if this fill is ever
-     touched again. The panel carries a title, a subtitle, flavour names, set
-     names, chips and a CTA, which is more text on one surface than a KPI tile
-     has, and it cannot afford to be as pale as one.
+     WHY IT WAS A POWDER BROWN BEFORE, and why that was wrong: the fill was
+     #e6d5bc, which is the peach at a third of its chroma (H36 S46 L82 rather
+     than S97). It passed every gate row, but a yellow at that saturation and
+     lightness reads as khaki, not as an alert — the panel looked like a card
+     someone had tinted rather than a warning worth acting on. The owner asked
+     for a hint of orange, and a hint has to be a hue a reader can NAME.
 
-     Measured on this fill: ink 5.15, plum 8.96, fill-vs-page 1.38, border 1.93,
-     white pill 1.44, row edge 1.16, ink-on-row 6.00. All asserted below. */
-  --lowstock-bg: #e6d5bc;
-  --lowstock-border: #b59767;
+     WHY NOT THE CHIP'S OWN FILL. #fcebc4 is L88, and the rows in this panel
+     are 40% white over the fill: that pair lands at 1.08:1 there, under the
+     1.15:1 the panel's own row needs. So the fill is deeper (#edcca1 is L78).
+     The INK is #7a4b00 unchanged — it is --tone-warning-ink, it is what the
+     chips and the Restock pill already use, and it measures 4.85:1 here.
+
+     TWO ORANGES, NOT ONE. The panel's surface is a WHISPER of orange and its
+     EDGE is PURE orange, because that is what the owner asked for and because
+     the two jobs are different: the fill has to stay quiet enough that the
+     edge and the warning glyph are the only saturated things on the screen,
+     while the edge is the one line that says "this is a warning" from across
+     the room.
+
+     THE FILL IS #f8e6ce, a whisper of orange — H30 S47 L89 — and it is a
+     whisper ON PURPOSE. It still clears 1.17:1 against the cream page, so the
+     panel reads as a surface from its fill as well as from its edge, and the
+     white pills on it (1.22:1) still read as pills. It is the chip's own
+     #fcebc4 that could not be used: at L88 it is too close to white for the
+     pills to sit on it.
+
+     WHICH MEANS THE ROW BAND IS GONE. The row used to be 40% white over this
+     fill, which on a whisper of orange is 1.11:1 — no band at all. So the row
+     stopped having a fill of its own: it is content on the panel, and the
+     white pills are what carry the numbers. See the row's rule in
+     dashboard.page.scss.
+
+     #e2660a rather than something brighter like #f0821e: that one measures
+     2.54:1 against the cream page and 2.65:1 on white, and both are below the
+     3:1 a non-text element owes — the edge would disappear into the page and
+     the warning glyph would not clear the contrast floor on its badge. This
+     orange measures 3.28:1 on cream and 3.42:1 on white, and it is still
+     unmistakably orange.
+
+     --lowstock-rule is the divider INSIDE the panel, and it is deliberately
+     not the edge colour: it sits directly under the Restock button, and a
+     saturated line there would compete with the action it is meant to sit
+     under. The Restock pill itself is untouched.
+
+     Measured on this fill: ink 6.07, plum 10.55, fill-vs-page 1.17, edge
+     2.80, edge-on-page 3.28, glyph-on-badge 3.42, white pill 1.22. All
+     asserted below. */
+  --lowstock-bg: #f8e6ce;
+  --lowstock-accent: #e2660a;
+  --lowstock-rule: #c88b3c;
   --lowstock-ink: #7a4b00;
 
   /* ── Dashboard KPI tiles ──────────────────────────────────────────────────
@@ -336,18 +392,20 @@
   --kpi-pending-bg: #ebebdb;
   --kpi-pending-ink: #7a4b00;
   --kpi-pending-rim: #b8a378;
-  /* A 10% nudge of the pending background toward its own ink, recomputed for the
-     new fill. It exists because the badge disc is white on every tile, and white
-     on the OLD #feffb6 measured 1.04:1 — the circle vanished and the glyph floated
-     on nothing. That specific failure is gone: white on #ebebdb is 1.20:1 and
-     clears the 1.15 floor on its own, so this token is now a preference rather
-     than a necessity.
 
-     Kept rather than deleted because removing it also means deleting
-     .kpi-pending .kpi-badge and two rows of the gate, which is a refactor this
-     colour change did not ask for. It reads at 1.154:1 against the fill and
-     leaves the ink at 5.33:1 on top of it, both asserted. */
-  --kpi-pending-disc: #e0dbc5;
+  /* --kpi-pending-disc IS GONE, and this is the refactor its own note said it
+     was waiting for.
+
+     It existed because the badge disc was WHITE on every tile, and white on the
+     old #feffb6 measured 1.04:1 — the circle vanished and the glyph floated on
+     nothing. The tiles are flat now and the disc is the tile's own pastel
+     instead of a white hole in it, so there is nothing left for a nudge of the
+     fill to fix.
+
+     Deleting it means deleting .kpi-pending .kpi-badge and two rows of the
+     gate, and that is what happened: the disc carries the tile's fill and the
+     tile's rim, and the gate now asserts the rims against the white card they
+     sit on rather than against the cream page they used to sit on. */
 
   --kpi-lowstock-bg: #e8d8d8;
   --kpi-lowstock-ink: #8f1f38;
@@ -459,6 +517,32 @@
   --radius-card: var(--radius-md);
   --radius-control: var(--radius-sm);
 
+  // ── The chip radius, and the one place the app's chip vocabulary is written ──
+  //
+  // A CHIP AND BADGE, nothing else. This is deliberately NOT a redefinition of
+  // --radius-pill, and collapsing the two would break four things that are round on
+  // purpose:
+  //
+  //   · bar-chart .bar-track / .bar-fill — a progress bar's rounded cap IS the
+  //     design. A square cap reads as a broken bar.
+  //   · notifications .entry-dot / .progress-dot — these are dots. 999px is
+  //     literally how a square element becomes a circle.
+  //   · qty-stepper .qty-btn — a round stepper button.
+  //   · ~12 CTA buttons (.hero-cta, .export-btn, .copy-btn, .low-stock-cta,
+  //     .empty-action, .see-all and the rest) where the pill is a deliberate
+  //     soft-button style, not an oversight.
+  //
+  // So the token exists to give the ~18 genuine chips ONE radius, not to take the
+  // pill away from the ~17 non-chips that are using it correctly.
+  //
+  // WHY IT IS --radius-sm AND NOT A NEW NUMBER: 12px was already the admin
+  // ledger's chosen chip radius (admin-orders.page.scss, which moved its select
+  // and row pills off --radius-pill for exactly this reason — "at 36px tall a pill
+  // radius wraps both ends to an 18px semicircle, which reads as a lozenge rather
+  // than a control"). Naming it here generalises a decision that was already made
+  // once rather than inventing a second one that would need reconciling with it.
+  --radius-chip: var(--radius-sm);
+
   // ── Elevation ────────────────────────────────────────────
   // Tinted with the brand rather than neutral grey: a pure rgba(0,0,0,.08) on a
   // cream surface reads as dirt. Each step is a real step.
@@ -511,15 +595,22 @@
   --font-mono: 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
 
   /* The retro display face — a DECORATIVE one, not the display face.
-     Lobster Two carries the script-plus-hard-shadow treatment for SIX strings:
+     Lobster Two carries the script-plus-hard-shadow treatment for FIVE strings:
      the About hero title, the auth page brand, the side-menu header brand, the
-     Dashboard welcome title and greeting, the global `ion-title`, and the footer
-     name.
+     Dashboard welcome title and greeting, and the footer name.
 
      This said FOUR for a long time and was wrong twice over: it predated the
      footer and toolbar work, and then the Developers hero briefly made seven
      while it was trying out a poster face. That hero settled on a plain one-line
-     motto in --font-display, so the count is six and stays six.
+     motto in --font-display, so the count was six and stayed six — until the
+     toolbar title was taken out of it, which left five.
+
+     THE FIVE ARE ALL BRAND MARKS. A name, a logo, a greeting, a motto. The
+     toolbar title was never one of them: it is a page label, and page labels
+     are --font-display. The global `ion-title` rule now uses that face, so the
+     rule that keeps this token honest is the one below it: the retro treatment
+     is for the things the brand signs, not for the things the app navigates
+     between.
 
      The requirement is a BRAND-HUE background, because the gold offset shadow
      below is close to invisible against cream or white — 1.58:1 on white and
@@ -825,24 +916,48 @@ ion-button {
    and looks authoritative, and the toolbar is still periwinkle, so nothing
    appears broken. Re-adding it here will look correct and change nothing. */
 
-/* Every page's toolbar title, in the retro face.
+/* Every page's toolbar title.
    This is genuinely ONE rule: before it there was no `ion-title` styling in the
    project at all, and all ~19 toolbars are authored per page but styled here.
    That is the opposite of the drawer, where each page owns its own header.
 
-   NO text-shadow, and this one is a judgement rather than a rule: powder blue is
-   a brand hue so the gold would technically read (1.13:1, the weakest of the
-   three), but toolbar text is small and a 0.06em offset on a 19px script is well
-   under a pixel of gold. On the big display strings it reads as a decal; here it
-   reads as mud. So: family only.
+   FREDOKA, NOT THE SCRIPT.
 
-   font-weight 700 restated, for the same reason as every other retro string —
-   Lobster Two has no 600, and an unstated weight would inherit the `h2`-style 600
-   default and be synthetically emboldened.
+   The title used to be Lobster Two with the gold sticker behind it, which is
+   the app's retro treatment — and it was the one place the retro treatment
+   was being worn by something that is not a brand mark. The retro strings are
+   the BRAND: the About hero title, the auth page brand, the side-menu header
+   brand, the Dashboard welcome title and greeting, and the footer name. A
+   toolbar title is a PAGE LABEL, and the app's page labels are
+   --font-display — the same face as the h1-h4 and the About hero motto.
 
-   Size: 20px, against Ionic's default toolbar title size of roughly 17px. Raised
-   because a script face needs it, but only just, because this sits in a
-   fixed-height 56px toolbar and the real constraint is width, below.
+   The rule that falls out of that is worth stating, because it is why the
+   sticker goes with it: THE BRAND MARKS ARE RETRO, THE PAGE TITLES ARE NOT.
+   --font-display-retro carries the script-plus-hard-shadow treatment and
+   --font-display does not, and it never did — 27 call sites, no shadows. A
+   toolbar title in Fredoka with a gold offset behind it would have been the
+   only string in the app wearing a decal it had no claim to.
+
+   So the title is Fredoka, solid, with nothing behind it. That is the flat
+   brief too: the hard gold offset is a drop shadow, a hard one, and the
+   brief rules those out.
+
+   It is ALSO simply more legible. Lobster Two is a script, and a script's
+   capitals are joined by its flourishes — "Our Flavors" had to be read rather
+   than recognised, and at 20px the smaller titles were the worst of it.
+   Fredoka is a rounded sans with a large x-height, and it is the face the
+   rest of the app is already set in, so the header now says what the rest of
+   the app says.
+
+   font-weight 700 restated: Fredoka ships a 700, so this is a real weight and
+   not a synthesised one. The failure mode the script had was worse than thin
+   — Lobster Two ships only 700, so a retro-faced element left at 600 was
+   rendered thin by SYNTHESIS, which smears the outlines and fills in the
+   counters of a script face.
+
+   Size: 20px, against Ionic's default toolbar title size of roughly 17px.
+   Raised because a display face needs it, but only just, because this sits in
+   a fixed-height 56px toolbar and the real constraint is width, below.
 
    THIS IS ONLY THE BASE OF THE SCALE, not the size. Three media queries
    immediately after this rule raise it to 24px, 28px and 32px as the toolbar
@@ -853,17 +968,16 @@ ion-button {
    WIDTH IS THE ACTUAL RISK HERE, and it is not the shadow. Ionic renders the
    title into `.toolbar-title`, which is `width:100%; overflow:hidden;
    text-overflow:ellipsis; white-space:nowrap`, inside a slot CENTRED between the
-   left and right button groups. It clips rather than wraps, and Lobster Two sets
-   ~20% wider than the face it replaces.
+   left and right button groups. It clips rather than wraps.
 
    Every ion-title in the app was measured at 320/390/768px with a button group
    either side: none ellipsise and none collide at 19px. The titles carrying the
    risk are the long ones, and the full list of 14 characters or more is:
 
-     17  Inventory Manager    admin/inventory/inventory.page.html
-     16  Order Fulfillment    admin/orders/admin-orders.page.html
-     15  Sales Analytics      admin/analytics/analytics.page.html
-     14  Bulk import flavors  admin/inventory/csv-import-modal (a MODAL, and
+     17  Inventory Manager    features/admin/inventory/inventory.page.html
+     16  Order Fulfillment    features/admin/orders/admin-orders.page.html
+     15  Sales Analytics      features/admin/analytics/analytics.page.html
+     14  Bulk import flavors  features/admin/inventory/csv-import-modal (a MODAL, and
                                modals are narrower than pages at 320px)
      14  Product Detail       products/product-detail — see below
 
@@ -874,6 +988,12 @@ ion-button {
    "Bulk Import" would read the same. Both are copy decisions rather than CSS
    ones, so neither has been changed here.
 
+   NONE OF THOSE FOUR LONG TITLES ARE CUSTOMER TITLES, and since the flat
+   header gave the admin pages its own 20px body-face title, the longest title
+   this rule actually draws is a customer one: "Notifications" at 13
+   characters. The widest case is the product-detail title, which is not
+   authored:
+
    The product-detail title is different in kind, because it is not authored:
    `{{ product()?.variantName ?? 'Product Detail' }}` interpolates a name that
    came from a CSV import and is therefore unbounded. A 25-character flavour name
@@ -881,18 +1001,14 @@ ion-button {
    case is a visible truncation, not a broken layout — but it is the one title on
    this rule whose length no one controls. */
 ion-title {
-  font-family: var(--font-display-retro);
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 20px;
   line-height: 1.1;
-  /* The small-scale token, not the display one: at 20px the 0.06em display
-     offset is 1.2px and effectively invisible, while 0.09em gives 1.8px — enough
-     to read as a warm edge behind the letters without turning a toolbar into a
-     sticker. See --display-sticker-shadow-small for why there are two scales.
-
-     Safe on powder, and slightly BETTER for the glyph than having no shadow:
-     plum on the gold is 8.16:1 against plum on powder's 7.20:1. */
-  text-shadow: var(--display-sticker-shadow-small);
+  /* NOTHING BEHIND THE LETTERS. This used to carry the gold sticker offset,
+     which is a hard drop shadow; with the title in the app's own display face
+     there is no brand claim for it and the brief rules it out. */
+  text-shadow: none;
 }
 
 /* THE TITLE SCALE IS A FUNCTION OF AVAILABLE WIDTH, not of device class. The
@@ -981,6 +1097,88 @@ ion-back-button {
   --color: var(--ion-color-primary-contrast, #3d2b45);
 }
 
+/* ── No elevation under the header ─────────────────────────────────────────────
+   Ionic's MD header ships an elevation shadow on the HOST — three layers of
+   it: `rgba(0,0,0,.2) 0 2px 4px -1px`, `rgba(0,0,0,.14) 0 4px 5px 0` and
+   `rgba(0,0,0,.12) 0 6px 8px -2px`.
+
+   That shadow is the one piece of true 3D left in the app's chrome, and it
+   is on every header on both sides: a bar that sits flush against the page
+   it belongs to, casting a blur underneath itself. The flat vocabulary does
+   not allow a drop shadow, and the header is the surface where that rule is
+   easiest to see being broken, because the shadow lands on the page content
+   and makes the bar look as though it floats a few millimetres above it.
+
+   A HAIRLINE, OR NOTHING. On the admin's flat header the hairline is already
+   there (see below) and the shadow was only ever adding a smudge under it.
+   On the customer's striped header the band's own colour is a clear enough
+   edge against the page beneath it that it does not need one either.
+
+   The rule is on the HOST because that is where Ionic puts the shadow. */
+ion-header {
+  box-shadow: none;
+}
+
+/* ── The flat header ─────────────────────────────────────────────────────────
+   A TOOL, NOT A POSTER.
+
+   The admin side had the storefront's header: the candy stripe, the retro
+   script, the gold sticker shadow under the letters, and Ionic's own MD
+   elevation shadow on the header. All four are the opposite of the flat
+   vocabulary the pages are built in, and none of them says anything to
+   somebody who works here all day.
+
+   So the flat header is the app's flat card: a white surface, one hairline
+   along the bottom, and a title in the same plain face the page headings use —
+   the dashboard's title is 24px/800 plum in the body face, and this is the same
+   voice at toolbar size.
+
+   IT IS THE ADMIN SIDE'S HEADER, and the customer side keeps the brand one.
+   The stripe, the script and the sticker are the storefront's shopfront, and
+   a customer who has never seen the admin panel should not be able to tell
+   which side of the app they are on by the colour of the bar above the page.
+   The two sides having different headers is the decision; every customer
+   page having the SAME header is also the decision, and that one is why this
+   class exists at all on the admin side rather than a rule per page.
+
+   IT IS CALLED "flat", NOT "admin", because it is not admin-only any more:
+   the customer's Settings page and My Profile carried it for a while, and a
+   class that says "admin" on a customer page tells the next reader the wrong
+   thing about the rule.
+
+   THE CLASS IS ON THE <ion-header>, NOT THE <ion-toolbar>, because one word
+   then styles both — the header's shadow, and the toolbar's fill through
+   --ion-toolbar-background, which is read inside the toolbar's shadow root
+   and inherits through the boundary. (See the note above on why the obvious
+   `--background` cannot be used for this.)
+
+   THE TITLE OVERRIDE WINS AT EVERY WIDTH, and that is a specificity fact
+   rather than a hope: `.flat-header ion-title` is (0,2,0) against the global
+   `ion-title` at (0,0,1), so it beats the three media-query steps that raise
+   the customer title to 24/28/32px. The flat title is 20px everywhere,
+   because a tool's title does not need to grow.
+
+   NUMBERS: plum on white 12.88:1, and the hairline 1.87:1 on white and 1.79:1
+   on the cream page — the same edge the flat cards carry. */
+ion-header.flat-header {
+  --ion-toolbar-background: var(--color-white);
+  --ion-toolbar-color: var(--color-ink);
+
+  /* Ionic's MD elevation shadow — three layers of it — sits on the HOST, so an
+     outer rule can reach it. */
+  box-shadow: none;
+
+  /* The hairline is the edge, the way it is on every flat card. */
+  border-bottom: 1px solid var(--tile-powder-deep);
+}
+
+ion-header.flat-header ion-title {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 20px;
+  text-shadow: none;
+}
+
 // ── Focus visibility ─────────────────────────────────────────
 /* The audit found only three `:focus-visible` rules in the entire app, none of
    them global, so ~20 custom buttons (qty steppers, remove buttons, mode tabs,
@@ -1065,15 +1263,18 @@ html[data-contrast='high'] {
      point of high contrast is sharper edges, not a different palette. */
   --kpi-revenue-rim: #4f8a64;
   --kpi-pending-rim: #9c7b42;
-  --kpi-pending-disc: #dad3ba;
   --kpi-lowstock-rim: #aa5768;
   --kpi-total-rim: #517394;
   /* The dashboard low-stock panel, same derivation and same 3:1 bar as the KPI
      rims above. It is not in the gate at 3:1 — the panel's rows are asserted at
      1.15/1.4 like every other border — but it is held to the same bar here so
      the high-contrast setting sharpens this panel consistently rather than by
-     accident. */
-  --lowstock-border: #9a7438;
+     accident. It measures 4.10:1 against the panel's orange fill.
+
+     A DEEPER ORANGE, not a brown: this mode is about contrast, not about a
+     different palette, so the hue stays and the value drops — the edge and the
+     warning glyph are still orange, they are just orange you cannot miss. */
+  --lowstock-accent: #9a4a00;
   --tone-danger-border: #c25c7c;
   --tone-info-border: #4c82b0;
 }

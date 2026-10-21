@@ -59,6 +59,9 @@
  * The service re-exports it, so every existing import keeps working and there is
  * still exactly one definition.
  */
+
+import { SIZE_VARIANTS } from '@core/logic/stock';
+
 export type StockReason =
   'manual_adjust' | 'admin_restock' | 'sale' | 'cancel_restock' | 'stock_intake' | 'baseline';
 
@@ -160,5 +163,11 @@ export function reconcileSize(rows: readonly ReconcileRow[]): SizeReconciliation
   };
 }
 
-/** The four sizes reconciliation runs over. Mirrors `SIZE_VARIANTS`. */
-export const RECONCILE_SIZES = ['cup', 'pint', 'halfGallon', 'gallon'] as const;
+/**
+ * The four sizes reconciliation runs over.
+ *
+ * NOT a copy of `SIZE_VARIANTS` — that was the old shape, and the two drifted
+ * the moment a size was added to one of them. This module is framework-free
+ * and so is `stock.ts`, so one can import the other.
+ */
+export const RECONCILE_SIZES = SIZE_VARIANTS;

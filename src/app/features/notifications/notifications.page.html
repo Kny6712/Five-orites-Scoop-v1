@@ -7,16 +7,20 @@
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>Notifications</ion-title>
-    <ion-buttons slot="end">
-      <!--
-        Only rendered when something is unread. A permanent "mark all read"
-        button that does nothing 90% of the time is a control that lies about
-        being available.
-      -->
-      @if (unreadCount() > 0) {
-        <ion-button (click)="markRead()" aria-label="Mark all notifications as read"> Mark read </ion-button>
-      }
-    </ion-buttons>
+    <!--
+      NO "MARK READ" BUTTON IN THE HEADER.
+
+      It was conditional on there being something unread, which sounds right and
+      was not: the unread count is over the WHOLE feed while the page opens on
+      the TODAY window. So a customer with one unread update from last week saw
+      "MARK READ" at the top of a page that said "Nothing today" — a control
+      about something they could not see, on a page that had nothing to mark.
+
+      Removing it loses nothing. Every entry in the feed marks itself read when
+      it is opened (see open() in the page class), which is the behaviour people
+      expect from every message list they use, and a bulk action for a list
+      they are about to read one at a time was a shortcut to the same state.
+    -->
   </ion-toolbar>
 </ion-header>
 
@@ -28,21 +32,32 @@
   <div class="page">
     @if (!isEmpty()) {
       <!--
-        The period filter. A DROPDOWN of three windows — Today, Yesterday,
-        Earlier — rather than the four-tab segment this replaces, and rather than
-        a select over all four.
+        The period filter. A DROPDOWN of four windows — All, Today, Yesterday,
+        Earlier — rather than the four-tab segment this replaces.
 
-        Three, not four: `all` was a bucket of last resort, not a window. With
-        the tabs it earned its place by being the only option that showed the
-        user anything at once. Behind an arrow it does not — what the control is
-        actually asking is "which window do I want", and "everything" is not an
-        answer to that the way "today" is. So the three named windows are the
-        options and the feed opens on the first of them.
+        `All` IS BACK AS AN OPTION, FIRST, and it is back for a better reason
+        than the tab it replaced. It was dropped when the control became a
+        dropdown because it had been competing as a peer of three named windows
+        for space in a row of tabs, where the only argument for it was that it
+        was the sole option showing the user anything — and that argument died
+        with the tabs, it was never a reason to withhold the window.
+
+        What it is actually for: the control asks "which window do I want", which
+        is the wrong question for someone who does not yet know which window
+        their order moved in. A user whose last update was a week ago has no way
+        to guess "Earlier" over "Yesterday" from the outside, and one of the two
+        may be empty. `All` lets them look once instead of tapping to find out.
+
+        First rather than last because it is the broadest window, so it reads as
+        the parent of the three below it rather than a fourth peer. The three
+        named windows stay in recency order beneath it.
 
         `interface="popover"` so this opens as a small anchored list rather than
         a full-screen alert, matching the products page's flavor/size/price
         selects — the app's one pattern for narrowing a list, which this is now
-        part of too.
+        part of too. Note this one anchors correctly without any `trigger`
+        attribute, because `ion-select` owns its own overlay rather than being
+        handed an `isOpen` signal with nothing to position against.
 
         Counts ride along in the option text rather than in a styled span: options
         inside the popover render as plain text, so there is nothing for a class
@@ -108,10 +123,17 @@
 
         So it names the window they are in and hands back a one-tap route to the
         newest window that HAS something in it — not a generic "show everything",
-        which no longer exists as an option and could not be offered truthfully
-        even if the button wanted to. `rescuePeriod` reads the same counts that
-        label the dropdown, so the button cannot point at a window the control
-        claims is empty.
+        which is selectable from the dropdown above but is the wrong destination
+        here: someone opening an empty Today almost always wants their one or two
+        orders, not a long list. `rescuePeriod` reads the same counts that label
+        the dropdown, so the button cannot point at a window the control claims
+        is empty.
+
+        This branch is UNREACHABLE UNDER "All", which is correct rather than a
+        gap: a feed that is not empty cannot be empty under a filter that admits
+        everything, so if `All` is selected there is always something to render
+        and this state cannot arise. It is left unguarded rather than given a
+        redundant `filter() !== 'all'` check that no sequence could reach.
 
         Guarded on `rescuePeriod` rather than assumed: an empty feed is handled
         above and has nothing to jump to, so this branch must not render a button
@@ -132,21 +154,30 @@
     } @else {
       @for (group of groups(); track group.label) {
         <!--
-          NO DAY HEADING. There used to be a TODAY / YESTERDAY / EARLIER <h2>
-          here, guarded by `@if (filter() === 'all')` — and duplicated, because
-          the guard wrapped one copy and a second unconditional one sat below it,
-          so every heading on the "All" view rendered twice.
+          THE DAY HEADING IS BACK, but ONLY under "All", and the split is the
+          whole design rather than a hedge.
 
-          It is gone for a better reason than that bug, though. The period control
-          is now a dropdown naming one window, and each window maps to exactly one
-          group, so this loop can produce at most one section. A heading repeating
-          the word the user just chose is the same word twice, immediately above
-          the thing it is labelling.
+          It was deleted because each of the three named windows maps to exactly
+          one group, which made a heading read the same word twice — "Today"
+          directly above a list the dropdown had just said was Today's, sitting
+          immediately above the thing it labels. That reasoning was correct and it
+          still holds for those three, so the heading stays hidden for them.
 
-          What the heading used to carry that the control does not — "which of
-          these moved today and which have not" — only existed on "All", and "All"
-          no longer exists.
+          Under "All" the redundancy disappears and the heading becomes the only
+          thing on the page telling the reader which of these moved today and
+          which have not. The control says "everything" and nothing else
+          distinguishes a row from two days ago from one from last week. Without
+          this the three groups render as three identical lists butted together,
+          because `.feed` carries no margin of its own and there is no other
+          visual break between them.
+
+          GATED ON THE FILTER, not unconditional. The version before the tabs was
+          removed had a guarded copy AND a second unconditional one, so every
+          heading on the "All" view rendered twice. One copy, one guard.
         -->
+        @if (filter() === 'all') {
+          <h2 class="feed-heading">{{ group.label }}</h2>
+        }
         <ul class="feed">
           @for (thread of group.entries; track thread.orderId) {
             <li>

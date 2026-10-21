@@ -119,4 +119,31 @@
     ═══════════════════════════════════════════ -->
     <ion-router-outlet id="main-content"></ion-router-outlet>
   </ion-split-pane>
+
+  <!--
+    THE FLAVOUR QUICK-VIEW.
+
+    A sibling of the split pane, not a child of a routed page. It has to be:
+    `ion-router-outlet` carries a transform, and a transformed element is the
+    containing block for its fixed-position descendants — so a dialog hosted
+    inside a page is "fixed" to the content area rather than to the window,
+    and the dim stops at the sidebar's edge. Out here, the dialog is centred
+    on the window and the dim covers the whole screen, sidebar included.
+
+    The state is the service's; the products page asks it to open a flavour.
+  -->
+  @if (quickView.productId(); as openId) {
+    <div class="product-dialog-backdrop" (click)="closeQuickView()"></div>
+    @defer (when quickView.productId()) {
+      <app-product-detail-dialog [productId]="openId" (closed)="closeQuickView()"></app-product-detail-dialog>
+    } @placeholder {
+      <!--
+        The quick-view's own code is loaded on demand — it is a dialog over the
+        flavours list, and a customer who never opens it should not pay for it
+        in the first paint. The placeholder is the panel's own size so the
+        space is already there when the real thing arrives.
+      -->
+      <div class="product-dialog-placeholder"></div>
+    }
+  }
 </ion-app>

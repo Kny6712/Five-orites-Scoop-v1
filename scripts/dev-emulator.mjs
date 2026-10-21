@@ -17,8 +17,8 @@
 // WHAT IT DOES, IN ORDER
 //   1. `firebase emulators:start` (Firestore 8080, Auth 9099)
 //   2. waits for the Firestore emulator to answer on 8080
-//   3. seeds products into it, with NO credentials — the emulator does not accept
-//      them and does not need them
+//   3. seeds products AND developers into it, with NO credentials — the emulator
+//      does not accept them and does not need them
 //   4. `ng serve --configuration emulator`
 //
 // CLOUDINARY IS STILL REAL. There is no Cloudinary emulator, so a photo uploaded
@@ -113,30 +113,53 @@ if (!ready) {
 // ── 3. seed ─────────────────────────────────────────────────────────────────
 // No credentials: the emulator accepts unauthenticated Admin SDK writes and
 // REJECTS a real service account, so passing one would fail rather than help.
-console.log('\nSeeding the emulator (no credentials — it must not be given any)…');
-const seed = spawn(
-  'npx',
-  ['ts-node', '--project', 'scripts/tsconfig.json', 'scripts/seed-products.ts'],
-  {
+//
+// BOTH collections are seeded, and the developers one is here for a specific
+// reason rather than for tidiness.
+//
+// `npm run emulators` alone leaves the `developers` collection EMPTY. The admin
+// credits page then falls back to `DEFAULT_DEVELOPERS`, rendering four names
+// that look editable and are not — every Add / Edit / Reorder / Delete writes to
+// a document id that does not exist and comes back PERMISSION_DENIED. That
+// reads as broken buttons, and it was mistaken for exactly that before the
+// underlying cause was found. Seeding it here means a sandbox is never in that
+// state by accident.
+//
+// A failure here is NOT fatal: the app still starts, and the credits page now
+// says plainly that there is nothing stored rather than showing fiction.
+const seedEnv = {
+  ...process.env,
+  FIRESTORE_EMULATOR_HOST: `localhost:${FIRESTORE_PORT}`,
+  FIREBASE_PROJECT_ID: 'demo-five-orites-scoop',
+};
+
+async function seedOne(label, script) {
+  console.log(`\nSeeding ${label} (no credentials — it must not be given any)…`);
+  const child = spawn('npx', ['ts-node', '--project', 'scripts/tsconfig.json', script], {
     stdio: 'inherit',
     shell: true,
-    env: {
-      ...process.env,
-      FIRESTORE_EMULATOR_HOST: `localhost:${FIRESTORE_PORT}`,
-      FIREBASE_PROJECT_ID: 'demo-five-orites-scoop',
-    },
-  },
-);
+    env: seedEnv,
+  });
+  const code = await new Promise((resolve) => {
+    child.on('exit', resolve);
+    child.on('error', () => resolve(1));
+  });
+  if (code !== 0) console.error(`\nSeeding ${label} failed (exit ${code}).`);
+  return code === 0;
+}
 
-const seedCode = await new Promise((resolve) => {
-  seed.on('exit', resolve);
-  seed.on('error', () => resolve(1));
-});
+const productsOk = await seedOne('products', 'scripts/seed-products.ts');
+const developersOk = await seedOne('developers', 'scripts/seed-developers.ts');
 
-if (seedCode !== 0) {
-  console.error('\nSeeding failed. The app will still start, with an empty catalogue.');
-} else {
+if (productsOk && developersOk) {
   console.log('\nSeed complete.');
+} else {
+  console.error(
+    '\nSeeding was incomplete. The app will still start.' +
+      (developersOk
+        ? ''
+        : '\n  The credits page will report that nothing is stored rather than showing the built-in list.'),
+  );
 }
 
 // ── 4. the app ──────────────────────────────────────────────────────────────

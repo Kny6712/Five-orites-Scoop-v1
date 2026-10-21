@@ -6,14 +6,16 @@
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
-    <ion-title>
-      @if (checkoutStep() === 1) {
-        My Cart
-      }
-      @if (checkoutStep() === 3) {
-        Order Placed!
-      }
-    </ion-title>
+    <!--
+      THE PAGE'S NAME, and only that.
+
+      It used to swap to "Order Placed!" on the confirmation step, so the same
+      page announced its own result in the bar and again in the middle of the
+      screen, two inches apart, in the same face and the same weight. The bar
+      is chrome: it says which page you are on and it does not change while
+      you are on it.
+    -->
+    <ion-title>My Cart</ion-title>
   </ion-toolbar>
 </ion-header>
 
@@ -30,6 +32,26 @@
         (action)="goToProducts()"
       />
     } @else {
+      <!--
+        THE WAY BACK, at the page's top left.
+
+        It was at the foot of the right-hand rail, under the Place Order
+        button, which put the way out of the shop below the way into it. Two
+        actions pointing in opposite directions, stacked, with the quieter one
+        underneath.
+
+        It is now where the tracker puts its own: at the left edge of the
+        page, directly under the header, outside the capped column — the one
+        thing on the page allowed to sit outside it, because it belongs to the
+        page rather than to the content.
+      -->
+      <div class="cart-top">
+        <a class="back-link" routerLink="/products">
+          <app-icon name="arrow-left" class="back-glyph" />
+          Back
+        </a>
+      </div>
+
       <!--
         Shown when the live stock read failed. The quantity steppers stay
         usable, but without a known stock level the cap cannot be applied, so
@@ -96,11 +118,26 @@
                     </div>
                     <div class="item-controls">
                       <!--
-                      Shared stepper. This replaces a 28x28 hand-rolled pair of buttons
-                      — the worst touch target in the app, at 64% of the 44px
+                      Shared stepper, FRAMED. This replaces a 28x28 hand-rolled pair of
+                      buttons — the worst touch target in the app, at 64% of the 44px
                       guidance, on the control people tap most.
+
+                      The frame is the point of it: a quantity reads as a quantity when
+                      the two buttons and the number are held inside one box, and a
+                      bare pair of glyphs on a white row reads as two unrelated
+                      buttons that happen to sit near a number.
                     -->
-                      <app-qty-stepper [value]="item.quantity" [max]="maxFor(item)" (changed)="setQty(item, $event)" />
+                      <app-qty-stepper
+                        [value]="item.quantity"
+                        [max]="maxFor(item)"
+                        [framed]="true"
+                        (changed)="setQty(item, $event)"
+                      />
+                      <!--
+                        The line's own money, on a tinted chip. It is the one figure on
+                        this row that is not a label, and it was previously bare text
+                        in the same weight as the product name above it.
+                      -->
                       <p class="item-subtotal">{{ item.unitPrice * item.quantity | peso }}</p>
                       <button
                         type="button"
@@ -121,12 +158,21 @@
                 button, so two actions with opposite consequences were the same
                 shape and the same size. The per-row trash icon still removes one
                 item at a time.
+
+                AN OUTLINED SECONDARY BUTTON, because a red text link was the
+                loudest-looking thing in the card while being the least
+                noticeable: it had no box, no glyph of its own and no wider touch
+                target than the word. The outline gives it an identity that says
+                "this is a control" and the trash says what it does, and the whole
+                thing is now as easy to hit as the button above it.
+
+                Right-aligned, at the foot of the list it belongs to.
               -->
               <div class="cart-clear-row">
-                <ion-button fill="clear" class="clear-btn" (click)="clearCart()">
-                  <app-icon name="trash" slot="start" />
+                <button type="button" class="clear-btn" (click)="clearCart()">
+                  <app-icon name="trash" class="clear-glyph" />
                   Clear Cart
-                </ion-button>
+                </button>
               </div>
             </section>
 
@@ -159,41 +205,65 @@
                 <div class="input-wrap">
                   <span class="field-label" id="saved-addresses-label">Saved addresses</span>
                   <!--
-                    A plain list, not a bordered table of controls.
+                    A CHOOSER, drawn as a chooser.
 
-                    Three things were wrong with the previous version and this
-                    row fixes all three at once. The radio circles sat at the far
-                    right of a ~430px row to say four or five characters, so
-                    most of every row was empty. The delete affordance sat at the
-                    left edge in saturated red, which gave the rarest action on
-                    the page the loudest position. And the outer border made a
-                    list of saved strings read as a form fieldset.
+                    The saved addresses used to be a list of radio rows, which is
+                    the right idea — a saved address is picked, not typed — but it
+                    spent the whole width of the card to say one short word, and
+                    the radio circles were the only circles in the app.
 
-                    Selection is now the whole row - a green tint plus a tick -
-                    so it reads at a glance without a circle. Delete occupies the
-                    SAME slot as the tick, on the right, so pressing Manage never
-                    multiplies the icons on screen; it swaps one for the other.
+                    It is now a real <select> with a chevron on the right, so it
+                    says "there is more here" the way every other chooser in the
+                    app says it, and it says it with a control the browser
+                    already knows how to open on a phone.
 
-                    The radio itself stays in the DOM. It is visually hidden but
-                    not removed, so arrow-key navigation and the screen-reader
-                    announcement survive; only its appearance is styled away. A
-                    div with role="radio" would have had to reimplement both.
+                    The list is still there, but only while MANAGE is pressed:
+                    deleting a saved address is the rare action and it does not
+                    deserve permanent real estate next to a control that is used
+                    on every visit.
                   -->
-                  <div class="saved-addresses" aria-labelledby="saved-addresses-label">
-                    @for (addr of savedAddresses(); track addr) {
-                      <div class="saved-address-row" [class.is-selected]="selectedAddress() === addr">
-                        <label class="saved-address-label">
-                          <input
-                            type="radio"
-                            name="savedAddress"
-                            [value]="addr"
-                            [checked]="selectedAddress() === addr"
-                            (change)="useSavedAddress(addr)"
-                          />
-                          <span class="saved-address-text">{{ addr }}</span>
-                        </label>
+                  @if (!managingAddresses()) {
+                    <div class="select-wrap">
+                      <select
+                        class="address-select"
+                        aria-labelledby="saved-addresses-label"
+                        [value]="selectedAddress() ?? ''"
+                        (change)="onAddressSelected($event)"
+                      >
+                        <option value="" disabled>Choose a saved address</option>
+                        @for (addr of savedAddresses(); track addr) {
+                          <option [value]="addr">{{ addr }}</option>
+                        }
+                      </select>
+                      <app-icon name="chevron-down" class="select-chevron" />
+                    </div>
+                  } @else {
+                    <!--
+                      The editable list, shown while Manage is pressed. Selection is
+                      the whole row - a tint plus a tick - so it reads at a glance
+                      without a circle. Delete occupies the SAME slot as the tick,
+                      on the right, so pressing Manage never multiplies the icons
+                      on screen; it swaps one for the other.
 
-                        @if (managingAddresses()) {
+                      The radio itself stays in the DOM. It is visually hidden but
+                      not removed, so arrow-key navigation and the screen-reader
+                      announcement survive; only its appearance is styled away. A
+                      div with role="radio" would have had to reimplement both.
+                    -->
+                    <div class="saved-addresses" aria-labelledby="saved-addresses-label">
+                      @for (addr of savedAddresses(); track addr) {
+                        <div class="saved-address-row" [class.is-selected]="selectedAddress() === addr">
+                          <label class="saved-address-label">
+                            <input
+                              type="radio"
+                              name="savedAddress"
+                              [value]="addr"
+                              [checked]="selectedAddress() === addr"
+                              (change)="useSavedAddress(addr)"
+                            />
+                            <span class="saved-address-text">{{ addr }}</span>
+                          </label>
+
                           <button
                             type="button"
                             class="saved-address-delete"
@@ -202,16 +272,10 @@
                           >
                             <app-icon name="trash" />
                           </button>
-                        } @else {
-                          <span class="saved-address-mark" aria-hidden="true">
-                            @if (selectedAddress() === addr) {
-                              <app-icon name="check" />
-                            }
-                          </span>
-                        }
-                      </div>
-                    }
-                  </div>
+                        </div>
+                      }
+                    </div>
+                  }
                 </div>
               }
 
@@ -285,7 +349,7 @@
                   </p>
                 }
                 <div class="summary-row total-row">
-                  <span>Total</span>
+                  <span class="total-label">Total</span>
                   <span class="total-amount">{{ grandTotal() | peso }}</span>
                 </div>
               </div>
@@ -296,24 +360,40 @@
               @if (!appliedVoucher()) {
                 <!-- Input and button share a row: a full-width field stacked above
                      a full-width button needed two full-width bands to say one
-                     thing. The button is NOT expand="block" because the row,
-                     not the page, is what it should fill. -->
+                     thing.
+
+                     A SINGLE-LINE FIELD, not a one-row textarea. A promo code is
+                     a code: it has no second line, and a textarea offered the
+                     customer a way to type one — along with a scrollbar and a
+                     resize grip that had nothing to resize.
+
+                     THE FIELD IS FULL WIDTH, and the Apply button lives INSIDE
+                     its right end rather than beside it. Squeezed into what was
+                     left of the rail, the field was 265px of box for a code that
+                     is four characters long, and the button next to it took the
+                     room the field needed. One rectangle, the width of the card,
+                     with the one action that belongs to it in the corner. -->
                 <div class="voucher-row">
                   <div class="input-wrap">
                     <label class="field-label" for="voucher-input">Promo code</label>
-                    <ion-textarea
-                      id="voucher-input"
-                      [(ngModel)]="voucherCode"
-                      placeholder="Enter code..."
-                      rows="1"
-                      class="field-input"
-                    ></ion-textarea>
+                    <div class="voucher-field">
+                      <ion-input
+                        id="voucher-input"
+                        class="field-input voucher-input"
+                        type="text"
+                        inputmode="text"
+                        autocapitalize="characters"
+                        enterkeyhint="done"
+                        placeholder="Enter code"
+                        [(ngModel)]="voucherCode"
+                      ></ion-input>
+                      <button type="button" class="apply-voucher-btn" (click)="applyVoucher()">Apply</button>
+                    </div>
                   </div>
-                  <ion-button fill="outline" class="apply-voucher-btn" (click)="applyVoucher()"> Apply </ion-button>
                 </div>
               } @else {
                 <p class="review-notes">✅ {{ appliedVoucher() }} applied.</p>
-                <ion-button fill="clear" color="medium" (click)="removeVoucher()">Remove Voucher</ion-button>
+                <button type="button" class="remove-voucher-btn" (click)="removeVoucher()">Remove Voucher</button>
               }
               @if (voucherMessage()) {
                 <p class="review-notes">{{ voucherMessage() }}</p>
@@ -330,26 +410,27 @@
               its first tap - the review screen that used to sit between this
               button and placeOrder() was removed as redundant.
 
-              expand="block" is retained deliberately: it fills the rail instead
-              of the whole content width, which is the fix. It was never
-              expand="block" that was wrong - having nothing but 1144px to expand
-              into was.
+              A PLAIN <button>, and the app's own gold CTA: an amber fill,
+              plum ink, a pill, and a hover that changes the button itself.
+              The ion-button it replaces brought Ionic's md treatment with it —
+              a three-layer elevation shadow under the fill and an uppercased
+              label, so the page's primary action read "PLACE ORDER" on a
+              slab that hovered above the card it sat on.
+
+              The button fills the rail, not the whole content width: it was
+              never expand="block" that was wrong - having nothing but 1144px
+              to expand into was.
 
               .place-order-btn, not the old .checkout-btn: the sunny accent is
               what this action always wore on the review screen, and plum on it
               measures 8.16:1 where white would have measured 1.58:1.
             -->
-            <ion-button expand="block" class="place-order-btn" (click)="placeOrder()" [disabled]="isPlacingOrder()">
+            <button type="button" class="place-order-btn" (click)="placeOrder()" [disabled]="isPlacingOrder()">
               @if (isPlacingOrder()) {
-                <ion-spinner name="crescent" slot="start"></ion-spinner>
+                <ion-spinner name="crescent"></ion-spinner>
               }
-              {{ isPlacingOrder() ? 'Placing Order...' : 'Place Order' }}
-            </ion-button>
-
-            <ion-button fill="clear" class="back-btn" (click)="goToProducts()">
-              <app-icon name="arrow-left" slot="start" />
-              Back
-            </ion-button>
+              <span>{{ isPlacingOrder() ? 'Placing Order...' : 'Place Order' }}</span>
+            </button>
           </aside>
         </div>
       </div>
@@ -358,15 +439,26 @@
 
   @if (checkoutStep() === 3) {
     <div class="confirmed-state">
+      <!--
+        THE TICK, AS LINE ART.
+
+        The glyph was 80px with the app's default 2.25px stroke, and an SVG
+        scales its stroke with its viewBox: 2.25 x (80/24) is a 7.5px line, so
+        what was meant to be a check in a circle came out as a heavy green
+        ring with a tick in it — the one piece of visual weight on a screen
+        that is otherwise a sentence and two buttons.
+
+        56px at a 1.2 stroke is a 2.8px line, which is the weight a 24px
+        icon has at its natural size. Same drawing, same colour, drawn at the
+        weight it was designed at.
+      -->
       <app-icon name="circle-check" class="confirmed-icon" />
       <h2 class="confirmed-title">Order Placed!</h2>
       <p class="confirmed-sub">Your scoops are on the way. Redirecting to your order tracker...</p>
       <ion-spinner name="dots"></ion-spinner>
       <div class="confirmed-actions">
-        <ion-button expand="block" class="place-order-btn" (click)="viewTracker()"> View Order Tracker </ion-button>
-        <ion-button expand="block" fill="outline" (click)="orderMore()" class="back-btn">
-          Order More Flavors
-        </ion-button>
+        <button type="button" class="confirmed-cta" (click)="viewTracker()">View Order Tracker</button>
+        <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
       </div>
     </div>
   }

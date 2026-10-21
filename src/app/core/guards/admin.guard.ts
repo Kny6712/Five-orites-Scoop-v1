@@ -24,8 +24,8 @@
 
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { AuthService } from '../services/auth.service';
-import { can, canManageTeam, isStaffRole, type Capability } from '../models/user.model';
+import { AuthService } from '@core/services/identity/auth.service';
+import { can, canManageTeam, isStaffRole, type Capability } from '@core/models/user.model';
 import { filter, map, switchMap, take } from 'rxjs/operators';
 
 /** The signed-in user once auth has settled. */

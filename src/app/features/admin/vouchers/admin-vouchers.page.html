@@ -1,0 +1,238 @@
+<!-- src/app/features/admin/vouchers/admin-vouchers.page.html -->
+<!-- Five-orites Scoop — Admin voucher management -->
+
+<ion-header class="flat-header">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Vouchers</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="header-actions">
+    <ion-searchbar
+      placeholder="Search codes"
+      debounce="200"
+      (ionInput)="onQuery($event)"
+      [value]="query()"
+      class="voucher-search"
+      aria-label="Search voucher codes"
+    ></ion-searchbar>
+    <div class="header-actions-right">
+      <!--
+        Export CSV, as its own labelled button rather than an icon-only square.
+
+        WHAT THIS BUTTON DOES NOW: it writes the shop's vouchers to a CSV — every
+        code, with its discount, its caps, its window and how it has sold. The
+        "Bulk import vouchers" sheet it used to open is gone, and with it the
+        trap of a button labelled "Export CSV" opening a dialog titled "Bulk
+        import vouchers".
+
+        The label and the action agree, which is the whole point: every file
+        button in the admin says what it does.
+
+        The old sheet also owned the template download and the performance
+        report. Both are in the file now — the report's columns are the last
+        four — so nothing the sheet could do was lost by closing it.
+
+        The performance report used to be an icon-only button in this toolbar
+        and went when the import button arrived: three controls in a row, two of
+        them glyphs with no labels, was a row of guesses.
+      -->
+      <button type="button" class="csv-btn export-btn" (click)="exportCsv()" aria-label="Export CSV">
+        <app-icon name="file" />Export CSV
+      </button>
+
+      <ion-button (click)="startCreate()" class="new-btn">+ New voucher</ion-button>
+    </div>
+  </div>
+
+  @if (errorMessage()) {
+    <app-alert-banner tone="danger" [message]="errorMessage()" actionLabel="Try again" (action)="load()" />
+  }
+
+  <!-- ── Search & filter ──────────────────────────────────────────────── -->
+  <div class="tools">
+    <div class="tools-row">
+      <button
+        type="button"
+        class="count-chip"
+        [class.count-chip--on]="!showInactiveOnly()"
+        [attr.aria-pressed]="!showInactiveOnly()"
+        (click)="showInactiveOnly() && toggleStatusFilter()"
+      >
+        Active {{ activeCount() }}
+      </button>
+      <button
+        type="button"
+        class="count-chip"
+        [class.count-chip--on]="showInactiveOnly()"
+        [attr.aria-pressed]="showInactiveOnly()"
+        (click)="!showInactiveOnly() && toggleStatusFilter()"
+      >
+        Inactive {{ inactiveCount() }}
+      </button>
+      @if (query() || showInactiveOnly()) {
+        <button type="button" class="clear-btn" (click)="clearFilters()">
+          <app-icon name="x" />
+          Clear
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ── List ──────────────────────────────────────────────────────────
+    Ticket cards rather than plain rows. A voucher IS a ticket — perforated
+    edge, a code in mono, a dashed stub — and rendering it as a generic list row
+    made the page look like a settings screen instead of the coupon inventory
+    it is. The value is a chip because "10% off" and "₱50 off" are different
+    kinds of thing, and the minimum is a separate chip because it is a
+    condition, not part of the discount.
+  -->
+  @if (isLoading()) {
+    <div class="list">
+      @for (s of [1, 2, 3, 4]; track s) {
+        <div class="ticket ticket--skeleton">
+          <ion-skeleton-text animated style="width: 40%; height: 18px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 65%; height: 12px; margin-top: 8px"></ion-skeleton-text>
+        </div>
+      }
+    </div>
+  } @else if (vouchers().length === 0) {
+    <app-empty-state
+      icon="ticket"
+      title="No vouchers yet"
+      message="Create a code to give customers a discount. They can redeem it at checkout."
+      actionLabel="New voucher"
+      (action)="startCreate()"
+    />
+  } @else if (filteredVouchers().length === 0) {
+    <app-empty-state
+      icon="search"
+      title="No matching vouchers"
+      message="No code matches that search or filter."
+      actionLabel="Clear filters"
+      (action)="clearFilters()"
+      [compact]="true"
+    />
+  } @else {
+    <div class="list">
+      @for (voucher of pagedVouchers(); track voucher.id) {
+        <article class="ticket" [class.ticket--inactive]="!voucher.isActive">
+          <div class="ticket-body">
+            <div class="ticket-head">
+              <code class="ticket-code">{{ voucher.code }}</code>
+              <button
+                type="button"
+                class="copy-btn"
+                (click)="copyCode(voucher)"
+                [attr.aria-label]="'Copy code ' + voucher.code"
+              >
+                <app-icon name="copy" />
+              </button>
+            </div>
+
+            <div class="ticket-chips">
+              <span class="v-chip v-chip--value">{{ describe(voucher) }}</span>
+              @if (voucher.minOrder) {
+                <span class="v-chip">Min ₱{{ voucher.minOrder }}</span>
+              }
+              <span class="v-chip" [class.v-chip--off]="!voucher.isActive">
+                {{ voucher.isActive ? 'Active' : 'Inactive' }}
+              </span>
+
+              <!--
+                Window and cap state. Each of these used to be displayable and
+                unenforced, so a code could read "10 uses left" while checkout
+                had already honoured it past that.
+              -->
+              @if (statsFor(voucher).state === 'scheduled') {
+                <span class="v-chip v-chip--warn">Starts {{ voucher.startsAt | date: 'shortDate' }}</span>
+              }
+              @if (statsFor(voucher).state === 'expired') {
+                <span class="v-chip v-chip--off">Expired</span>
+              }
+              @if (statsFor(voucher).state === 'exhausted') {
+                <span class="v-chip v-chip--warn">Limit reached</span>
+              }
+              @if (voucher.maxRedemptions !== undefined && voucher.maxRedemptions !== null) {
+                <span class="v-chip"> {{ voucher.usageCount ?? 0 }} / {{ voucher.maxRedemptions }} used </span>
+              }
+
+              <!--
+                Performance. "not tracked" rather than "0 uses" for a code with
+                no usageCount — an unmeasured code and an unused one are different
+                statements and only the first is true.
+              -->
+              @if (statsFor(voucher).untracked) {
+                <span class="v-chip v-chip--muted">Usage not tracked</span>
+              } @else if (statsFor(voucher).orders > 0) {
+                <span class="v-chip v-chip--good">
+                  {{ statsFor(voucher).orders }} order{{ statsFor(voucher).orders === 1 ? '' : 's' }} &middot; ₱{{
+                    statsFor(voucher).discountGiven
+                  }}
+                  off
+                </span>
+              }
+            </div>
+          </div>
+
+          <!-- The perforated edge. Two radial cutouts drawn with radial-gradients
+               rather than an SVG, so it scales with the card and costs nothing
+               to download. -->
+          <span class="ticket-perf" aria-hidden="true"></span>
+
+          <div class="ticket-actions">
+            <ion-toggle
+              [checked]="voucher.isActive"
+              (ionChange)="toggleActive(voucher)"
+              [disabled]="busyCode() === voucher.code"
+              [attr.aria-label]="(voucher.isActive ? 'Deactivate ' : 'Activate ') + voucher.code"
+            ></ion-toggle>
+
+            <!--
+              Edit, then delete — the delete button is the LAST thing on the row.
+
+              The order matches the Users page, so a row of controls reads the
+              same way wherever it appears. The destructive action is also the
+              one that wears the red, which is the thing that actually
+              distinguishes it: the pencil is the plain navy of the base
+              .icon-btn.
+
+              The modal is the voucher's own record: the code, the discount, the
+              caps, the window and the active toggle, all editable in place.
+            -->
+            <button
+              type="button"
+              class="icon-btn"
+              (click)="startEdit(voucher)"
+              [attr.aria-label]="'Edit ' + voucher.code"
+            >
+              <app-icon name="pencil" />
+            </button>
+
+            <button
+              type="button"
+              class="icon-btn icon-btn--danger"
+              (click)="remove(voucher)"
+              [attr.aria-label]="'Delete ' + voucher.code"
+            >
+              <app-icon name="trash" />
+            </button>
+          </div>
+        </article>
+      }
+    </div>
+
+    <app-pagination
+      [page]="page()"
+      [total]="filteredVouchers().length"
+      [pageSize]="PAGE_SIZE"
+      itemLabel="vouchers"
+      (pageChange)="onPageChange($event)"
+    />
+  }
+  <app-admin-footer></app-admin-footer>
+</ion-content>

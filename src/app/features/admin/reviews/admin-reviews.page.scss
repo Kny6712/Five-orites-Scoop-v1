@@ -1,0 +1,469 @@
+// src/app/features/admin/reviews/admin-reviews.page.scss
+// Five-orites Scoop — Review moderation queue
+
+/* THE COLUMN IS AS WIDE AS IT SAYS, and it was not.
+
+   `max-width: 900px` on a flex item in a COLUMN flex container does not do
+   what it looks like it does. ion-content's scroll element is a column
+   flexbox (global.scss, `ion-content::part(scroll)`), and `margin: 0 auto`
+   in the cross axis takes the item OUT of the stretch — an auto margin
+   absorbs the free space, so the item is sized by its CONTENT instead, and
+   `max-width` only ever clamps that.
+
+   So the page's width was its widest unbreakable line: the queue note, one
+   line of 13px text, 642px. The page declared 900px and rendered at 642,
+   and the toolbar had 258px less to work with than it was supposed to have.
+
+   `width: 100%` is the fix: the item now takes the container's width and
+   `max-width` clamps THAT, which is what a max-width is for. */
+.reviews-body {
+  width: 100%;
+  padding: 14px 16px 8px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ── The toolbar: search, filters, export — one row ──────────── */
+/* The three groups of controls share one line: where you type, what you are
+   filtering BY, and the export at the far right.
+
+   IT WRAPS, and it wraps as a whole. At 1440 the row is one line; on a phone
+   the search and the export take the first line, the chips take the next,
+   and the export still ends up at the right of its line. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+
+  /* ON A PHONE, THE TOOLBAR IS TWO ROWS.
+
+     It was FOUR. The search was 240px on a 358px row with 118px of dead
+     space beside it; the chips took two rows because the fourth sat alone on
+     a row of its own; and the export took a fourth row of its own,
+     right-aligned, under everything else — so the one control that was
+     right-aligned on a toolbar where everything else was left.
+
+     Row 1 is the two controls that are about the WHOLE list — the search and
+     the export — and row 2 is the chips. The export is put back on row 1
+     with `order`, because in the markup it comes after the chips.
+
+     `margin-left: auto` on the export is what put it at the right end of
+     the toolbar, and on a phone it would swallow the whole of the row's
+     slack. The search takes the slack instead, so the two meet in the
+     middle of row 1. */
+  @media (max-width: 768px) {
+    .review-search {
+      order: 0;
+      /* 120px, and not `auto`.
+
+         `flex-basis: auto` on the searchbar resolved to its content width,
+         which was more than the row had left after the export — so the export
+         was pushed onto line 2 on its own, and the chips onto line 3. A basis
+         of 120px lets all three measures fit on one line (120 + 8 + 115 =
+         243 of 358) and then the search grows into what is left. */
+      flex: 1 1 120px;
+      width: auto;
+      max-width: 100%;
+      min-width: 0;
+    }
+    .export-btn {
+      order: 1;
+      flex: 0 0 auto;
+      margin-left: 0;
+    }
+    .filter-row {
+      order: 2;
+      flex: 1 1 100%;
+    }
+  }
+}
+
+/* ── Filters ───────────────────────────────────────────────────── */
+.filter-row {
+  display: flex;
+  /* 8px, not 6px.
+
+     The chips are 44px tall on a phone, and a 6px gap between two 44px
+     targets is a mis-tap waiting to happen. 8px is the app's floor for
+     adjacent controls. */
+  gap: 8px;
+  flex-wrap: wrap;
+  /* The group keeps its own width: it is sized by its four chips, so it does
+     not share the row's slack with the search field. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* The chip itself is the shared `.filter-chip` rule in global.scss — the
+   analytics page's date ranges use the same control, and a second copy of the
+   box is how the app ended up with seventeen copies of a pastel. */
+
+.chip-num {
+  display: inline-block;
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+/* FLAT: a white field, one definite hairline, and no shadow. The glyph is
+   line art at the app's standard 18px and the label is the solid typography.
+   This is the same construction as the fulfilment queue's export, so the two
+   admin queues read as one system.
+
+   `margin-left: auto` opens the gap between the search field and it, which
+   puts it at the RIGHT END of the toolbar rather than butted up against the
+   search. The fulfilment queue makes the same move with the same button, and
+   the inventory toolbar makes it with its first action. */
+.export-btn {
+  /* The button itself is the shared .csv-btn — the white pill, the hairline,
+     the teal glyph and the plum label all live in src/global.scss, with the
+     other eight file buttons in the admin.
+
+     What is left here is the one thing that is genuinely this row's: the
+     auto margin that opens the gap between the chips and the button, which
+     puts it at the RIGHT END of the toolbar rather than butted up against
+     them. */
+  margin-left: auto;
+}
+
+/* THE SEARCH FIELD IS A FIXED-SIZE CONTROL, and it used to be the loudest
+   thing on the page.
+
+   It was `flex: 1 1 auto` on a row of its own, so it took every pixel the
+   column had left over — 490px of an empty queue — and the placeholder sat
+   in a field three times wider than the words in it.
+
+   240px is the app's standard search width (the fulfilment queue's field is
+   the same) and it is enough for the longest thing anyone types here: a
+   flavour name. It shrinks to 160px rather than clip when the row runs out
+   of room.
+
+   THE BASIS IS 200px, NOT 240px, and that is what keeps the row together.
+   A flex line is filled against the items' BASIS, so a 240px basis meant the
+   phone's 358px row could not hold the field and the export together —
+   240 + 111 + a gap is 359 — and the export was pushed onto a line of its
+   own with nothing beside it. At a 200px basis the pair fits on one line at
+   every width, and the field then grows back to 240px wherever there is room
+   for it.
+
+   FLAT, TOO. Ionic paints a three-layer Material elevation shadow on the
+   search field's inner input, and this was the last search field in the app
+   still carrying one: measured on the running page, `rgba(0,0,0,.14) 0 2px
+   2px, rgba(0,0,0,.2) 0 3px 1px -2px, rgba(0,0,0,.12) 0 1px 5px`. It goes
+   the way the other four went. The shadow is removed HERE, on the host,
+   because `--box-shadow` is what the inner input reads — and the hairline
+   that replaces it is on the inner input and lives in global.scss, because
+   the input belongs to ion-searchbar and carries no _ngcontent attribute. */
+.review-search {
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  --box-shadow: none;
+  padding: 0;
+  flex: 1 1 200px;
+  max-width: 240px;
+  min-width: 160px;
+}
+
+.queue-note {
+  margin: 4px 0 10px;
+  font-size: 13px;
+  color: var(--ion-color-medium);
+
+  /* The reading measure, and the column is wide enough now to need it. At
+     900px a line of 13px text runs to about 120 characters, which is a line
+     no one can track back from. The app's own 68ch cap is what every other
+     page that gets wide enough for the problem uses. */
+  max-width: var(--measure-max);
+}
+
+/* ── Rows ──────────────────────────────────────────────────────── */
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* THE FLAT CARD RECIPE: a white field, one definite hairline, no lift.
+
+   It had a `box-shadow: var(--shadow-card)` — 0 2px 12px of plum at 10% — a
+   2px rim and an 18px radius, and the shadow was the one thing on this page
+   that was not already flat.
+
+   A hairline says the same thing with one pixel instead of twelve, and it is
+   what every other card in this app draws now: the fulfilment queue's
+  table,
+the
+  tracking
+  page's table and search panel, the inventory cards. The 1px
+   rim is also the reason the radius can drop to --radius-sm: a hairline on an
+   18px curve breaks up as it rasterises, which is what the 2px rim was for. */
+.review-row {
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  transition: opacity 0.15s ease;
+}
+.review-row.is-busy {
+  opacity: 0.55;
+}
+
+.review-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* The star rating is the shared component's
+  own
+  business
+  —
+  it
+  carries
+  its
+  own
+  icon
+  size
+  and
+  its
+  own
+  ink,
+and
+  the
+  page
+  must
+  not
+  restate
+  them.
+  The
+  gap
+  above
+  is
+  what
+  separates
+  it
+  from
+  the
+  author.
+  */
+.review-author {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+.review-date {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin-left: auto;
+}
+
+.review-product {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+.row-icon {
+  --icon-size: 14px;
+  flex: 0 0 auto;
+}
+
+.review-comment {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+
+  /* THE READING MEASURE. The card is 900px wide now, and a comment running
+     the full width of it would be a 120-character line — too long to track
+     back from. The app's 68ch cap is the same one the other wide pages use;
+     the card is still 900px wide, it just stops reading past the measure. */
+  max-width: var(--measure-max);
+}
+
+/* ── Actions ───────────────────────────────────────────────────── */
+.review-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+/* THE QUIET CONTROL RECIPE: a white field, one definite hairline, no shadow.
+   It had an 8px radius and a #E4EDF3 rim — the app's controls are 12px and
+   carry a --tile-powder-deep hairline, so a button here read as a different
+   species of control from every other button in the app. */
+.act-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  appearance: none;
+  border: 1px solid var(--tile-powder-deep);
+  background: var(--color-white);
+  border-radius: var(--radius-pill);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+  min-height: 40px;
+}
+.act-btn:hover:not(:disabled) {
+  background: var(--tile-powder);
+  color: var(--color-primary-ink);
+}
+.act-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.act-btn--danger {
+  color: var(--color-danger);
+}
+.act-btn--danger:hover:not(:disabled) {
+  background: var(--tone-danger-bg);
+}
+.act-icon {
+  --icon-size: 16px;
+  flex: 0 0 auto;
+}
+
+.link-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  margin-top: 4px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-ink);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.reply-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ion-color-light-shade);
+}
+
+.reply-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* THE TWO BUTTONS OF THE REPLY EDITOR, and neither of them is an ion-button
+   any more.
+
+   "Publish" was an `ion-button`, which means it painted its fill on an inner
+   shadow-root element: the Material elevation shadow and the uppercase md
+   scale were both out of reach of a stylesheet outside the component, and the
+   measured result was a "PUBLISH" carrying three layers of shadow. A plain
+   <button> states its own background, radius and type outright.
+
+   Publish is the app's amber CTA — --color-brand-accent fill, --color-ink
+   ink, --radius-sm, no border, no shadow — the same pairing the cart page's
+   .place-order-btn, the product-detail CTA and the inventory page's
+   "+ Add Product" use, and the reason variables.scss calls #ffc53d the CTA
+   hue. Cancel is the quiet one beside it: white, one hairline, no shadow. */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* The hover is TEAL, and the focus ring goes with it — the same treatment the
+   developers page's "Add developer" button gets. A teal outline drawn around
+   a gold button reads as a sticker around it; a teal fill is the button
+   itself changing state, and the focus state can be the same fill so the
+   button has one way of saying "this is live". The fill change is the focus
+   indicator WCAG 2.4.7 asks for. */
+.btn-primary:hover:not(:disabled),
+.btn-primary:focus-visible {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+  outline: none;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.btn-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-ink-soft);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.btn-quiet:hover {
+  border-color: var(--color-primary-ink);
+  color: var(--color-primary-ink);
+}
+
+.btn-quiet:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.sk-line {
+  height: 14px;
+  margin-bottom: 8px;
+}
+.sk-short {
+  width: 55%;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

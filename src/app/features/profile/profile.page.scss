@@ -26,11 +26,23 @@
    - More prominent hero treatment for the avatar section */
 
 /* Base card styles shared by all cards except the avatar hero */
+/* THE APP'S FLAT CARD: white, one hairline, no shadow.
+
+   Every card here was `--radius-lg` (26px) with `--shadow-raised` under it, and
+   a stack of six of them read as six sheets of paper lying on the cream page
+   rather than as six sections of a form. The shadow was doing a border's job,
+   and doing it loudly.
+
+   --radius-sm is what every flat card in the app uses, and it is also what
+   makes a 1px hairline hold: a 1px stroke on a 26px curve rasterises as a
+   chain of independently-antialiased segments, which is the same defect the
+   danger card's 2px border was working around. At 12px the hairline is
+   continuous, so the border can be 1px. */
 .detail-card,
 .danger-card {
   background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-raised);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
   padding: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -60,11 +72,18 @@
 // ── Avatar Hero Card ──────────────────────────────────────
 /* The avatar card gets special treatment as the page hero. It's visually
    distinct from other cards with a larger avatar, more prominent layout,
-   and a subtle background to establish hierarchy. */
+   and a subtle background to establish hierarchy.
+
+   THE POWDER WASH BEHIND IT IS GONE. It was a 120px
+   `linear-gradient(180deg, var(--tile-powder), transparent)` laid over the top
+   of the card — a gradient doing the job of hierarchy, which is the one thing
+   the flat vocabulary rules out. The card says "this is the hero" by being
+   first, by holding the largest avatar on the page and by sitting alone in its
+   own row; it does not need a tint to say so a second time. */
 .avatar-card {
   background: var(--color-white);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-raised);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
   padding: var(--space-5);
   margin-bottom: var(--space-4);
   display: flex;
@@ -73,25 +92,6 @@
   text-align: center;
   position: relative;
   overflow: hidden;
-
-  /* Subtle background gradient for visual interest */
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 120px;
-    background: linear-gradient(180deg, var(--tile-powder) 0%, transparent 100%);
-    z-index: 0;
-    pointer-events: none;
-  }
-
-  /* Ensure content sits above the gradient */
-  > * {
-    position: relative;
-    z-index: 1;
-  }
 }
 
 .avatar-frame {
@@ -102,11 +102,18 @@
   border-radius: 50%;
   overflow: hidden;
   background: var(--color-white);
-  /* Enhanced ring for the larger avatar */
-  box-shadow:
-    0 0 0 4px var(--color-white),
-    0 0 0 6px var(--color-primary-ink),
-    0 4px 12px rgba(0, 0, 0, 0.1);
+
+  /* A RING, NOT A SHADOW.
+
+     It was three shadows at once: a 4px white spacer, a 6px teal ring, and a
+     12px black drop shadow under the whole thing. The white spacer and the
+     black shadow were the physical part — the photo was a disc floating above
+     the card — and the 6px teal band was heavy enough to read as a frame
+     rather than as an edge.
+
+     What is left is the ring itself, 2px of the primary ink: enough to say
+     where the photo ends against the white card, and nothing that casts. */
+  box-shadow: 0 0 0 2px var(--color-primary-ink);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -164,9 +171,14 @@
 /* A label wrapping a real file input: keyboard-reachable and announced as a
    control, unlike a div with a click handler. The input itself is visually
    hidden but NOT display:none, which would drop it out of the tab order.
-   
+
    Styled as a primary filled button now since it's the main action for the
-   avatar section. */
+   avatar section.
+
+   FLAT: no shadow under it and no lift on hover. It carried both — a 2px
+   shadow that made the button sit above the card, and a 1px rise on hover that
+   made it move — and the hover now says the same quiet thing every other
+   control in the app says: the fill darkens a shade. */
 .file-label {
   display: inline-flex;
   align-items: center;
@@ -181,18 +193,14 @@
   font-size: 14px;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: filter 0.15s ease;
 }
 .file-label:hover {
-  background: var(--color-brand-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  filter: brightness(0.96);
 }
 .file-label.disabled {
   opacity: 0.6;
   cursor: default;
-  transform: none;
 }
 .file-label app-icon {
   --icon-size: 18px;
@@ -256,13 +264,69 @@
   margin-top: var(--space-2);
 }
 
+/* ── The fields, as flat boxes ───────────────────────────────────────────
+   They rendered as bare text.
+
+   An ion-input with no fill and no border shows its value and nothing else —
+   no edge, no box, nothing that says "this is editable". On a white card the
+   only thing that marked the field was 16px of indentation, and the
+   placeholder was the same grey as the value. That is not a flat field, it is a
+   missing control: the flat language draws the edge, it does not delete it.
+
+   The same treatment the admin's modals give their inputs: a 1px hairline, a
+   12px radius, white. `!important` because Ionic's own host rule sets a 2px
+   border on fill="outline" and outranks a plain selector.
+
+   The focus state is the hairline changing colour, the same gesture the
+   admin's search fields make — one pixel going from "cannot see it" to
+   "cannot miss it" — and not a ring. */
+.profile-wrap ion-input {
+  min-height: 44px;
+  border: 1px solid var(--tile-powder-deep) !important;
+  border-radius: var(--radius-sm) !important;
+  background: var(--color-white) !important;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+}
+
+.profile-wrap ion-input:focus-within {
+  border-color: var(--color-primary-ink) !important;
+}
+
+/* The delete card's password field is the one input that sits inside an
+   <ion-item>, and an ion-item brings its own padding and its own background
+   with it. On a flat card that reads as a box inside a box, so the item's
+   chrome goes and only the field's own hairline is left. */
+.danger-card ion-item {
+  --background: transparent;
+  --padding-start: 0;
+  --padding-end: 0;
+  --inner-padding-end: 0;
+  --padding-top: 0;
+  --padding-bottom: 0;
+}
+
 .save-btn {
   --background: var(--color-brand-primary);
   --color: var(--color-ink);
-  --border-radius: var(--radius-sm);
+  --border-radius: var(--radius-pill);
+
+  /* NO ELEVATION. Ionic's Material solid button carries a three-layer shadow
+     (--box-shadow) — 0 3px 1px -2px, 0 2px 2px, 0 1px 5px — which is the
+     physical part of the treatment: a solid button that casts a shadow is an
+     object sitting on the card rather than a control drawn on it. */
+  --box-shadow: none;
   margin-top: var(--space-1);
   min-height: 44px;
   font-weight: 700;
+
+  /* SENTENCE CASE. Ionic's MD button uppercases its label and tracks it out
+     by 0.06em, which is a poster voice rather than the solid typography the
+     rest of the page speaks. The admin's own buttons are sentence case, and
+     this is the same control. */
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* "Change email" is a secondary action on the same group as Save changes, so it
@@ -270,11 +334,18 @@
    button directly under a full-width filled one, which made the group's two
    actions look equally weighted. */
 .change-email-btn {
-  --border-radius: var(--radius-sm);
+  --border-radius: var(--radius-pill);
   --border-color: var(--color-primary-ink);
+
+  /* 1px, not Ionic's 2px. The outline is the same hairline every other flat
+     control in the app carries, and it is what says "quiet" next to the filled
+     Save button above it. */
+  --border-width: 1px;
   --color: var(--color-primary-ink);
   min-height: 44px;
   font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 // ── Notices ──────────────────────────────────────────────
@@ -376,33 +447,23 @@
      be undone, and it should not look like a peer of other detail cards.
 
      Danger red on the border and the heading. The danger card gets its own
-     visual treatment to signal the destructive nature of this action. */
+     visual treatment to signal the destructive nature of this action.
+
+     1px, and --radius-sm, where it used to be 2px and --radius-card (18px).
+     The 2px was there because a 1px stroke on an 18px curve rasterises as a
+     chain of independently-antialiased segments: where adjacent segments fail
+     to overlap the outline breaks, which made the border look dashed rather
+     than solid. That defect is a function of the RADIUS, not of the width —
+     the 36 rules in the app that pair a 1px border with an 8-12px radius
+     render continuously — so the fix is the same one every flat card in the
+     app has already made: come down to --radius-sm, where a hairline holds.
+
+     The danger red on its own still says what it says. The heading, the icon
+     and the button are red too, and the copy underneath says what deleting
+     means, so the card does not need a heavier border to be distinct. */
 .danger-card {
-  /* 2px, not 1px. The border is drawn on an 18px curve (--radius-card ->
-     --radius-md), and a 1px stroke on a large radius is rasterised as a chain of
-     independently-antialiased segments: where adjacent segments fail to overlap
-     the outline breaks, which is what made this border look like a dashed line
-     rather than a solid one.
-
-     2px gives the rasteriser enough coverage to close the arc. It is the fix
-     that does NOT touch anything else — the alternatives were rejected:
-       - box-shadow spread instead of a border: also antialiases on curves, and
-         draws outside the box, changing the element's footprint.
-       - a smaller radius: --radius-card is 18px on purpose. variables.scss
-         argues the scale is the point ("a single radius applied everywhere is the
-         'SaaS card kit' look"), so shrinking one rule to dodge a rendering bug
-         would be the wrong trade.
-
-     Note this is renderer-dependent — it varies with GPU rasterisation, browser
-     zoom and device pixel ratio. 2px is robust across all of them; 1px is not.
-
-     Severity tracks radius divided by width, which is why only the large-radius
-     rules show this. 36 rules in the app pair a 1px border with a radius; the
-     8-12px ones (--radius-xs / --radius-sm) render continuously and were left
-     alone. The remaining --radius-md and --radius-pill ones are the same defect
-     waiting to happen. */
-  border: 2px solid var(--ion-color-danger);
-  border-radius: var(--radius-card);
+  border: 1px solid var(--ion-color-danger);
+  border-radius: var(--radius-sm);
   padding: var(--space-4);
   margin-top: var(--space-4);
 }
@@ -435,7 +496,11 @@
 .delete-account-btn {
   margin-top: var(--space-3);
   --border-radius: var(--radius-pill);
+  /* No elevation, for the same reason the Save button has none. */
+  --box-shadow: none;
   font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
   // White on the danger fill. The label was inheriting plum, which on #C62828
   // measured 2.29:1 - the destructive action was the least readable button on the
   // page. White is 5.62:1.

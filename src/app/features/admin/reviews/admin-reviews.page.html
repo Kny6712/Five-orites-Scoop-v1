@@ -1,0 +1,298 @@
+<!-- src/app/features/admin/reviews/admin-reviews.page.html -->
+<!-- Five-orites Scoop — Review moderation queue -->
+
+<ion-header class="flat-header">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Reviews</ion-title>
+    <!--
+      NO BUTTONS ON THE RIGHT.
+
+      The CSV export used to live here, as an icon-only button in the app
+      chrome — the same thing the fulfilment queue removed, for the same two
+      reasons: the toolbar is navigation, and an unlabelled glyph in it is a
+      thing to decode rather than a thing to read. It is now at the right end
+      of the page's own control row, labelled, with the other controls it
+      belongs beside.
+    -->
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <div class="reviews-body">
+    @if (errorMessage()) {
+      <app-alert-banner
+        tone="danger"
+        title="Could not load reviews"
+        [message]="errorMessage()"
+        actionLabel="Try again"
+        (action)="ngOnInit()"
+      />
+    }
+
+    <!--
+      THE TOOLBAR: the search field, the filters and the export, on ONE row.
+
+      They were two rows — the chips on their own line, the search and the
+      export on the one below — which spent two lines of a short page on
+      controls and made the search field the widest thing on it, because it
+      was filling a row of its own.
+
+      One row, left to right: the search field, then the filters, then the
+      export at the far right. The export's `margin-left: auto` opens the gap
+      that puts it there, and the search field is given a fixed width instead
+      of the leftover space — a search field is a fixed-size control, and
+      letting it take whatever was left made it the loudest thing on the page.
+
+      The chips keep their own group so the four of them read as one set of
+      choices, and they wrap INSIDE that group rather than the group itself
+      breaking across lines.
+    -->
+    <div class="toolbar">
+      <!--
+        THE PLACEHOLDER IS "Search reviews" and the aria-label carries the
+        enumeration, and that is the fulfilment queue's own arrangement: the
+        sighted label is the short prompt, the announced name is the fuller
+        description. The field also searches the product's NAME now, and a
+        placeholder long enough to say so was clipped mid-word on a phone.
+
+        "Search for reviews" was one character too long for the phone's field:
+        ion-searchbar reserves 55px of padding on EACH side of the input (for
+        the leading icon and the clear button), which leaves 129px of text at
+        the phone's width — and "reviews" is wider than "orders" is, so the
+        fulfilment queue's "Search for orders" fits where this one did not.
+      -->
+      <ion-searchbar
+        class="review-search"
+        placeholder="Search reviews"
+        [value]="search()"
+        (ionInput)="onSearch($any($event).detail?.value)"
+        aria-label="Search reviews by comment, author or product"
+      ></ion-searchbar>
+
+      <!--
+        Filters. "Low" and "Unanswered" carry live counts because the number of
+        things needing attention is the whole reason to open this page — a chip
+        that says "Low" without saying how many is just a filter.
+
+        EVERY CHIP CARRIES ONE NOW. "Answered" was the only one without a count,
+        which made it read as a different kind of control rather than a fourth
+        option in the same group — and it is the one an admin least needs, since
+        the count of replies already published is the reassuring number.
+      -->
+      <div class="filter-row" role="group" aria-label="Filter reviews">
+        <button
+          type="button"
+          class="filter-chip"
+          [class.is-on]="filter() === 'all'"
+          [attr.aria-pressed]="filter() === 'all'"
+          (click)="onFilterChange('all')"
+        >
+          All <span class="chip-num">{{ reviews_().length }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          [class.is-on]="filter() === 'low'"
+          [attr.aria-pressed]="filter() === 'low'"
+          (click)="onFilterChange('low')"
+        >
+          1–2 stars <span class="chip-num">{{ lowCount() }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          [class.is-on]="filter() === 'unanswered'"
+          [attr.aria-pressed]="filter() === 'unanswered'"
+          (click)="onFilterChange('unanswered')"
+        >
+          Unanswered <span class="chip-num">{{ unansweredCount() }}</span>
+        </button>
+        <button
+          type="button"
+          class="filter-chip"
+          [class.is-on]="filter() === 'answered'"
+          [attr.aria-pressed]="filter() === 'answered'"
+          (click)="onFilterChange('answered')"
+        >
+          Answered <span class="chip-num">{{ answeredCount() }}</span>
+        </button>
+      </div>
+
+      <!--
+        FLAT: a white field, one definite hairline, and no shadow. The glyph is
+        line art at the app's standard 18px and the label is the solid
+        typography. This is the same construction as the fulfilment queue's
+        export and the vouchers page's import.
+      -->
+      <button type="button" class="csv-btn export-btn" (click)="exportCsv()" aria-label="Export reviews as CSV">
+        <app-icon name="file" />Export CSV
+      </button>
+    </div>
+
+    @if (isLoading()) {
+      <div class="review-list">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <div class="review-row">
+            <ion-skeleton-text class="sk-line" [animated]="true"></ion-skeleton-text>
+            <ion-skeleton-text class="sk-line sk-short" [animated]="true"></ion-skeleton-text>
+          </div>
+        }
+      </div>
+    } @else if (!filtered().length) {
+      <!--
+        The glyph matches the reason. It was a TRASH CAN for both cases, which
+        is a copy-paste smell: "no reviews match that filter" is a search that
+        found nothing, not a queue to be emptied. The fulfilment queue already
+        splits the same two cases — "receipt" for an empty queue and "search"
+        for no matches — and this is the same split.
+      -->
+      <app-empty-state
+        [icon]="reviews_().length ? 'search' : 'star'"
+        [title]="reviews_().length ? 'No reviews match that filter' : 'No reviews yet'"
+        [message]="
+          reviews_().length
+            ? 'Try a different filter or clear the search.'
+            : 'When customers leave reviews they will appear here for you to read and reply to.'
+        "
+      />
+    } @else {
+      <p class="queue-note">
+        {{ filtered().length }} review{{ filtered().length === 1 ? '' : 's' }}, newest first. Replying is public — the
+        customer sees it under their review on the product page.
+      </p>
+
+      <div class="review-list">
+        @for (review of paged(); track review.id) {
+          <article class="review-row" [class.is-busy]="busyId() === review.id">
+            <header class="review-head">
+              <!--
+                THE SHARED STAR COMPONENT, and this page's own stars were
+                unreadable.
+
+                They were `★` glyphs in --color-brand-accent (#ffc53d), which
+                measures 1.51:1 on a white card — a fail for a graphic that
+                carries information. Worse, a one-star review drew ONE star
+                with no empty ones beside it, so a 1 and a 5 were the same
+                shape and the admin was guessing.
+
+                The shared component draws Lucide line-art stars, fills the
+                rating and leaves the rest as outlines in --color-sunny-ink at
+                7.1:1, and it is what the product page already shows a rating
+                with — so the admin and the customer read the same five stars.
+              -->
+              <app-star-rating [rating]="review.rating" />
+
+              <span class="review-author">{{ review.displayName || 'Anonymous' }}</span>
+              <span class="review-date">{{ formatDate(review.createdAt) }}</span>
+            </header>
+
+            <!--
+              THE PRODUCT'S NAME, not its document id.
+
+              It said `prod-ube-halo` — a Firestore id, which is a key rather
+              than a name, and a queue of keys is a queue you cannot act on.
+              The catalogue is loaded once (InventoryService.getAllProducts,
+              the same query the admin inventory page uses) and joined in
+              memory, so the card names the flavour and the search can match
+              the name as well as the id.
+            -->
+            <p class="review-product">
+              <app-icon name="ice-cream" class="row-icon" />
+              <span class="visually-hidden">Product:</span>{{ productName(review.productId) }}
+            </p>
+
+            <p class="review-comment">{{ review.comment }}</p>
+
+            @if (review.adminResponse) {
+              <!--
+                THE SHARED REPLY BLOCK, so the moderation queue and the product
+                page show the same reply in the same treatment. It used to be
+                minted on this page alone, with a four-pixel bar down its left
+                edge, and it was never rendered on the product page at all —
+                so the queue's note claiming the reply was public was untrue.
+              -->
+              <app-staff-reply [name]="review.adminResponderName || 'Five-orites Scoop'" [text]="review.adminResponse">
+                <button
+                  replyAction
+                  type="button"
+                  class="link-btn"
+                  [disabled]="busyId() === review.id"
+                  (click)="removeReply(review)"
+                >
+                  Remove reply
+                </button>
+              </app-staff-reply>
+            }
+
+            <div class="review-actions">
+              @if (replyingTo() !== review.id) {
+                <button type="button" class="act-btn" (click)="openReply(review)">
+                  <app-icon name="mail" class="act-icon" />
+                  {{ review.adminResponse ? 'Edit reply' : 'Reply' }}
+                </button>
+              }
+              <button
+                type="button"
+                class="act-btn act-btn--danger"
+                [disabled]="busyId() === review.id"
+                (click)="confirmDelete(review)"
+              >
+                <app-icon name="trash" class="act-icon" />
+                Delete
+              </button>
+            </div>
+
+            @if (replyingTo() === review.id) {
+              <div class="reply-box">
+                <ion-textarea
+                  label="Public reply"
+                  labelPlacement="stacked"
+                  rows="3"
+                  maxlength="500"
+                  [ngModel]="replyDraft()"
+                  (ngModelChange)="replyDraft.set($event)"
+                  placeholder="Thanks for the feedback…"
+                ></ion-textarea>
+                <div class="reply-actions">
+                  <!--
+                    TWO PLAIN <button>s, and the reason is the same one the
+                    inventory page's "+ Add Product" has: an `ion-button` paints
+                    its fill on an inner shadow-root element, so its Material
+                    elevation shadow and its uppercase md scale are both out of
+                    reach of a stylesheet outside the component.
+
+                    The Publish button carried the full three-layer shadow and
+                    rendered as "PUBLISH"; it is now the app's amber CTA —
+                    --color-brand-accent fill, --color-ink ink, --radius-sm, no
+                    border, no shadow — and Cancel is the quiet one beside it.
+                  -->
+                  <button type="button" class="btn-quiet" (click)="cancelReply()">Cancel</button>
+                  <button
+                    type="button"
+                    class="btn-primary"
+                    [disabled]="busyId() === review.id"
+                    (click)="saveReply(review)"
+                  >
+                    Publish reply
+                  </button>
+                </div>
+              </div>
+            }
+          </article>
+        }
+      </div>
+
+      <app-pagination
+        [page]="page()"
+        [total]="filtered().length"
+        [pageSize]="pageSize"
+        itemLabel="reviews"
+        (pageChange)="page.set($event)"
+      />
+    }
+  </div>
+  <app-admin-footer></app-admin-footer>
+</ion-content>

@@ -1,0 +1,716 @@
+// src/app/features/product-detail/product-detail-dialog.component.scss
+//
+// The dialog's own shell. It is a plain overlay, not an Ionic <ion-modal>:
+// the size is controlled here, and the listing it floats over is a normal
+// Angular parent, so the component's own lifecycle — the input, the load, the
+// close — behaves like every other component in the app.
+
+/* THE PANEL. Fixed, centred, and the same size on every screen: 980px wide
+   and 92vh tall. A page has to fill whatever window it is given; a dialog
+   does not, and that is the whole point of it.
+
+   The z-index is above ion-menu's, which Ionic gives 1000 — the sidebar sits
+   on the same plane as the content, and a dialog that stops short of it
+   leaves the app's own navigation bright on one side of the dim. */
+:host {
+  position: fixed;
+  z-index: 9001;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(980px, calc(100vw - 24px));
+  height: min(92vh, calc(100vh - 24px));
+  background: var(--color-white);
+  border-radius: var(--radius-sm);
+  /* The flat house: no elevation shadow. The dim behind the panel is what
+     separates it from the shop. */
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/* On a phone the dialog is the screen. */
+@media (max-width: 700px) {
+  :host {
+    width: 100vw;
+    height: 100vh;
+    border-radius: 0;
+  }
+}
+
+/* The shell: a header row that stays put, and a body that scrolls. */
+.dialog-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  background: var(--color-white);
+}
+
+/* The dialog's own header: the way out, and the cart. A flat row with one
+   hairline under it. */
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--tile-powder-deep);
+  flex: 0 0 auto;
+}
+
+.dialog-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dialog-back:hover {
+  color: var(--color-ink);
+}
+
+.dialog-back:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The arrow, at the app's lighter stroke. */
+.dialog-glyph {
+  --icon-size: 18px;
+  --icon-stroke: 1.75;
+}
+
+/* The body: the part that scrolls. It is also the CONTAINER the layout
+   queries below measure against, because the dialog's own width is the thing
+   that decides whether the photo and the controls share a row. */
+.dialog-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  container-type: inline-size;
+  padding: 16px 20px 24px;
+}
+
+/* THE PHOTO AND THE CONTROLS, SIDE BY SIDE.
+
+   The image column is a fixed 380px and the controls take the rest, so the
+   picture is the same size on every screen and the controls get whatever is
+   left. */
+.product-layout {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+/* Below 700px of dialog the two stack: a 380px photo beside a 300px column
+   of controls is not a layout, it is a squeeze, and the size picker ends up
+   with four 70px cards in it. */
+@container (max-width: 699px) {
+  .product-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+.detail-main {
+  min-width: 0;
+}
+
+.hero-skeleton {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.hero-wrap {
+  position: relative;
+  width: 100%;
+  /* Square, the way a product shot is composed. The image fills it and crops,
+     and a photo the size of the whole window was most of what made this page
+     feel oversized. */
+  aspect-ratio: 1 / 1;
+  max-height: 520px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-brand-light);
+}
+
+.hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-overlay {
+  position: absolute;
+  bottom: 12px;
+  left: 14px;
+}
+
+.set-badge-hero {
+  /* Fill is bound per-product from the flavour palette — see
+     `setFlavourBackground` in the component. Plum on every one of the nine
+     pastels is asserted >=4.5:1 by check-contrast.mjs. Unlike the card badge
+     this one sits on the page rather than on a photograph, so it needs no
+     border to hold its edge. */
+  color: var(--color-ink);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.detail-name {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ion-color-dark);
+  margin: 0 0 6px;
+  letter-spacing: -0.3px;
+}
+
+.detail-description {
+  font-size: 14px;
+  color: var(--ion-color-medium);
+  line-height: 1.6;
+  margin: 0 0 20px;
+  /* Prose keeps to the app's measure, even in a wide column. */
+  max-width: var(--measure-max);
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ion-color-dark);
+  margin: 0 0 10px;
+}
+
+// ── Size Grid ───────────────────────────────────────────
+/* FOUR FLAT CARDS, ONE OF THEM FILLED.
+
+   These tiles were the most three-dimensional thing in the app. Each one had a
+   four-layer embossed box-shadow (two drop shadows and two inset highlights),
+   a vertical gradient from white to near-white, a 2px hardcoded grey border,
+   a hover that LIFTED the tile 2px and grew the shadow, a press that SCALED
+   it to 98%, and a selected state with a five-layer glow. Every one of those
+   is the thing this vocabulary rules out — drop shadows, 3D bevels, heavy
+   gradients — and a size picker is the last place on a page that should look
+   like a set of physical buttons.
+
+   So each tile is the app's flat card: a white surface, ONE hairline, a 12px
+   corner. The hover darkens the hairline the way every other control in the
+   app does. The selected tile is the brand periwinkle with the brand ink on
+   it, which is the app's one filled chip — `.filter-chip.is-on` — so the
+   selection is a FILL rather than a glow.
+
+   The stock chip inside the tile is unchanged: it is the app's stock chip,
+   and it already carries its own tone. */
+.size-grid {
+  display: grid;
+  /* FOUR ACROSS. They were two-by-two, and each card was 660px wide on a
+     desktop — a price and a word in a field the size of a door. */
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+/* Two across when the dialog is too narrow for four. */
+@container (max-width: 519px) {
+  .size-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.size-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--tile-powder-deep);
+  background: var(--color-white);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+  text-align: center;
+  min-height: 84px;
+  position: relative;
+
+  /* THE HOVER DARKENS THE HAIRLINE. It used to lift the tile two pixels and
+     grow its shadow, which is what made the row read as a set of objects on a
+     shelf rather than as a set of choices. */
+  &:hover:not(.out-of-stock):not(.selected) {
+    border-color: var(--color-primary-ink);
+  }
+
+  /* THE SELECTED TILE IS FILLED. Brand periwinkle, brand ink, plum type —
+     7.20:1, and the same pair `.filter-chip.is-on` uses. */
+  &.selected {
+    background: var(--color-brand-primary);
+    border-color: var(--color-primary-ink);
+
+    .tile-size,
+    .tile-price {
+      color: var(--color-ink);
+    }
+  }
+
+  /* OUT OF STOCK: a muted fill and the soft ink, not opacity. The old
+     0.5 took the price down with it, and the price is the one number on the
+     tile that still has to be readable. */
+  &.out-of-stock {
+    background: var(--ion-color-light);
+    border-color: var(--tile-powder-deep);
+    cursor: not-allowed;
+
+    .tile-size,
+    .tile-price {
+      color: var(--color-ink-soft);
+    }
+  }
+}
+
+.tile-size {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ion-color-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.tile-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+  line-height: 1.2;
+  margin: 1px 0;
+}
+
+.tile-stock {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+
+  &.stock-in-stock {
+    color: var(--color-ink);
+    background: rgba(95, 217, 180, 0.15);
+  }
+
+  &.stock-low-stock {
+    color: var(--ion-color-warning-shade);
+    background: rgba(255, 197, 61, 0.15);
+  }
+
+  &.stock-out-of-stock {
+    color: var(--ion-color-danger);
+    background: rgba(235, 68, 90, 0.1);
+  }
+}
+
+// ── The Buy Row ──────────────────────────────────────────
+/* TWO LINES: THE CONTROLS, THEN THE ACTION.
+
+   The quantity row and the button used to be two separate bands: a strip with
+   the stepper and the total, and then a full-width gold bar under it. On a
+   desktop that bar was 1300px of solid gold with one word in the middle of
+   it. They are one card now — a white surface, one hairline, a 12px corner —
+   and the button has a line of its own inside it.
+
+   WHY THE BUTTON IS ON ITS OWN LINE. Sharing the line with the stepper and
+   the total meant the three were read as one line of text, and the action —
+   the only thing on this card a customer came for — was the smallest part of
+   it. The button's right edge lines up with the total's above it, so the two
+   are still one object rather than two floating pieces. */
+.buy-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  margin-bottom: 24px;
+}
+
+/* The first line: the quantity on the left, the total on the right. */
+.buy-row-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qty-label {
+  /* A field label, in the app's quiet label voice. It was 15px of plum, which
+     is the weight of a heading — and it is the name of a field, not a
+     heading. */
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+}
+
+/* One Lucide heart serves both states: .wished fills it with currentColor and
+   switches the colour, replacing the ionicons heart / heart-outline pair that
+   used to be swapped in via a template ternary. */
+.wishlist-icon {
+  --icon-size: 18px;
+  transition: color 0.15s ease;
+}
+.wishlist-icon.wished {
+  color: var(--ion-color-danger);
+}
+.wishlist-icon.wished svg {
+  fill: currentColor;
+}
+
+.line-total {
+  /* Pushed to the right end of the controls line, where the button used to
+     sit. The total and the button are the two things a customer reads here,
+     and they are now stacked rather than side by side — the number above the
+     action that spends it, both ending on the same edge. */
+  margin-left: auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* The word that says what the number is. */
+.line-total-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+}
+
+.line-total-value {
+  font-size: 18px;
+  font-weight: 800;
+  /* Teal, like every other price in the app — the tile prices above and the
+     product card's. Plum was here because of a mint summary tile that no
+     longer exists on this page. */
+  color: var(--color-primary-ink);
+}
+
+// ── CTA ──────────────────────────────────────────────────
+/* THE APP'S GOLD CTA, as a plain button: an amber fill, plum ink, and a hover
+   that changes the button itself.
+
+   It was an <ion-button>, which brought Ionic's md treatment with it — a
+   three-layer elevation shadow under the fill, `text-transform: uppercase` on
+   the label (so the page's main action read "ADD TO CART"), and no gap
+   between the trolley and the label, because `slot="start"` gives a margin to
+   an <ion-icon> and this is an <app-icon>.
+
+   It hugs its label now rather than filling the row: the buy row already
+   gives it a place, and a button that says "Add to Cart" does not need 640px
+   to say it.
+
+   RECTANGULAR, NOT A PILL. A gold pill in a row of rectangles reads as a
+   bubble floating over the buy bar rather than as the bar's own action, and
+   the pill's curve fought the stepper it sits beside. Every gold CTA in this
+   dialog is rectangular for the same reason — one shape per dialog, or the
+   difference reads as an accident.
+
+   IT FILLS ITS LINE. The button has a line of its own under the controls, and
+   a button that is narrower than the line it is on reads as a stray element
+   rather than as the card's action. This is the same treatment the cart page
+   gives its own primary action on a narrow row. */
+.add-to-cart-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  align-self: stretch;
+  width: 100%;
+  min-width: 168px;
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.add-to-cart-cta:hover:not(:disabled) {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+
+.add-to-cart-cta:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.add-to-cart-cta:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The trolley, at the app's lighter stroke: at 20px the default 2.25 closes
+   the gaps in the drawing and it stops being line art. */
+.cta-glyph {
+  --icon-size: 20px;
+  --icon-stroke: 1.75;
+  flex: 0 0 auto;
+}
+
+// ── Reviews ──────────────────────────────────────────────
+.reviews-section {
+  border-top: 1px solid var(--ion-color-light-shade);
+  margin-top: 28px;
+  padding-top: 20px;
+}
+
+/* THE LIST AND THE FORM, SIDE BY SIDE.
+
+   The form is a card in the right-hand column and the reviews run down the
+   left. They were stacked, which meant scrolling past every review to reach
+   the box you type in — and on a wide screen, a list of two-sentence reviews
+   spread across 1200px with the form 900px below it. */
+.reviews-layout {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+/* The list and the form share the row until the dialog is too narrow for
+   two columns of it. */
+@container (max-width: 799px) {
+  .reviews-layout {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.reviews-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.no-reviews {
+  font-size: 14px;
+  color: var(--ion-color-medium);
+  margin: 0;
+}
+
+.error-state {
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--color-danger);
+}
+
+/* The review LIST was in the template and in no stylesheet at all, so it rendered
+   at the UA default: stars, author and comment all at body size with 1em of
+   margin between them and nothing separating one review from the next.
+
+   .review-author and .review-comment are the definitions from the moderation
+   queue (admin/reviews) copied verbatim — the same review should not look like
+   two different reviews because it is being read in a different place. */
+.reviews-truncated {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.review-item {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ion-color-light);
+}
+
+.review-author {
+  margin: 4px 0 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-ink);
+}
+
+.review-comment {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-ink);
+  overflow-wrap: anywhere;
+  /* Prose keeps to the app's measure. A comment is a sentence, and a sentence
+     stretched across a 1300px screen is a sentence nobody can read. */
+  max-width: var(--measure-max);
+}
+
+/* A text action, not a control.
+
+   It was an <ion-button fill="clear" size="small">, which carries Ionic's md
+   treatment: `text-transform: uppercase` on the label (so it read "WITHDRAW"),
+   0.9em of inline padding plus 2px of inline margin that left it hanging a
+   dozen pixels right of the review it belongs to, and the button's own
+   padding-box to sit in. A plain button with no padding is a text action
+   again. */
+.withdraw-review-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ion-color-medium);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.withdraw-review-btn:hover:not(:disabled) {
+  color: var(--color-danger);
+}
+
+.withdraw-review-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.withdraw-review-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* The bin, at the app's lighter stroke. */
+.withdraw-glyph {
+  --icon-size: 14px;
+  --icon-stroke: 1.75;
+  flex: 0 0 auto;
+}
+
+/* Writing a review is a different job from reading them, so the form is its
+   own card: a white surface, one hairline, a 12px corner — the app's flat card
+   — sitting in the column beside the list. */
+.review-form {
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
+
+.review-form-note {
+  margin: 0 0 var(--space-2);
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+/* The wishlist button, as the app's quiet control: a white pill with one
+   hairline and a teal label — the same shape the admin's file buttons and the
+   customers' select chips have.
+
+   It was an <ion-button fill="outline">, which is a 4px-radius box with
+   Ionic's blue rim and an uppercased label. The one action on a product page
+   that a returning customer reaches for was the least readable control on it:
+   the outline button inherited --ion-color-primary, the powder brand hue, and
+   measured #8ECAE6 on this page's cream ground at 1.71:1. */
+.wishlist-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  /* A gap from the rating beside it. The star rating's own review count is the
+     last thing in its box, so without this the button's rim lands directly on
+     the ")" — the two read as one overlapping object rather than as a rating
+     and a button. */
+  margin-left: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.wishlist-btn:hover {
+  border-color: var(--color-primary-ink);
+}
+.wishlist-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The review form's field, as the app's flat field: white, one hairline, and
+   the hairline darkening on focus. It had no edge at all, so on the cream
+   ground it read as a pale hole rather than as a box you type in. */
+.review-form ion-textarea {
+  --background: var(--color-white);
+  --border-radius: var(--radius-sm);
+  border: 1px solid var(--tile-powder-deep) !important;
+  background: var(--color-white) !important;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  /* The measure, like the comment it will become. */
+  max-width: var(--measure-max);
+  margin-bottom: 12px;
+}
+.review-form ion-textarea:focus-within {
+  border-color: var(--color-primary-ink) !important;
+}
+
+/* The submit button, as the app's gold CTA. It was an <ion-button> in the
+   pastel primary — a periwinkle slab with plum text on it — which is neither
+   the app's gold nor one of its quiet controls, and it carried Ionic's
+   elevation shadow and an uppercased label.
+
+   It hugs its label: a 640px bar of gold with "Submit Review" in the middle
+   of it was the widest thing on the page and the least useful.
+
+   Rectangular, like the other gold CTA in this dialog — one shape per dialog,
+   so the difference between the two does not read as an accident. */
+.submit-review-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: var(--radius-xs);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.submit-review-btn:hover:not(:disabled) {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+.submit-review-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+.submit-review-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

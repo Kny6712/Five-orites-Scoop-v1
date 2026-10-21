@@ -44,7 +44,7 @@
 // `Timestamp`, so this file can be unit-tested by `tests/logic.test.ts` with
 // `node:test` - the same rule every other module in `core/logic` follows.
 
-import type { OrderStatus } from '../models/order.model';
+import { ORDER_STATUS_META, type OrderStatus } from '@core/models/order.model';
 
 /**
  * The customer-facing sentence for each status.
@@ -52,6 +52,12 @@ import type { OrderStatus } from '../models/order.model';
  * Lives here, not in `NotificationService`, because the toast and the feed are
  * two renderings of the same event and must not be able to disagree about what
  * it said. The service imports this; it does not own a second copy.
+ *
+ * The SENTENCE IS NOT STORED HERE EITHER. `body` is read from
+ * `ORDER_STATUS_META` in `core/models/order.model.ts`, so there is one table
+ * describing the six events in the whole app. There used to be two — this one
+ * and that one — with five of the six sentences near-identical but not equal,
+ * which is exactly the drift the paragraph above says must not happen.
  *
  * The emoji are deliberate and load-bearing for the toast. They are NOT safe to
  * put in an SMS (one character outside GSM-7 triples the carrier's per-segment
@@ -65,32 +71,32 @@ export const ORDER_STATUS_NOTICES: Record<
   pending: {
     emoji: '🍦',
     title: 'Order received',
-    body: "We've got your order and we're reviewing it now.",
+    body: ORDER_STATUS_META.pending.description,
   },
   confirmed: {
     emoji: '✅',
     title: 'Order confirmed',
-    body: 'Your order has been confirmed by the shop.',
+    body: ORDER_STATUS_META.confirmed.description,
   },
   preparing: {
     emoji: '👨‍🍳',
     title: 'Being prepared',
-    body: 'Our scoop artists are preparing your order.',
+    body: ORDER_STATUS_META.preparing.description,
   },
   out_for_delivery: {
     emoji: '🛵',
     title: 'Out for delivery',
-    body: 'Your scoops are on the way!',
+    body: ORDER_STATUS_META.out_for_delivery.description,
   },
   delivered: {
     emoji: '🎉',
     title: 'Delivered',
-    body: 'Enjoy your scoops!',
+    body: ORDER_STATUS_META.delivered.description,
   },
   cancelled: {
     emoji: '❌',
     title: 'Order cancelled',
-    body: 'This order has been cancelled.',
+    body: ORDER_STATUS_META.cancelled.description,
   },
 };
 
@@ -239,11 +245,26 @@ export type FeedPeriod = 'all' | 'today' | 'yesterday' | 'earlier';
  * with the day the filter thinks it belongs to. Reading the label out of this
  * table means both go through `groupByDay` and cannot drift.
  */
-export const FEED_PERIOD_LABEL: Record<FeedPeriod, string | null> = {
-  all: null,
+/**
+ * The three NAMED windows and their group headings, without `all`.
+ *
+ * Split out from `FEED_PERIOD_LABEL` because a lookup keyed by one of these three
+ * can only ever produce a string, and the combined record cannot say that: its
+ * `all` member is `null` by design, so `FEED_PERIOD_LABEL[periodOf(…)]` types as
+ * `string | null` and every caller has to narrow or assert away a `null` that is
+ * unreachable by construction. Keeping the source of truth as the narrow one and
+ * SPREADING it into the wide one means there is still exactly one place the three
+ * labels are written down.
+ */
+const NAMED_PERIOD_LABEL = {
   today: 'Today',
   yesterday: 'Yesterday',
   earlier: 'Earlier',
+} as const satisfies Record<Exclude<FeedPeriod, 'all'>, string>;
+
+export const FEED_PERIOD_LABEL: Record<FeedPeriod, string | null> = {
+  all: null,
+  ...NAMED_PERIOD_LABEL,
 };
 
 /**
@@ -417,8 +438,14 @@ export function toEpochMs(value: unknown): number | null {
     // API or a document written by hand in the console.
     const seconds = (value as { seconds?: unknown }).seconds;
     const nanos = (value as { nanoseconds?: unknown }).nanoseconds;
-    if (typeof seconds === 'number')
-      return seconds * 1000 + (typeof nanos === 'number' ? nanos / 1e6 : 0);
+    // `typeof NaN === 'number'`, so the finite check is not optional here: a
+    // hand-written document with `seconds: NaN` would otherwise return `NaN`,
+    // which is exactly what this function exists to prevent. `NaN` in a sort
+    // comparator makes the sort engine's output implementation-defined.
+    if (typeof seconds === 'number' && Number.isFinite(seconds))
+      return (
+        seconds * 1000 + (typeof nanos === 'number' && Number.isFinite(nanos) ? nanos / 1e6 : 0)
+      );
     return null;
   }
 
@@ -501,19 +528,44 @@ export function buildNotificationFeed(
   return entries.length > FEED_LIMIT ? entries.slice(0, FEED_LIMIT) : entries;
 }
 
-/** How many entries are unread. The badge number. */
-export function countUnread(entries: readonly FeedEntry[]): number {
-  let n = 0;
-  for (const entry of entries) if (!entry.read) n += 1;
-  return n;
+/**
+ * Which named window a single timestamp falls in, with no `all` involved.
+ *
+ * THIS IS WHERE MIDNIGHT IS DEFINED, ONCE. It was inline inside `groupByDay`
+ * until `feedTimeLabel` needed to ask the same question about one row rather
+ * than about a whole page, and copying those two comparisons into a second
+ * function is precisely the drift this file is written against: the day a row
+ * files under on screen could quietly disagree with the day its timestamp
+ * format decided it belonged to, and the two are rendered in the same card.
+ *
+ * Boundaries are in the device's LOCAL time, because "Today" is what a person
+ * means by it. Comparing epoch ms against a UTC midnight is the classic bug
+ * that files an 11pm order under yesterday.
+ */
+export function periodOf(at: number, now: number = Date.now()): Exclude<FeedPeriod, 'all'> {
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const todayStart = startOfToday.getTime();
+  // Calendar arithmetic, not `todayStart - 86_400_000`. Subtracting a fixed
+  // 24 hours from local midnight lands on the wrong instant on a 23- or
+  // 25-hour day, and this module's whole premise is that boundaries are
+  // LOCAL. Manila has no DST today, but the rule is the rule.
+  const yesterdayStart = new Date(
+    startOfToday.getFullYear(),
+    startOfToday.getMonth(),
+    startOfToday.getDate() - 1,
+  ).getTime();
+
+  if (at >= todayStart) return 'today';
+  if (at >= yesterdayStart) return 'yesterday';
+  return 'earlier';
 }
 
 /**
  * Groups a feed into day sections for the list view.
  *
- * Day boundaries are computed in the device's LOCAL time, because "Today" is
- * what a person means by it. Comparing epoch ms directly to a UTC midnight is
- * the classic bug that puts an 11pm order under yesterday's heading.
+ * Day boundaries come from `periodOf` rather than from comparisons written here,
+ * so this and `feedTimeLabel` cannot end up with different ideas of midnight.
  *
  * GENERIC OVER `{ at: number }` RATHER THAN OVER `FeedEntry`, and that is not
  * decoration. The feed groups `OrderThread`s now, which carry `at` only
@@ -527,17 +579,11 @@ export function groupByDay<T extends { at: number }>(
   entries: readonly T[],
   now: number = Date.now(),
 ): { label: string; entries: T[] }[] {
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const todayStart = startOfToday.getTime();
-  const yesterdayStart = todayStart - 86_400_000;
-
   const groups: { label: string; entries: T[] }[] = [];
   let current: { label: string; entries: T[] } | null = null;
 
   for (const entry of entries) {
-    const label =
-      entry.at >= todayStart ? 'Today' : entry.at >= yesterdayStart ? 'Yesterday' : 'Earlier';
+    const label = NAMED_PERIOD_LABEL[periodOf(entry.at, now)];
     if (!current || current.label !== label) {
       current = { label, entries: [] };
       groups.push(current);
@@ -646,17 +692,32 @@ export function absoluteTime(at: number, now: number = Date.now()): string {
  * `now` is passed through to BOTH formatters, so a re-render of a list still
  * computes every row against one instant.
  *
- * `all` is treated like the named days rather than like `earlier` on purpose:
- * it is the only window where a 40-day-old row can sit beside a 2-hour-old
- * one, and there the relative half is what ranks a fresh row against a very
- * old one — the one job the absolute date cannot do. The cost, stated rather
- * than buried: its oldest rows repeat their date, exactly as the Earlier
- * window used to. `all` is unreachable from the feed's dropdown, so that cost
- * is unobservable today; if the window ever comes back, this branch is the
- * line to revisit.
+ * ── `all` IS A PER-ROW DECISION, NOT A PER-PAGE ONE. ──
+ *
+ * This used to read `if (period === 'earlier')`, which was complete while the
+ * dropdown offered three windows: the page's filter and every row's window were
+ * the same question, so one branch could answer both. The `All` option breaks
+ * that. Under `all` a 40-day-old row can sit beside a 2-hour-old one, and there
+ * is no single window to branch on — so the branch is taken per row instead,
+ * asking `periodOf` which window THIS timestamp is in.
+ *
+ * The alternative, treating `all` like `earlier`, was rejected: it would strip
+ * the relative label from a row that moved 20 minutes ago because some other row
+ * on the same page is ancient. The duplication this avoids is the exact reason
+ * the `earlier` branch exists at all, and under `all` it is confined to the rows
+ * that genuinely belong in that window rather than applied to all of them.
+ *
+ * So a mixed page reads the way each half wants to be read: fresh rows keep
+ * "12m · Oct 15, 2:34 PM", and only the rows `periodOf` calls `earlier` collapse
+ * to the bare date. Nothing prints "Sep 30 · Sep 30, 9:55 AM", which is what
+ * past-a-week `relativeTime` degrades to and what this used to produce for every
+ * row whenever `all` was selected.
  */
 export function feedTimeLabel(at: number, period: FeedPeriod, now: number = Date.now()): string {
   const absolute = absoluteTime(at, now);
-  if (period === 'earlier') return absolute;
+  // The filter narrows the page for the three named windows, so it can answer
+  // for every row at once. `all` cannot, and defers to each row's own window.
+  const window = period === 'all' ? periodOf(at, now) : period;
+  if (window === 'earlier') return absolute;
   return `${relativeTime(at, now)} · ${absolute}`;
 }

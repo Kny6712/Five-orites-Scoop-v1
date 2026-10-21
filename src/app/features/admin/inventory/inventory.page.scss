@@ -1,0 +1,893 @@
+// src/app/features/admin/inventory/inventory.page.scss
+// Five-orites Scoop — Admin Inventory Manager
+
+// ── Header ─────────────────────────────────────────────
+.inv-header {
+  padding: 10px 12px 6px;
+}
+
+// ── Minimal control ───────────────────────────────────
+// Flat fill, one hairline border, a small even corner radius. No gradients, no
+// shadows, no transparency tricks.
+//
+// This replaces a rolled-scroll treatment that went through several passes —
+// bowed elliptical radii, cap creases, a soft feathered rim — and never stopped
+// reading as glassmorphism. The cause was always the same: a pale gradient rim
+// clipped to the border-box over a second pale gradient underneath. Two soft
+// washes with no hard edge between them *is* the glass look, no matter how pale
+// the values are. Toning the alpha down only made it fainter, not flatter.
+//
+// A hairline is what actually solves it. One flat fill, one definite line, and
+// the eye reads a plain control.
+@mixin scroll-control {
+  /* --tile-powder-deep, not --ion-color-light-shade (#e4edf3). That was pale
+     enough that the controls read as having no edge at all against the cream
+     page. #9dc2e0 is one clear step darker — enough to define the boundary while
+     staying a light cool blue, so it still belongs to the powder family rather
+     than reading as a grey outline. */
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+
+  transition: border-color 120ms ease;
+
+  &:hover {
+    border-color: var(--color-primary-ink);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary-ink);
+    outline-offset: 2px;
+  }
+}
+
+// ── Search + set filter row ────────────────────────────
+.search-filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+
+  /* Six controls in one row is ~740px — the SHOW label ~46, the set filter
+     ~110, the search 200, the two buttons ~130 and ~120, and the 76px import
+     button, plus five 8px gaps.
+
+     ONE ROW, AS FAR AS IT GOES. The row used to be 16px-gapped with a
+     240px search, which put it at 777px — wider than the content column is
+     at a 1024px viewport, where the admin sidebar takes a third of the
+     screen. So the toolbar broke into two lines on exactly the laptops the
+     admin uses, with the three action buttons dropping below the search
+     field and the row reading as two unrelated strips.
+
+     The search field is the elastic control: it is the only one whose width
+     is not its content, so it absorbs the shortfall instead of the row
+     breaking. The buttons and the chip keep their size, because a button
+     whose label shrinks is a button whose label is unreadable. */
+  flex-wrap: wrap;
+  row-gap: var(--space-2);
+
+  /* The gutter down to .inv-count. This used to be the `margin-bottom: 8px` on
+     .inv-count, back when the count sat between two rows of controls. */
+  margin-bottom: var(--space-2);
+}
+
+/* The label the set filter is labelled by. Uppercase, small, and quiet — it
+   says what the control does and gets out of the way.
+
+   The same rule the fulfilment queue, My Orders and the notifications page use
+   for the identical control, so "narrow this list" is one shape across the
+   app rather than one per screen. */
+.filter-label {
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* ion-searchbar's own radius is a hard-coded 28px on a white field, which is not
+   the shape of anything else on this page. Matches .track-search on /admin/tracking
+   and .voucher-search on /admin/vouchers.
+
+   THE FIELD IS THE ELASTIC ONE. `flex: 1 1 200px` with a 240px cap is the
+   app's search shape: it grows to the standard width wherever the row has room
+   and shrinks to its 200px basis wherever it does not, so the six controls in
+   this row stay on one line instead of the row breaking. */
+.inv-search {
+  flex: 1 1 200px;
+  max-width: 240px;
+  min-width: 0;
+  height: 40px;
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  /* FLAT. Ionic paints a three-layer Material elevation shadow on the search
+     field's inner input, and this was the one control in the toolbar still
+     carrying it — the drop shadow under the field in the screenshot. It goes
+     the way the other three controls' shadows go; the hairline that replaces it
+     is on the inner input and lives in global.scss, because the input belongs
+     to ion-searchbar and carries no _ngcontent attribute. */
+  --box-shadow: none;
+  padding: 0;
+}
+
+.set-filter {
+  flex: 0 0 auto;
+  position: relative;
+}
+
+/* The set filter, in the same shape as every other control in this app: a
+   white field, one hairline, 12px of radius, 40px tall.
+
+   40px, NOT 48px. It was 48px and the search field beside it was 42px, so the
+   two narrowing controls were different sizes and the row read as a mistake.
+   40px is what the three action buttons use, what the vouchers page's toolbar
+   uses, and what the whole admin toolbar language is built on.
+
+   13px/700 in the primary ink, matching the fulfilment queue's status filter
+   and the export button beside it. It was 14px/600 in the plum, which is a
+   different voice for the same control. */
+.set-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  @include scroll-control;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  cursor: pointer;
+}
+
+.set-select-arrow {
+  --icon-size: 14px;
+  color: var(--color-primary-ink);
+}
+
+.set-popover-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.set-popover-item {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.set-popover-item.active {
+  background: var(--ion-color-light);
+  font-weight: 700;
+}
+
+.set-popover-item:hover {
+  background: var(--ion-color-light);
+}
+
+/* A caption for the product grid, on its own line under the toolbar.
+
+   It has been three things: a block between two rows of controls, then the
+   right-hand end of .inv-actions, and now this. It belongs to the grid — it is
+   the only line on the page that says how much of it there is — so it sits under
+   the toolbar rather than inside it.
+
+   `align-self` and `margin-left: auto` went with the .inv-actions wrapper: it is
+   no longer a flex item, so both did nothing here anyway. */
+.inv-count {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+}
+
+/* The CSV import control, styled as the admin action tile on the dashboard
+   (.action-tile, dashboard.page.scss): white fill, hairline rim, glyph in a powder
+   disc, caption underneath. Same 84x64 and the same three-part structure, so the
+   two pages present the same control the same way.
+
+   A plain <button> rather than ion-button — see the markup comment for why. That
+   means this element owns its own focus ring, since Ionic's came with the
+   component.
+
+   No `margin-left: auto` here. It was tried, and it opened a ~400px gap between
+   this tile and Bulk Restock: an auto-margin absorbs ALL the row's leftover
+   width, and on the last item that slack has nowhere to go but the single gap
+   ahead of it. The three actions stay adjacent because the auto-margin is on
+   .add-product-btn — the FIRST of the three, not the last. */
+.import-btn {
+  /* The button itself is the shared .csv-btn — the white pill, the hairline,
+     the teal glyph and the plum label all live in src/global.scss, with the
+     other eight file buttons in the admin.
+
+     What is left here is the one thing that is genuinely this row's: 40px,
+     matching .add-product-btn and .bulk-restock-btn, so the row reads on one
+     line. The width is no longer pinned at 76px — the button is as wide as
+     its label needs it to be, like the export button on the other pages. */
+  height: 40px;
+}
+
+/* No transform lift, and no --shadow-card. Both were matching .action-tile on the
+   dashboard, but in this toolbar the other three controls are flat — a lift here
+   would leave Import as the only floating item in a row that no longer floats.
+   The hover and the focus ring now come from the shared .csv-btn. */
+
+/* ── Add Product: the app's primary CTA ───────────────────────────────────
+   Sunny with plum ink, measured at 8.16:1 — the same pairing as the cart
+   page's .place-order-btn, the product-detail CTA, the product-card CTA and
+   the vouchers page's "+ New voucher", and the reason variables.scss calls
+   #ffc53d the CTA hue.
+
+   IT WAS AN ion-button, which is the bug this whole block exists to fix: a
+   solid ion-button resolves its own background from --ion-color-primary, the
+   pastel periwinkle, and paints a Material elevation shadow on an inner
+   shadow-root element that no outer rule can reach. The page worked around it
+   with `--background: transparent` and a background on the host, and the
+   result was a WHITE button with a shadow — the periwinkle it asked for never
+   appeared, because a higher-specificity rule in the same file set the white
+   one.
+
+   A plain <button> states its background outright and cannot be re-derived by
+   Ionic's theming. It is also why the label is no longer uppercase: Ionic's
+   md button scale printed "ADD PRODUCT", and every other control in this app
+   is sentence case.
+
+   NO BORDER, and no shadow. A filled primary does not need a rim — the fill
+   is its own edge, and that is the pattern the other four CTAs in this app
+   follow. The white control beside it carries the hairline because a white
+   fill on cream needs one; a sunny fill does not.
+
+   `--radius-pill`, not --radius-sm. The app is on pills now: the file button
+   beside it is one, the developers page's "Add developer" has been one all
+   along, and a 40px control with a 12px radius next to a 40px pill is a row
+   of two different shapes. The old note here said a pill at this height
+   "reads as a lozenge rather than a control" — which is exactly what the
+   file button beside it is, and it reads as a button. */
+.add-product-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* The hover is TEAL, and the focus ring goes with it — the same treatment the
+   developers page's "Add developer" button gets. A teal outline drawn around
+   a gold button reads as a sticker around it; a teal fill is the button
+   itself changing state, and the focus state can be the same fill so the
+   button has one way of saying "this is live". The fill change is the focus
+   indicator WCAG 2.4.7 asks for. */
+.add-product-btn:hover:not(:disabled),
+.add-product-btn:focus-visible {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+  outline: none;
+}
+
+/* ── Bulk Restock: the flat secondary beside it ──────────────────────────
+   White fill, one hairline, a pill, 40px tall — the same construction as the
+   import button beside it, because a secondary action and a tertiary one
+   should not look like different species.
+
+   It was an ion-button too, and it carried the same Material elevation
+   shadow, and the same uppercase. It is now a plain <button> and owns its
+   own focus ring. */
+.bulk-restock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.bulk-restock-btn:hover {
+  border-color: var(--color-primary-ink);
+}
+
+/* Replaces the :focus-visible ring ion-button would have provided. */
+.bulk-restock-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* Holds the right end of the row, so the leftover width opens as ONE gap after
+   the set filter instead of trailing off the end.
+
+   On the FIRST of the three actions, not the last. An auto-margin pushes this
+   element and everything after it to the right, and opens the gap before this
+   one — so putting it on .bulk-restock-btn or .import-btn would land the slack
+   between two buttons that are meant to read as one group. On the first, the gap
+   falls between the search field and Add Product, and Add / Bulk Restock /
+   Import stay flush together.
+
+   Neither button grows to absorb it: an earlier attempt made Add Product
+   `flex: 1` and it stopped matching Bulk Restock in width, which looked like a
+   mistake rather than a decision. */
+.add-product-btn {
+  margin-left: auto;
+}
+
+.inv-list {
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+// ── Card ───────────────────────────────────────────────
+.inv-card {
+  border-radius: var(--radius-md);
+  /* A hairline on the card, matching the toolbar controls. Without one the card
+     had a drop shadow and no edge, while every element inside it carried a border
+     — light strokes floating on cream with nothing around them. This draws the
+     container the contents were missing. */
+  border: 1px solid var(--tile-powder-deep);
+  box-shadow: var(--shadow-card);
+  margin: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* A deactivated flavor stays fully legible and stays on the page. Dimming it to
+   near-invisible was the old treatment, and it read as "this card is broken"
+   rather than "this flavor is off sale" — especially for the stock numbers, which
+   still matter because they are what you are here to restock. */
+.inv-card.inactive-card {
+  opacity: 0.72;
+}
+
+.inv-card.inactive-card .inv-thumb-img {
+  filter: grayscale(0.7);
+}
+
+.inv-card-main {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  align-items: flex-start;
+}
+
+.inv-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+// ── Thumbnail ──────────────────────────────────────────
+.inv-thumb-btn {
+  flex: 0 0 auto;
+  width: 84px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.inv-thumb-btn:disabled {
+  cursor: progress;
+}
+
+.inv-thumb-frame {
+  position: relative;
+  display: block;
+  width: 84px;
+  /* A locked 4:3 box. This is what satisfies "the container resizes cleanly to
+     the new image": the frame never derives its height from the picture, and
+     object-fit: cover fills it without distortion. Replace a portrait photo on
+     one card and that card is exactly as tall as its neighbours. */
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--tile-powder);
+  border: 1px solid var(--ion-color-light-shade);
+}
+
+.inv-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The "you can change this" affordance, bottom-right of the frame. */
+.inv-thumb-badge {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-white);
+  box-shadow: 0 1px 4px rgb(36 24 51 / 0.3);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.inv-thumb-badge app-icon {
+  --icon-size: 13px;
+  color: var(--color-primary-ink);
+}
+
+.inv-thumb-btn:hover .inv-thumb-badge,
+.inv-thumb-btn:focus-visible .inv-thumb-badge {
+  opacity: 1;
+}
+
+// ── Card header ────────────────────────────────────────
+.inv-card-header {
+  padding: 0;
+  margin: 0 0 8px;
+}
+
+.inv-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.inv-ident {
+  min-width: 0;
+}
+
+/* The two read-out chips above the flavour name: the set, and the family stock
+   total. The generic chip box is 32px tall, which is a chip sized for a filter row
+   and not for a card header that already carries an 11px label underneath it - so
+   both are pulled in here.
+
+   min-height, not height: `.chip` in global.scss sets `min-height: 32px`, and
+   min-height always beats height, so the original `height` in this rule could
+   never have taken effect. Named explicitly because the rule that was winning it
+   is no longer ion-chip's host - it is now the global `.chip` class - and this page
+   deliberately declares no `:host` rule of its own, which would override
+   `.ion-page { display: flex }` and stop <app-footer> from being page chrome.
+
+   The element is a plain <span> now, so `--color` becomes `color` and the
+   `<ion-label>` wrapper is gone: `--color` was only ever how ion-chip was told
+   what to paint its label. The 2px bottom margin stays - that one is this row's
+   own spacing under the chip, not Ionic's 4px wrap gutter, which `.chip` zeroes.
+
+   WHITE, WITH THE FLAVOUR AS A RIM.
+
+   The chip used to be filled with the flavour's pastel — a solid block of
+   colour with the label sitting on it, which was the one thing on this card
+   that was a colour rather than a line. It is white now and the flavour draws
+   its outline instead, the same clean line art the stock chips use.
+
+   THE FLAVOUR STILL READS, because the set's NAME is written next to the chip:
+   the colour was always a second cue for something the label beside it already
+   says, so it can afford to be a rim.
+
+   22px, and the padding pulled in to match it. The chip was 27px — the global
+   `.chip` box carries ion-chip's 6px of vertical padding, which on its own
+   beats the 22px min-height — while every other small chip in the app is
+   22px. The vertical padding goes to 2px so the min-height is what wins, and
+   the chip is the size its neighbours are. */
+.set-chip-sm {
+  font-size: 11px;
+  min-height: 22px;
+  margin: 0 0 2px;
+  color: var(--color-ink);
+  background: var(--color-white);
+
+  /* The rim's colour comes from the inline [style.border-color] on the element;
+     this declares the width and the style. */
+  border: 1px solid var(--tile-powder-deep);
+
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+
+/* `.set-chip-mint` and `.stock-total-chip` were both deleted here rather than left
+   behind. The total became plain text in `.stock-total-row`, which took the chip's
+   tabular-nums with it, and the mint fill had no other reader on this page — the
+   set chip now takes its fill per-product from the flavour palette.
+
+   A class nothing reads is a class the next person thinks is still in play. */
+
+/* A caption for the grid above, not a control and not a cell. Left-aligned on the
+   same start edge as the four cells so it reads as their sum rather than as a
+   fifth size — centring it invited exactly that reading. */
+.stock-total-row {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.inv-set-name {
+  margin: 3px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.inv-variant-name {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin: 0;
+  padding: 0;
+}
+
+/* The set chip and the set name, side by side under the flavour name. These were
+   separate block-level children of .inv-ident, so they stacked — three lines of
+   chrome above the number the card exists to show. One row now, aligned on the
+   chip's own box so the 22px pill and the 11px caps sit on one baseline. */
+.inv-set-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Tool row: Active · edit · delete ─────────────────────
+   Three controls in one row, and the spacing between them is doing real work.
+   The Active pill is the common, reversible action; X is destructive and
+   irreversible. They are the same size and the same distance apart, which is
+   exactly the mistake this layout avoids: putting them side by side with no
+   separation is how a mis-tap erases a flavor. The gap before X says "this one
+   is different" without a dialog. */
+.inv-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 11px 6px 9px;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-chip);
+  background: var(--ion-color-light);
+  color: var(--ion-color-medium);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.status-pill--on {
+  background: var(--tone-success-bg);
+  border-color: var(--tone-success-border);
+  color: var(--tone-success-ink);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: 0 0 auto;
+}
+
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--ion-color-light-shade);
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.tool-btn app-icon {
+  --icon-size: 15px;
+}
+
+.tool-btn:hover {
+  background: var(--tile-powder);
+  border-color: var(--color-primary-ink);
+}
+
+.tool-btn--danger {
+  color: var(--tone-danger-ink);
+  /* margin-left is the separator described above. */
+  margin-left: 6px;
+}
+
+.tool-btn--danger:hover {
+  background: var(--tone-danger-bg);
+  border-color: var(--tone-danger-border);
+}
+
+.inv-card-content {
+  padding: 0;
+}
+
+// ── Stock steppers ─────────────────────────────────────
+.stock-view-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (min-width: 560px) {
+  .stock-view-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.stock-view-cell {
+  position: relative;
+  background: var(--ion-color-light);
+  border-radius: var(--radius-sm);
+  padding: 7px 8px 8px;
+  text-align: center;
+}
+
+.stock-size-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  margin-bottom: 4px;
+}
+
+/* `justify-content: space-between`, so - and + sit on the cell's own edges and
+   the number stays centred between them. Centring the whole group instead meant
+   the two buttons sat a thumb-width apart and drifted with the digit count — a
+   mis-tap between them takes stock DOWN, which is the wrong way to err.
+
+   Pushing them to the edges also lines the four cells' controls up into columns
+   across the card, so your thumb travels less and the row reads as a grid. */
+.stock-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+/* Transparent border, so the button has the same 28px target and the same
+   28x28 hit area but no visible box. The quantity is the data and these are only
+   the affordance around it — with a border and a white fill either side of a 16px
+   number, the buttons were visually louder than the thing they edit. The border
+   comes back on hover. */
+.step-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  cursor: pointer;
+  /* 28px is a little under the 44px touch target, but this is a dense admin
+     grid and the button is not the only way to reach the number — and a 44px
+     target in a 4-across grid on a 360px phone would leave ~34px per column. */
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+
+.step-btn app-icon {
+  --icon-size: 14px;
+}
+.step-btn:hover:not(:disabled) {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+}
+.step-btn:active:not(:disabled) {
+  background: var(--color-brand-primary-shade);
+}
+
+.step-btn:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+
+/* `:hover` never fires on a touchscreen, so a button that reveals its box on
+   hover alone is permanently bare on Android — a glyph with nothing behind it,
+   and no way to tell it is a button. Coarse pointers get a permanent faint fill
+   and a hairline, so the control reads as pressable. Pointer-fine keeps the
+   quiet version above. */
+@media (pointer: coarse) {
+  .step-btn:not(:disabled) {
+    background: rgb(27 94 126 / 8%);
+    border-color: var(--tile-powder-deep);
+  }
+}
+
+.stock-qty {
+  /* Now a <button>, so it needs resetting — a UA button stylesheet would give it
+   its own border, fill and padding. No `font-family: inherit` here: the mono
+   declaration below already overrides it, and having both is just two sources of
+   truth for the same property. */
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+
+  /* Takes the slack between the two edge-anchored buttons so the number stays
+     dead centre of the cell however wide the value is. */
+  flex: 1;
+  text-align: center;
+  min-width: 30px;
+  /* --font-mono (JetBrains Mono), not --font-display (Fredoka).
+
+     Fredoka's rounded counters are friendly and right for the flavour name, which
+     is decorative. They are wrong for a quantity: the round bowls make 8 and 3
+     harder to separate at a glance, and this is the one figure on the card that
+     gets read and changed constantly. Monospace also makes `tabular-nums`
+     automatic and guaranteed rather than dependent on the display face honouring
+     it — so the number cannot jitter sideways as an admin steps it up and down.
+
+     tabular-nums is kept regardless, to cover the Consolas fallback in the chain. */
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+
+  /* Faint underline on hover/focus: the value has to LOOK tappable without a
+     box around it, or an admin scans for the buttons and misses that the number
+     is the faster control. */
+  transition: background-color 0.12s ease;
+}
+
+.stock-qty:hover:not(:disabled),
+.stock-qty:focus-visible {
+  background: rgb(27 94 126 / 8%);
+  border-radius: var(--radius-xs);
+}
+
+.stock-qty:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.stock-qty:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.stock-in-stock {
+  color: var(--color-ink);
+}
+.stock-low-stock {
+  color: var(--tone-warning-ink);
+}
+.stock-out-of-stock {
+  color: var(--tone-danger-ink);
+}
+
+.stock-alert-icon {
+  --icon-size: 13px;
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.stock-alert-danger {
+  color: var(--ion-color-danger);
+}
+.stock-alert-warning {
+  color: var(--color-warning);
+}
+
+/* ── Mobile: the stock stepper and the tool row ──────────────────────────
+   The 28px stepper button and the 6px tool gap are dense-admin affordances
+   and they are deliberate — a stepper that took 44px in a four-across grid
+   on a 360px phone would leave ~34px per column.
+
+   On a phone the stepper is two-across, so each cell is about 185px wide,
+   and 44 + 8 + 44 + 8 + 44 = 148 fits inside it. So the buttons can be the
+   size a thumb can find WITHOUT changing the grid.
+
+   The 6px gap becomes 8px because the targets are now 44px wide and a
+   6px gap between two of them is a mis-tap waiting to happen — and one of
+   them takes stock DOWN. The destructive button keeps its extra 6px of
+   margin on top of the new gap, so it is still further from its neighbour
+   than the edit button is, which is the whole point of that spacing.
+
+   THIS BLOCK IS AT THE END OF THE FILE ON PURPOSE. A media query adds no
+   specificity, so these compete with the rules above on source order alone,
+   and `.stock-qty` and `.stock-stepper` are defined BELOW where this block
+   first sat. A rule that matches nothing looks exactly like a rule that
+   works. */
+@media (max-width: 768px) {
+  .step-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .stock-qty {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .stock-stepper {
+    gap: 8px;
+  }
+
+  .inv-tools {
+    gap: 8px;
+  }
+
+  /* THE CARD STACKS, so the steppers get the room they need.
+
+     `.inv-card-main` is a two-column flex row — the thumbnail and the
+     identification beside it, then the body. The body was left with 244px of
+     a 366px card, and the stock grid inside it 244px, which is two cells of
+     118px. A 44 + 8 + 44 + 8 + 44 stepper needs 148px of a 118px cell, so
+     the last two steppers ran off the card's right edge and were clipped by
+     the card's own `overflow: hidden`.
+
+     Stacking the card gives the body the card's full width: the grid becomes
+     two cells of 164px, and the stepper fits with 16px to spare. The
+     thumbnail and the identification move above the steppers instead of
+     beside them, which on a phone is the right way round anyway — the name
+     and the set are what you read, and the numbers are what you adjust.
+
+     `align-items: stretch`, AND THAT IS THE WHO POINT OF THIS RULE.
+
+     `align-items` is the CROSS axis. The base rule is
+     `display: flex; gap: 12px; padding: 12px; align-items: flex-start` —
+     and in a ROW the cross axis is vertical, so `flex-start` meant "do not
+     stretch vertically", which is what it was for.
+
+     In a COLUMN the cross axis is HORIZONTAL. `flex-start` then stopped the
+     header and the content stretching to the card's width, and they sized to
+     their content instead — and the header's content is the flavour name. So
+     a one-line name ("Chocolate Therapy") gave a 336px card and a two-line
+     one ("Chocolate Fudge Brownie") gave 340px, and the stock grids sat at
+     different widths from one card to the next.
+
+     A rule that means one thing in a row and another thing in a column is a
+     rule that has to be restated when the direction changes. */
+  .inv-card-main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+}

@@ -1,0 +1,287 @@
+// src/app/shared/styles/_stacked-table.scss
+// Five-orites Scoop — the stacked-table treatment for the admin's queues
+//
+// WHAT THIS IS FOR
+//
+// A real <table> is right for the admin's queues: they are lists of comparable
+// records, and the browser's own table semantics — column headers, row and
+// cell relationships, the ability to select a whole column — are worth having
+// for free.
+//
+// A table is also the one layout that cannot shrink. Measured natural widths:
+// the fulfilment queue's six columns need 1128px, the users list 1120px, the
+// delivery stops 1120px, the flavour report 894px. On a 390px phone each of
+// those tables was 719-751px wide inside a 390px scroller, and the columns
+// that fell off the right edge were the ones the admin came for:
+//
+//   /admin/users     Role AND Actions were off-screen. The Actions column
+//                    holds the Edit and Delete buttons, so the two things an
+//                    admin opens that page to do were both unreachable.
+//   /admin/orders    Total and Status were off-screen.
+//   /admin/tracking  Destination, Status and Actions were off-screen.
+//   /admin/analytics Revenue was off-screen.
+//
+// And the scroller gave no hint: no fade, no shadow, no "scroll for more". A
+// table that simply stops is a table that looks complete.
+//
+// BELOW 600px, EACH ROW BECOMES A CARD.
+//
+// WHY A CONTAINER QUERY AND NOT A MEDIA QUERY
+//
+// The width that matters is the SCROLLER's, not the window's, and the two are
+// not in step: the admin sidebar takes 28% of the window (min 270px), so a
+// 768px window leaves the table 498px while a 390px phone leaves it 390px, and
+// a 1024px window leaves it 737px. A viewport breakpoint would have to be
+// wrong in both directions at once — the same trap the product card's size
+// chips fell into, where the card was WIDER on a smaller screen.
+//
+// It is also a container query rather than a min-width on the table, because
+// the table's own min-width is the thing being defeated: the orders table
+// declares `min-width: 520px` so that its cells stop wrapping mid-word, and
+// in the stacked layout there are no cells side by side to wrap.
+//
+// WHY A MIXIN AND NOT A RULE IN global.scss
+//
+// global.scss is not scoped by Angular, so its selectors lose to a component
+// stylesheet's: the page's own `.orders-table { min-width: 520px }` compiles
+// to `.orders-table[_ngcontent-abc]` — an attribute selector, which counts as
+// a class — and beats a bare `.stackable-table` from the global sheet. A rule
+// written there would have been silently overridden on exactly the properties
+// it was meant to change.
+//
+// A mixin is compiled INTO each page's stylesheet, so its rules carry that
+// page's own scoping attribute and sit at the same specificity as the page's
+// rules. Included last, they win.
+//
+// THE ACCESSIBILITY, MEASURED RATHER THAN ASSUMED
+//
+// The <thead> is hidden from sight but stays in the accessibility tree, so the
+// column headers are still there for a screen reader to associate the cells
+// with. `display: none` on the <thead> removes them entirely — measured in
+// the browser's own accessibility tree, the columnheader count went from 7 to
+// 0 — and the table would then have no headers at all.
+//
+// The label is rendered from `content: attr(data-label)`, the attribute that
+// was already on the cells of all four tables and that no stylesheet in the
+// app was reading. That is what the attribute is FOR.
+//
+// The `/ ""` is the alternative-text syntax, and it is what keeps the
+// generated label out of the cell's accessible name: without it the cell is
+// announced as "Phone —", the label twice over, once from the generated
+// content and once from the column header it belongs to. With it, the cell is
+// announced as "—" and the header announces "PHONE", which is what it did
+// before the table was restructured.
+//
+// It is behind @supports because the syntax is recent, and a browser that
+// cannot parse `content: attr(data-label) / ""` drops the whole declaration —
+// which would leave the cards with no labels at all. The fallback keeps them.
+
+@mixin stacked-table {
+  .table-wrap {
+    container-type: inline-size;
+    container-name: table-wrap;
+  }
+
+  @container table-wrap (max-width: 600px) {
+    // THE TABLE STOPS BEING A TABLE OF COLUMNS.
+    .stackable-table {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      overflow: visible;
+    }
+
+    // The header row is hidden from sight but stays in the accessibility tree.
+    .stackable-table thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+    }
+
+    // The sticky column headers were sticky against a scrolling table, and
+    // there is no scrolling table any more.
+    .stackable-table thead th {
+      position: static;
+    }
+
+    .stackable-table tbody {
+      display: block;
+    }
+
+    // THE ROW IS A FLEX COLUMN, not a plain block.
+
+    // `order` only applies to a flex item, and the lead cell uses it to put
+    // the row's identity first however late it appears in the markup — the
+    // orders table's order number is the second cell, and the row number is
+    // the first, and on a card the order number has to be at the top.
+    //
+    // A block row would have put "No." above "#PARNG1", which reads as though
+    // the queue position were the order's name.
+    .stackable-table tr {
+      display: flex;
+      flex-direction: column;
+    }
+
+    // THE CARD. The app's flat card — white surface, ONE hairline, a 12px
+    // corner, no shadow — the same card the rest of the admin is built from.
+    .stackable-table tbody tr {
+      background: var(--color-white);
+      border: 1px solid var(--tile-powder-deep);
+      border-radius: var(--radius-sm);
+      padding: var(--space-3) var(--space-4);
+      margin-bottom: var(--space-3);
+    }
+
+    // Each cell is a line: the label, then the value. A grid would have put
+    // the value in a second column, but a cell can hold more than one element
+    // — the spend cell holds an amount AND a count of delivered orders — and a
+    // grid gives each of them its own cell. Flex lets them stay together on
+    // one line, which is what they are: one value, said two ways.
+    .stackable-table tbody td {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: var(--space-3);
+      row-gap: 2px;
+      padding: 3px 0;
+      border-bottom: 0;
+      text-align: left;
+      vertical-align: baseline;
+
+      /* THE COLUMN WIDTHS ARE UNDONE HERE.
+
+         The tables size their columns for a row of cells side by side: the
+         orders table's Items, Total and Status are `width: 1%` so that they
+         shrink to their content and every spare pixel goes to Customer, and
+         the users table does the same with its Actions column.
+
+         Those widths are a column's width, and a stacked card has no columns.
+         Left in place, `width: 1%` made the cell 1% of the card wide — the
+         Edit button was pushed onto a line of its own below the fields, and
+         the spend cell's em dash wrapped away from its label.
+
+         `width: auto` puts the cell back to the full width of the card, which
+         is what a line on a card is. */
+      width: auto;
+    }
+
+    // THE LABEL, in the app's quiet uppercase voice — the same one the table's
+    // own column headers use, so a card and a table header are the same kind
+    // of thing at two widths.
+    .stackable-table tbody td::before {
+      content: attr(data-label);
+      flex: 0 0 84px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--color-primary-ink);
+    }
+
+    @supports (content: attr(data-label) / '') {
+      .stackable-table tbody td::before {
+        content: attr(data-label) / '';
+      }
+    }
+
+    // A CELL WITH NO LABEL GETS NO LABEL COLUMN.
+    //
+    // `content: attr(data-label)` on an element that has no `data-label`
+    // attribute yields an EMPTY STRING — and an empty string in a flex
+    // container is STILL A FLEX ITEM. With `flex: 0 0 84px` that is an 84px
+    // box, plus the 12px column gap.
+    //
+    // The orders page's expanded detail cell has no label, so the detail panel
+    // inherited an 84px label column it never asked for: it was pushed 96px
+    // right of the card it belongs to, and the expanded order's contents lined
+    // up with nothing. Measured, at 390px:
+    //
+    //     the card's own content   L29
+    //     .order-detail-panel      L125   R332
+    //     its "ITEMS" label        L145   — 116px right of the card's own labels
+    //
+    // This is the general form of that bug, so it is fixed in the general
+    // place: a cell that has not declared a label gets no label box.
+    .stackable-table tbody td:not([data-label])::before {
+      display: none;
+    }
+
+    // A cell with no label attribute generates no content at all, so there is
+    // nothing to hide — but the rule is here for the cells that carry a label
+    // they do not want shown.
+    .stackable-table tbody td.cell-lead::before,
+    .stackable-table tbody td.cell-actions::before {
+      display: none;
+    }
+
+    // The value, which must be allowed to shrink so that a long address wraps
+    // rather than pushing the card wider than the screen.
+    .stackable-table tbody td > * {
+      min-width: 0;
+    }
+
+    // THE LEADING CELL — the row's identity, and the first thing on the card.
+    // It goes above the rest whatever order it appears in the markup, so the
+    // card reads the same on every table.
+    .stackable-table tbody td.cell-lead {
+      order: -1;
+      display: block;
+      margin-bottom: var(--space-2);
+      font-size: 15px;
+    }
+
+    // THE ACTIONS — a full-width row at the foot of the card, over a hairline,
+    // so the buttons are reachable without a sideways scroll and without being
+    // mistaken for another field.
+    .stackable-table tbody td.cell-actions {
+      order: 1;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: var(--space-2);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--tile-powder);
+    }
+
+    // A TABLE THAT IS ALREADY INSIDE A CARD DOES NOT GET CARDS OF ITS OWN.
+
+    // The analytics page's flavour ranking sits inside a `.flat-card` section,
+    // and a card inside a card is a card inside a card — which is the nesting
+    // the flat vocabulary is meant to avoid. So on that page the rows are
+    // separated by hairlines and nothing else: the section's own white
+    // surface and hairline already draw the box, and the rows are inside it.
+
+    // The tint on the top three rows goes with them, and the reason is that it
+    // has done its job. That tint exists because "which are my best sellers"
+    // is answered by position, and position is hard to see in forty identical
+    // rows. On a card every row says its own RANK, so the position is no
+    // longer hidden and the tint has nothing left to add — and a powder fill
+    // behind a six-line card is a large block of colour for no information.
+
+    // The `:nth-child(-n + 3)` is carried over deliberately: without it this
+    // rule would lose on specificity to the page's own tint rule, which is
+    // declared earlier in the same stylesheet.
+    .stackable-table--inset tbody tr,
+    .stackable-table--inset tbody tr:nth-child(-n + 3) {
+      background: transparent;
+      border: 0;
+      border-radius: 0;
+      padding: var(--space-3) 0;
+      margin-bottom: 0;
+    }
+
+    .stackable-table--inset tbody tr + tr {
+      border-top: 1px solid var(--tile-powder);
+    }
+
+    .stackable-table--inset tbody td {
+      padding: 3px 0;
+    }
+  }
+}

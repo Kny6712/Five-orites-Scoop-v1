@@ -1,0 +1,96 @@
+<div class="sheet">
+  <header class="sheet-head">
+    <h2 class="sheet-title">Edit user</h2>
+    <p class="sheet-sub">Changes are saved to this account's Firestore document.</p>
+  </header>
+
+  <div class="field field--row">
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Display name</span>
+        <ion-input
+          [(ngModel)]="editName"
+          maxlength="60"
+          placeholder="e.g. Jane Doe"
+          aria-label="Display name"
+          class="modal-input"
+        ></ion-input>
+      </label>
+    </div>
+    <div class="field--col field--col--role">
+      <span class="field-label">Role</span>
+      @if (canChangeEditRole) {
+        <ion-select [(ngModel)]="editRole" interface="popover" aria-label="Role" class="modal-input">
+          @for (opt of roleOptions; track opt.value) {
+            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+          }
+        </ion-select>
+      } @else {
+        <p class="field-hint">{{ editRole | titlecase }} — only an Owner can change a role.</p>
+      }
+    </div>
+  </div>
+
+  <label class="field">
+    <span class="field-label">Phone number</span>
+    <ion-input
+      [(ngModel)]="editPhone"
+      type="tel"
+      inputmode="tel"
+      placeholder="0917 123 4567"
+      aria-label="Phone number"
+      class="modal-input"
+    ></ion-input>
+  </label>
+
+  <label class="field">
+    <span class="field-label">Staff note</span>
+    <ion-textarea
+      [(ngModel)]="editNote"
+      rows="2"
+      maxlength="300"
+      placeholder="Anything worth remembering about this customer…"
+      aria-label="Staff note"
+      class="modal-input"
+    ></ion-textarea>
+  </label>
+
+  <div class="field">
+    <div class="suspend-toggle">
+      <div class="suspend-text">
+        <span class="field-label">Account suspended</span>
+        <span class="field-hint"> Blocks sign-in. Their orders are kept. </span>
+      </div>
+      <ion-toggle [(ngModel)]="isSuspended" aria-label="Suspend this account"></ion-toggle>
+    </div>
+  </div>
+
+  @if (isSuspended) {
+    <label class="field">
+      <span class="field-label">Reason</span>
+      <ion-input
+        [(ngModel)]="suspendReason"
+        maxlength="200"
+        placeholder="Shown to the customer at sign-in"
+        aria-label="Suspension reason"
+        class="modal-input"
+      ></ion-input>
+      <span class="field-hint"> Left empty, the customer is told to contact the shop instead. </span>
+    </label>
+  }
+
+  @if (isSelf) {
+    <p class="field-hint warn">This is your own account — you cannot change your own role.</p>
+  }
+
+  <p class="field-hint">Email is not editable here. It is the address the person signs in with.</p>
+
+  @if (error()) {
+    <p class="sheet-error" role="alert">{{ error() }}</p>
+  }
+
+  <div class="editor-actions">
+    <ion-button fill="clear" (click)="cancel()">Cancel</ion-button>
+    <ion-button expand="block" class="save-btn" [disabled]="saving()" (click)="save()"> Save changes </ion-button>
+  </div>
+</div>

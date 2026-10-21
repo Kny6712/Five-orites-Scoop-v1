@@ -363,10 +363,24 @@
 .dev-avatar {
   width: 72px;
   height: 72px;
+
+  /* A CIRCLE, and this was a rounded square.
+
+     The markup says "the same accent disc" and the stylesheet drew an 18px
+     rounded SQUARE, so the accent showed through in all four corners around
+     the circular photo — a powder square behind every developer's face, which
+     is the one thing on this page that was neither flat nor intentional.
+
+     At 50% the avatar is the disc the comment always described, and the photo
+     covers it exactly (the image is 100% of the avatar), so a person with a
+     photo has no colour behind them at all and a person without one has a
+     clean pastel disc. */
   border-radius: 50%;
-  /* Clips the photo to the circle. Without it a square upload shows its corners
-     outside the disc, and the initials branch has no equivalent problem — which
-     is exactly why the omission is invisible until someone uploads a photo. */
+
+  /* Clips the photo to the disc. Without it a square upload shows its corners
+     outside the circle, and the initials branch has no equivalent problem —
+     which is exactly why the omission is invisible until someone uploads a
+     photo. */
   overflow: hidden;
   display: flex;
   align-items: center;
@@ -395,6 +409,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* The disc, matching .dev-avatar above — so the two states of the same
+     card are the same shape and a card does not change shape the moment an
+     owner uploads a photo. */
   border-radius: 50%;
 }
 
@@ -442,12 +459,11 @@
 .role-chip {
   font-size: 11px;
   height: 24px;
-  margin: 0;
-  --color: var(--color-ink);
+  color: var(--color-ink);
+}
 
-  ion-label {
-    color: var(--color-ink);
-  }
+.role-chip-text {
+  color: var(--color-ink);
 }
 
 .role-lead {
@@ -571,23 +587,32 @@
    No `color="primary"` and no `[outline]` on the markup: both are what put the
    old About-page chips and these role chips into the derived-colour path. */
 .tech-chip {
-  --color: var(--color-ink);
+  color: var(--color-ink);
   font-size: 11px;
   height: 24px;
-  margin: 0;
-  --background: var(--color-white);
-
-  ion-label {
-    color: var(--color-ink);
-  }
+  background: var(--color-white);
 }
 
-/* ONE PASTEL PER CHIP. `--background` rather than `background`, because that is
-   the custom property Ionic's chip paints from; setting `background` directly
-   would work today and break the first time a chip gained an outline or a hover
-   state. White here stays as the fallback for a 9th chip that the nth-child
-   rules below do not reach — an uncoloured chip is a lesser outcome than a
-   wrongly-coloured one, and it still passes at 12.34:1.
+.tech-chip-text {
+  color: var(--color-ink);
+}
+
+/* ONE PASTEL PER CHIP. `background`, and it used to be `--background` — the
+   custom property Ionic's chip paints from — which is the whole reason the chips
+   here were still lozenges after --radius-chip existed: ion-chip hard-codes a 16px
+   border-radius, exposes nothing to override it with, and paints its fill from a
+   custom property rather than from `background`. The chip is a plain <span> now,
+   so the indirection has nothing left to talk to and `background` is the only
+   declaration that does anything.
+
+   That reverses the reason this rule gave for choosing --background in the first
+   place ("setting `background` directly would work today and break the first time
+   a chip gained an outline or a hover state"). The reasoning was sound FOR AN
+   ION-CHIP and does not survive the swap: an outline sets `border` and a hover
+   sets `background`, and neither one cares whether the resting fill arrived via a
+   custom property or directly. White here stays as the fallback for a 9th chip
+   that the nth-child rules below do not reach — an uncoloured chip is a lesser
+   outcome than a wrongly-coloured one, and it still passes at 12.34:1.
 
    The label is 11px, so it is NORMAL text and owes 4.5:1, not the 3:1 a large
    face would get. Every value below was measured against the label ink
@@ -614,32 +639,57 @@
    the array is a literal. If the array is ever reordered or extended, this
    mapping has to follow it. */
 .tech-chip:nth-child(1) {
-  --background: #a3b5f0;
+  background: #a3b5f0;
 }
 .tech-chip:nth-child(2) {
-  --background: #5fd9b4;
+  background: #5fd9b4;
 }
 .tech-chip:nth-child(3) {
-  --background: #ffc53d;
+  background: #ffc53d;
 }
 .tech-chip:nth-child(4) {
-  --background: #f8a9be;
+  background: #f8a9be;
 }
 .tech-chip:nth-child(5) {
-  --background: #a8d9b8;
+  background: #a8d9b8;
 }
 .tech-chip:nth-child(6) {
-  --background: #cfe4ff;
+  background: #cfe4ff;
 }
 .tech-chip:nth-child(7) {
-  --background: #e2d5f7;
+  background: #e2d5f7;
 }
 .tech-chip:nth-child(8) {
-  --background: #fff0b3;
+  background: #fff0b3;
 }
 
 .footer-sub {
   font-size: 12px;
   color: var(--ion-color-medium);
   margin: 0;
+}
+
+// ── Mobile tweaks ──────────────────────────────────────────────────────────
+@media (max-width: 480px) {
+  /* On a 390×844 phone the 300px hero pushes the first card well below the
+     fold. Drop it to 220px there so the team lands above the fold sooner,
+     then let the grid cards do the work below. */
+  .dev-hero {
+    min-height: 220px;
+    padding: 20px 16px 22px;
+  }
+
+  /* Tighter grid gutters on narrow screens so the single-column cards don't
+     look lost with wide side margins. */
+  .dev-grid {
+    padding: 8px 6px 6px;
+    gap: 10px;
+  }
+
+  /* Cards stretch to fill the phone width instead of stopping at 300px basis
+     with big empty side bands. */
+  .dev-card {
+    flex: 1 1 260px;
+    max-width: none;
+  }
 }

@@ -1,0 +1,841 @@
+// src/app/features/admin/orders/admin-orders.page.scss
+
+@use '../../../shared/styles/stacked-table' as *;
+
+/* ── The control row ─────────────────────────────────────
+   Three controls: the status filter and the search field on the left, the CSV
+   export pushed to the right by its own auto-margin.
+
+   THE STATUS FILTER IS BACK. It was removed on the argument that narrowing by
+   STATE belongs to the Tracking page, which shows only the four active
+   statuses and has status chips for them. That argument was half right and
+   the half that was wrong was this: the search field cannot narrow by state at
+   all, and Cancelled — the state an admin goes looking for when a customer
+   calls — was only ever reachable by opening the very dropdown the argument
+   had called pointless.
+
+   So this page narrows by STATE and the Tracking page narrows by LOCATION.
+   Both have an "All", and neither is a duplicate of the other.
+
+   The row is one row, one gap, one rhythm. The search used to be a sibling on
+   its own line and the two disagreed on width, so the top of the queue read
+   as two unrelated strips.
+
+   No bottom gap of its own: the table's own wrapper padding owns the space below
+   this, and two gaps in a row would put two different rhythms one after the
+   other. */
+.filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+
+  /* 8px, not 12px. The row is the status chip, the search field and the
+     export button, and at 12px it needed 529px — wider than the content
+     column is at a 768px viewport, where the admin sidebar takes a third of
+     the screen. The gap is what the search field's own elasticity cannot
+     absorb, so it is what gives way. */
+  gap: 8px;
+  padding: 12px 12px 0;
+}
+
+/* The label the control is labelled by. Uppercase, small, and quiet — it says
+   what the control does and gets out of the way. */
+.filter-label {
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* ── The status filter ─────────────────────────────────────
+   A flat control, not a chip with a rim, and token for token the same
+   construction as the export button beside it.
+
+   IT WAS A 2px RIM ON A TINTED FILL, and that is what made it the only
+   three-dimensional thing in the row. A saturated 2px border around a pale
+   fill reads as a bevel — the edge looks like it has thickness — and the
+   design this page is built to has no bevels, no shadows and no gradients.
+   So the rim is a HAIRLINE now, one pixel of `--tile-powder-deep`, exactly
+   the edge the export button and the table card carry.
+
+   AND THE FILL IS WHITE, the same neutral surface. `--tile-powder` is not
+   gone, it is REASSIGNED: it now means "a filter is applied" and nothing
+   else. The chip is white while the queue is unfiltered and turns powder the
+   moment a status is chosen, which is a state the control can show at a
+   glance and that the old version could not — before, a narrowed queue and
+   the whole queue wore the same face.
+
+   THE BOX ITSELF IS THE SHARED `.select-chip` RULE in global.scss, because the
+   users directory filters by role with the same control and the two were not
+   the same shape. Everything about it that is specific to this page — which
+   label it shows, what it filters, the popover under it — stays here. */
+
+/* ── The search ───────────────────────────────────────────
+   The three tokens every OTHER search field in this app already sets, token for
+   token: `.track-search` (admin-tracking.page.scss:60) and `.voucher-search`
+   (admin-vouchers.page.scss:160) both declare exactly this block.
+
+   IT CARRIED NONE OF THEM. That is the whole of why this field looked unlike
+   everything else on the page while reading "Search order id, customer, address
+   or flavor" like its four siblings. Left to Ionic's defaults it rendered:
+
+     · a hard-coded 28px radius — a pill, where every other control on this page
+       is `--radius-sm` or `--radius-pill` for a stated reason. inventory.page.scss:67
+       calls this exact problem out in a comment and fixes it;
+     · the default surface instead of `--ion-color-light`, so it was a different
+       value from the filter pill above it;
+     · and, because nobody reset it, IONIC'S OWN INTERNAL PADDING — which is what
+       made the field visibly taller than its neighbours and set its placeholder
+       further in. That is what `padding: 0` removes.
+
+   SIZED TO ITS CONTENT, which is a one-word placeholder. This control was 320px
+   because the placeholder used to be 44 characters and clipped at anything
+   narrower — "Search order id, customer, address or flavor" is ~325px of text
+   before the icon. That string is gone; the placeholder is now "Search for
+   orders", which is the app's own vocabulary, and 240px holds it with room to
+   spare.
+
+   240px, WHICH IS THE APP'S ADMIN SEARCH WIDTH — the inventory page's
+   `.inv-search` and the tracking page's `.track-search` are both 240px, and
+   the inventory field carries an equally long placeholder ("Search
+   products...") at that width. The bare "Search" this field used to hold
+   fitted in 220px, but 220px is only 108px of usable text once the 55px
+   gutters Ionic reserves for the icon and the clear button are taken off
+   both sides, and "Search for orders" is 123px of Nunito. It was clipping
+   by 15px; 240px gives it 128px and the whole word shows.
+
+   The status dropdown beside it is `fit-content`, so the two are comparable
+   in weight rather than one huge field next to one small pill.
+
+   `flex-shrink` STAYS 1, which looks like a contradiction against a fixed 240px
+   and is not. `flex: 0 0 240px` is the tidier rule and is what inventory writes,
+   but its `0` means the control cannot shrink at all: on a narrow viewport the row
+   overflows instead of wrapping. Shrinkable plus `min-width: 0` below is what
+   keeps `flex-wrap` on `.filter-row` meaningful, so a phone gets the pair on two
+   lines rather than a horizontal scrollbar.
+
+   `height: 36px` matches the export button in the same row. The two controls sit
+   side by side and were rendering at different heights — this one at Ionic's
+   default, the export at 36px — which is a mismatch with nothing behind it. It is
+   the same tie-the-neighbours-together move as inventory's `height: 48px` beside
+   its own 48px buttons.
+
+   `min-width: 0` is the load-bearing half of all of the above. A flex item's
+   default `min-width` is `auto`, which resolves to its content — and a searchbar's
+   content is its typed value, which can be any length. Without the 0 the row
+   cannot shrink below it and the page grows a horizontal scrollbar, which is the
+   one outcome `flex-wrap` above was meant to prevent. */
+.order-search {
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  --box-shadow: none;
+  flex: 1 1 200px;
+  max-width: 240px;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
+}
+
+/* THE FOCUS INDICATOR IS NOT HERE, and that is the fix.
+
+   This block used to paint a 3px box-shadow ring on the host AND a 3px
+   outline on the input, and both are gone. The focus treatment for this field
+   is one rule in global.scss, where the input is actually reachable.
+
+   It used to have to live here because the global rule could not reach the
+   input — and it still could not, but the ring was the wrong shape anyway.
+   Clicking the field put a 3px dark band around a 1px hairline, twice over,
+   and the control looked like it had been pressed into the page. That is the
+   3D this design system exists to avoid, arriving as a focus ring.
+
+   A 1px border that changes COLOUR is quieter than a fat ring and a more
+   emphatic indicator besides: --tile-powder-deep on cream measures 1.79:1 and
+   is very nearly invisible, and --color-primary-ink measures 6.82:1 and is
+   not. One hairline going from "cannot see it" to "cannot miss it" says more
+   than three pixels of ink saying the same thing.
+
+   The input belongs to ion-searchbar and carries no _ngcontent attribute, so
+   a page-scoped rule can never reach it — which is why the rule that replaced
+   this one is in global.scss and not here. */
+
+/* ── The row number ──────────────────────────────────────
+   It was a pick column — a checkbox on every row and a tri-state one in the
+   header — and a number is a better use of the same narrow strip: the admin
+   can read how many orders are waiting without counting rows.
+
+   `width: 1%` so the column shrinks to its content and every spare pixel goes
+   to Customer, the only column that genuinely varies in length. `tabular-nums`
+   so the digits line up in a column rather than stepping sideways as the
+   numbers grow from 9 to 10.
+
+   13px/700, THE SAME SIZE AND WEIGHT AS THE ITEMS COUNT BESIDE IT, because
+   both are numbers and the admin is comparing them down the page. This column
+   had no font-size of its own and inherited the page's 16px, so a row number
+   was a third larger than the item count two columns away — two numbers, in
+   the same row, at two sizes, which is exactly what a size difference in a
+   table is not supposed to be.
+
+   The INK STAYS QUIETER. The item count is data and the row number is a
+   position, and a position that shouts over the data it is numbering is
+   worse than no numbering at all. Same size, same weight, less emphasis. */
+.col-num {
+  width: 1%;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-soft);
+}
+
+/* The header sits over right-aligned numbers, so it is right-aligned too. */
+.orders-table thead th.col-num {
+  text-align: right;
+}
+
+/* ── The status control: the chip, and nothing beside it ─────────────────────
+   ONE control per row, and it replaced three. The cell used to hold the status
+   chip, a "Confirmed →" pill, and a status dropdown — with the pill and the chip
+   the same width to within half a pixel at their longest labels ("Preparing Your
+   Scoops" is ~178px as the pill, 173.5px as the chip), one column apart. That is
+   what made it read as a mirror of itself rather than as a state and an action.
+
+   So: the chip is the control. It states where the order is AND it is the thing
+   you click to move it.
+
+   THERE IS NO CARET ANY MORE, and this is where the previous version's one real
+   weakness went. The chip used to be followed by a 14px `chevron-down` on a 6px
+   gap: a glyph hanging off the pill's right edge, saying "open a menu", in a
+   column that repeated it ten times. Ten identical arrows in a status column is
+   a column of noise where the eye wants data, and the pill it hung off read as
+   a badge with a stray arrow beside it rather than as one control.
+
+   THE AFFORDANCE MOVED ONTO THE CHIP. The badge is themeable through
+   `--chip-border-color` and `--chip-ink` (see order-status-badge.component.ts),
+   and the hover states them here — the rim deepens to the app's navy and the
+   ink goes with it. That was impossible before: the fill and the rim were
+   declared onto the chip itself, so nothing outside the component could reach
+   them without ::ng-deep, and the caret was the only hover cue the mouse had.
+
+   `.status-change` IS THE SAME BUTTON AS `.set-select` on the inventory page —
+   a transparent button holding the control, with an `ion-popover` naming it as
+   `trigger`. The inventory's control is a label plus a `chevron-down` and this
+   one is a chip; the interaction is the same either way, which is why the
+   popover below is not a Controller call.
+
+   TRANSPARENT ON PURPOSE: background: none, border: 0, padding: 0. The chip
+   carries its own fill, rim and 12px radius, and anything this rule added on top
+   of it would have to be undone by every one of the badge's six tone classes.
+
+   THE FOCUS RING IS ON THE BUTTON, because that one IS reachable, and a keyboard
+   user must not be left with the chip's own colours as their only cue.
+
+   NO WIDTH IS SET ON THE BUTTON. It is sized by the chip, which is sized by its
+   label — the 182px the badge's own stylesheet pins itself to.
+   A width here would have to be re-measured every time a label changed. */
+.status-change {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+
+  /* THE CHIP IS 24px, AND ITS TARGET IS 44px.
+
+     The chip is a 24px pill and the button around it is transparent — the
+     chip IS the thing you click. On a phone the app's rule makes every
+     button 44px tall, and this button is no exception: it became 44px, and
+     so did the CELL it sits in, and the cell's label — which is baseline-
+     aligned to the chip — dropped about 13px below the NO. / CUSTOMER /
+     ITEMS / TOTAL labels above it. One label out of line with four is worse
+     than a slightly tight row.
+
+     So the button keeps the chip's own height and gets its 44px from a
+     transparent overlay instead — see the note on `.hit-44` in global.scss.
+     The cell returns to 24px and every label on the card lines up.
+
+     The overlay extends 10px above and below the chip, into the cell's own
+     padding. Nothing else is there. */
+  @media (max-width: 768px) {
+    min-height: 0;
+    min-width: 0;
+    position: relative;
+  }
+  @media (max-width: 768px) {
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 44px;
+      transform: translateY(-50%);
+    }
+  }
+
+  /* THE HOVER CUE, and it is on the chip now. `--chip-border-color` and
+     `--chip-ink` are read by the badge's own stylesheet, and custom properties
+     inherit through Angular's emulated encapsulation, so setting them on the
+     host reaches the chip inside without ::ng-deep.
+
+     THE RIM USES ITS OWN PROPERTY, `--chip-border-color`, rather than
+     restating the chip's `--chip-border`: the tone declares that one ON the
+     chip, and a declaration on an element beats an inherited one, so a
+     restatement would simply lose. The override property is declared nowhere
+     on the chip, so it inherits down and wins.
+
+     THE FILL DOES NOT MOVE. The chip's colour is its state — green for
+     delivered, red for cancelled — and a hover that repainted it would say
+     something false about the order. Only the rim and the ink change, and
+     navy on all six tints measures 5.5:1 or better, so the hover is legible
+     rather than merely visible. */
+  &:hover:not(:disabled) app-order-status-badge {
+    --chip-border-color: var(--color-primary-ink);
+    --chip-ink: var(--color-primary-ink);
+  }
+
+  &:focus-visible {
+    /* 2px + 2px offset, so the ring clears the chip's own 1px tone border
+       instead of sitting on it and muddying it. */
+    outline: 2px solid var(--color-primary-ink);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+}
+
+/* ── The CSV export ──────────────────────────────────────────
+   A plain <button> rather than an ion-button, and it owns its own focus ring,
+   for the same reason the vouchers page's .import-btn does: an ion-button
+   paints its fill on an inner shadow-root element, which would cover a
+   host-owned background, and it brings its own Material elevation shadow with
+   it.
+
+   FLAT: a white field, one definite hairline, no shadow, and no gradient. The
+   glyph is line art at the app's standard 18px and the label is the solid
+   typography. This is the same construction as the Import button on the
+   vouchers page, so the two admin queues read as one system.
+
+   `margin-left: auto` opens the gap between the search field and it, which
+   puts it at the RIGHT END of the control row rather than butted up against the
+   search. The inventory toolbar makes the same move with its first action. */
+.export-btn {
+  /* The button itself is the shared .csv-btn — see src/global.scss. What is
+     left here is the auto margin that opens the gap between the controls and
+     the button, which puts it at the RIGHT END of the control row rather than
+     butted up against the search. */
+  margin-left: auto;
+}
+
+// ── Table ───────────────────────────────────────────────
+// A real <table>, not a grid of divs. It is a queue of comparable records and
+// the browser's own table semantics — column headers, row/cell relationships,
+// and the ability to select a whole column — are worth having for free.
+.table-wrap {
+  /* 16px of air above the table, not 8. The control row's controls are 36px
+     tall and their bottom edge sat 8px from the table's top, which made the
+     table read as part of the toolbar rather than as the thing the toolbar
+     controls. 16px is the app's `--space-4` and is the gap the drawer and the
+     content below it use. */
+  padding: 16px 12px 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--color-white);
+  border-radius: var(--radius-md);
+  /* A HAIRLINE, NOT A DROP SHADOW.
+
+     This was the only shadow left on the page — every control in it had been
+     flattened already, and the table's own lift was the last thing casting
+     one. A card with a shadow and no edge reads as a slab hovering over the
+     cream; a hairline is the same shape described honestly, and it is what the
+     inventory page's cards already do.
+
+     The shadow is not missed: every row inside the table carries its own
+     divider, so the table still reads as a stack of rows rather than one
+     undifferentiated block. */
+  border: 1px solid var(--tile-powder-deep);
+  overflow: hidden;
+  /* Collapses at a real width rather than squashing: at ~520px the six columns
+     stop being comparable and the cells start wrapping mid-word. */
+  min-width: 520px;
+}
+
+.orders-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--ion-color-light);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+
+.orders-table tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--ion-color-light);
+  vertical-align: middle;
+}
+
+.orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.order-row:hover {
+  background: var(--tile-powder);
+}
+.order-row.is-expanded {
+  background: var(--tile-powder);
+}
+
+/* Column widths. Items, Total and Status are the three things being compared
+   down the page, so they get fixed widths and the flexible space goes to
+   Customer, which is the only one that genuinely varies in length. */
+.col-order {
+  width: 1%;
+  white-space: nowrap;
+}
+.col-items {
+  width: 1%;
+  text-align: center;
+}
+.col-total {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+/* Status. Shrink-to-fit, so the column is exactly as wide as the widest chip on
+   the page, and everything else goes to Customer.
+
+   IT IS NOT `white-space: nowrap` ANY MORE. That was there for the cell that
+   followed it — the Actions column, whose job was keeping a pill and a dropdown
+   on one line — and the chip is already `white-space: nowrap` inside the badge's
+   own stylesheet. Declaring it here would say the same thing twice about a
+   different element. */
+.col-status {
+  width: 1%;
+}
+
+/* ── The headers, lined up with the DATA they label ─────────────────────
+   Every header in this table was left-aligned by default, and only one of the
+   four data columns is left-aligned. ITEMS' values are centred, TOTAL's are
+   right-aligned, and the STATUS column's values are the WORDS inside a chip
+   that carries an icon in front of them. So three headers sat over their
+   columns without lining up with the thing they name — and the status one was
+   the worst of the three by a long way.
+
+   "STATUS" was 37px to the left of the status names, sitting over the chip's
+   icon instead, so the word and the words it heads were visibly not in the
+   same place. ITEMS was 10px off, and TOTAL 4px.
+
+   A header is a label for a column of WORDS, and the eye goes from the word
+   down to the words. So:
+
+     · ITEMS is centred, because its counts are.
+     · TOTAL is right-aligned, because its pesos are.
+     · STATUS is indented past the chip's icon, so it sits over the names.
+
+   THE 37px IS DERIVED, NOT GUESSED. The chip's own left inset is 1px of
+   border + 12px of padding (the global `.chip` class) + a 20px icon + 4px of
+   gutter (the badge's `.status-icon` margin) = 37px. The header needs the
+   cell's own 12px of padding on top of that to land on the same pixel.
+
+   THE ORDER HEADER IS LEFT ALONE, deliberately. Its cell opens with a
+   disclosure CHEVRON, which is a control rather than a glyph of the data —
+   the order id that follows it is the thing the column holds, but the
+   chevron is the thing the admin is aiming at, and a header over a
+   disclosure reads as a column of disclosures. */
+.orders-table thead th.col-items {
+  text-align: center;
+}
+
+.orders-table thead th.col-total {
+  text-align: right;
+}
+
+.orders-table thead th.col-status {
+  /* 12px of cell padding + the chip's 37px inset. */
+  padding-left: 49px;
+}
+
+/* ── Disclosure ──────────────────────────────────────────
+   An explicit button, not a click handler on the <tr>. Nesting a clickable
+   region inside a clickable row is what made the old card header ambiguous:
+   a tap on the row's whitespace and a tap on its text did the same thing, and
+   the row also contained the action buttons. Here the button is the only
+   target and the row itself does nothing. */
+.order-disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 0;
+  margin: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  color: var(--color-ink);
+
+  /* ROOM FOR THE FOCUS RING.
+
+     The ring is 3px wide with a 2px offset, so it is 5px outside the
+     button's box. The date sits 1px below the button, so the ring drew
+     straight across the top of the date and it read as cut off:
+
+         the button   T197 B241
+         the ring's bottom edge   y = 246
+         the date     T242 B257   "Oct 21, 01:25 PM"
+
+     Five pixels of clearance is what it takes. The ring is drawn in the gap,
+     not over the text. */
+  margin-bottom: 5px;
+}
+
+.order-chevron {
+  --icon-size: 14px;
+  color: var(--ion-color-medium);
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.order-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.order-id-label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.order-date {
+  display: block;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.order-email {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  /* Long addresses are the normal case, not the exception. */
+  display: block;
+  max-width: 26ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-item-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-total {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── The status popover ───────────────────────────────────
+   The whole point of the collapse: one control, and this is where it spends the
+   interaction it needs. Three groups, top to bottom — where the order is now,
+   the obvious next step, then everything else.
+
+   Styled from the inventory page's `.set-popover-list` / `.set-popover-item` /
+   `.set-popover-item.active` recipe, deliberately not re-derived. Two admin pages
+   that both open a chip-shaped control onto a list should not be able to look
+   different, and the recipe is three rules.
+
+   `min-width: 200px` rather than the 160px the inventory list uses: this list has
+   to hold "Preparing Your Scoops" plus an arrow, and a value that ellipsises in
+   the one place an admin is choosing a status is worse than a wider popover.
+   The popover's own width is the global `.status-filter-popover`, passed from the
+   markup — the same class the filter dropdown and the old row picker used. */
+.status-popover {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 200px;
+}
+
+.status-popover-head {
+  margin: 0;
+  padding: 6px 16px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-ink-soft);
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+
+/* WHERE IT IS. Padded out to the same 16px as an item so the chip at the top of
+   the list lines up with the labels below it rather than floating at the padding
+   edge — the chip brings its own 12px of horizontal padding, so the text inside
+   it would otherwise sit ~28px in from the list's own items. */
+.status-popover-now {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  margin: 4px 0;
+  border-bottom: 1px solid var(--ion-color-light-shade);
+}
+
+/* The "Current" marker. `font-size: 10px` and letterspaced, so it reads as a
+   caption beside a chip rather than as a second status name competing with it. */
+.status-popover-tag {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* A group heading. `margin: 0` and a top border, so the group reads as a section
+   without a second divider inside an already-divided box. */
+.status-popover-label {
+  margin: 0;
+  padding: 8px 16px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ion-color-medium);
+}
+
+.status-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  /* 38px, not 16px. The promoted row above carries a 14px arrow and an 8px
+     gap, so its label starts 22px further right than a plain item's would.
+     These are indented to the SAME line, so the two groups read as one column
+     of names with the arrow hanging in the gutter — rather than as a list
+     whose first item is 22px out of step with the other four. */
+  padding: 10px 16px 10px 38px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--color-ink);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--ion-color-light);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary-ink);
+    outline-offset: -2px;
+  }
+}
+
+/* THE PROMOTED ONE. The promoted option is not a differently-coloured pill, which
+   would reintroduce the tonal-chip vocabulary this cell just stopped having three
+   of. It is bolder than its neighbours and carries the arrow; the group heading
+   above it already says "Next step" in words. Bold plus position is enough, and
+   it costs no contrast budget — `--color-ink` on `--ion-color-light` is the same
+   pair the unpromoted rows use, so `check:contrast` is unaffected.
+
+   THE ARROW IS THE POINT. It is the one glyph left in this interaction, and it
+   means one thing: this is the move. The four rows under "All statuses" lost
+   their identical arrows precisely so that this one can mean something.
+
+   `padding-left: 16px` puts this row's LABEL on the same line as the plain
+   items', with the arrow sitting in the gutter they leave for it. */
+.status-popover-item.is-next {
+  font-weight: 700;
+  padding-left: 16px;
+}
+
+.status-popover-arrow {
+  --icon-size: 14px;
+  flex: 0 0 auto;
+  color: var(--color-primary-ink);
+}
+
+/* ── The status filter popover ─────────────────────────────
+   One column of items, the active one highlighted, hover fill. The same recipe
+   as the per-row status popover and the users page's role popover.
+
+   THE LIST AND ITS ITEMS ARE GLOBAL NOW, for the same reason the width is.
+   Ionic's overlay controller creates the popover and appends it to ion-app,
+   outside the page's own element, so it carries no _ngcontent attribute — a
+   scoped rule for it compiled to a selector that matched nothing, which is
+   why the WIDTH had to move to global.scss in the first place. The rules
+   were here and were doing nothing; they live in global.scss next to the
+   width now, under the same names, and the delivery map's status filter —
+   the third of these — uses them too. */
+
+// ── Detail row ──────────────────────────────────────────
+/* THE EXPANDED ROW IS THE TABLE'S OWN SURFACE, not a coloured band.
+
+   The cell was filled with --tile-powder, a pale blue panel the full width
+   of the table, and the panel inside it was a white card. So the detail
+   floated on a block of colour that belonged to nothing else on the page, and
+   the white totals card on top of it read as a separate thing rather than as
+   part of the order.
+
+   It is white now, on the table's white, with one hairline across the top
+   to say "this belongs to the row above" — the same hairline the table uses
+   between its own rows. */
+.detail-row > td {
+  padding: 0 !important;
+  background: var(--color-white);
+  border-top: 1px solid var(--tile-powder-deep);
+}
+
+/* ROOM. It was 4px at the top and 14px at the sides, which is why the detail
+   read as cramped: the first label sat hard against the row above it.
+
+   The 3px teal bar on the left is gone with it. The bar was marking the
+   open row, but the teal section labels and the hairlines already do that,
+   and a 3px stripe down the edge of a flat card is the kind of chrome the
+   rest of the admin does without. */
+.order-detail-panel {
+  padding: 18px 20px 20px;
+}
+
+.detail-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-primary-ink);
+  margin: 14px 0 6px;
+}
+
+/* The divider between two items. It was white, which was visible against the
+   powder fill the row used to have and is invisible on the white it has
+   now — so it is the table's own row divider. */
+.detail-item-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ion-color-light);
+  align-items: center;
+}
+.detail-item-name {
+  flex: 1;
+  color: var(--color-ink);
+}
+.detail-item-qty {
+  color: var(--ion-color-medium);
+}
+.detail-item-price {
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.detail-address {
+  margin-top: 12px;
+}
+.detail-address-value {
+  font-size: 14px;
+  color: var(--color-ink);
+  margin: 0;
+}
+.detail-notes {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+  margin: 4px 0 0;
+  font-style: italic;
+}
+
+/* THE TOTALS ARE A CARD, and now that the row behind them is white they have
+   to say so themselves: a white fill on a white row is nothing, so the card
+   carries the app's hairline. */
+.detail-totals {
+  margin-top: 14px;
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+.detail-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-ink);
+  padding: 3px 0;
+}
+.grand {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+  border-top: 1px solid var(--ion-color-light-shade);
+  padding-top: 6px;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+// ── Skeleton ─────────────────────────────────────────────
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 34% 1fr 10% 12% 16%;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 12px;
+  background: var(--color-white);
+  border-bottom: 1px solid var(--ion-color-light);
+}
+.skeleton-row:first-child {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.skeleton-row:last-child {
+  border-bottom: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+
+// Available to assistive tech, invisible on screen. Used for the table caption
+// and the empty header cells.
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The stacked-card treatment for a narrow screen: the shared mixin,
+   compiled into this page's own stylesheet so that it carries this
+   page's scoping attribute and can override the table rules above.
+   See src/app/shared/styles/_stacked-table.scss for why it is a mixin
+   and not a rule in global.scss. */
+@include stacked-table;

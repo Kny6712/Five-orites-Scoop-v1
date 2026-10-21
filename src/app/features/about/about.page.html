@@ -15,14 +15,29 @@
   <section class="about-hero wave-drip">
     <div class="hero-logo-wrap">
       <!-- Decorative: hero.title on the <h1> below is the brand name. -->
-      <img src="/brand-assets/images/logo-ice_cream.png" alt="" aria-hidden="true" class="hero-logo" />
+      <img src="/assets/images/logo-ice_cream.png" alt="" aria-hidden="true" class="hero-logo" />
     </div>
     <h1 class="hero-title">{{ hero.title }}</h1>
     <p class="hero-tagline">{{ hero.tagline }}</p>
-    <ion-button [routerLink]="'/products'" class="hero-cta" size="default">
+    <!--
+      THE HERO'S ONE ACTION, as a plain link-button.
+
+      It was an <ion-button>, which brought Ionic's md treatment with it: an
+      uppercased label and a three-layer elevation shadow under the fill. A
+      shadow under a pill that is already floating on a photograph is the one
+      place the app's 3D vocabulary was doing nothing but adding weight — and
+      the label shouted "EXPLORE FLAVORS" in a sentence the rest of the app
+      says in sentence case.
+
+      The fill stays WHITE, and that is not a default: it sits on the hero
+      photograph under a 70% white scrim, so an ivory or gold pill would read
+      as a tinted smudge against the ice cream. The white pill is the one
+      shape that stays clean on that background.
+    -->
+    <a [routerLink]="'/products'" class="hero-cta">
       {{ hero.cta }}
-      <app-icon name="arrow-right" slot="end" />
-    </ion-button>
+      <app-icon name="arrow-right" class="hero-cta-glyph" />
+    </a>
   </section>
 
   <div class="about-body">
@@ -131,7 +146,14 @@
 
               Cropped to 8:5 to match the .store-art aspect-ratio. The source is
               3:2, so only 16px of height is dropped and it is centred. Made
-              from brand-assets/images/storefront.png at 390x244, q88 JPEG, 37 KB.
+              from src/assets/images/storefront.jpg at 390x244, q88 JPEG, 37 KB.
+
+              THE PATH IS /assets/, NOT /brand-assets/. brand-assets/ is the source
+              folder for the artwork and angular.json's `assets` array copies only
+              src/assets, so nothing under brand-assets/ is ever emitted into the
+              build - every URL into it is a 404 in dev, in `npm run build` and on
+              hosting alike. That is what this src used to point at, and the result
+              was a broken frame showing this alt text.
 
               KNOWN LIMITATION: the source is only 390px wide. This card renders
               420px, so the image upscales 1.08x at 1x DPR and 2.15x at 2x,
@@ -141,7 +163,7 @@
             -->
             <img
               class="store-art"
-              src="/brand-assets/images/storefront.jpg"
+              src="/assets/images/storefront.jpg"
               alt="Ice cream shop interior with a counter of tubs and oversized cone wall decorations"
             />
             <figcaption class="store-caption">{{ shop.address }}</figcaption>
@@ -317,7 +339,17 @@
 
     <div class="team-cta">
       <p class="team-cta-text">Curious who built this?</p>
-      <ion-button [routerLink]="'/developers'" fill="outline" class="team-cta-btn"> Meet the Team </ion-button>
+      <!--
+        THE PAGE'S LAST ACTION, as the app's quiet control: a white pill with
+        one hairline and a teal label, the same shape the cart's Apply and the
+        order tracker's quiet controls have.
+
+        It was an <ion-button fill="outline">, which is a 4px-radius box with
+        Ionic's blue rim, an uppercased label and an elevation shadow — three
+        things the app's flat vocabulary does not have, on the one control
+        that ends the page.
+      -->
+      <a [routerLink]="'/developers'" class="team-cta-btn">Meet the Team</a>
     </div>
   </div>
 

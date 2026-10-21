@@ -1,0 +1,532 @@
+<!-- src/app/features/admin/inventory/inventory.page.html -->
+<!-- Five-orites Scoop — Admin Inventory Manager -->
+
+<ion-header class="flat-header">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
+    </ion-buttons>
+    <ion-title>Inventory Manager</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <ion-refresher slot="fixed" (ionRefresh)="handleRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!--
+    A failed catalog read must not look like an empty one. The error branch
+    replaces the count, the search bar, the set filter, and the bulk actions, because all
+    four act on data that never arrived — Add Product in particular builds its
+    set-number options from the loaded catalog, so over a failed read it would
+    silently fall back to a hardcoded default.
+  -->
+  @if (loadError()) {
+    <app-empty-state
+      icon="circle-alert"
+      title="Could not load the catalog"
+      [message]="loadError()"
+      actionLabel="Try again"
+      (action)="loadProducts()"
+      [compact]="true"
+    />
+  } @else {
+    <div class="inv-header">
+      <div class="search-filter-row">
+        <!--
+          A labelled tile, not a bare icon, and it LEADS the row.
+
+          It was an icon-only button, and a bare upward arrow in the corner of a
+          search row is a poor affordance — it reads as "upload" only if you
+          already know that is what it does.
+
+          A PLAIN <button>, not ion-button, exactly as the dashboard's
+          .action-tile is a plain <a> rather than an ion-button. ion-button wraps
+          everything in a `.button-inner` that Ionic pins to
+          `flex-flow: row nowrap` — so the disc and the label sat side by side no
+          matter what the host was told, because the host is not the box the
+          content lives in. Only `part="native"` is exposed to CSS and .button-inner
+          is not a part, so there is no ::part() rule that stacks them.
+
+          Swapping the element fixes that and drops three overrides at once: the
+          md .button-small `min-height: 2.1em` that fought the tile's own height,
+          its `text-transform: uppercase` that printed the label as "IMPORT", and
+          its padding scale. The focus outline in the SCSS replaces Ionic's own,
+          which is lost with the component.
+
+          LAST in the row, after Bulk Restock: the three actions that change the
+          catalogue (Add, Restock, Import) sit together on the right, and the two
+          inputs that narrow it (search, set filter) together on the left.
+
+          aria-label is kept because it still says what the import DOES, which
+          "Import" alone does not. -->
+        <!--
+          THE SET FILTER LEADS THE ROW, and the search field follows it.
+
+          The two controls that NARROW the catalogue are on the left, and they
+          are in the order a page reads: what are you looking at, then what are
+          you looking for. The filter is the coarser of the two, so it comes
+          first — the same order the fulfilment queue uses, where the status
+          filter sits ahead of the search field.
+
+          It used to be the other way round, and the search bar's 240px of width
+          was the first thing on the page, which made the row read as "a search
+          page with a filter attached" rather than "a filtered catalogue". A
+          107px dropdown in front of a 240px field is also the better shape:
+          the narrow control leads and the wide one answers it.
+
+          The "Show" label is the one the fulfilment queue, My Orders and the
+          notifications page all use for the identical control, and it is what
+          makes the dropdown's meaning ("showing all sets") different from the
+          search field's ("products matching this"). -->
+        <span class="filter-label" id="set-filter-label">Show</span>
+        <!--
+          The set filter as a dropdown, replacing the chip row.
+
+          The chips grew crowded with 9+ sets and pushed the product grid down. An
+          ion-select with interface="popover" — the same pattern the role selector on
+          /admin/users uses — keeps the filter to one tappable row while listing every
+          set on scroll.
+
+          Inside this loadError branch for the same reason the search bar and bulk
+          actions are: the dropdown options are built from the loaded catalog, and
+          over a failed read there is no catalog to build them from.
+        -->
+        <div class="set-filter">
+          <!--
+            THE POPOVER IS ANCHORED WITH `trigger`, NOT WITH A MANUAL CLICK HANDLER.
+
+            It used to open from `(click)="openSetPopover()"` alone, which set the
+            isOpen signal and nothing else. Ionic's present() then had no trigger
+            element and no event to work from, so getPopoverPosition() bailed out
+            to its `defaultPosition` - which is hardcoded to the middle of the
+            viewport:
+
+                top:  bodyHeight / 2 - contentHeight / 2,
+                left: bodyWidth  / 2 - contentWidth  / 2,
+
+            So the list rendered floating in the middle of the screen, nowhere near
+            the button that opened it, and `side="bottom" alignment="start"` - both
+            of which were already correct - had nothing to act on. Naming the
+            button as the `trigger` is what gives Ionic a reference element to
+            measure, and the two placement props do their job from then on.
+
+            NO `(click)` HERE ANYMORE. With `trigger` set, Ionic attaches its own
+            click listener that calls presentFromTrigger(ev); keeping the manual
+            handler as well would present the overlay twice from one tap.
+
+            `setPopoverOpen` is now only a MIRROR of the overlay's real state,
+            written by didPresent/didDismiss, so aria-expanded on the button stays
+            truthful without being the thing that drives the overlay.
+
+            Positioning, not CSS, was the whole defect - nothing here needed a
+            z-index, a containing-block or a transform to fix it.
+          -->
+          <button
+            type="button"
+            id="set-filter-trigger"
+            class="set-select"
+            aria-haspopup="true"
+            [attr.aria-expanded]="setPopoverOpen()"
+            aria-labelledby="set-filter-label set-select-value"
+          >
+            <span class="set-select-label" id="set-select-value">{{
+              setFilter() === 'all' ? 'All Sets' : activeSetLabel()
+            }}</span>
+            <app-icon name="chevron-down" class="set-select-arrow" />
+          </button>
+          <ion-popover
+            trigger="set-filter-trigger"
+            [isOpen]="setPopoverOpen()"
+            (didPresent)="setPopoverOpen.set(true)"
+            (didDismiss)="closeSetPopover()"
+            side="bottom"
+            alignment="start"
+          >
+            <ng-template>
+              <div class="set-popover-list">
+                <button
+                  type="button"
+                  class="set-popover-item"
+                  [class.active]="setFilter() === 'all'"
+                  (click)="onSetFilter('all'); closeSetPopover()"
+                >
+                  All Sets
+                </button>
+                @for (chip of setChips(); track chip.setNumber) {
+                  <button
+                    type="button"
+                    class="set-popover-item"
+                    [class.active]="setFilter() === chip.setNumber"
+                    (click)="onSetFilter(chip.setNumber); closeSetPopover()"
+                  >
+                    {{ chip.label }}
+                  </button>
+                }
+              </div>
+            </ng-template>
+          </ion-popover>
+        </div>
+        <ion-searchbar
+          placeholder="Search products..."
+          debounce="300"
+          (ionInput)="onSearch($event)"
+          class="inv-search"
+          aria-label="Search inventory"
+        ></ion-searchbar>
+        <!--
+          Add Product and Bulk Restock joined the search row, so the toolbar is one
+          line rather than two.
+
+          That orphaned `.inv-actions ion-button`, which is scoped to .inv-actions
+          and was what gave these two their 2px rim, radius and 40px height.
+          Neither of them is an ion-button any more, so that rule went with
+          them.
+
+          The count is NOT here. It is a caption for the product grid below, not a
+          control, so it keeps its own line underneath — see the note below it. -->
+        <!--
+          BOTH ARE PLAIN <button>s NOW, and that is the flatness.
+
+          An `ion-button` paints its own fill on an inner shadow-root element,
+          which brings three things the design system does not have: a Material
+          elevation shadow on that inner element, a font-size and weight scale
+          of Ionic's own, and a `text-transform: uppercase` that printed the
+          label as "ADD PRODUCT" when every other control in this app is
+          sentence case. Only `part="native"` is exposed to CSS and the inner
+          element is not a part, so none of that can be overridden from the
+          outside — it has to be a different element.
+
+          A plain <button> states its own background, radius, padding and type
+          outright, exactly as `.import-btn` beside them already does, and it
+          owns its own focus ring because Ionic's came with the component.
+
+          "+ Add Product" keeps the plain "+" rather than gaining a plus ICON:
+          the vouchers page's "+ New voucher" writes it the same way, and an
+          icon beside the word "Add" says the same thing twice.
+
+          Add Product LEADS the three actions because it is the primary, and it
+          is the one with a fill. -->
+        <button type="button" class="add-product-btn" (click)="addProduct()">+ Add Product</button>
+        <button type="button" class="bulk-restock-btn" (click)="bulkRestock()">Bulk Restock</button>
+        <!--
+          THE LABEL SAYS "Export CSV" AND THE BUTTON IMPORTS. That is the
+          owner's call, taken deliberately: every file button in the admin
+          carries the same wording, and a toolbar with one button reading
+          "Import" beside another reading "Export CSV" reads as two different
+          kinds of control. The action is unchanged — it opens the CSV import
+          sheet, which is what it has always done.
+
+          Do not "fix" this back to "Import" without asking.
+        -->
+        <button type="button" class="csv-btn import-btn" (click)="openImport()" aria-label="Export CSV">
+          <app-icon name="file" />Export CSV
+        </button>
+      </div>
+      <!--
+        The count, alone on its own line.
+
+        It was here between two rows, left-aligned directly under the search field,
+        which made it read as a caption for the SEARCH BAR rather than for the
+        product grid below. The two action buttons have since moved up into that
+        row, so the line it sits on is gone entirely and the caption now belongs
+        to the grid — which is what it counts.
+
+        `.inv-actions` was its wrapper and its only other children were those two
+        buttons, so the wrapper went with them; the count is a direct child of
+        .inv-header now. -->
+      <p class="inv-count">
+        @if (totalCount() === 0) {
+          No products
+        } @else if (page() > 1 || totalPages() > 1) {
+          {{ totalCount() }} products &middot; page {{ page() }} of {{ totalPages() }}
+        } @else {
+          {{ totalCount() }} products
+        }
+      </p>
+    </div>
+  }
+
+  <!-- Loading -->
+  @if (isLoading()) {
+    <div class="inv-list">
+      @for (s of skeletonItems; track $index) {
+        <ion-card class="inv-card">
+          <ion-skeleton-text animated style="height: 80px"></ion-skeleton-text>
+        </ion-card>
+      }
+    </div>
+  }
+
+  <!-- Product List -->
+  @if (!isLoading() && !loadError()) {
+    <div class="inv-list">
+      @for (product of pagedProducts(); track product.id) {
+        <ion-card class="inv-card" [class.inactive-card]="!product.isActive">
+          <div class="inv-card-main">
+            <!--
+              The product image, and the way to replace it. One tap opens the
+              upload sheet — the previous path was Details → scroll → tap image →
+              pick file → Save.
+
+              A real <button> rather than a div with role="button": native
+              keyboard support, a real accessible name, and Enter/Space for free.
+              The fixed 4:3 frame is what keeps every card the same height
+              regardless of the new image's aspect ratio.
+            -->
+            <button
+              type="button"
+              class="inv-thumb-btn"
+              (click)="replaceImage(product)"
+              [attr.aria-label]="'Change photo of ' + product.variantName"
+            >
+              <span class="inv-thumb-frame">
+                <img
+                  [src]="(product.imageUrl | cloudinary: 200) || '/assets/placeholder-scoop.svg'"
+                  [alt]="product.variantName"
+                  class="inv-thumb-img"
+                  loading="lazy"
+                />
+                <span class="inv-thumb-badge" aria-hidden="true">
+                  <app-icon name="image-plus" />
+                </span>
+              </span>
+            </button>
+
+            <div class="inv-card-body">
+              <ion-card-header class="inv-card-header">
+                <div class="inv-card-title-row">
+                  <!--
+                    Flavour name FIRST. It was last, below a set chip, a set name
+                    and a stock total — fourth down and in the smallest type, so the
+                    one thing an admin scans a grid of these FOR was the hardest
+                    to find. Now it leads, and the set identity sits under it on
+                    one line.
+
+                    The family total moved out of this block entirely, down to the
+                    stock grid it summarises — see the note there.
+                  -->
+                  <div class="inv-ident">
+                    <ion-card-title class="inv-variant-name">{{ product.variantName }}</ion-card-title>
+
+                    <div class="inv-set-row">
+                      <!--
+                      A plain <span>, not an <ion-chip>, like every other chip in
+                      the app: ion-chip hard-codes a 16px border-radius and exposes
+                      no custom property for it. `set-chip-sm` keeps the size and
+                      the type; the box and the 12px radius are the global `.chip`
+                      class.
+
+                      THE FLAVOUR IS THE RIM, not the fill. It used to be the fill
+                      — a solid block of pastel with the label on it, which was
+                      the one thing on this card that is a colour rather than a
+                      line. The chip is white now and the flavour colour draws
+                      its outline: the same clean line art the stock chips use.
+
+                      The inline [style.border-color] needs no conversion — it was
+                      already a plain colour, never ion-chip's --background custom
+                      property.
+                    -->
+                      <span class="chip set-chip-sm" [style.border-color]="flavourBackground(product)"
+                        >Set {{ product.setNumber }}</span
+                      >
+                      <p class="inv-set-name">{{ product.setName }}</p>
+                    </div>
+                  </div>
+
+                  <!--
+                    Three controls, in one row, each a real <button>.
+
+                    The Active pill is not a toggle switch, and that is deliberate:
+                    it answers "can this be sold right now", which is a different
+                    question from the quantity steppers below, and a switch next
+                    to a stock number reads as a control for that number. A pill
+                    with a dot states the state at a glance and does not invite
+                    the misreading.
+
+                    X is destructive and irreversible — it deletes the Firestore
+                    document. It is separated from the pill by a gap, given its
+                    own hit area, and guarded by a confirm dialog that names the
+                    flavor. The pencil is the same Details modal the old
+                    "Details" button opened, reduced to an icon.
+                  -->
+                  <div class="inv-tools">
+                    <button
+                      type="button"
+                      class="status-pill"
+                      [class.status-pill--on]="product.isActive"
+                      [attr.aria-pressed]="product.isActive"
+                      [attr.aria-label]="(product.isActive ? 'Deactivate ' : 'Activate ') + product.variantName"
+                      (click)="toggleActive(product)"
+                    >
+                      <span class="status-dot" aria-hidden="true"></span>
+                      {{ product.isActive ? 'Active' : 'Inactive' }}
+                    </button>
+
+                    <button
+                      type="button"
+                      class="tool-btn"
+                      (click)="editDetails(product)"
+                      [attr.aria-label]="'Edit details of ' + product.variantName"
+                    >
+                      <app-icon name="pencil" />
+                    </button>
+
+                    <button
+                      type="button"
+                      class="tool-btn tool-btn--danger"
+                      (click)="confirmDelete(product)"
+                      [attr.aria-label]="'Delete ' + product.variantName + ' permanently'"
+                    >
+                      <app-icon name="x" />
+                    </button>
+                  </div>
+                </div>
+              </ion-card-header>
+
+              <ion-card-content class="inv-card-content">
+                <!--
+                  Direct quantity controls. This replaces the "Edit Stock" button
+                  and its separate in-place edit mode entirely: an admin adjusting
+                  one size should not have to open an editor, retype a number and
+                  press Save to move it by one.
+
+                  The value is the source of truth from the live snapshot, and
+                  each press calls an atomic server-side adjust — see
+                  InventoryService.adjustStock for why this is a transaction
+                  rather than a client-side read-modify-write.
+                -->
+                <div class="stock-view-grid">
+                  @for (size of sizes; track size) {
+                    <div class="stock-view-cell">
+                      <span class="stock-size-label">{{ sizeLabels[size] }}</span>
+                      <div class="stock-stepper">
+                        <button
+                          type="button"
+                          class="step-btn"
+                          [disabled]="busySizeId() !== null || product.stock[size] === 0"
+                          (click)="adjustStock(product, size, -1)"
+                          [attr.aria-label]="'Decrease ' + sizeLabels[size] + ' stock for ' + product.variantName"
+                        >
+                          <app-icon name="minus" />
+                        </button>
+
+                        <!--
+                          The number is the control, not just the read-out.
+
+                          The +/- buttons move stock by ONE unit, so restocking
+                          anything that had run down meant one tap per unit. Tapping
+                          the figure takes the whole number instead, which is the
+                          common case; the steppers are for the small corrections
+                          either side of it. Hence the buttons now sit on the cell's
+                          edges rather than crowding the value.
+
+                          A real <button>, not a span with a click handler — so it is
+                          reachable by keyboard and announced as a button, and the
+                          aria-label says what tapping it will do.
+                        -->
+                        <button
+                          type="button"
+                          class="stock-qty"
+                          [class.stock-in-stock]="product.stock[size] >= lowStockThreshold()"
+                          [class.stock-low-stock]="product.stock[size] > 0 && product.stock[size] < lowStockThreshold()"
+                          [class.stock-out-of-stock]="product.stock[size] === 0"
+                          [disabled]="busySizeId() !== null"
+                          [attr.aria-live]="'polite'"
+                          [attr.aria-label]="
+                            'Set ' +
+                            sizeLabels[size] +
+                            ' stock for ' +
+                            product.variantName +
+                            ', currently ' +
+                            product.stock[size]
+                          "
+                          (click)="promptSetStock(product, size)"
+                        >
+                          {{ product.stock[size] }}
+                        </button>
+
+                        <button
+                          type="button"
+                          class="step-btn"
+                          [disabled]="busySizeId() !== null"
+                          (click)="adjustStock(product, size, 1)"
+                          [attr.aria-label]="'Increase ' + sizeLabels[size] + ' stock for ' + product.variantName"
+                        >
+                          <app-icon name="plus" />
+                        </button>
+                      </div>
+
+                      @if (product.stock[size] < lowStockThreshold()) {
+                        <app-icon
+                          name="circle-alert"
+                          class="stock-alert-icon"
+                          [class.stock-alert-danger]="product.stock[size] === 0"
+                          [class.stock-alert-warning]="product.stock[size] > 0"
+                        />
+                      }
+                    </div>
+                  }
+                </div>
+
+                <!--
+                  The family total, directly under the four figures it is the sum
+                  of, on the same start edge as the cells above.
+
+                  It was a chip in the identity block, four rows above the numbers
+                  it adds up — an owner scanning the grid wants one figure per
+                  flavour instead of doing that sum in their head, and it was as
+                  far from the steppers as the card allowed. Right-aligned on its
+                  own line afterwards was no better: it lined up with nothing and
+                  made every card taller for one small figure.
+
+                  Plain text, not a chip. The card already carries four containers
+                  and a green Active pill; this was the last pill it could afford
+                  to lose, and a caption reads better than a badge here.
+
+                  Still a read-out. The four steppers above remain the authoritative
+                  per-size figures and the only editable ones.
+                -->
+                <p class="stock-total-row">{{ totalStock(product.stock) }} units total</p>
+              </ion-card-content>
+            </div>
+          </div>
+        </ion-card>
+      }
+    </div>
+
+    @if (totalCount() === 0) {
+      <!--
+        One empty state for both reasons the grid can be empty — nothing matches
+        the search, or nothing matches it WITHIN the chosen set — because a filter
+        that renders a blank grid reads as a broken page rather than as a filter.
+
+        The copy names the set when one is active. The grid is empty with no card
+        left to say which set is narrowing it, and "no product matches that
+        search" would point an admin at a searchbar that was doing its job.
+      -->
+      <app-empty-state
+        icon="search"
+        title="No matching flavors"
+        [message]="
+          setFilter() === 'all'
+            ? 'No product matches that search. Try a different name or clear the search.'
+            : 'No product matches that search in ' +
+              activeSetLabel() +
+              '. Try a different name, or tap All to widen the filter.'
+        "
+        [compact]="true"
+      />
+    } @else {
+      <app-pagination
+        [page]="page()"
+        [total]="totalCount()"
+        [pageSize]="PAGE_SIZE"
+        itemLabel="flavor variants"
+        (pageChange)="page.set($event)"
+      />
+    }
+  }
+  <app-admin-footer></app-admin-footer>
+</ion-content>

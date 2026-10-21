@@ -10,43 +10,39 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  DELIVERY_FEE,
-  FREE_DELIVERY_THRESHOLD,
-  getDeliveryFee,
-} from '../src/app/core/logic/delivery';
-import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '../src/app/core/logic/voucher';
-import { summarizeRatings } from '../src/app/core/logic/rating';
+import { DELIVERY_FEE, FREE_DELIVERY_THRESHOLD, getDeliveryFee } from '@core/logic/delivery';
+import { calculateDiscount, MAX_PERCENT_DISCOUNT } from '@core/logic/voucher';
+import { summarizeRatings } from '@core/logic/rating';
+import { roundMoney, roundPeso, sumMoney } from '@core/logic/money';
+import { formatLocalDate, endOfLocalDay } from '@core/logic/date';
+import { parseCsvRecords } from '@core/logic/csv/parse';
 import {
   assertCanAddToCart,
   clampToStock,
   normaliseStockLines,
   totalStock,
   SIZE_VARIANTS,
-} from '../src/app/core/logic/stock';
+} from '@core/logic/stock';
 import {
   reconcileSize,
   RESET_REASONS,
   RECONCILE_SIZES,
   STOCK_REASON_LABELS,
-} from '../src/app/core/logic/ledger-reconcile';
-import { flavourOf, initialsOf } from '../src/app/core/logic/flavour';
-import { buildCloudinaryUrl } from '../src/app/core/logic/image-url';
-import {
-  describeFirestoreError,
-  isMissingIndexError,
-  isPermissionDeniedError,
-} from '../src/app/core/logic/firestore-error';
+} from '@core/logic/ledger-reconcile';
+import { flavourOf, initialsOf } from '@core/logic/flavour';
+import { buildCloudinaryUrl } from '@core/logic/image-url';
+import { describeFirestoreError, isPermissionDeniedError } from '@core/logic/firestore-error';
 import {
   buildNotificationFeed,
   collapseToOrderThreads,
   type OrderThread,
-  countUnread,
   countUnreadThreads,
   filterByPeriod,
   countByPeriod,
   nextPopulatedPeriod,
   groupByDay,
+  periodOf,
+  FEED_PERIOD_LABEL,
   relativeTime,
   absoluteTime,
   feedTimeLabel,
@@ -57,24 +53,20 @@ import {
   statusToastLine,
   FEED_LIMIT,
   STATUS_SEQUENCE,
-} from '../src/app/core/logic/notifications';
-import { readCachedGeo, interpolate, distanceMetres } from '../src/app/core/logic/geo';
-import { productCategory, PRODUCT_CATEGORIES } from '../src/app/core/models/product.model';
-import * as voucherModel from '../src/app/core/models/voucher.model';
-import { toCsv, sanitiseCell, csvFilename, toIsoDate } from '../src/app/core/logic/csv';
+} from '@core/logic/notifications';
+import { readCachedGeo, interpolate, distanceMetres } from '@core/logic/geo';
+import { productCategory } from '@core/models/product.model';
+import * as voucherModel from '@core/models/voucher.model';
+import { toCsv, sanitiseCell, csvFilename, toIsoDate } from '@core/logic/csv/cell';
 import {
   calendarBuckets,
   weeklyBuckets,
   bucketsFor,
   bucketize,
   runningTotal,
-} from '../src/app/core/logic/series';
-import {
-  parseCsvLine,
-  parseProductCsv,
-  slug,
-  PRODUCT_CSV_TEMPLATE,
-} from '../src/app/core/logic/csv-import';
+} from '@core/logic/series';
+import { parseCsvLine } from '@core/logic/csv/parse';
+import { parseProductCsv, slug, PRODUCT_CSV_TEMPLATE } from '@core/logic/csv/product-import';
 import {
   ROLE_CAPABILITIES,
   ROLE_LABELS,
@@ -84,7 +76,15 @@ import {
   asRole,
   type Capability,
   type UserRole,
-} from '../src/app/core/models/user.model';
+} from '@core/models/user.model';
+import {
+  canWriteCredits,
+  canDeleteCredit,
+  canManageCredits,
+  creditsViewState,
+  reorderIds,
+  normaliseOrder,
+} from '@core/logic/credits';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { join, relative } from 'node:path';
@@ -131,6 +131,165 @@ const MALFORMED_ROLES = [
   '',
   '  ',
 ] as const;
+
+describe('credits: what the ADMIN page may show, per load state', () => {
+  // The bug this covers, in one line: an empty Firestore left the page rendering
+  // DEFAULT_DEVELOPERS, so four names looked editable and every save was rejected
+  // with PERMISSION_DENIED against a document that did not exist.
+
+  it('refuses to offer a write when the read FAILED, even to an owner', () => {
+    // The role is not what stops this. The data is.
+    assert.equal(canWriteCredits('owner', 'failed'), false);
+    assert.equal(canDeleteCredit('owner', 'failed'), false);
+  });
+
+  it('refuses to offer a write when the collection is EMPTY, even to an owner', () => {
+    assert.equal(canWriteCredits('owner', 'empty'), false);
+    assert.equal(canDeleteCredit('owner', 'empty'), false);
+  });
+
+  it('allows a manager to write only once the credits have actually loaded', () => {
+    assert.equal(canWriteCredits('manager', 'loaded'), true);
+    // Still not delete: that stays owner-only, unchanged by this work.
+    assert.equal(canDeleteCredit('manager', 'loaded'), false);
+  });
+
+  it('allows an owner both, once loaded', () => {
+    assert.equal(canWriteCredits('owner', 'loaded'), true);
+    assert.equal(canDeleteCredit('owner', 'loaded'), true);
+  });
+
+  it('keeps admin out, matching firestore.rules rather than the role RANK', () => {
+    // The regression this pins. `canManageTeam()` is a rank comparison, and admin
+    // outranks manager, so it says TRUE for admin — while `firestore.rules` spells
+    // the same intent as `myRole() in ['manager', 'owner']`, which excludes admin.
+    // The UI believed the predicate and the rules did not, so an admin saw four
+    // live controls and got PERMISSION_DENIED on every one of them.
+    assert.equal(canManageCredits('admin'), false);
+    assert.equal(canWriteCredits('admin', 'loaded'), false);
+    assert.equal(canDeleteCredit('admin', 'loaded'), false);
+  });
+
+  it('is not fooled by a role string that merely looks senior', () => {
+    // `asRole` coerces anything unrecognised to customer, so none of these can
+    // slip past a naive `includes` check.
+    for (const fake of ['Owner', 'OWNER', ' owner', 'superuser', 'adminx', '']) {
+      assert.equal(canManageCredits(fake), false, `expected ${JSON.stringify(fake)} to be refused`);
+    }
+  });
+
+  it('refuses a signed-out reader on every load state', () => {
+    for (const load of ['loaded', 'empty', 'failed'] as const) {
+      assert.equal(canWriteCredits(null, load), false);
+    }
+  });
+
+  it('separates an outage from an empty collection, because they differ in what to do', () => {
+    // Collapsing these two into one boolean is what let the page look healthy.
+    assert.equal(creditsViewState('owner', 'failed'), 'error');
+    assert.equal(creditsViewState('owner', 'empty'), 'empty');
+    assert.equal(creditsViewState('owner', 'loaded'), 'list');
+  });
+
+  it('reports the view state independently of who is asking', () => {
+    // A manager and a signed-out guest are looking at the same database, so the
+    // error is the same error. Only the CONTROLS differ.
+    assert.equal(creditsViewState(null, 'failed'), creditsViewState('owner', 'failed'));
+  });
+});
+
+describe('credits: reordering', () => {
+  // The failure these pin: the old swap wrote two `order` fields in two separate
+  // calls, so a pair could end up tied. A swap of two equal values is `x -> x`,
+  // which moves nothing, throws nothing, and survives a reload.
+
+  const ids = (m: Map<string, number>) =>
+    [...m.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id);
+
+  it('moves a record up and down by one', () => {
+    assert.deepEqual(ids(reorderIds(['a', 'b', 'c', 'd'], 2, -1)), ['a', 'c', 'b', 'd']);
+    assert.deepEqual(ids(reorderIds(['a', 'b', 'c', 'd'], 1, 1)), ['a', 'c', 'b', 'd']);
+  });
+
+  it('returns nothing rather than an id of undefined', () => {
+    // The old guard checked only the DESTINATION index, so `from` equal to the
+    // length passed it: `splice(from, 1)` removed nothing, `moved` came back
+    // `undefined`, and the map that came back had an `undefined` KEY - which
+    // `DeveloperService.writeOrder` would have written as a Firestore
+    // document literally named "undefined".
+    //
+    // Reachable: the index comes from a rendered list, and the list can shrink
+    // between the render and the click.
+    const list = ['a', 'b', 'c'];
+    for (const from of [3, 4, -1]) {
+      const m = reorderIds(list, from, -1);
+      assert.equal(m.size, 0, `from=${from}`);
+      assert.ok(!m.has(undefined as unknown as string), `from=${from}`);
+    }
+    for (const delta of [-1, 1]) {
+      assert.equal(reorderIds(list, 0, delta * 10).size, 0);
+    }
+    assert.equal(reorderIds(list, 1.5, 1).size, 0);
+  });
+
+  it('renumbers contiguously from 0 on every move', () => {
+    // Gapped or non-zero-based orders would survive a swap and re-tie later.
+    const m = reorderIds(['a', 'b', 'c'], 0, 1);
+    assert.deepEqual(
+      [...m.values()].sort((x, y) => x - y),
+      [0, 1, 2],
+    );
+  });
+
+  it('never produces a duplicate order, whatever the input', () => {
+    // The invariant that makes the silent no-op impossible from here on.
+    for (let n = 2; n <= 8; n++) {
+      const list = Array.from({ length: n }, (_, i) => `id${i}`);
+      for (let i = 0; i < n; i++) {
+        for (const d of [-1, 1]) {
+          const m = reorderIds(list, i, d);
+          if (!m.size) continue;
+          const vals = [...m.values()];
+          assert.equal(new Set(vals).size, vals.length);
+        }
+      }
+    }
+  });
+
+  it('actually moves the pair it was asked to move', () => {
+    // The specific bug: if two records share an order, the old swap wrote no-ops
+    // and the page looked broken with no error anywhere.
+    const before = ['a', 'b', 'c'];
+    const after = ids(reorderIds(before, 1, 1));
+    assert.notDeepEqual(after, before);
+    assert.equal(after[1], 'c');
+    assert.equal(after[2], 'b');
+  });
+
+  it('is a no-op at either end, rather than throwing', () => {
+    assert.equal(reorderIds(['a', 'b'], 0, -1).size, 0);
+    assert.equal(reorderIds(['a', 'b'], 1, 1).size, 0);
+    assert.equal(reorderIds(['a', 'b'], -1, 1).size, 0);
+  });
+
+  it('repairs tied records into a total order', () => {
+    // The recovery path for a list already stuck by the old swap.
+    const stuck = ['a', 'b', 'c', 'd']; // as watch() sorted them, tie and all
+    const m = normaliseOrder(stuck);
+    assert.deepEqual(
+      [...m.values()].sort((x, y) => x - y),
+      [0, 1, 2, 3],
+    );
+    assert.equal(m.get('a'), 0);
+    assert.equal(m.get('d'), 3);
+  });
+
+  it('a repaired list can then be reordered freely', () => {
+    // The point of the repair: afterwards no pair is stuck.
+    const m = normaliseOrder(['a', 'b', 'c']);
+    assert.deepEqual(ids(reorderIds([...m.keys()], 0, 1)), ['b', 'a', 'c']);
+  });
+});
 
 describe('role tiers: the capability map', () => {
   it('grants a customer nothing at all', () => {
@@ -227,6 +386,20 @@ describe('can() — the malformed-role corpus from the incident', () => {
       assert.equal(isStaffRole(role), can(role, 'view_dashboard'), JSON.stringify(role));
     }
   });
+
+  it('does not reach Object.prototype through the capability map', () => {
+    // `ROLE_CAPABILITIES` is a plain object literal, so an unknown key does
+    // not MISS - it walks up to `Object.prototype`. The old code indexed it
+    // with the raw role string, so `ROLE_CAPABILITIES['constructor']` was
+    // `Function` (truthy), the "unknown role fails closed" guard never fired,
+    // and `caps.includes(...)` threw a TypeError inside a computed signal in
+    // the app shell.
+    for (const inherited of ['constructor', 'toString', 'valueOf', 'hasOwnProperty']) {
+      assert.equal(can(inherited, 'manage_users'), false, inherited);
+      assert.equal(can(inherited, 'view_dashboard'), false, inherited);
+      assert.equal(isStaffRole(inherited), false, inherited);
+    }
+  });
 });
 
 describe('asRole()', () => {
@@ -306,7 +479,7 @@ describe('client ↔ firestore.rules drift lint', () => {
    */
   describe('ProfilePatch and the rules user-update allow-lists agree', () => {
     const authSrc = readFileSync(
-      join(__dirname, '..', 'src', 'app', 'core', 'services', 'auth.service.ts'),
+      join(__dirname, '..', 'src', 'app', 'core', 'services', 'identity', 'auth.service.ts'),
       'utf8',
     );
 
@@ -1407,10 +1580,7 @@ describe('brand hues are not used as foregrounds (ratchet)', () => {
    * Literal strings rather than a count, so a rename cannot silently widen the
    * hole: a stale entry fails just as loudly as a new one.
    */
-  const KNOWN_REMAINING = new Set([
-    'features/auth/auth.page.scss | .toggle-link',
-    'features/dashboard/voucher-cards/voucher-cards.component.scss | .voucher-empty app-icon',
-  ]);
+  const KNOWN_REMAINING = new Set(['features/auth/auth.page.scss | .toggle-link']);
 
   it('finds the usages the ratchet is tracking', () => {
     // If this is 0 the scan stopped matching, which would make both assertions
@@ -1507,6 +1677,21 @@ describe('every page carries the site footer, as chrome', () => {
   }
 
   /**
+   * The routes that render no page of their own.
+   *
+   * The product detail is a DIALOG over the flavours list, so `/products/:id`
+   * is a hand-off: it reads the id out of the URL and redirects to the
+   * listing, which opens the quick-view over the grid. It renders an empty
+   * template for the single frame between the two navigations.
+   *
+   * So the footer rules below do not apply to it. A footer on a frame that
+   * lasts less than a frame is a footer nobody ever sees, and the rules
+   * exist to keep the footer on the pages people actually read — which is
+   * what the quick-view is for.
+   */
+  const REDIRECT_ONLY_PAGES = ['src/app/features/product-detail/product-detail.page.ts'];
+
+  /**
    * Markup with comments removed.
    *
    * A guard that a prose mention can fail is a guard people learn to work
@@ -1529,16 +1714,45 @@ describe('every page carries the site footer, as chrome', () => {
     );
   });
 
-  it('every page renders exactly one <app-footer>', () => {
+  it('every page renders exactly one footer', () => {
+    // TWO footer components exist now: the customer one (<app-footer>) and the
+    // admin one (<app-admin-footer>), because the admin pages carry a tool's
+    // footer rather than the shop's public one. A page renders exactly one of
+    // them — never two, never neither.
+    //
+    // THE COUNT IS OF BOTH TAGS TOGETHER, so a page cannot satisfy this by
+    // rendering the admin footer and quietly forgetting the customer one.
     const missing: string[] = [];
     const doubled: string[] = [];
     for (const { file, src } of pageTemplates()) {
-      const count = (src.match(/<app-footer/g) ?? []).length;
+      if (REDIRECT_ONLY_PAGES.includes(file)) continue;
+      const count = (src.match(/<app-(?:admin-)?footer/g) ?? []).length;
       if (count === 0) missing.push(file);
       if (count > 1) doubled.push(`${file} (${count})`);
     }
-    assert.deepEqual(missing, [], 'these pages have no <app-footer>: ' + missing.join(' | '));
-    assert.deepEqual(doubled, [], 'these render it more than once: ' + doubled.join(' | '));
+    assert.deepEqual(missing, [], 'these pages have no footer: ' + missing.join(' | '));
+    assert.deepEqual(doubled, [], 'these render more than one: ' + doubled.join(' | '));
+  });
+
+  it('the admin pages carry the admin footer and the rest carry the customer one', () => {
+    // The two footers are not interchangeable, and nothing in the markup says
+    // which is which — so the PATH says it, and this checks that the right one
+    // is on the right page.
+    //
+    // An admin page wearing the shop's public footer is the exact thing the
+    // admin footer exists to stop, and it is invisible in a screenshot of any
+    // one page: you would have to open all nine.
+    const wrong: string[] = [];
+    for (const { file, src } of pageTemplates()) {
+      if (REDIRECT_ONLY_PAGES.includes(file)) continue;
+      const isAdminPage = file.includes('/features/admin/');
+      const hasAdmin = /<app-admin-footer/.test(src);
+      const hasCustomer = /<app-footer/.test(src);
+      if (isAdminPage && !hasAdmin) wrong.push(`${file} (admin page without the admin footer)`);
+      if (!isAdminPage && !hasCustomer)
+        wrong.push(`${file} (customer page without the customer footer)`);
+    }
+    assert.deepEqual(wrong, [], 'wrong footer for the page: ' + wrong.join(' | '));
   });
 
   it('the footer is the LAST CHILD inside </ion-content>, so it scrolls away', () => {
@@ -1561,7 +1775,13 @@ describe('every page carries the site footer, as chrome', () => {
     // passed that file.
     const wrong: string[] = [];
     for (const { file, src } of pageTemplates()) {
-      const footerAt = src.indexOf('<app-footer');
+      // Whichever footer this page renders — the customer one or the admin
+      // one. Reading only <app-footer> would have SKIPPED the nine admin
+      // pages rather than checking them, which is how a guard passes for the
+      // wrong reason.
+      const adminAt = src.indexOf('<app-admin-footer');
+      const customerAt = src.indexOf('<app-footer');
+      const footerAt = adminAt >= 0 ? adminAt : customerAt;
       const contentAt = src.indexOf('</ion-content>');
       if (footerAt < 0 || contentAt < 0) continue;
 
@@ -1580,9 +1800,12 @@ describe('every page carries the site footer, as chrome', () => {
       // tag of a paired element, which would make every page look like it has
       // stray markup after the footer. Anchored at the start of the slice, not
       // the end: the slice runs on past the tag, so a `$` anchor never matches.
-      const elemEnd = /^<app-footer\s*\/>/.test(src.slice(footerAt))
+      const tag = src.slice(footerAt).startsWith('<app-admin-footer')
+        ? 'app-admin-footer'
+        : 'app-footer';
+      const elemEnd = new RegExp(`^<${tag}\\s*/>`).test(src.slice(footerAt))
         ? src.indexOf('>', footerAt) + 1
-        : src.indexOf('</app-footer>', footerAt) + '</app-footer>'.length;
+        : src.indexOf(`</${tag}>`, footerAt) + tag.length + 3;
 
       const between = src.slice(elemEnd, contentAt).trim();
       if (between !== '') wrong.push(`${file} (stray after footer: "${between.slice(0, 40)}")`);
@@ -1664,7 +1887,7 @@ describe('every page carries the site footer, as chrome', () => {
         'app',
         'shared',
         'components',
-        'app-footer',
+        'commerce',
         'app-footer.component.ts',
       ),
       'utf8',
@@ -1995,6 +2218,17 @@ describe('clampToStock', () => {
   it('never returns a negative quantity', () => {
     assert.equal(clampToStock(5, -3), 0);
   });
+
+  it('never returns NaN', () => {
+    // `Math.max(NaN, 0)` is NaN, and the caller guards with `capped <= 0` -
+    // and `NaN <= 0` is FALSE, so a NaN stock level used to put a NaN
+    // quantity into the cart, and NaN into the cart's totalAmount, and from
+    // there into the delivery fee and the order total.
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      assert.equal(clampToStock(3, bad), 3, String(bad));
+    }
+    assert.equal(clampToStock(3, Number.NaN) <= 0, false);
+  });
 });
 
 describe('normaliseStockLines', () => {
@@ -2112,6 +2346,17 @@ describe('reviews', () => {
       count: 2,
     });
   });
+
+  it('ignores a rating that is not a finite number', () => {
+    // A review document is customer-authored: one written before the field
+    // existed, or with `rating: null`, made the sum NaN and the average NaN,
+    // and the UI rendered "NaN".
+    assert.deepEqual(summarizeRatings([{ rating: 5 }, { rating: null as unknown as number }]), {
+      average: 5,
+      count: 1,
+    });
+    assert.deepEqual(summarizeRatings([{ rating: Number.NaN }]), { average: 0, count: 0 });
+  });
 });
 
 describe('order cancel policy', () => {
@@ -2169,14 +2414,6 @@ describe('product category', () => {
     assert.equal(productCategory({ category: 'popsicle' }), 'flavor');
     assert.equal(productCategory({ category: '' }), 'flavor');
   });
-
-  it('covers every category with a display label', () => {
-    const values = PRODUCT_CATEGORIES.map((c) => c.value);
-    assert.deepEqual(values, ['flavor', 'sundae', 'cone']);
-    for (const c of PRODUCT_CATEGORIES) {
-      assert.ok(c.label.length > 0, 'each category needs a label');
-    }
-  });
 });
 
 describe('cloudinary delivery url', () => {
@@ -2208,6 +2445,29 @@ describe('cloudinary delivery url', () => {
       'https://res.cloudinary.com/fhtucp4v/image/upload/f_auto,q_auto,w_200/v1756200000/five-orites-scoop/products/a.jpg',
     );
     assert.equal(times2Count(twice, 'f_auto'), 1);
+  });
+
+  it('does not stack transforms on a CANONICAL Cloudinary URL', () => {
+    // Cloudinary's own URL order is `version/transformation/public-id`, and
+    // that is what the dashboard and the upload API hand back. The old
+    // strip-regex only matched a transformation in the FIRST segment after
+    // `/image/upload/`, so on this shape the old transformation survived and
+    // the new one was layered on top of it - the transforms stacked, which is
+    // the one thing this function exists to prevent.
+    const canonical =
+      'https://res.cloudinary.com/fhtucp4v/image/upload/v1756200000/f_auto,q_auto,w_400/five-orites-scoop/products/a.jpg';
+    const out = buildCloudinaryUrl(canonical, 200);
+    assert.equal(times2Count(out, 'f_auto'), 1);
+    assert.equal(times2Count(out, 'w_'), 1);
+    assert.ok(out.endsWith('v1756200000/five-orites-scoop/products/a.jpg'));
+    assert.ok(out.includes('w_200'));
+  });
+
+  it('strips a single-flag transformation too', () => {
+    const url = 'https://res.cloudinary.com/fhtucp4v/image/upload/v1756200000/w_400/products/a.jpg';
+    const out = buildCloudinaryUrl(url, 200);
+    assert.equal(times2Count(out, 'w_'), 1);
+    assert.ok(out.includes('w_200'));
   });
 
   it('omits the width when none is given', () => {
@@ -2272,13 +2532,6 @@ describe('firestore error messages', () => {
       describeFirestoreError('orders', { code: 'firestore/failed-precondition' }),
       describeFirestoreError('orders', { code: 'failed-precondition' }),
     );
-  });
-
-  it('identifies the missing-index case separately', () => {
-    assert.equal(isMissingIndexError({ code: 'failed-precondition' }), true);
-    assert.equal(isMissingIndexError({ code: 'firestore/failed-precondition' }), true);
-    assert.equal(isMissingIndexError({ code: 'permission-denied' }), false);
-    assert.equal(isMissingIndexError(null), false);
   });
 
   /**
@@ -2424,11 +2677,17 @@ describe('csv serialisation', () => {
    * from a cache, and is absent on some legacy documents. A formatter that
    * throws takes down the whole export rather than blanking one cell.
    */
-  it('accepts a Timestamp-like object, a string, or nothing', () => {
+  it('accepts a Timestamp-like object, a string, an epoch number, or nothing', () => {
     const stamp = { toDate: () => new Date('2026-10-02T03:04:05.000Z') };
     assert.equal(toIsoDate(stamp), '2026-10-02T03:04:05.000Z');
     assert.equal(toIsoDate('2026-10-02T03:04:05.000Z'), '2026-10-02T03:04:05.000Z');
-    for (const bad of [null, undefined, 'not-a-date', {}, 42]) {
+    // An epoch-ms number is a first-class timestamp shape in this codebase -
+    // `toEpochMs` in core/logic/notifications.ts accepts it as one - and the
+    // formatter used to fall through to `value.toDate()`, which is not a
+    // function on a number. It threw, the throw was swallowed, and the cell
+    // came out blank with no signal that anything had gone wrong.
+    assert.equal(toIsoDate(Date.parse('2026-10-02T03:04:05.000Z')), '2026-10-02T03:04:05.000Z');
+    for (const bad of [null, undefined, 'not-a-date', {}, Number.NaN]) {
       assert.equal(toIsoDate(bad), '');
     }
   });
@@ -2866,9 +3125,9 @@ describe('route interpolation and distance', () => {
   });
 });
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    IN-APP NOTIFICATION FEED
-   ═══════════════════════════════════════════════════════════════════════════ */
+   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 describe('notification feed', () => {
   /** Minimal order shape the feed needs. `ts` is epoch ms. */
@@ -2949,7 +3208,7 @@ describe('notification feed', () => {
     // user needs to see that their order arrived.
     const feed = buildNotificationFeed([order('o1', [{ status: 'pending', ts: T0 }])], null);
     assert.equal(feed[0].read, false);
-    assert.equal(countUnread(feed), 1);
+    assert.equal(feed.filter((e) => !e.read).length, 1);
   });
 
   it('marks entries at or before the read marker as read', () => {
@@ -2972,7 +3231,7 @@ describe('notification feed', () => {
       feed.map((e) => e.read),
       [false, true, true],
     );
-    assert.equal(countUnread(feed), 1);
+    assert.equal(feed.filter((e) => !e.read).length, 1);
   });
 
   it('skips an order with no statusHistory instead of throwing', () => {
@@ -3104,6 +3363,18 @@ describe('toEpochMs', () => {
     // NaN in a sort comparator is not "slightly wrong": it makes the engine's
     // ordering implementation-defined, reordering the whole feed.
     for (const bad of [null, undefined, 'not-a-date', {}, [], true, NaN, { toMillis: () => NaN }]) {
+      assert.equal(toEpochMs(bad), null, `expected null for ${JSON.stringify(bad)}`);
+    }
+  });
+
+  it('returns null for a {seconds} field that is not a finite number', () => {
+    // `typeof NaN === 'number'`, so the `seconds` branch used to return NaN -
+    // which is exactly what this function exists to prevent.
+    for (const bad of [
+      { seconds: NaN },
+      { seconds: Number.POSITIVE_INFINITY },
+      { seconds: Number.NaN, nanoseconds: 500 },
+    ]) {
       assert.equal(toEpochMs(bad), null, `expected null for ${JSON.stringify(bad)}`);
     }
   });
@@ -3620,14 +3891,118 @@ describe('feedTimeLabel', () => {
     assert.equal(times2Count(out, datePart), 1, `expected the date once, got ${out}`);
   });
 
-  it('keeps the relative label for an old row when the window is not Earlier', () => {
-    // 'all' cannot be reached from the dropdown, but it is a valid FeedPeriod,
-    // and the relative half is what ranks a fresh row against a very old one
-    // there — the one job the absolute date cannot do. The cost, for the
-    // record: its oldest rows repeat their date. Unobservable while the
-    // dropdown offers three windows, and the line to revisit if 'all' returns.
-    const at = new Date(2026, 8, 30, 21, 55, 0).getTime();
-    assert.ok(feedTimeLabel(at, 'all', now).includes(' · '));
+  /**
+   * `all` is a PER-ROW decision, so these three are the whole point of the change.
+   *
+   * The window used to be a property of the page, which was complete while the
+   * dropdown offered three windows because the filter and every row answered the
+   * same question. `All` admits rows from every window at once, so the page can no
+   * longer answer for its rows and each one is asked instead.
+   */
+  describe('the All window decides per row', () => {
+    const fresh = new Date(2026, 9, 15, 13, 40, 0).getTime(); // today, 54m
+    const old = new Date(2026, 8, 30, 21, 55, 0).getTime(); // 15 days back
+
+    it('keeps the pair on a row that moved today', () => {
+      const out = feedTimeLabel(fresh, 'all', now);
+      assert.ok(out.includes(' · '), `expected the pair, got ${out}`);
+      assert.ok(out.startsWith('54m'), `expected the relative label first, got ${out}`);
+    });
+
+    it('collapses a row that is genuinely in the Earlier window', () => {
+      // The regression this exists to prevent: treating `all` as one page-wide
+      // window either stripped the relative label from the FRESH row above, or
+      // left the date printed twice on THIS one. Per-row does neither.
+      assert.equal(feedTimeLabel(old, 'all', now), absoluteTime(old, now));
+    });
+
+    it('never prints the date twice on one row under All', () => {
+      for (const at of [fresh, old]) {
+        const out = feedTimeLabel(at, 'all', now);
+        const datePart = absoluteTime(at, now).split(',')[0];
+        assert.equal(times2Count(out, datePart), 1, `expected the date once for ${out}`);
+      }
+    });
+
+    it('gives one All page two different row shapes, correctly', () => {
+      // The mixed page is the whole justification: a single All view holds both
+      // of these rows, and each reads the way its own window wants to be read.
+      const freshOut = feedTimeLabel(fresh, 'all', now);
+      const oldOut = feedTimeLabel(old, 'all', now);
+      assert.ok(
+        freshOut.includes(' · ') && !oldOut.includes(' · '),
+        `expected a paired fresh row and a bare old one, got "${freshOut}" / "${oldOut}"`,
+      );
+    });
+
+    it('matches the named window for every row it contains', () => {
+      // The strongest form of the claim: `all` must not invent a labelling of its
+      // own. Each row under All reads exactly as it would in the window it is in.
+      const rows: readonly [number, 'today' | 'yesterday' | 'earlier'][] = [
+        [fresh, 'today'],
+        [new Date(2026, 9, 14, 9, 5, 0).getTime(), 'yesterday'],
+        [old, 'earlier'],
+      ];
+      for (const [at, window] of rows) {
+        assert.equal(
+          feedTimeLabel(at, 'all', now),
+          feedTimeLabel(at, window, now),
+          `${absoluteTime(at, now)} should read the same under All as under ${window}`,
+        );
+      }
+    });
+  });
+});
+
+/**
+ * The one definition of which day a timestamp belongs to.
+ *
+ * It exists so `groupByDay` and `feedTimeLabel` cannot hold different ideas of
+ * midnight — the two are rendered in the same card, so a row grouping under one
+ * day and formatting as though it belonged to another would be visible on the
+ * page rather than only in a test.
+ */
+describe('periodOf', () => {
+  const now = new Date(2026, 9, 15, 14, 34, 0).getTime(); // Oct 15 2026, 2:34 PM
+
+  it('files a timestamp by its local day, not by UTC', () => {
+    assert.equal(periodOf(new Date(2026, 9, 15, 0, 0, 1).getTime(), now), 'today');
+    assert.equal(periodOf(new Date(2026, 9, 14, 23, 59, 0).getTime(), now), 'yesterday');
+    assert.equal(periodOf(new Date(2026, 9, 14, 0, 0, 0).getTime(), now), 'yesterday');
+    assert.equal(periodOf(new Date(2026, 9, 13, 23, 59, 0).getTime(), now), 'earlier');
+  });
+
+  it('puts local midnight itself in the new day, not the old one', () => {
+    // The exact boundary. `>=` not `>`: midnight belongs to the day it starts.
+    assert.equal(periodOf(new Date(2026, 9, 15, 0, 0, 0).getTime(), now), 'today');
+    assert.equal(periodOf(new Date(2026, 9, 15, 0, 0, 0).getTime() - 1, now), 'yesterday');
+  });
+
+  it('agrees with groupByDay on every row it groups', () => {
+    // The drift guard. `groupByDay` derives its label from this function, so they
+    // agree by construction — which is exactly why it is worth asserting, because
+    // that construction is the thing a future edit would quietly undo.
+    const rows = [
+      { at: new Date(2026, 9, 15, 13, 40, 0).getTime() },
+      { at: new Date(2026, 9, 14, 9, 5, 0).getTime() },
+      { at: new Date(2026, 8, 30, 21, 55, 0).getTime() },
+      { at: new Date(2026, 9, 13, 22, 43, 0).getTime() },
+    ];
+    const labels = groupByDay(rows, now).map((g) => g.label);
+    const periods = rows.map((r) => periodOf(r.at, now));
+    // groupByDay collapses consecutive runs, so compare the SET of labels against
+    // the set of distinct periods rather than the counts.
+    assert.deepEqual(
+      [...new Set(labels)].sort(),
+      [...new Set(periods.map((p) => FEED_PERIOD_LABEL[p]!))].sort(),
+    );
+  });
+
+  it('never returns all, so a row always has exactly one window', () => {
+    const samples = [now, now - 1, now - DAY_MS, now - DAY_MS * 40, 0];
+    for (const at of samples) {
+      assert.notEqual(periodOf(at, now), 'all');
+    }
   });
 });
 
@@ -3637,3 +4012,128 @@ const DAY_MS = 86_400_000;
 function times2Count(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The shared pure helpers this refactor introduced.
+//
+// These were each duplicated in three or four places before, in shapes that
+// did not agree with one another.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('roundMoney', () => {
+  it('rounds to two decimal places', () => {
+    assert.equal(roundMoney(1234.5678), 1234.57);
+    assert.equal(roundMoney(0.005), 0.01);
+    assert.equal(roundMoney(19.999), 20);
+  });
+
+  it('does the 1.005 case a naive rounding gets wrong', () => {
+    // 1.005 * 100 is 100.49999999999999 in IEEE-754, so a naive
+    // Math.round(n * 100) / 100 gives 1 instead of 1.01.
+    assert.equal(roundMoney(1.005), 1.01);
+  });
+
+  it('returns 0 rather than propagating NaN', () => {
+    assert.equal(roundMoney(Number.NaN), 0);
+    assert.equal(roundMoney(Number.POSITIVE_INFINITY), 0);
+  });
+
+  it('sums without float drift', () => {
+    assert.equal(sumMoney(Array.from({ length: 1000 }, () => 0.1)), 100);
+    assert.equal(sumMoney([0.1, 0.2]), 0.3);
+  });
+
+  it('rounds to a whole peso', () => {
+    assert.equal(roundPeso(65.4999), 65);
+    assert.equal(roundPeso(65.5), 66);
+  });
+});
+
+describe('formatLocalDate', () => {
+  it('formats a local calendar date', () => {
+    assert.equal(formatLocalDate(new Date(2026, 9, 2, 14, 30).getTime()), '2026-10-02');
+    assert.equal(formatLocalDate(new Date(2026, 0, 5, 0, 0).getTime()), '2026-01-05');
+  });
+
+  it('is empty for an unusable timestamp', () => {
+    assert.equal(formatLocalDate(Number.NaN), '');
+  });
+
+  it('gives the LAST instant of a local day, not the first', () => {
+    // The difference between a voucher that expires at the START of its
+    // expiry date and one that expires at the END of it.
+    const midday = new Date(2026, 11, 31, 12, 0, 0).getTime();
+    assert.equal(endOfLocalDay(midday), new Date(2027, 0, 1).getTime() - 1);
+    assert.ok(endOfLocalDay(midday) > midday);
+  });
+});
+
+describe('csvFilename', () => {
+  it('stamps the LOCAL date, not the UTC one', () => {
+    // 8am in Manila is midnight in UTC the previous day, so a UTC stamp
+    // would name the file after yesterday.
+    const morning = new Date(2026, 9, 2, 8, 0, 0);
+    assert.ok(csvFilename('orders', undefined, morning).endsWith('2026-10-02.csv'));
+  });
+
+  it('keeps the suffix between the prefix and the date', () => {
+    const d = new Date(2026, 9, 2, 14, 30);
+    assert.equal(csvFilename('orders', 'all', d), 'five-orites-orders-all-2026-10-02.csv');
+  });
+});
+
+describe('parseCsvRecords', () => {
+  it('keeps the ORIGINAL line number of every record', () => {
+    // The importer reported `i + 1` into a BLANK-FILTERED array, so every
+    // blank line above the offending row shifted the number down by one and
+    // sent the admin to edit the wrong row.
+    const text = 'a,b\n\n\nc,d\n';
+    const records = parseCsvRecords(text);
+    assert.deepEqual(
+      records.map((r) => r.line),
+      [1, 4],
+    );
+    assert.deepEqual(records[1].cells, ['c', 'd']);
+  });
+
+  it('skips blank lines entirely', () => {
+    assert.equal(parseCsvRecords('\n\n\n').length, 0);
+  });
+});
+
+describe('product csv import: the reported line number', () => {
+  const HEADER =
+    'set_number,set_name,variant_name,cup_price,pint_price,half_gallon_price,gallon_price';
+
+  it('parses a row that sits below blank lines', () => {
+    const text = `${HEADER}\n\n\n1,Chocolates,Ube,50,90,140,180\n\n`;
+    const plan = parseProductCsv(text);
+    assert.equal(plan.errors.length, 0, JSON.stringify(plan.errors));
+    assert.equal(plan.valid.length, 1);
+  });
+
+  it('reports the original line number of a bad row', () => {
+    // The bad row is on line 5 of the file (1 header, 2 blank, 3 good,
+    // 4 blank, 5 bad). The old code counted the blank-line-filtered array,
+    // so it would have said 3 and sent the admin to the wrong row.
+    const text = `${HEADER}\n\n1,Chocolates,Ube,50,90,140,180\n\nnotanumber,Chocolates,Ube,50,90,140,180\n`;
+    const plan = parseProductCsv(text);
+    assert.equal(plan.errors.length, 1, JSON.stringify(plan.errors));
+    assert.equal(plan.errors[0].line, 5, JSON.stringify(plan.errors));
+  });
+});
+
+describe('distanceMetres', () => {
+  it('is a number for antipodal points', () => {
+    // `h` is mathematically at most 1, but float error can push it past 1,
+    // and Math.asin of anything above 1 is NaN - which rendered as
+    // "NaN m away".
+    const d = distanceMetres({ lat: 0, lng: 0 }, { lat: 0, lng: 180 });
+    assert.ok(Number.isFinite(d), `expected a finite distance, got ${d}`);
+    assert.ok(Math.abs(d - Math.PI * 6371000) < 1);
+  });
+
+  it('is zero for the same point', () => {
+    assert.equal(distanceMetres({ lat: 14.6, lng: 121.1 }, { lat: 14.6, lng: 121.1 }), 0);
+  });
+});

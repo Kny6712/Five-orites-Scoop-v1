@@ -3,8 +3,8 @@
 // Author: Five-orites Scoop team (see README)
 
 import { Timestamp } from '@angular/fire/firestore';
-import { SizeVariant } from './product.model';
-import type { AppIcon } from '../icons/app-icons';
+import { SizeVariant } from '@core/models/product.model';
+import type { AppIcon } from '@core/icons/app-icons';
 
 export type OrderStatus =
   'pending' | 'confirmed' | 'preparing' | 'out_for_delivery' | 'delivered' | 'cancelled';

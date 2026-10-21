@@ -222,6 +222,42 @@
   font-weight: 500;
 }
 
+// ── Featured Flavors row ─────────────────────────────────
+/* THE FOUR CARDS, ON THE HEADING'S GUTTER.
+
+   A bare <ion-grid> is a flex item of .ion-page, so it computes `flex: 0 0
+   auto` and shrink-to-fits its content instead of filling the page — which is
+   what left the four cards floating in the middle of the section, out of line
+   with the "Featured Flavors" heading above them and short of the "See All"
+   button on the right. The KPI grid on this page had the same defect and the
+   same fix, and the comment there explains the cascade.
+
+   `width: 100%` makes the grid fill the page. The padding puts the row on the
+   SAME 16px gutter as the section header above it, so the first card starts
+   exactly where the heading starts and the last card ends exactly where "See
+   All" ends. */
+.featured-grid {
+  width: 100%;
+  padding: 8px 16px 0;
+}
+
+/* Ionic pads .ion-grid itself by 5px and pads each ion-row inside it on top
+   of that — so the row would start 5px inside the gutter, and the cards 10px
+   inside it, which is where the misalignment came from. */
+.featured-grid ion-row {
+  padding: 0;
+}
+
+/* The gap BETWEEN the cards, and none before the first one. */
+.featured-grid ion-col {
+  padding: 0 6px 0 0;
+}
+
+/* The last card ends on the gutter rather than 6px short of it. */
+.featured-grid ion-col:last-child {
+  padding-right: 0;
+}
+
 // ── Section Headers ──────────────────────────────────────
 .section-header {
   display: flex;
@@ -243,6 +279,26 @@
   --color: var(--color-primary-ink);
   font-weight: 600;
   font-size: 13px;
+}
+
+/* The admin's "View all", as a LINK.
+
+   It was an `ion-button fill="clear"`, which prints its label in uppercase
+   ("VIEW ALL") and paints a shadow — two things the admin's vocabulary does not
+   have. The link carries the same weight and colour as the old button did and
+   none of its chrome.
+
+   The customer's "See All" above keeps .see-all-btn, because the storefront
+   keeps its own language. */
+.see-all-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-primary-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.see-all-link:hover {
+  text-decoration: underline;
 }
 
 // ── Recent Orders (Customer) ──────────────────────────────
@@ -279,62 +335,66 @@
   color: var(--ion-color-medium);
 }
 
-// ── Admin Welcome ─────────────────────────────────────────
-/* A page title on the cream page. Deliberately NOT a card.
+// ── Admin navigation ───────────────────────────────────────
+/* The admin's two ways off this page, on one line, right-aligned.
 
-   It was given the customer's teal surface for one pass, on the reasoning that
-   "every role should see the same branded surface". That was a decision made
-   without being asked for, and it was the wrong one: the admin dashboard leads
-   with four KPI tiles and a low-stock panel, and a coloured banner above them
-   competed with the figures rather than introducing the page.
+   The row used to hold the page title as well, which was the same word the
+   toolbar above it already carried. With the heading gone this row holds
+   nothing but the tiles, so it no longer needs to justify its contents
+   around a title — hence `flex-end` rather than `space-between`, which with a
+   single child would push the tiles to the LEFT.
 
-   The customer banner keeps the teal because that is the surface the design
-   brief actually named, and it is the one role that lands on a greeting rather
-   than on numbers. */
-/* The title and the admin tiles on one line. The gutter lives here, once, so
-   both sides of the row share an inset — see the comment in the markup, which
-   records why 16px could not simply stay on each wrapper. */
-.admin-header {
+   IT IS .admin-page-head AND NOT .flat-header, because the <ion-header> above
+   carries `flat-header` when an admin is signed in — that is the shared flat
+   header — and a page-scoped rule on the same class would then style the
+   real Ionic header with a flex row and 16px of padding. */
+.admin-page-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-4);
   padding: 16px 16px 0;
-}
-
-/* Both wrappers hand their padding to .admin-header. */
-.admin-welcome,
-.admin-actions {
-  padding: 0;
 }
 
 /* The tiles must not shrink or the two labels start to clip before the wrap
    below has a chance to fire. */
 .admin-actions {
+  padding: 0;
   flex: none;
 }
 
 /* A 24px heading and ~180px of tiles do not fit one line on a phone. Below this
    the tiles drop under the title and left-align — they are the page's primary
    navigation there, so leading them is right, and it only costs height on
-   screens that have width to spare. */
+   screens that have width to spare.
+
+   THE SELECTOR IS TWO CLASSES, and that is the whole point of this rule.
+
+   `.admin-actions` alone was DEAD here. The page declares the tiles'
+   arrangement further down the file — `.admin-actions { display: flex;
+   justify-content: flex-end; gap: var(--space-2) }`, under "Admin action
+   tiles" — and a later rule of the same specificity beats an earlier one, so
+   the base rule won and the tiles stayed right-aligned on a phone.
+
+   Measured at 390px before this fix: the head was a column, as intended, and
+   the tiles sat at x=198-282 of a 390px screen — pushed hard right, with a
+   182px band of empty cream beside them. Which is the opposite of what this
+   comment says, and of what a phone wants: the two tiles ARE the page's
+   navigation there, and navigation is looked for at the top LEFT.
+
+   `.admin-page-head .admin-actions` is (0,2,0) against the base rule's
+   (0,1,0), so it wins wherever the two are declared. */
 @media (max-width: 480px) {
-  .admin-header {
+  .admin-page-head {
     flex-direction: column;
     align-items: stretch;
     gap: var(--space-3);
     padding-bottom: 0;
   }
 
-  .admin-actions {
+  .admin-page-head .admin-actions {
     justify-content: flex-start;
   }
-}
-.admin-title {
-  font-size: 24px;
-  font-weight: 800;
-  margin: 0 0 4px;
-  color: var(--ion-color-dark);
 }
 
 // ── KPI Cards ─────────────────────────────────────────────
@@ -375,82 +435,65 @@
   padding: 0;
 }
 
-/* Centred throughout. The icon used to be a bare glyph pinned to the top-left of
-   a left-aligned column, which made the four tiles read as four different
-   little lists rather than one set of comparable figures. Centring the badge,
-   the label and the number together is what makes a 2x2 grid scannable — you
-   compare the numbers, and they are all in the same place.
+/* THE FOUR FIGURES, AS FLAT CARDS.
 
-   That reasoning still holds and is why the alignment below is unchanged. What
-   changed is that the tiles became CONTAINERS, which they were not. */
+   They were four pastel panels with a 2px rim and a drop shadow — the one
+   piece of the admin that still looked like 2019 admin software, and the only
+   place on this page where a figure sat on a coloured field big enough for
+   the colour to be the thing you read.
 
+   So the pastel moved onto the GLYPH, where it is a 36px accent rather than a
+   400px panel, and the card around it is the app's flat card: white, one
+   hairline, no shadow. The tile's colour identity survives — a red disc for
+   Low Stock Alerts is still a red disc, and the low-stock tile is the one an
+   admin is scanning for — but the NUMBER is now the loudest thing in the tile
+   instead of a colour.
+
+   The disc carries the rim, exactly as it does on the analytics page's four
+   tiles and on the reviews page's staff-reply block: the pastel fills measure
+   1.13:1 to 1.19:1 against white, which is under the floor for a filled
+   surface, so the RIM is what draws the edge. */
 .kpi-card {
-  /* --radius-lg, not --radius-md. The radius scale is a scale, not one value —
-     variables.scss is explicit that "hierarchy comes from these being visibly
-     different steps", and these four tiles sat on the same 18px step as the low
-     stock panel directly beneath them. One step up makes the tiles read as the
-     page's figure layer and the panel as a detail beneath it. */
-  border-radius: var(--radius-lg);
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: 14px;
 
-  /* THE MISSING EDGE. Measured, the tile fill against the cream page is
-     1.10-1.13:1 — and variables.scss sets 1.2:1 as the floor for "a large
-     filled area must be distinguishable from what it sits on". That floor is not
-     aspirational: it is the rule that rejected --tile-lemon at 1.06:1 and
-     created --tile-lemon-deep specifically to clear 1.20:1. All four KPI tiles
-     were breaking the project's own written standard, and nothing caught it
-     because scripts/check-contrast.mjs has no row for them.
-
-     So this is the repo's own established answer to its own stated problem, not
-     a new idea: --tone-*-border is already asserted at 1.4:1 against its own
-     background, and as a 2px rim it measures 1.60-1.96:1 against the cream page.
-     Zero palette growth — the token was already there, unused here.
-
-     2px and not 1px, matching .low-stock-panel below: a hairline breaks up as it
-     rasterises on an 18px-plus curve, and on a pastel that break is very visible.
-     See .danger-group in profile.page.scss for the longer version. */
-  border: 2px solid var(--kpi-rim);
-
-  /* Brand-tinted, not grey — a neutral rgba(0,0,0,.08) on cream reads as dirt.
-     The rim draws the edge; this gives it somewhere to sit. */
-  box-shadow: var(--shadow-card);
-
-  padding: var(--space-4) var(--space-3);
+  /* LEFT-ALIGNED, and the disc with it, which is what the analytics page's
+     four tiles do. The icon used to be centred in the tile while the label
+     and the value were left-aligned, because an app-icon is stretched by the
+     column flexbox and centres its own glyph. */
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: var(--space-1);
-  min-height: 128px;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 118px;
 }
 
-/* Pastel tile + dark ink, per the "soft pastel accents only" rule.
+/* Pastel disc + dark ink, per the "soft pastel accents only" rule.
 
-   REPOINTED at the supplied palette: each background is now one of four chosen
-   pastels and each rim is that background darkened toward its own ink. The inks
-   are UNCHANGED — each was measured against its new background and all four still
-   clear AA (6.32 / 7.13 / 4.62 / 6.15), so a colour swap did not have to drag a
-   second change along with it.
-
-   Every pair here is asserted in check-contrast.mjs. */
+   The inks are UNCHANGED — each was measured against its own fill and all four
+   clear AA (6.32 / 7.13 / 4.62 / 6.15) — and every pair here is asserted in
+   check-contrast.mjs. */
 .kpi-revenue {
-  background: var(--kpi-revenue-bg);
+  --kpi-disc-bg: var(--kpi-revenue-bg);
+  --kpi-disc-rim: var(--kpi-revenue-rim);
   --kpi-ink: var(--kpi-revenue-ink);
-  --kpi-rim: var(--kpi-revenue-rim);
 }
 .kpi-pending {
-  background: var(--kpi-pending-bg);
+  --kpi-disc-bg: var(--kpi-pending-bg);
+  --kpi-disc-rim: var(--kpi-pending-rim);
   --kpi-ink: var(--kpi-pending-ink);
-  --kpi-rim: var(--kpi-pending-rim);
 }
 .kpi-lowstock {
-  background: var(--kpi-lowstock-bg);
+  --kpi-disc-bg: var(--kpi-lowstock-bg);
+  --kpi-disc-rim: var(--kpi-lowstock-rim);
   --kpi-ink: var(--kpi-lowstock-ink);
-  --kpi-rim: var(--kpi-lowstock-rim);
 }
 .kpi-total {
-  background: var(--kpi-total-bg);
+  --kpi-disc-bg: var(--kpi-total-bg);
+  --kpi-disc-rim: var(--kpi-total-rim);
   --kpi-ink: var(--kpi-total-ink);
-  --kpi-rim: var(--kpi-total-rim);
 }
 
 .kpi-skeleton {
@@ -459,122 +502,80 @@
   margin: 0;
 }
 
-/* A solid disc behind the glyph. Without it the icon floats on the tile with
-   nothing to align it, which is why it read as an afterthought next to the label.
+/* A solid disc behind the glyph, in the tile's own pastel, with a rim in the
+   same family.
 
-   The disc is a --kpi-disc rather than a hardcoded white so a tile can override
-   it. That override existed because pure white on the OLD pending fill measured
-   1.04:1 — the circle vanished completely and the glyph sat on bare background.
-   The repaint retired that failure: white on the new #ebebdb measures 1.20:1 and
-   clears the 1.15 floor on its own, so the other three tiles' white is now a
-   choice rather than a workaround.
-
-   `--kpi-pending-disc` is kept anyway — a 10% nudge of that tile toward its own
-   ink, 1.154:1 against the fill, 5.33:1 for the ink on top of it, both asserted.
-   Deleting it would mean deleting this override and two gate rows, which is a
-   refactor rather than a repaint. Flagged as removable if it is ever wanted. */
-.kpi-badge {
+   An outline rather than a border, so the disc stays exactly 36px and the rim
+   paints inside it. */
+.kpi-disc {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-
-  /* A per-tile value rather than a hardcoded white — see the note above. Only
-     .kpi-pending overrides it. */
-  --kpi-disc: var(--color-white);
-  background: var(--kpi-disc);
-
-  /* A ring rather than a border so the disc can stay exactly 40px and the ring
-     paint outside it — a `border` here would eat 2px of the interior and make
-     the glyph look off-centre in the circle. As a ring it is the tile's own rim,
-     which owes 1.4:1 against its own background and is asserted for all four. */
-  box-shadow: 0 0 0 2px var(--kpi-rim);
-  margin-bottom: var(--space-1);
-}
-
-/* The one tile that still tints its badge disc. No longer strictly necessary —
-   see .kpi-badge above — but harmless, asserted, and it keeps the clock glyph
-   from sitting on the palest surface on the dashboard. */
-.kpi-pending .kpi-badge {
-  --kpi-disc: var(--kpi-pending-disc);
+  background: var(--kpi-disc-bg);
+  outline: 1px solid var(--kpi-disc-rim);
+  outline-offset: -1px;
 }
 
 .kpi-icon {
-  --icon-size: 21px;
+  --icon-size: 18px;
   color: var(--kpi-ink);
 }
+
+/* 12px in --ion-color-medium: 4.93:1 on the white card. The old label was
+   11px at 0.8 opacity on its pastel, which composited down to a figure the
+   gate cannot see because it reads solid pairs. */
 .kpi-label {
   font-size: 12px;
-  color: var(--kpi-ink);
-
-  /* THE `opacity: 0.85` IS GONE, and this is a measured fix rather than a
-     preference. Composited against the tile, 0.85 alpha takes the warning ink
-     from 6.29:1 down to 4.51:1 — it passes, but by 0.01, on an 11px label.
-
-     4.51 is the number that matters here, not the pass. scripts/check-contrast.mjs
-     reads a hardcoded solid-pair table, so an opacity declared here is INVISIBLE
-     to the gate: it asserts the un-composited 6.29:1, passes, and the stylesheet
-     quietly ships a value one hundredth of a ratio from failing. That is the same
-     latent bug already documented for .promo-sub, which is why the composited
-     figure is written down here as well as in the stylesheet that caused it.
-
-     At full strength this label is 6.35 / 6.29 / 7.42 / 8.61 — every one of
-     those an existing gate row. */
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--ion-color-medium);
   margin: 0;
-  /* Two lines allowed so "Today's Revenue" and "Pending Orders" occupy the same
-     height — an uneven label baseline between adjacent tiles is very visible in
-     a 2x2 grid. 2.5em at 12px is 30px, one line-height more than the old 11px
-     min-height because the label is now an 0.5px larger type size. */
-  line-height: 1.25;
-  min-height: 2.5em;
-  display: flex;
-  align-items: center;
 }
-/* The tile's own ink, not white: these tiles are pale surfaces, and white on them
-   would measure well under 4.5:1. Each `--kpi-ink` clears it — 5.85 / 6.15 /
-   6.30 / 7.34, in revenue / pending / low-stock / total order.
 
-   Those figures were WRONG in an earlier version of this comment, which claimed
-   6.35 / 6.29 / 7.42 / 8.61 for the pre-repaint palette. Measured against the
-   tokens actually in use they were 6.32 / 7.13 / 4.62 / 6.15 — the low-stock
-   figure was overstated by nearly 3:1, on the one pair that was passing by 0.12.
-   Corrected here rather than carried forward.
+/* The figure the tile exists to show, so it is the loudest thing in it.
 
-   600, not 700. Fredoka ships a real 600, so this is a rendered weight rather
-   than the synthetic emboldening a 700 on a face without one would produce —
-   which is the whole reason --font-display-retro has to restate 700 at every
-   call site (see variables.scss). 30px rather than 24px because this is the
-   figure the tile exists to show, and it now has the room: min-height went to
-   128px to match. */
-.kpi-value {
+   600, not 700. Fredoka ships a real 600, so a 700 on a face without one
+   would be the browser synthesising the extra weight by smearing the
+   outlines. */
+.kpi-val {
   font-family: var(--font-display);
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 600;
   letter-spacing: -0.5px;
-  color: var(--kpi-ink);
+  color: var(--color-ink);
   margin: 0;
   font-variant-numeric: tabular-nums;
 }
 
 // ── Admin action tiles ────────────────────────────────────
-/* Right-aligned, on the page title's line inside .admin-header — so these cost
-   no vertical space rather than sitting in a band of their own above the grid.
+/* Right-aligned, on their own line under the toolbar — so these cost no
+   vertical space rather than sitting in a band of their own above the grid.
    The corner is the toolbar corner, which is where a person looks for a way off
    this page.
 
-   `padding: 0` and `flex: none` are set with .admin-welcome in the .admin-header
-   block above, not here: the row's gutter and inset belong to the container, so
-   both sides of it can share one value. Only the tile arrangement is this
-   element's own concern. */
+   `padding: 0` and `flex: none` are set with the row's own rule above, not
+   here: the row's gutter and inset belong to the container, so both sides of
+   it can share one value. Only the tile arrangement is this element's own
+   concern. */
 .admin-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
 }
 
+/* FLAT: white, one definite hairline, no shadow.
+
+   The tile was `box-shadow: var(--shadow-card)` on a --ion-color-light-shade
+   border, which is the oldest treatment in the app — the shadow was doing a
+   border's job, and the border was too pale to do it itself (#E4EDF3 is
+   1.19:1 on white). The hairline is --tile-powder-deep, the same edge every
+   flat card in the admin carries.
+
+   NO LIFT ON HOVER. It translated up by 2px, which is the one piece of
+   physicality left on the page; the hairline darkening to the primary ink is
+   the gesture every other control in the app makes instead. */
 .action-tile {
   display: flex;
   flex-direction: column;
@@ -583,17 +584,13 @@
   width: 84px;
   padding: 10px 6px;
   background: var(--color-white);
-  border: 1px solid var(--ion-color-light-shade);
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-card);
   text-decoration: none;
-  transition:
-    transform 0.15s ease,
-    border-color 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 
 .action-tile:hover {
-  transform: translateY(-2px);
   border-color: var(--color-primary-ink);
 }
 
@@ -628,23 +625,31 @@
    --radius-md, deliberately one step BELOW the KPI tiles' --radius-lg. The panel
    is the detail layer; the figures above it are the page's primary layer.
 
-   --lowstock-* rather than --tone-peach-*: a powder repaint scoped to this
-   panel, because the shared peach token also paints admin-tracking's
-   unmapped-orders block. See the token's own note in variables.scss. */
+   --lowstock-* rather than --tone-peach-*: an ORANGE scoped to this panel,
+   because the shared peach token also paints admin-tracking's unmapped-orders
+   block. It is the family behind the storefront's "Low Stock" chip, deepened
+   so this panel can hold a 40%-white row. See the token's own note in
+   variables.scss. */
 .low-stock-panel {
   margin: var(--space-3) 12px 0;
   background: var(--lowstock-bg);
 
-  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
-     See .danger-group in profile.page.scss for the full explanation.
+  /* 1px, not 2px. The 2px was there because this panel was an 18px-radius
+     shape and a hairline breaks up as it rasterises on a curve that wide — the
+     same note as .danger-group in profile.page.scss.
 
-     Recoloured with the fill: the border is the fill darkened 45% toward its own
-     ink, the same derivation the KPI rims use, and it clears the tone system's
-     1.4:1 at 1.93:1. The fill carries more of the definition than it used to —
-     it measures 1.38:1 against the cream page — which is what lets this stay a
-     soft 2px rather than leaning on the border. */
-  border: 2px solid var(--lowstock-border);
-  border-radius: var(--radius-md);
+     IT IS NOT 18px ANY MORE: the radius is --radius-sm now, like every flat
+     surface in the admin, and at 12px a hairline holds. The rim is the
+     panel's own colour darkened toward its ink and measures 2.79:1 against
+     the cream page, so the edge is not in question — only its weight.
+
+     THE EDGE IS PURE ORANGE, and the fill stays powder orange. Those are two
+     different jobs: the fill has to stay quiet enough to carry a row, a set of
+     white pills and a white button, while this one line is what says "this is
+     a warning" from across the room. See the token's own note in
+     variables.scss. */
+  border: 1px solid var(--lowstock-accent);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -663,8 +668,13 @@
   /* The panel's own border colour, so the rule reads as part of the container.
      1px rather than 2px: this is an interior divider between two regions of the
      same tint, not the container's edge against the page, and 2px here is heavier
-     than the 18px radius it sits inside. */
-  border-top: 1px solid var(--lowstock-border);
+     than the 18px radius it sits inside.
+
+     NOT THE PURE ORANGE. That colour is the panel's OUTER edge and the
+     warning glyph; this rule sits directly under the Restock button, and a
+     saturated line there would compete with the action it is meant to sit
+     under. The Restock pill itself is untouched. */
+  border-top: 1px solid var(--lowstock-rule);
 }
 
 .low-stock-head {
@@ -682,12 +692,32 @@
   height: 32px;
   flex: 0 0 auto;
   border-radius: 50%;
-  background: rgb(255 255 255 / 0.7);
+
+  /* SOLID WHITE, not 70% white over the fill. The glyph inside is the panel's
+     pure orange, and that orange measures 3.42:1 on white but only 3.08:1 on
+     the translucent disc — barely over the 3:1 a non-text element owes. A
+     solid disc buys that back, and a white circle on the powder orange is the
+     same shape the white stock pills are. */
+  background: var(--color-white);
+
+  /* AN ORANGE RING, the same colour as the panel's edge and the pills' outlines.
+     The disc was an edge-less white circle, so the glyph inside it was the only
+     thing in the badge and the badge itself had no shape of its own. */
+  border: 1px solid var(--lowstock-accent);
+
+  /* The ring comes out of the 32px rather than making the disc 34px. There is
+     no universal border-box reset in this app — the `.chip` class carries its
+     own — so the badge has to say it. */
+  box-sizing: border-box;
 }
 
 .low-stock-badge app-icon {
   --icon-size: 17px;
-  color: var(--lowstock-ink);
+
+  /* PURE ORANGE, the same colour as the panel's edge. It was the panel's own
+     ink — a dark brown — which made the warning glyph the one thing on the
+     surface that did not look like a warning. */
+  color: var(--lowstock-accent);
 }
 
 .low-stock-head-text {
@@ -700,10 +730,10 @@
   font-size: 15px;
   font-weight: 600;
 
-  /* PLUM, not the peach ink. The title is the largest text in the panel and it
-     measures 8.68:1 on this fill, where the peach ink gives 4.99:1 — so the
-     redesign makes the heading STRONGER than the 6.29:1 it had on #fcebc4, and
-     gives the panel a real hierarchy instead of one flat brown for everything. */
+  /* PLUM, not the panel's own ink. The title is the largest text in the panel
+     and it measures 8.44:1 on this fill, where the orange ink gives 4.85:1 —
+     so the heading is STRONGER than the subtitle under it, and the panel has a
+     real hierarchy instead of one flat brown for everything. */
   color: var(--color-ink);
 }
 
@@ -712,11 +742,10 @@
   font-size: 12px;
 
   /* Full strength, no opacity reduction — the repo has been bitten by this twice
-     already (see .kpi-label): 0.85 composited the ink down toward the limit on
-     12px text, in a stylesheet the contrast gate cannot read. At full strength
-     this is 5.15:1 against the current fill — it was 4.99:1 against the old
-     peach, and the powder repaint bought the extra margin — and it is an
-     asserted gate row. */
+     already (the KPI tile's label used to carry 0.85): that composited the ink
+     down toward the limit on 12px text, in a stylesheet the contrast gate
+     cannot read. At full strength this is 4.85:1 against the current fill, and
+     it is an asserted gate row. */
   color: var(--lowstock-ink);
 }
 
@@ -727,19 +756,21 @@
   display: flex;
   flex-direction: column;
 
-  /* Real gaps between rows, so the peach shows between them and the rhythm does
+  /* Real gaps between rows, so the panel shows between them and the rhythm does
      the separating. The list is NOT width-capped: a band that stops short of the
      panel's edge reads as a broken layout rather than a design choice, which is
      exactly what a `max-width` here produced. */
   gap: 7px;
 }
 
-/* THE WHITE CARD IS GONE.
+/* NO CARD, NO BAND.
 
    This row used to be a solid white block inside the tinted panel — a box inside
    a box, three tones of one orange stacked on each other, which is what made the
-   panel read as heavy rather than soft. The row is now just content sitting on the
-   peach, and rows are separated by whitespace plus a single hairline.
+   panel read as heavy rather than soft. Then the band became 40% white over the
+   fill. Now the panel's fill is a whisper of orange and the band is gone
+   entirely: the row is content on the panel, and the white pills are what
+   carry the numbers.
 
    That is the whole minimalist move: one surface, one divider rhythm, no nested
    fills. It also shortens the panel, because a card had to carry padding of its
@@ -749,34 +780,25 @@
   align-items: center;
 
   /* `space-between` puts the name at the left edge and the pills at the right
-     edge, with the tint carrying the row identity between them. Closing that gap
-     was tried and reverted: the band is what groups a name to its numbers now, so
-     the pills no longer need to sit beside the name to be read as belonging to
-     it, and a full-width panel looks deliberate where a capped one did not. */
+     edge. Closing that gap was tried and reverted: the pills no longer need to
+     sit beside the name to be read as belonging to it, and a full-width panel
+     looks deliberate where a capped one did not. */
   justify-content: space-between;
   gap: var(--space-3);
 
   padding: 9px 11px;
 
-  /* A SOFT TINT, not a white card and not a hairline.
+  /* NO FILL. The row used to be 40% white over the panel's fill, which was a
+     band the eye could see — but the panel's fill is now a whisper of orange,
+     and 40% white over a whisper is 1.11:1: no band at all.
 
-     40% white over the fill, left as a live alpha so it tracks whatever the fill
-     is; that composite is asserted in check-contrast.mjs against the panel. Over
-     the current --lowstock-bg it lands at 1.16:1 — enough for the row to be a
-     visible unit, where the 1.56:1 hairline it replaced was not, and a 1px rule
-     on a 12px radius rasterises unevenly anyway.
+     So the row stopped pretending. It is content ON the panel, and the white
+     pills are what carry the numbers — they read against the whisper at
+     1.22:1, which is enough for a pill whose ink is 6.07:1.
 
-     THIS IS THE PAIR THAT LIMITS THE PANEL, not the text. A paler fill leaves a
-     white overlay nothing to separate from: at S25 L88 the row edge measures
-     1.11:1 and fails. 1.16 is thin by design — it is why --lowstock-bg cannot
-     go as pale as a KPI tile, and the first number to re-check if it moves.
+     The radius went with the fill: there is no longer a shape here to round.
 
-     Text still gains from the tint rather than losing: it sits on a lighter
-     background than the raw fill, so the ink goes from 5.15:1 to 6.00:1. */
-  background: rgb(255 255 255 / 0.4);
-  border-radius: var(--radius-sm);
-
-  /* The ROW wraps, not just the pills. With all four sizes low the pills need
+     The ROW wraps, not just the pills. With all four sizes low the pills need
      ~246px and the flavour name needs ~90px, which is more than a 390px phone
      has inside this row. Before this the row was nowrap, so .low-stock-info —
      the only child allowed to shrink — absorbed the entire shortfall and the
@@ -810,8 +832,8 @@
 .low-stock-set {
   font-size: 11px;
 
-  /* NOT --ion-color-medium. That measures 3.32:1 on this peach — a fail at 11px.
-     The peach ink is 4.99:1 and is the same ink the header subtitle uses, so the
+  /* NOT --ion-color-medium. That measures 3.32:1 on this orange — a fail at 11px.
+     The panel's ink is 4.85:1 and is the same ink the header subtitle uses, so the
      secondary line still reads as secondary against the plum flavour name above
      it. The design would have looked identical; it would simply have failed WCAG
      on the one line nobody looks at twice. */
@@ -837,73 +859,101 @@
 }
 /* The per-size stock pills.
 
-   INVERTED from the tan-on-white they used to be. They now sit directly on the
-   peach, so they are WHITE with the peach ink on them: 7.41:1 for the text and
-   1.48:1 for the pill's own edge against the surface behind it. The pill is the
-   only white in the panel, which is what makes the numbers the thing your eye
-   lands on — which is the entire point of an admin scanning this.
+   WHITE, with the panel's ink on them and an orange outline. The text colour is
+   the same one the "1 flavor below 10 units" line uses, so the numbers and the
+   sentence they belong to are the same voice, and the pills read as the panel's
+   numbers rather than as a separate set of widgets.
 
-   ZERO IS DISTINGUISHED FROM LOW, which is the one functional gain in this
-   redesign. Before it, `Cup: 0` and `Cup: 3` were the same pill, so a manager
-   had to read all four numbers on every row to tell what was actually GONE from
-   what was merely running low. A zero pill is now filled with the ink and reads
-   white-on-brown at 7.41:1; anything above zero stays white. Same text, same
-   size, same radius — the difference is fill alone, so the list does not turn
-   into a colour chart. */
+   That edge — the pill's own edge against the surface behind it — is thin:
+   1.22:1, because the panel is a whisper of orange now and a white pill on a
+   whisper is close to white on white. The outline is what draws the pill, and
+   the ink inside it is what carries the number, at 7.41:1.
+
+   ZERO IS NO LONGER DISTINGUISHED FROM LOW. It used to be: an empty size was a
+   filled dark pill and a stocked one was white, so a manager could read
+   "GONE" off the row without reading every number. The owner's call was that
+   every pill is the same white pill with the same ink and the same orange ring,
+   so that distinction is gone and `Cup: 0` and `Cup: 3` now differ by their
+   number alone. The rule that did it has been deleted rather than left in
+   place. */
 .stock-chip-sm {
   /* These are the two custom properties ion-chip reads for its own fill and text.
      `color="warning"` used to be on the element as well, which put Ionic's own
      `.ion-color` rule in competition for exactly these two properties — hence the
      "declare at the same specificity to win" note that used to sit here. That
-     attribute is GONE: a chip rendered white-on-peach is not a warning chip any
+     attribute is GONE: a chip rendered white-on-orange is not a warning chip any
      more, and leaving the attribute would have kept the chip competing with a
      colour it no longer uses. `.stock-chip-empty` below still reaches both
      properties, and does so from a HIGHER specificity than this rule, so the two
-     are order-independent. */
-  --background: var(--color-white);
-  --color: var(--lowstock-ink);
+     are order-independent.
+
+     AND NOW THE ELEMENT IS NOT AN ion-chip, which retires that whole paragraph.
+     `--background` and `--color` were how you told ion-chip what to paint; with a
+     plain <span> there is no such indirection, so both become ordinary
+     declarations below. Nothing about the rendered result changes — these were
+     already winning over ion-chip's defaults — but they were winning as a
+     workaround, and a workaround left in place after its cause is gone is how the
+     next person ends up setting a custom property nothing reads.
+
+     The box — padding, the 12px radius, `margin: 0`, inline-flex — is the global
+     `.chip` class. Only the size, the type, the fill and the outline are here. */
+  background: var(--color-white);
+  color: var(--lowstock-ink);
   font-size: 11px;
   font-weight: 700;
 
-  /* min-height, NOT height. This rule said `height: 22px` and had never done
-     anything: ion-chip's own host sets `min-height: 32px`, and in CSS min-height
-     always beats height. The chips have been rendering at 32px with 4px of margin
-     on all four sides inside a row padded by 9px — which is most of why they
-     looked oversized and misaligned. Same Ionic trap, same explanation, as
-     .set-chip-sm in admin/inventory/inventory.page.scss:150-160.
+  /* AN ORANGE OUTLINE, on every chip.
 
-     The vertical padding is pulled in for the same reason `min-height` alone was
-     not enough: ion-chip ships `padding-top/bottom: 6px`, which on its own drove
-     the rendered height to 27px even with a 22px min-height. At 22px the pill is
-     the size a chip in a card header is meant to be. */
+     The pills had no border at all, so their shape was carried entirely by the
+     difference between the fill and whatever was behind it — and behind them
+     is now a whisper of orange, where a white pill is 1.22:1. That is thin
+     enough that the numbers read as text with a shape rather than as pills.
+
+     The outline is the panel's PURE orange, the same colour as the edge and
+     the warning glyph, so the pills belong to the panel's warning rather than
+     floating on it. `border-box` (the global `.chip` rule) means the 1px
+     comes out of the pill's own 22px rather than making it 24px. */
+  border: 1px solid var(--lowstock-accent);
+
+  /* 22px, and the reason it is `min-height` is now different but the number is
+     the same. It used to have to beat ion-chip's own `min-height: 32px` (and the
+     same Ionic trap is documented on .set-chip-sm in inventory.page.scss) — with
+     ion-chip gone the conflict is with `.chip`'s 32px, which this still has to
+     override, so `min-height` remains the correct property rather than `height`.
+
+     The vertical padding is pulled in for the same reason it always was:
+     `.chip` copies ion-chip's `padding: 6px 12px`, and 6px of padding plus an
+     11px label is 23px before the min-height is even consulted. */
   min-height: 22px;
   padding-top: 2px;
   padding-bottom: 2px;
-  margin: 0;
-  /* ion-chip ships 16px. A pill matches --radius-pill, which is what the Restock
-     CTA below uses, so the two read as one control vocabulary. */
-  border-radius: var(--radius-pill);
 }
 
-/* An empty size. Filled rather than outlined so it reads at a glance across a
-   whole column of rows — the state an admin acts on immediately, which is not
-   the same as the state they act on after restocking. */
-.stock-chip-sm.stock-chip-empty {
-  --background: var(--lowstock-ink);
-  --color: var(--color-white);
-}
+/* There is no ".stock-chip-empty" rule any more.
+
+   It used to invert an empty size to a filled dark pill, so that "Cup: 0" and
+   "Cup: 3" could be told apart without reading the numbers. Every pill is now
+   the same white pill with the same ink and the same orange ring — the owner's
+   call — so the rule that inverted it has been deleted rather than left behind
+   describing a state nothing draws. */
 
 /* A WHITE PILL, not a dark slab.
 
    This was white-on-dark-brown, which made the CTA the highest-contrast object in
    the panel — louder than the stock figures it exists to act on. Inverted to white
-   with the peach ink, it measures the same 7.41:1 as before while becoming the
+   with the panel's ink, it measures the same 7.41:1 as before while becoming the
    quietest thing on the surface, and it shares a colour and a shape vocabulary
    with the pills directly above it. The eye now goes to the NUMBERS first, which
    is the correct order for a panel whose job is to be scanned.
 
    The border is what separates it from the white pills when they sit on the same
-   line, so it carries the ink rather than sitting flush against it. */
+   line, so it carries the ink rather than sitting flush against it.
+
+   THE OUTLINE IS ORANGE, like the pills'. It was the panel's ink — a dark
+   brown — which put a brown ring on a panel whose edge and glyph are orange,
+   and left the one control on the surface speaking a different colour from
+   everything else on it. The label stays the ink's brown: the owner asked for
+   the outline, not for the words. */
 .low-stock-cta {
   display: flex;
   align-items: center;
@@ -912,9 +962,14 @@
   width: fit-content;
   margin: var(--space-3) auto;
   padding: 11px 22px;
+
+  /* A pill, like every other button in the app. It was the last control that
+     was not: the file buttons, the gold CTAs and the quiet controls are all
+     pills now, and a 12px rectangle inside a panel whose own corners are 12px
+     was the one shape left over from the old vocabulary. */
   border-radius: var(--radius-pill);
   background: var(--color-white);
-  border: 1px solid var(--lowstock-ink);
+  border: 1px solid var(--lowstock-accent);
   color: var(--lowstock-ink);
   font-size: 13px;
   font-weight: 700;
@@ -940,14 +995,17 @@
   flex-direction: column;
   gap: 6px;
 }
+/* FLAT: white, one hairline, no shadow — the same recipe as the KPI tiles
+   above and the order rows below. It was a card with a drop shadow, which is
+   the oldest treatment on the page. */
 .admin-order-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-sm);
   padding: 12px 14px;
-  box-shadow: var(--shadow-card);
   cursor: pointer;
   gap: 8px;
 }

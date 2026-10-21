@@ -1,89 +1,80 @@
 // src/app/features/orders/orders.page.scss
+//
+// MY ORDERS — a list of cards, not a table.
+//
+// This page was a seven-column ledger: Order, Items, Qty, Total, Status,
+// Placed, Cancel, under a header row that named them. It was two problems at
+// once.
+//
+// THE CRAMPING. Seven columns is a table with no room in it. The flavour
+// names decided how wide everything after them was, so the money, the status
+// and the date were pushed into whatever was left; on a phone it was worse,
+// and the ledger had a stacked layout of its own below 1280px to cope.
+//
+// THE NOISE. Every row that was still moving carried a teal border and every
+// cancelled row a red one, so a page of order history read as a page of
+// alerts. The status chip already says all of that, in the app's own six
+// tones; saying it twice on the same row is what made it loud.
+//
+// What is here now is a list of cards, three lines each:
+//
+//     [status]  #H1GVD2                    Oct 21, 12:13 AM
+//     Chocolate Fudge Brownie, Chocolate Peanut Butter Cup
+//     2 scoops · ₱180                        [Cancel]
+//
+// The four things a customer looks for — where it has got to, what it is, how
+// much it was, and when it was placed — with room for each of them.
 
-/* ── The ledger ──────────────────────────────────────────────
-   Seven fixed columns on one line. Every width below was set from
-   the measured width of its widest real value, not from taste:
+/* ── The page's measure ───────────────────────────────────────────
+   THE LIST IS A COLUMN, NOT A FULL-BLEED BAND.
 
-     Order   96px   #LNGVRO, mono 13px
-     Qty     44px   a single digit at 13px, right-aligned
-     Total   84px   a six-figure peso at 17px Nunito/700 tabular. Measured
-                   IN THE RENDERED LEDGER (Range over the text node, not
-                   an isolated box): ₱123,450 is 75.6px, so there is
-                   8.4px of slack — the same ~8.5px the Status column
-                   keeps over its widest badge. Right-aligned.
+   The rows used to span the entire content pane, so at 1920px with the menu
+   open a card's left edge was against the sidebar and its right edge was
+   against the window. Nothing breathed around it: a row that touches both
+   sides of the screen stops reading as a card and starts reading as a table,
+   and the space around a card is what tells the eye where the card begins.
 
-                   The three numbers this column has held, in order:
-                   108px (Fredoka 19px, whose stated basis was "a
-                   four-figure peso" — a string that is only 54.5px wide,
-                   so ~2x over), then 96px (Nunito 19px, 84.5px measured),
-                   then 84px (Nunito 17px, 75.6px measured). The last step
-                   gave 12px back to Items, the column tightest at the
-                   1280px breakpoint.
+   So the list is capped and centred, with a real gutter either side of it —
+   the same treatment the cart's split and the tracker's grid get, and for the
+   same reason.
 
-                   17px IS A FLOOR, NOT A PREFERENCE. The next-largest value
-                   in the row is Items at 13px/600. 17px keeps a 4px lead, so
-                   the total still reads as the row's headline number; at
-                   15px the lead is 2px and it stops being what the eye
-                   lands on first. If this needs to be lighter again, drop
-                   the WEIGHT to 600 rather than cutting more size — 16px/600
-                   measures 71.0px and cuts visual mass without touching
-                   the hierarchy.
+   THE SPLIT. .orders-shell FILLS THE PANE and does only that: no max-width
+   and no auto margins. It is a cross-axis FLEX ITEM of the column flexbox
+   global.scss makes of `ion-content::part(scroll)`, and `margin: 0 auto` on
+   such an item does not centre a capped box — it suppresses the stretch and
+   shrink-wraps the item to its content, which is how this shell came out
+   488px wide: as wide as the longest flavour name in the list wanted to be.
+   `width: 100%` gives the item a definite size so it fills the pane, and the
+   cap moves DOWN to .orders-column, a block child, where `margin: auto` and
+   `max-width` behave the way they read. The notifications page's .page made
+   the same move for the same reason.
 
-                   NOTE THE DIRECTION, because it is the opposite of the
-                   obvious guess. Nunito is WIDER than Fredoka at the same
-                   size and weight, not narrower: at 19px, ₱1,850 is 63.0px
-                   in Nunito against 54.5px in Fredoka, because Nunito's
-                   tabular digit advance is 11.41px where Fredoka's is
-                   ~10px. So changing the face RAISED this column's
-                   requirement rather than lowering it, and 108px would
-                   have cleared it anyway. Only the size reduction moved
-                   this number down.
+   1240px, not the shared --container-max (1080px): this is a list of wide
+   cards rather than a measure of prose, and 1080 left the cards noticeably
+   narrower than the cart's, which is the page they sit one click away from.
 
-                   Six figures is the realistic ceiling for this shop. Seven
-                   (₱1,234,567) is 91.3px at 17px and does not fit.
-     Status  182px  "Preparing Your Scoops", the longest label the badge
-                  component renders, measured at 173.5px unbent
-     Placed  158px  "Oct 14, 2026, 06:20 AM" at 11.5px
-     Action  88px   the Cancel PILL: 1px border, 10px padding each side,
-                   a 13px icon, a 5px gap and "Cancel" at 12px/700. It was
-                   52px, sized for the underlined word that was there before;
-                   a pill cannot be 52px, and 80px measured is the floor, so
-                   88 is the measured width plus slack.
+   The gutter is 24px, which is the app's --space-5. The filter strip above
+   the list is inside the same column, so the control and the cards share one
+   left edge — and the cards' own 18px inner padding still lines the control
+   up with their CONTENT, which is what that 18px was chosen for. */
+.orders-shell {
+  width: 100%;
+  padding-inline: var(--space-5);
+}
 
-   Items takes the remainder via minmax(0, 1fr) — the 0 is what lets it
-   ellipsis instead of forcing the grid wider than its container.
+.orders-column {
+  max-width: 1240px;
+  margin-inline: auto;
+}
 
-   THE FIX THIS REPLACES. An earlier draft of this grid declared Qty at 46px and
-   Total at 92px and read as "2 ₱180" — the count and the price looked like one
-   number. Measured, no column was overflowing; the cause was that Qty was
-   text-align: right and Total was text-align: start, so the two sat 14px apart
-   with their digits facing. Total is right-aligned now, matching its own header,
-   and the pair separates by a whole column. Tabular numerals keep the money
-   column from wobbling down the page.
-
-   Total is 84px today and that is NOT the 92px this describes coming
-   back. The bug was alignment, not width: the columns are now 44px (Qty) and
-   84px (Total) with a $order-gap between them, so the count and the price are
-   separated by a column's worth of space and both are right-aligned under
-   right-aligned headers. Nothing here can read as "2 ₱180" again.
-
-   STATUS WAS 96px AND THAT WAS A MEASUREMENT ERROR, not a taste call. The note
-   claimed "the widest badge ('Order Placed') measures 89px" — 89px is the LABEL
-   TEXT, and it was measured against the preview's hand-rolled pill (11px type,
-   4px/10px padding, no icon) rather than the component this page actually uses.
-   <app-order-status-badge> is an ion-chip: a 12px label, a 16px icon with a 4px
-   margin, and ~16px of its own padding. Measured in the browser, the six real
-   chips come to 102.6 / 104.0 / 106.8 / 121.7 / 137.8 / 173.5px, so at 96px
-   EVERY pill overflowed its column and the label re-wrapped inside the chip —
-   "Order Placed" over two lines, "Preparing Your Scoops" over three. That is
-   what put three different row heights (64 / 75 / 91px) on a page whose entire
-   premise is that a row is one line. 182px is the widest chip plus slack, and it
-   is the single number that keeps every badge on one line and every row the
-   same height — and it only holds because the chip is pinned to
-   `flex: 0 0 auto` in order-status-badge, without which the pill shrinks to
-   track-minus-8px and wraps again whatever width is given here. */
-$order-cols: 96px minmax(0, 1fr) 44px 84px 182px 158px 88px;
-$order-gap: 14px;
+/* On a phone the gutter is the app's standard 16px. The cards carry their own
+   18px of inner padding, so 16 + 18 is already 34px of inset on a 390px
+   screen, and a 24px gutter on top of that costs the row more than it buys. */
+@media (max-width: 768px) {
+  .orders-shell {
+    padding-inline: var(--space-4);
+  }
+}
 
 /* ── The status filter ────────────────────────────────────────────
    A select, not a segment, and the same control the notifications page narrows
@@ -91,14 +82,20 @@ $order-gap: 14px;
    customer, and this is now that way rather than the exception. Modelled on
    .filter-row / .filter-label / .period-select there, token for token.
 
-   The ONE difference is the inset, and it is forced by the markup rather than
-   chosen. Every other page that carries this control puts it inside a wrapper
-   with its own padding — the notifications page's .page, the products page's
-   .select-row. This page has none: the rows span the full content pane, and the
-   horizontal inset they show is their own --padding-start. So the filter row
-   carries 18px itself, the number .orders-head documents as the one that lines a
-   control up with row content, and a future wrapper would make this declaration
-   redundant rather than wrong. */
+   THE STRIP'S LEFT EDGE IS THE ROWS' LEFT EDGE.
+
+   The label used to carry 18px of its own padding, which put "Show" on the
+   cards' CONTENT - their 18px of inner padding - rather than on their BORDER.
+   Measured on a 390px phone: the card's hairline at 16px, the card's content
+   at 35px, and "Show" at 34px. So the caption sat inside the column of cards
+   it captions, and the eye read it as belonging to the card beside it rather
+   than to the list.
+
+   A label is read against the thing it labels, and the thing it labels here is
+   the LIST - so it belongs on the outline the eye actually follows: the card's
+   1px hairline. With the padding gone, "Show" starts at 16px on a phone and
+   427px on a desktop, which is the card's border to the pixel, and the control
+   strip and the list share one left edge. */
 .filter-row {
   display: flex;
   align-items: center;
@@ -109,10 +106,15 @@ $order-gap: 14px;
      than give the page a horizontal scrollbar. */
   flex-wrap: wrap;
   gap: var(--space-3);
-  /* No bottom gap of its own. The ledger's header owns the space between this
-     control and the first row (its own 16px top padding, documented there), and
-     a second gap here would put two different rhythms one after the other. */
-  padding: var(--space-4) var(--space-4) 0 18px;
+  /* The space between this control and the first row.
+     It was nothing at all — the filter row's padding ended at zero and the
+     ledger's header row used to provide the gap — and with the header gone the
+     select's own box sat 13px above the first card, which read as the control
+     overlapping it. The gap belongs to the control, not to the list: this row
+     is a control strip, and a strip has a bottom edge.
+
+     The LEFT padding is zero, so the strip starts on the cards' hairline. */
+  padding: var(--space-4) var(--space-4) var(--space-3) 0;
 }
 
 .filter-label {
@@ -135,7 +137,26 @@ $order-gap: 14px;
    the pane; max-width 100% keeps it inside a phone viewport no matter how long an
    option gets. NO `--width` HERE, and the omission is deliberate: see
    products.page.ts:53-72 — setting it desyncs Ionic's JS popover positioning from
-   the CSS box and the popover overflows the control it is anchored to. */
+   the CSS box and the popover overflows the control it is anchored to.
+
+   --radius-sm, NOT --radius-pill, and the admin ledger already made this call
+   on its own copy of the identical control: it reads "--radius-sm, NOT
+   --radius-pill. At 36px tall a pill radius wraps both ends to an 18px
+   semicircle, which reads as a lozenge rather than a control." Same 36px
+   height, same --radius-sm, same --color-primary-ink value, and it was a pill
+   here while that one was not — so the customer ledger and the admin ledger
+   were shipping differently-shaped controls for one job.
+
+   THE EDGES HAVE SINCE DIVERGED, and this one is the one still carrying the
+   old rim. The admin copy was flattened to a 1px --tile-powder-deep hairline
+   on a white field — a 2px rim around a tinted fill reads as a bevel, and
+   that design has no bevels. This control still has the 2px rim and the
+   --tile-powder fill, and unlike the admin one it is an `ion-select`, so
+   what the host actually paints is Ionic's business rather than ours.
+   Flattening it means reaching into Ionic's select internals; until that is
+   done, the two filters are the same control doing the same job with
+   different edges, and that is a real inconsistency rather than a
+   deliberate choice. */
 .status-select {
   --padding-start: 12px;
   --padding-end: 12px;
@@ -148,330 +169,235 @@ $order-gap: 14px;
   color: var(--color-primary-ink);
   background: var(--tile-powder);
   border: 2px solid var(--tile-powder-deep);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
 }
 
-.orders-head,
-.order-grid {
-  display: grid;
-  grid-template-columns: $order-cols;
-  column-gap: $order-gap;
-  align-items: center;
-}
-
-/* The one line that makes this a TABLE instead of eight independent rows.
-
-   `ion-item` with `button` renders its contents inside three nested flex
-   containers of its own — .item-native, .item-inner, .input-wrapper — reached
-   through a default slot that is `display: contents`. So .order-grid is not a
-   block child of an ion-item; it is a FLEX ITEM of .input-wrapper. An
-   auto-sized flex item is sized by its content, not by its container, so every
-   row's grid was as wide as its own text: measured at 966, 919, 899, 824, 772,
-   787, 908 and 1099px on the same page. The order ID and the Items column
-   still lined up, but everything after Items — Qty, Total, Status, Placed,
-   Cancel — drifted by the width of the row's own flavour names, which is the one
-   thing a receipt-shaped list cannot do.
-
-   `width: 100%` is the flex-basis override that stops it: the percentage
-   resolves against .input-wrapper's content box (1315px in the browser), which
-   is the same box the header sits in once the row's 18px padding and the
-   content's 16px padding are counted. Header and rows now share one width. */
-.order-grid {
-  width: 100%;
-}
-
-.orders-head {
-  /* 18px on the left lines the labels up with the row's own left padding, and
-     that number must match — it is not a free choice. The extra 16px on the
-     right is not padding for its own sake: a row's grid lives inside ion-item's
-     shadow DOM, nested in .item-inner > .input-wrapper, and .input-wrapper
-     measures 16px narrower than .item-inner (the end-slot strip takes it even
-     when it is empty). So every row's grid is 16px narrower than this header's
-     own box, and without the correction the columns after Items — Qty, Total,
-     Status, Placed, Cancel — sat 16px right of their headers. Measured, not
-     assumed: the gap was 16px at every width tried. */
-  /* Top gap: the ledger otherwise starts flush with the toolbar's bottom edge.
-     Measured in the browser at 1920px: toolbar bottom 62px, this header's top
-     62px, first data row 84px — zero breathing room, which is what made the
-     column labels read as part of the header bar. --space-4 is one step up from
-     the 8px the mockup used, enough to read as a deliberate gap.
-
-     The 34px/18px split on the horizontal axis is load-bearing; see above. */
-  padding: var(--space-4) 34px 8px 18px;
-  font: 700 10px var(--font-body);
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
-  color: var(--color-ink-soft);
-
-  span {
-    min-width: 0;
-  }
-
-  .num {
-    text-align: right;
-  }
-
-  /* The status label over the pills, which are right-aligned in their column.
-     Qty and Total headers sit above right-aligned values, so they get .num; this
-     one sits above right-aligned PILLS and had been left-aligned, which put the
-     "STATUS" caption 80px to the left of every badge it was labelling. 182px of
-     column with the caption at one end and the value at the other reads as a
-     column that does not belong to itself.
-
-     A class rather than :nth-child(5) — a positional selector would silently
-     re-point at whatever moved into the fifth slot, and this file already has a
-     column order that has changed once. */
-  .end {
-    text-align: right;
-  }
-}
-
+// ── The list ───────────────────────────────────────────────────
 .orders-body {
   padding: 0 0 4px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
 }
 
+/* THE ROW, as a flat card: a white surface, one hairline, a 12px corner, and
+   no shadow.
+
+   Three custom properties, and that is the whole trick: Ionic paints this row
+   on the .item-native part (ion-item's shadow DOM), which reads
+   --border-width / --border-style / --border-color alongside --background and
+   --border-radius. So the hairline lands on the same rounded box the fill is
+   painted on — no ::part(native) overrides and no second element.
+
+   THE RIM IS --tile-powder-deep, not plum. Plum is a 13:1 outline on white and
+   it drew every row as a hard box; the hairline this vocabulary uses for a
+   card is the same one the order tracker's cards use, so the two pages are
+   made of the same stuff. */
 .order-item {
   --padding-start: 18px;
   --padding-end: 18px;
-  --padding-top: 10px;
-  --padding-bottom: 10px;
-  /* The chip's height, and deliberately not a floor below it.
-
-     Ionic splits this row across two elements: the HOST takes --padding-top and
-     --padding-bottom, the inner .item-native takes --min-height. So the row is
-     20px of padding plus whatever the inner declares — the inner's own content
-     (the 34px status chip) plus ITS padding is already 54px, and any --min-height
-     above 34 comes out as pure dead space. Measured: --min-height 44 produced
-     64px rows and 58 produced 78px, both taller than the content asked for.
-
-     36px is the chip (34) plus 2px of slack. No child is taller than that, so a
-     row is 56px whether or not it can be cancelled — the uniform height this
-     layout exists for, without the button adding an inch to every cancellable
-     row. The Cancel PILL is now 30px tall (see its own block for why not 44),
-     still under the 34px chip, so this number did not have to move: the ledger
-     below 1280px is the one place the pill is the tallest thing in the row, and
-     it stacks to four lines there rather than setting a floor on the desktop. */
-  --min-height: 36px;
+  --padding-top: 12px;
+  --padding-bottom: 12px;
   /* --radius-control, the notifications page's token rather than this file's
      --radius-sm. Both resolve to 12px today, so nothing moves; the point is that
      .entry and this row now reach for the SAME name, so a later change to
      "how round is a list row" is one edit and not two. */
   --border-radius: var(--radius-control);
-  /* A BORDERED CARD, not a shadowed one. Three custom properties, and that is
-     the whole trick: Ionic paints this row on the .item-native part
-     (ion-item's shadow DOM), which reads --border-width / --border-style /
-     --border-color alongside --background and --border-radius. So the hairline
-     lands on the same rounded box the fill is painted on — no ::part(native)
-     overrides, no second element, no change to the seven-column grid below
-     (the border is inside the box-sizing: border-box box the row already had).
-
-     This is .entry from notifications.page.scss, restated:
-       fill     --color-white, the "read" card
-       border   1px --color-ink, plum, not a shadow
-     and --shadow-card is gone rather than kept. The hairline carries the edge;
-     a 12px blur behind a card this thin reads as a different card type from the
-     row it is sitting beside, and the two list pages are meant to be one system.
-     --color-card (#FFFCEE) was the old ivory fill and is dropped with it. */
   --background: var(--color-white);
   --border-width: 1px;
   --border-style: solid;
-  --border-color: var(--color-ink);
+  --border-color: var(--tile-powder-deep);
   margin: 0;
 
   /* Ionic paints its own list divider as a bottom-only hairline on .item-inner —
      --inner-border-width ships as `0px 0px 0.55px 0px` in iOS mode (md defaults it
      to 0). So every row carried TWO rules: this card's own border, plus that one.
      Worse, .item-inner borrows --border-style and --border-color from this block,
-     so the plum set for the card border was doubling as the divider colour.
+     so the rim set for the card border was doubling as the divider colour.
 
      Set the custom property rather than `::part(inner) { border-bottom: none }` —
      which was tried and did not take. The property inherits, so it wins against
      the shadow styles that a ::part() rule has to compete with.
 
-     The card's border is the edge this row needs, and the 6px gap on .orders-body
-     separates rows without the second rule. */
+     The card's border is the edge this row needs, and the 10px gap on
+     .orders-body separates rows without the second rule. */
   --inner-border-width: 0px;
 }
 
-/* The two states that are worth an accent, and both are the notifications
-   page's, not new ones: the fill and the border both move, which is exactly
-   what .entry--unread and .entry--alert do. A third state does not exist —
-   delivered is the base rule above, the same way a read notification row is. */
-.order-item--active {
-  /* An order that is still moving. Cream + primary-ink is .entry--unread's
-     pair verbatim, and it is already measured: primary-ink border on cream
-     clears the 3:1 non-text bar in check-contrast.mjs, and every ink the row
-     prints — plum id and total, ink-soft qty and date — is asserted 4.5:1 on
-     cream. So this adds no colour pair the gate cannot see. */
-  --background: var(--color-cream);
-  --border-color: var(--color-primary-ink);
+/* The row's three lines.
+
+   `width: 100%` is the flex-basis override that stops the row being sized by
+   its own content: `ion-item` with `button` renders its contents inside three
+   nested flex containers of its own — .item-native, .item-inner, .input-wrapper
+   — reached through a default slot that is `display: contents`. So this is a
+   FLEX ITEM of .input-wrapper, and an auto-sized flex item is sized by its
+   content, not by its container. */
+.order-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.order-item--cancelled {
-  /* Cancelled, the one status worth interrupting for — and it interrupts the
-     EDGE, not the fill, the same call .entry--alert documents at length. The
-     danger border on cream is 3:1 and asserted; the status pill inside already
-     carries the blush fill, so recolouring the row too would say it twice. */
-  --background: var(--color-cream);
-  --border-color: var(--color-danger);
+/* Line one: the status, the order's number, and when it was placed. */
+.order-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px var(--space-3);
+  flex-wrap: wrap;
 }
 
-.order-grid > * {
-  min-width: 0;
+/* THE STATUS AND THE NUMBER TRAVEL TOGETHER.
+
+   They are one thing — which order this is, and where it has got to — and they
+   are sized against each other: the chip is `inline-block` at its own fixed
+   width and the number is 13px of mono, and neither may shrink. Left as two
+   separate flex items they fought over the line: the chip's host could be
+   squeezed (its label then spilled out of its own box and landed on top of the
+   number), and the number ran under the date on the rows whose status is the
+   long one. As a group they take the space they need, and the date takes what
+   is left — or wraps to a line of its own when there is none. */
+.order-top-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 0 0 auto;
 }
 
+/* NOTHING IN THE GROUP MAY SHRINK. The chip's own width is its content's
+   width, and letting the host shrink does not shrink the chip inside it — the
+   label spills out and lands on top of whatever is next. */
+.order-top-main app-order-status-badge,
+.order-id {
+  flex: 0 0 auto;
+}
+
+/* The order's number, in the app's mono token — it is an identifier, and an
+   identifier set in the body face is hard to read back over the phone. */
 .order-id {
   font: 700 13px var(--font-mono);
   letter-spacing: 0.4px;
   color: var(--color-ink);
 }
 
-.order-items {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* The date, at the end of the line, quiet. It wraps to a line of its own
+   rather than overlapping anything when the status is the long one. */
+.order-date {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* Line two: what was ordered. It is allowed to WRAP — the ledger truncated it
+   to one line with an ellipsis, which hid the second flavour of every order
+   that had two. Two lines is the cap here: a card that grows to four lines
+   stops being a card. */
+.order-items {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-ink);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Line three: how many, how much, and the one action. */
+.order-bottom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .order-qty {
   font-size: 13px;
   font-weight: 600;
   color: var(--color-ink-soft);
-  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 /* THE FACE IS --font-body, NOT --font-display, and this was the fix.
 
    This was the ONLY peso figure in the app set in Fredoka. Measured across
-   every money string the app renders — the cart total (cart.page.scss .total-amount,
-   20px/800), the tracker grand total (order-tracker.page.scss .grand, 16px/800),
-   the tracker line price (.item-price, 13px/700), the product card price
-   (product-card.component.scss .price, 18px/700) and this column — all five of
-   the others are Nunito. A receipt whose headline number is in a different face
-   from its own line items reads as two documents.
+   every money string the app renders — the cart total (cart.page.scss
+   .total-amount, 20px/800), the tracker grand total (order-tracker.page.scss
+   .total-row--grand, 18px/800), the tracker line price (.item-price, 14px/700),
+   the product card price (product-card.component.scss .price, 18px/700) and
+   this one — all five of the others are Nunito. A receipt whose headline number
+   is in a different face from its own line items reads as two documents.
 
-   It also read as TOO THICK, which is the other half of why it moved. Fredoka is
-   a rounded geometric face with very heavy bowls and a tall x-height; at 19px/700
-   the peso figure rendered as a black slab. Nunito at the same size and weight
-   is a humanist sans with much lighter strokes at a near-identical optical size.
+   It also read as TOO THICK, which is the other half of why it moved. Fredoka
+   is a rounded geometric face with very heavy bowls and a tall x-height; at
+   19px/700 the peso figure rendered as a black slab. Nunito at the same size
+   and weight is a humanist sans with much lighter strokes at a near-identical
+   optical size.
 
-   The SIZE came down separately, 19px -> 17px, once the face had changed. Both
-   were needed: switching the face alone lightened the strokes but left the
-   figure as the largest thing on the row by 6px, which still read as too big
-   next to a 13px Items column. See the Total entry in the ledger header for why
-   17px is the floor.
+   Named explicitly rather than deleted. The inherited value is already Nunito,
+   so omitting the declaration would render identically — but it would also
+   leave no record of the decision, and the next person to "tidy up" a
+   redundant font-family would put Fredoka back.
 
-   Named explicitly rather than deleted. The inherited value is already Nunito, so
-   omitting the declaration would render identically — but it would also leave no
-   record of the decision, and the next person to "tidy up" a redundant font-family
-   would put Fredoka back.
-
-   letter-spacing is gone, deliberately. The -0.3px existed to pull Fredoka's wide
-   round digits inside the 108px column this one started at. Nunito's tabular
-   figures are not cramped and do not need it; negative tracking on a lighter face
-   reads as squeezed rather than tight. */
-
+   letter-spacing is gone, deliberately. The -0.3px existed to pull Fredoka's
+   wide round digits inside the 108px column this one started at. Nunito's
+   tabular figures are not cramped and do not need it; negative tracking on a
+   lighter face reads as squeezed rather than tight. */
 .order-total {
   font-family: var(--font-body);
   font-size: 17px;
-  font-weight: 700;
-  color: var(--color-ink);
-  text-align: right;
-
-  /* Without this the peso figure's digits have different widths and the money
-     column zig-zags down the page — which defeats the reason for giving it a
-     column at all. */
+  font-weight: 800;
+  /* Teal, like every other price in the app — the product card's, the tracker's,
+     the quick-view's. It was plum, which made the money the loudest thing on
+     the row and put it in competition with the status chip. */
+  color: var(--color-primary-ink);
   font-variant-numeric: tabular-nums;
 }
 
-.order-qty,
-.order-date {
-  font-variant-numeric: tabular-nums;
-}
-
-/* Right-aligned within its own column, matching the mockup this ledger was
-   chosen from: the pill sits under the closed end of the STATUS column rather
-   than adrift at its left edge, which left the widest badge ("Order Placed",
-   89px) touching the Total column and the narrowest ("Cancelled") a third of
-   the way across it. The header label above stays left-aligned — only the
-   value moves.
-
-   The chip's own "do not squeeze me" rules live in order-status-badge, not
-   here: `.status-chip` is inside that component's template, so this file's
-   emulated-encapsulation attribute never reaches it. A `.order-status
-   .status-chip` rule written here compiles to a selector that matches nothing,
-   which is how the first attempt at this fix silently did nothing at all. */
-.order-status {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.order-date {
-  font-size: 11.5px;
-  color: var(--color-ink-soft);
-  white-space: nowrap;
-}
-
-/* Right-flush, so the pill sits under the closed end of its column rather than
-   adrift at its left edge. align-items is now load-bearing: the pill is 30px
-   tall inside a grid cell that is centred by the parent's align-items, and
-   without centring it here the pill would sit 3px proud of the row's optical
-   centre — the one place a misaligned element is visible on an otherwise
-   perfectly gridded ledger. */
-.order-action {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-/* ── The Cancel control ──────────────────────────────────────
-   A tonal pill. It was an `ion-button fill="clear"` painted as a red word with an
-   underline, which was one step better than what came before it — a
+/* ── The cancel control ─────────────────────────────────────────
+   A tonal pill. It was an `ion-button fill="clear"` painted as a red word with
+   an underline, which was one step better than what came before it — a
    `fill="outline" color="danger"` pill, six of them down the left edge, the
-   loudest thing on a page whose entire job is to be scannable — but the underline
-   still read as a link rather than as a control, and on a 52px column there was
-   no room to be anything but a word.
+   loudest thing on a page whose entire job is to be scannable — but the
+   underline was a link, not a control, and on a 52px column there was no room
+   to be anything but a word.
 
-   THE TOKENS ARE NOT NEW. --tone-danger-bg / -border / -ink are the app's own
-   danger tone, already painted on the suspended-role badge (admin-users.page.scss
-   .role-badge--suspended), the voucher error (voucher-cards.component.scss) and
-   the inventory low-stock chip (inventory.page.scss). Reusing them is what makes
-   this read as part of the system rather than a one-off, and it costs no new
-   contrast gate: [dangerInk on dangerBg 4.5] (check-contrast.mjs:253),
-   [dangerBg vs white card 1.15] (:340) and [dangerBorder vs dangerBg 1.4] (:345)
-   are all already asserted and all already pass. Measured 7.42:1, 1.17:1, 1.43:1.
+   The tokens are the app's existing danger tone, and the measured pairs are
+   asserted in check-contrast.mjs: the pill's fill against the white card
+   (1.15:1), its rim against its own fill (1.4:1) and the ink on both (7.42:1
+   on the fill, 1.17:1 on the card). Nothing here is a new colour pair.
 
    THE TYPE IS .manage-toggle's, NOT THIS PAGE'S. 12px/700 — the cart's Manage /
    Done control (cart.page.scss:102). It was 11.5px here. Two destructive text
-   controls in one app should be the same word at the same weight, and Manage was
-   already the more carefully considered of the two.
+   controls in one app should be the same word at the same weight, and Manage
+   was already the more carefully considered of the two.
 
-   A PLAIN <button>, like Manage. An ion-button carries padding, radius and an
-   inner shadow DOM that all have to be overridden to produce a tonal pill, and
-   each override is a place the pill can leak. Styled entirely from outside. */
+   30px, not 44. The WCAG 2.2 AA floor for target size is 24px and the pill is
+   ~80px across, so this clears AA comfortably; 44px is AAA/Apple, and it cannot
+   be had here — the row is 56px tall and 30px of pill plus the 14px of gutter
+   either side is already most of it. The obvious fix, an ::after that pads the
+   hit area out to 44px, was rejected: it would sit in the row's own dead space
+   in this column, so a tap aimed at the Placed date beside it would land on
+   Cancel instead. A destructive action is the last place to introduce a
+   mis-tap. 30px also stays under the 34px status chip, so the uniform row
+   height this layout exists for is untouched — a taller pill would have set a
+   new floor on cancellable rows only. */
 .cancel-order-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-
-  /* 30px, not 44. The WCAG 2.2 AA floor for target size is 24px and the pill is
-     ~80px across, so this clears AA comfortably; 44px is AAA/Apple, and it cannot
-     be had here — the row is 56px tall and 30px of pill plus the 14px of gutter
-     either side is already most of it. The obvious fix, an ::after that pads the
-     hit area out to 44px, was rejected: it would sit in the row's own dead space
-     in this column, so a tap aimed at the Placed date beside it would land on
-     Cancel instead. A destructive action is the last place to introduce a
-     mis-tap. 30px also stays under the 34px status chip, so the uniform 56px row
-     height this layout exists for is untouched — a taller pill would have set a
-     new floor on cancellable rows only. */
+  margin-left: auto;
   min-height: 30px;
   padding: 0 10px;
-  border-radius: var(--radius-pill);
+  /* --radius-sm, matching `.status-select` on the admin ledger
+     (admin-orders.page.scss), which made the same move for the same stated
+     reason: "at 36px tall a pill radius wraps both ends to an 18px semicircle,
+     which reads as a lozenge rather than a control." That citation used to point
+     at the admin ledger's `.advance-pill`, which no longer exists — the row's two
+     controls were collapsed into the Status cell — so the reference is the
+     surviving `.status-select` rather than a deleted class. */
+  border-radius: var(--radius-sm);
 
   font: 700 12px var(--font-body);
   color: var(--tone-danger-ink);
@@ -485,8 +411,8 @@ $order-gap: 14px;
   /* The `gap: 5px` above is the icon's gutter, kept because it costs nothing at
      one child. Restore it if an icon comes back. */
 
-  /* Hover deepens the RIM, not the fill. --tile-blush and --tone-danger-bg are the
-     same value (#fde8ee), so there is no second tint to hover into — and a
+  /* Hover deepens the RIM, not the fill. --tile-blush and --tone-danger-bg are
+     the same value (#fde8ee), so there is no second tint to hover into — and a
      control whose only hover cue is a fill change that is already the resting
      state is not a hover cue at all. */
   &:hover:not(:disabled) {
@@ -511,7 +437,8 @@ $order-gap: 14px;
    orders.page.html. Kept rather than deleted so the spinner is one edit away,
    and so the reasoning behind it is not lost: the spin was chosen over a
    "Cancelling…" label because the label was 38px wider and pushed the pill out
-   past its column mid-request, shifting the row under the finger that pressed it.
+   past the edge of its column mid-request, shifting the row under the finger
+   that pressed it.
 
    Reduced motion needs no local guard if this returns: variables.scss:996
    collapses every animation in the app to 0.01ms under prefers-reduced-motion,
@@ -526,108 +453,11 @@ $order-gap: 14px;
   animation: cancel-order-spin 700ms linear infinite;
 }
 
-/* ── Below 1280px the seven columns stop being possible ───────
-   Fixed widths total 638px plus 84px of gaps, so the ledger needs ~718px of
-   content before Items has any room at all. The content pane is NOT the
-   viewport: at ≥768px the split-pane sidebar is permanent and takes 25–28% of
-   it, and the page adds 16px of content padding and 18px of row padding on top.
-   Measured in the browser — viewport → width of the Items column:
-
-     1024px → 32px     1100px → 87px     1200px → 159px
-     1280px → 217px    1440px → 248px
-
-   At 1024 the ledger was still rendering: Items collapsed to zero, the "ITEMS"
-   header wrapped a letter per line, and the badge columns squeezed their pills
-   onto three lines. The stack below is not a "mobile" layout so much as the
-   ledger's answer to a narrow pane, so the breakpoint is 1280 — the narrowest
-   viewport where the Items column can still show an ellipsised flavour list —
-   and not 859px, which was measured against the mockup's preview page instead
-   of the app, where a 270px sidebar was never in the picture. */
-@media (max-width: 1279px) {
-  .orders-head {
-    display: none;
-  }
-
-  /* The column-header row is hidden here, so its 16px top gap goes with it and
-     the first stacked row would be flush against the toolbar. The gap moves to
-     the body instead. Measured at 390px before this: toolbar bottom 56px, first
-     row top 56px — the same zero gap the desktop ledger had. */
-  .orders-body {
-    padding: var(--space-4) 0 4px;
-  }
-
-  .order-grid {
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 4px;
-    align-items: baseline;
-  }
-
-  /* Line 1: what it is, and what it cost. */
-  .order-id {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .order-total {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  /* Line 2: what was in it, and when. */
-  .order-items {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-  .order-status {
-    grid-column: 1;
-    grid-row: 3;
-    /* Left-aligned here, unlike the desktop column. The stacked layout is a
-       single left-hand rail — id, items, status, date all hung off column 1 —
-       and a right-flush pill beside the Cancel button below it reads as a
-       second, competing edge. The alignment flip only costs the desktop row. */
-    justify-content: flex-start;
-  }
-  .order-date {
-    grid-column: 1;
-    grid-row: 4;
-    font-size: 12px;
-  }
-
-  /* Quantity rides beside the date rather than taking a line of its own. */
-  .order-qty {
-    grid-column: 1;
-    grid-row: 4;
-    text-align: left;
-    margin-right: 8px;
-  }
-
-  .order-action {
-    grid-column: 2;
-    grid-row: 3 / 5;
-    align-self: center;
-  }
-}
-
-/* ── Loading skeleton ───────────────────────────────────────
-   Kept in step with the row it stands in for: same width, same padding, so the
-   list does not jump when the data lands. */
+// ── The skeleton ───────────────────────────────────────────────
 .order-skeleton-item {
   --padding-start: 18px;
   --padding-end: 18px;
-  --padding-top: 12px;
-  --padding-bottom: 12px;
-  --min-height: 44px;
-  margin: 0;
-  /* The same card edge as .order-item — same tokens, same radius variable —
-     so the loading rows and the rows they stand in for are one surface. A
-     skeleton that loses its hairline when the data lands is a visible jump,
-     which is the whole thing the comment above this block exists to prevent.
-     It stays neutral: an active-row or cancelled-row tint here would claim a
-     status the placeholder does not have yet. */
-  --border-radius: var(--radius-control);
-  --background: var(--color-white);
-  --border-width: 1px;
-  --border-style: solid;
-  --border-color: var(--color-ink);
+  margin: 0 18px 10px;
 }
 
 .skeleton-wrap {

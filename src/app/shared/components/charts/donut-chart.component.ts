@@ -114,7 +114,10 @@ const TONE_FILL: Record<DonutSlice['tone'], string> = {
       }
 
       .track {
-        stroke: var(--ion-color-light);
+        /* Powder rather than --ion-color-light: the ring behind the segments
+           was #F2F7FA, which measures 1.08:1 against a white card, so the
+           empty part of the ring was invisible. */
+        stroke: var(--tile-powder);
       }
 
       /* Only the dash offset animates, and only from a full offset — animating
@@ -156,6 +159,30 @@ const TONE_FILL: Record<DonutSlice['tone'], string> = {
         padding: 0;
         display: grid;
         gap: var(--space-2);
+      }
+
+      /* THE RING AND THE LEGEND, SIDE BY SIDE FROM 760px.
+
+         The legend was a single column under a 190px ring in a card nearly
+         500px wide, so the card held a small ring and a narrow list with empty
+         space down either side of both. Two columns of legend was the wrong
+         fix — the longest label, "Out for delivery", needs about 180px with its
+         count, and a column that narrow clipped it to "Out for deli…".
+
+         Beside the ring it has the room it needs: the ring takes its 190px and
+         the legend takes what is left, which is enough for every label whole. */
+      @media (min-width: 760px) {
+        :host {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: center;
+          gap: var(--space-4);
+        }
+
+        .legend {
+          margin: 0;
+          grid-template-columns: minmax(0, 1fr);
+        }
       }
 
       .legend-item {

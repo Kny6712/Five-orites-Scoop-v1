@@ -1,0 +1,145 @@
+<div class="sheet">
+  <header class="sheet-head">
+    <h2 class="sheet-title">{{ voucher ? 'Edit voucher' : 'New voucher' }}</h2>
+    <p class="sheet-sub">Codes are stored uppercase and are case-insensitive for customers.</p>
+  </header>
+
+  <label class="field">
+    <span class="field-label">Code</span>
+    <ion-input
+      [(ngModel)]="code"
+      placeholder="SCOOP10"
+      autocapitalize="characters"
+      spellcheck="false"
+      aria-label="Voucher code"
+      class="modal-input"
+    ></ion-input>
+    <span class="field-hint">Letters, numbers, dashes and underscores. 3–24 characters.</span>
+  </label>
+
+  <div class="field field--row">
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Type</span>
+        <ion-select [(ngModel)]="type" interface="popover" aria-label="Discount type">
+          <ion-select-option value="percent">Percentage off</ion-select-option>
+          <ion-select-option value="fixed">Fixed amount off</ion-select-option>
+        </ion-select>
+      </label>
+    </div>
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Value</span>
+        <ion-input
+          [(ngModel)]="value"
+          type="number"
+          [min]="1"
+          [attr.max]="type === 'percent' ? maxPercent : null"
+          [attr.aria-label]="type === 'percent' ? 'Discount percentage' : 'Discount amount in pesos'"
+          class="modal-input"
+        ></ion-input>
+        <span class="field-hint">
+          {{ type === 'percent' ? 'Up to ' + maxPercent + '%.' : 'In pesos.' }}
+        </span>
+      </label>
+    </div>
+  </div>
+
+  <label class="field field--compact">
+    <span class="field-label">Minimum order (₱)</span>
+    <ion-input
+      [(ngModel)]="minOrder"
+      type="number"
+      [min]="0"
+      placeholder="0"
+      aria-label="Minimum order value in pesos"
+      class="modal-input"
+    ></ion-input>
+    <span class="field-hint">Leave at 0 for no minimum.</span>
+  </label>
+
+  <div class="field field--row">
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Max redemptions</span>
+        <ion-input
+          [(ngModel)]="maxRedemptions"
+          type="number"
+          inputmode="numeric"
+          [min]="0"
+          placeholder="Unlimited"
+          aria-label="Maximum total redemptions"
+          class="modal-input"
+        ></ion-input>
+        <span class="field-hint">Blank is unlimited.</span>
+      </label>
+    </div>
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Per customer</span>
+        <ion-input
+          [(ngModel)]="perCustomerLimit"
+          type="number"
+          inputmode="numeric"
+          [min]="0"
+          placeholder="Unlimited"
+          aria-label="Maximum redemptions per customer"
+          class="modal-input"
+        ></ion-input>
+        <span class="field-hint">Blank is unlimited.</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="field field--row">
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Starts on</span>
+        <input type="date" class="date-input" [(ngModel)]="startsAtDate" aria-label="Start date" />
+        <span class="field-hint">Blank starts immediately.</span>
+      </label>
+    </div>
+    <div class="field--col">
+      <label class="field">
+        <span class="field-label">Expires on</span>
+        <input type="date" class="date-input" [(ngModel)]="expiresAtDate" aria-label="Expiry date" />
+        <span class="field-hint">Blank never expires.</span>
+      </label>
+    </div>
+  </div>
+
+  @if (example; as ex) {
+    <div class="example" [class.example--blocked]="ex.belowMinimum">
+      <span class="example-badge"><app-icon name="percent" /></span>
+      @if (ex.belowMinimum) {
+        <p class="example-text">
+          A ₱{{ ex.basket }} order is below the ₱{{ ex.minOrder }} minimum, so this voucher takes nothing off it. The
+          first saving starts at ₱{{ ex.minOrder }}.
+        </p>
+      } @else {
+        <p class="example-text">
+          A ₱{{ ex.basket }} order pays <strong>₱{{ ex.total }}</strong> &mdash; ₱{{ ex.saved }} off.
+        </p>
+      }
+    </div>
+  }
+
+  <div class="toggle-row">
+    <div class="toggle-text">
+      <span class="toggle-title">Active</span>
+      <span class="toggle-sub">Customers can redeem this code.</span>
+    </div>
+    <ion-toggle [(ngModel)]="isActive" aria-label="Voucher is active"></ion-toggle>
+  </div>
+
+  @if (error()) {
+    <p class="sheet-error" role="alert">{{ error() }}</p>
+  }
+
+  <div class="editor-actions">
+    <ion-button fill="clear" (click)="cancel()">Cancel</ion-button>
+    <ion-button expand="block" class="save-btn" [disabled]="saving()" (click)="save()">
+      {{ saving() ? 'Saving…' : voucher ? 'Save changes' : 'Create voucher' }}
+    </ion-button>
+  </div>
+</div>

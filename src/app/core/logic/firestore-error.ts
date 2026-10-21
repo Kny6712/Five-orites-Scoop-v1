@@ -80,17 +80,6 @@ export function describeFirestoreError(what: string, err: unknown): string {
 }
 
 /**
- * Is this the missing-composite-index failure?
- *
- * Worth branching on separately at the call site when the developer-facing
- * remedy ("run `npm run deploy:firestore`") should be surfaced in a dev build
- * even though it would be meaningless to an end user.
- */
-export function isMissingIndexError(err: unknown): boolean {
-  return bareCode((err as FirestoreErrorLike | null)?.code) === 'failed-precondition';
-}
-
-/**
  * Did the security rules refuse this?
  *
  * Needed on the WRITE path, which `describeFirestoreError` above cannot serve.

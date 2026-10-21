@@ -1,0 +1,549 @@
+// src/app/features/admin/developers/admin-developers.page.scss
+// Five-orites Scoop — credits management
+//
+// Layout only. Every colour here is a design token, so the page follows the
+// project's contrast guarantees rather than introducing values of its own —
+// `npm run check:contrast` validates tokens, and a literal hex here would be
+// invisible to it.
+//
+// THAT CLAIM WAS FALSE until this revision. The stylesheet used to be built on
+// `--color-surface` and `--color-border`, and NEITHER TOKEN IS DEFINED anywhere
+// in variables.scss. Both silently fell back to hardcoded literals (#fff and
+// #dfe4ec), which is exactly the failure the comment above warns against — and
+// because `check:contrast` validates the design tokens rather than the
+// stylesheets, nothing caught it.
+//
+// The visible symptom: this page's cards were pure white (#fff) while every
+// other card in the app is --color-card (#fffcee). So the credits cards did not
+// share a surface with the rest of the product. --color-border was still in use
+// on developers.page.scss, so that one is not gone until that file is fixed too.
+
+/*
+  The content column.
+
+  960px rather than the 860px it was. This list is the widest thing on the page
+  — an avatar, a name, up to five wrapping role chips and five icon buttons — and
+  at 860 the chip row was wrapping early enough to make the cards look cramped.
+  Widening it let the common two-to-four-role cards fit on one line.
+
+  The column stays centred rather than being aligned to the toolbar title. The
+  toolbar and the footer are both full-bleed in every admin page, so pinning this
+  one body to the left would break it out of the house layout rather than fix it.
+*/
+.page-body {
+  padding: var(--space-4);
+  max-width: 960px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Page head ───────────────────────────────────────────────────────────
+   The title/subtitle pair and the Add button, on one line at desktop width.
+
+   This block exists because "Add" moved here from the toolbar, where it was
+   invisible: as a bare <ion-button> in ion-buttons it took Ionic's default
+   solid fill, which resolves to --ion-color-primary (#A3B5F0) — the same value
+   as the toolbar's own background. 1.00:1. There was no button there, only text. */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.page-head-text {
+  min-width: 0;
+}
+
+.page-head-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.page-head-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ion-color-medium);
+  max-width: 52ch;
+}
+
+/*
+  The primary action.
+
+  Sunny with plum ink, measured at 8.16:1 — the same pairing as the cart page's
+  .place-order-btn, and the reason variables.scss calls #ffc53d the CTA hue.
+  Deliberately NOT an ion-button: a solid ion-button resolves its own background
+  from --ion-color-primary, which is the pastel periwinkle, and that is the bug
+  this whole block exists to fix. As a plain <button> the background is stated
+  outright and cannot be re-derived by Ionic's theming.
+
+  A real <button> rather than a div with a click handler, so it is focusable,
+  keyboard-operable and announced as a button. The global :focus-visible rule in
+  variables.scss draws the ring.
+*/
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 11px 20px;
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  /* NO SHADOW. Every other gold CTA in the app sits flat on the page — the
+     cart's Place Order, the inventory's Add Product — and this one was the
+     only button in the admin wearing `--shadow-card`. A pill of colour with a
+     drop shadow under it is the one piece of 3D the flat language does not
+     allow, and it was on the primary action. */
+  box-shadow: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* THE HOVER IS TEAL, and the ring is gone.
+
+   A 3px teal outline 2px off a gold pill reads as a sticker stuck AROUND the
+   button rather than as a state OF the button, and it was the last chrome
+   left on the app's primary action — every other gold CTA in the admin
+   states its own focus, and this one was wearing the document-level rule.
+
+   So hovering now states the button in the app's primary ink: a teal fill
+   with white text, 7.14:1. The focus state says the same thing, which gives
+   the button ONE way of saying "this is live" instead of two that disagree.
+
+   The fill change is the focus indicator. WCAG 2.4.7 asks for a visible one,
+   and gold to teal across the whole button is about as visible as an
+   indicator gets; the ring it replaces drew a second, larger shape around
+   the button in a colour the button was not. */
+.add-btn:hover:not(:disabled),
+.add-btn:focus-visible {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+  outline: none;
+}
+
+.add-btn:active {
+  transform: translateY(1px);
+}
+
+/*
+  The tied-order warning.
+
+  Only rendered when two credits genuinely share an `order`, which is a state the
+  list cannot otherwise reveal: the page looks completely normal while that pair
+  is silently un-movable.
+
+  Lemon rather than the danger tone. Nothing has failed and no data is at risk —
+  the records are all intact, they are just ambiguously sorted — so a red banner
+  would overstate it. `tone-danger-bg` here would read as "something is broken".
+
+  A HAIRLINE, like every other box on this page. It was 2px, which made the one
+  warning on the page heavier than the thing it was warning about.
+*/
+.tie-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--tile-lemon);
+  border: 1px solid var(--tile-powder-deep);
+  color: var(--color-ink);
+  font-size: 13px;
+  line-height: 1.45;
+
+  app-icon {
+    color: var(--color-ink);
+    flex: 0 0 auto;
+  }
+
+  span {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+.tie-fix {
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: var(--radius-pill);
+  padding: 8px 16px;
+  background: var(--color-ink);
+  color: var(--tile-lemon);
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+/*
+  THE APP'S FLAT CARD: white, a 1px hairline, a 12px radius, no shadow.
+
+  It was `--color-card` with a 2px rim, an 18px radius and a drop shadow — and
+  `--color-card` (#fffcee) sits 1.01:1 from the cream page behind it, so the
+  card had no surface of its own. Everything that made it read as a card was
+  chrome: a blue band two pixels wide, an 18px corner, and a shadow lifting it
+  off the page. That is the 3D vocabulary the flat design language does not
+  have.
+
+  Now the card is WHITE on the cream page, so it reads as a surface because it
+  IS one, and a single hairline says where its edge is. The shadow is gone
+  because nothing in the flat language floats: the cards here are held up by
+  their colour and their line and by nothing else.
+
+  The same treatment the Users and Vouchers pages already use, so this page
+  stops being the one card in the admin that was doing it differently.
+*/
+.card {
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  box-shadow: none;
+  padding: var(--space-4) var(--space-5);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.avatar-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+
+  /* A HAIRLINE, because the disc needs an edge of its own now.
+
+     The avatar sits on a white card and its fill is one of the five pastel
+     accents — the palest of them is 1.15:1 from white — so without a rim the
+     disc dissolved into the card and only the photo inside it read as a
+     shape. A 1px line says "this is a disc" without adding a second colour
+     to the row. */
+  border: 1px solid var(--tile-powder-deep);
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+/*
+  Plum, not the ink-blue the page used before, and not white.
+
+  The public credits page draws these initials in --color-ink, and it has to
+  measure 9.36-10.74:1 on all five accent discs. The old --color-primary-ink
+  (#1B5E7E) measured 5.17-5.93:1 — passing AA, but a different colour from the
+  one the public page renders, on a page whose entire job is previewing that.
+*/
+.initials {
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--color-ink);
+}
+
+/*
+  The overlay control. A real <label> wrapping a real file input rather than a
+  div with a click handler, so it is focusable, keyboard-operable and announced
+  correctly — the pattern the profile page already uses.
+
+  JUST THE CAMERA. No disc, no ring.
+
+  It was a filled teal coin, then a white disc inside a hairline ring, and both
+  of those were circles drawn around a glyph that does not need one: the circle
+  read as a second object sitting on the corner of the avatar, and it was the
+  only curve on the row that was not the avatar's own.
+
+  What is left is a teal camera on the avatar's edge, and the edge of the
+  avatar is what it sits against. Over the pastel accent discs the teal clears
+  5:1 against all five; over a photo it is the photo that has to carry it,
+  which is the trade this way round makes.
+*/
+.avatar-btn {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-primary-ink);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+
+  &.disabled {
+    opacity: 0.6;
+    cursor: progress;
+  }
+}
+
+.row-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.row-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+/*
+  Role chips.
+
+  `align-content: flex-start` matters more than it looks: with a centred default,
+  a card whose chips wrap to two lines grows AND pushes the wrapped line toward
+  the middle, so the card both gets taller and looks vertically unbalanced. One
+  developer here has five roles and the rest have two to four, so exactly one row
+  wrapped and the stack came out ragged.
+
+  Nothing is truncated and no chip is hidden. An admin previewing what the public
+  page will render must see every role that will actually appear there, and
+  dropping one to save a line of height would make the preview a lie.
+*/
+.role-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  align-content: flex-start;
+}
+
+/*
+  The five role tints, ported from developers.page.scss.
+
+  This page is a preview of that one, so the chip a role wears here has to be the
+  chip it wears there — the same reasoning that keeps roleClass() duplicated
+  rather than extracted. Every foreground is --color-ink, which
+  check:contrast.mjs asserts against each of these surfaces at 4.5:1 or better.
+
+  A plain <span class="chip">, not an <ion-chip>: ion-chip hard-codes a 16px
+  border-radius and exposes no custom property for it, so a chip of this shape
+  cannot be one. The box comes from the global .chip class.
+*/
+.role-chip {
+  font-size: 12px;
+  color: var(--color-ink);
+}
+
+.role-lead {
+  background: var(--tile-powder);
+}
+
+.role-dev {
+  background: var(--tile-mint);
+}
+
+.role-design {
+  background: var(--tile-blush);
+}
+
+.role-qa {
+  background: var(--tile-lemon);
+}
+
+/* An unrecognised role gets a neutral chip rather than a hue of its own. */
+.role-plain {
+  background: var(--ion-color-light);
+}
+
+/* ── Row actions ───────────────────────────────────────────────────────
+   BARE GLYPHS, THE WAY THE USERS AND VOUCHERS PAGES DO IT.
+
+   They used to sit inside a filled powder block — one per group, so three
+   blocks of solid blue along the right-hand end of every row, each with its
+   own 12px radius and its own 2px of padding. That was the heaviest thing on
+   the page by a distance, and it made the controls at the end of a row look
+   heavier than the person the row is about.
+
+   The buttons are now the app's standard admin icon button: no fill, no
+   border, a teal glyph, and a powder wash on hover. The GROUPS are still
+   groups — that is meaning, not decoration — but they are marked now by a
+   hairline rule between them instead of by a block around them.
+
+   The rule between the groups was already in this stylesheet and was never
+   rendered: the template had been describing a divider for two revisions
+   that did not exist. It is in the markup now.
+*/
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
+.act-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  /* 8px on a phone.
+
+     Two 44px icon buttons 2px apart is a mis-tap waiting to happen. The 2px
+     is the desktop's dense-admin spacing and it stays the desktop's. */
+  @media (max-width: 768px) {
+    gap: 8px;
+  }
+}
+
+/*
+  The divider before the delete control.
+
+  This is the element the template comment used to claim existed and did not —
+  delete sat outside `.row-actions`, inherited the row's wide gap, and floated
+  ~32px from the edit group with nothing marking the boundary.
+
+  A rule, not a block: the delete is separated by a line, which says "this is
+  a different kind of button" without giving it a shape of its own to be
+  mistaken for.
+
+  --tile-powder-deep against white is the same 1.4:1 rim the filter bar is held
+  to in check-contrast.mjs, so the divider is measured rather than guessed. A
+  separator you cannot see is not a separator.
+*/
+.act-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--tile-powder-deep);
+  margin: 0 var(--space-1);
+  flex: 0 0 auto;
+}
+
+/*
+  The delete affordance wears the app's danger red, so it never reads as a
+  second edit button. Same token as the Users and Vouchers pages' delete
+  icons, so every delete icon in the admin is the same red.
+*/
+.act-group--danger {
+  gap: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--color-primary-ink);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+
+  /* 36px, not the 38px the filled block needed: the box is invisible now, so
+     what the size buys is the gap between the glyphs and the target around it.
+     These sit at the far right of a wide row where a mistap is a reorder or a
+     delete, so the target stays comfortably past the 30px the Users page uses
+     for the same control. */
+  /* ── The dead arrow at each end of the list ────────────────────────────
+     The first credit cannot move up and the last cannot move down. Both arrows
+     are always rendered: hiding the dead one makes the control jump sideways
+     at the ends of the list, and a list that reflows when you reach the end is
+     harder to read than one that holds still.
+
+     So they stay, and the job is to make "there is nothing here" legible WITHOUT
+     it looking broken. The first attempt was `opacity: 0.35`, which is the same
+     treatment a network error or a disabled save button would get - the arrow
+     read as broken rather than as correctly-inert, and that was reported as
+     "the arrows don't work".
+
+     Two changes carry that distinction:
+       1. 0.5, not 0.35. Still obviously inactive, still high enough to be
+          readable against the card.
+       2. A DASHED EDGE. Every other disabled thing on this page is a flat
+          pale box; a dashed line is a shape no enabled control in the app has,
+          so the state is legible at a glance and not only from the opacity.
+          It replaces an inset ring, which read as a border colour choice
+          rather than as part of the disabled treatment. */
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    outline: 1px dashed var(--tile-powder-deep);
+    outline-offset: -2px;
+  }
+
+  /* Hover only on a control that can actually be pressed — a greyed-out arrow
+     that still lights up on hover reads as broken. */
+  &:not(:disabled):hover {
+    background: var(--tile-powder);
+    border-color: var(--ion-color-light-shade);
+  }
+
+  &.danger {
+    color: var(--color-danger);
+  }
+
+  &.danger:not(:disabled):hover {
+    background: var(--tone-danger-bg);
+    border-color: var(--tone-danger-border);
+  }
+}
+
+/* Thinner stroke on row-action icons (avatar camera, chevrons, pencil, image, trash). */
+.avatar-btn app-icon,
+.row-actions .icon-btn app-icon {
+  --icon-stroke: 1.5;
+}
+
+@media (max-width: 560px) {
+  .row {
+    flex-wrap: wrap;
+  }
+
+  .row-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

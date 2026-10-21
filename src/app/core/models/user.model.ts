@@ -121,10 +121,22 @@ export const ROLE_CAPABILITIES: Record<UserRole, readonly Capability[]> = {
 /** True when `role` carries `capability`. Unknown/absent roles get nothing. */
 export function can(role: string | null | undefined, capability: Capability): boolean {
   if (!role) return false;
-  const caps = ROLE_CAPABILITIES[role as UserRole];
-  // A role string that is not in the map — a typo, or a document written by a
-  // future version — must fail CLOSED. Defaulting to the old behaviour would
-  // silently grant access to anyone whose role this build does not know.
+  // `ROLE_CAPABILITIES` is a plain object literal, so an unknown key does not
+  // MISS — it walks up to `Object.prototype`.
+  // `ROLE_CAPABILITIES['constructor']` is `Function`, which is truthy, so the
+  // "unknown role fails closed" guard below never fired and
+  // `caps.includes(...)` threw `TypeError: caps.includes is not a function` on
+  // a user document whose `role` field happened to be `constructor`,
+  // `toString` or `valueOf`. The role string is customer-authored data
+  // (it comes off a Firestore user document), and `AppComponent.can()` calls
+  // this from a computed signal — so the throw happened during change
+  // detection, in the shell, on every role-bearing render.
+  //
+  // `asRole` normalises the string to a role this table actually owns FIRST,
+  // so the lookup can only ever hit a real key. An unknown role becomes
+  // `customer`, whose capability list is empty — which fails closed exactly
+  // as the old guard intended, without the prototype-chain hole.
+  const caps = ROLE_CAPABILITIES[asRole(role)];
   if (!caps) return false;
   return caps.includes(capability);
 }
