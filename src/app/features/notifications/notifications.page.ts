@@ -37,7 +37,7 @@ import {
 } from '@ionic/angular/standalone';
 import { ToastController } from '@ionic/angular/standalone';
 import type { ViewWillEnter } from '@ionic/angular';
-import { OrderNotificationService } from '@core/services/order-notification.service';
+import { OrderNotificationService } from '@core/services/orders/order-notification.service';
 import {
   groupByDay,
   countByPeriod,
@@ -51,9 +51,9 @@ import {
   stepState,
 } from '@core/logic/notifications';
 import type { OrderStatus } from '@core/models/order.model';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
 
 @Component({
   selector: 'app-notifications',
@@ -127,18 +127,18 @@ export class NotificationsPage implements ViewWillEnter {
   /**
    * Which day period the feed is narrowed to.
    *
-   * `today` IS THE DEFAULT, and `all` IS NOT ONE OF THE OPTIONS. Both were the
-   * other way round when this was a four-tab segment, and the reasoning was not
-   * bad — this page exists because a toast leaves no record, so opening on a
-   * window that hides yesterday behind a tap undersells the whole idea. What
-   * changed is that the control is now a dropdown holding three named windows
-   * rather than four visible ones.
+   * `today` IS STILL THE DEFAULT, and `all` being available again does not
+   * change that. Both were the other way round when this was a four-tab segment,
+   * and the reasoning was not bad — this page exists because a toast leaves no
+   * record, so opening on a window that hides yesterday behind a tap undersells
+   * the whole idea. What changed is that the control is now a dropdown holding
+   * three named windows rather than four visible ones.
    *
    * With every window on screen at once, `All` was the default because it was
    * the only option that showed the user anything. With them behind an arrow,
    * the control answers a different question: "what do I want to look at", and
    * for a feed built from order status the answer is almost always the last
-   * thing that happened. So the feed opens on Today, and the other two windows
+   * thing that happened. So the feed opens on Today, and the other three windows
    * are one tap away.
    *
    * The cost is real and is paid in `rescuePeriod` instead of being hidden:
@@ -147,9 +147,16 @@ export class NotificationsPage implements ViewWillEnter {
    * that has content, so the default costs a single extra tap for those users
    * and saves every other visit the tap entirely.
    *
-   * `FeedPeriod` still HAS an `all` member — `filterByPeriod`, `countByPeriod`
-   * and their tests all still speak it. It is simply no longer reachable from
-   * this page.
+   * `All` EARNED ITS PLACE BACK WITHOUT EARNING THE DEFAULT. It is there for the
+   * visitor who does not know which window to ask for, not for the visitor who
+   * does — and defaulting to it would hand that second visitor, who is the
+   * majority, a page containing everything on every single visit. Making it the
+   * default is a one-word change here if that trade is ever wanted the other
+   * way; the option list and the empty-window rescue are unaffected either way.
+   *
+   * `FeedPeriod` HAS HAD an `all` member throughout — `filterByPeriod`,
+   * `countByPeriod` and their tests all still speak it. It was reachable, then
+   * was not, and is reachable again.
    */
   protected readonly filter = signal<FeedPeriod>('today');
 
@@ -186,9 +193,25 @@ export class NotificationsPage implements ViewWillEnter {
   /**
    * The dropdown's options, each carrying how many orders it would show.
    *
-   * NO `all` ENTRY. It is still a valid `FeedPeriod` and `countByPeriod` still
-   * counts it — this page simply has no reason to offer a window that is not one
-   * of the three named days.
+   * `All` IS FIRST, and it is a real option again rather than the fourth tab
+   * this dropdown replaced. It was dropped because it used to be a bucket of last
+   * resort — competing as a peer of three named windows for space in a row of
+   * tabs, where the only argument for it was that it was the sole option showing
+   * the user anything. That argument died with the tabs; it was never a reason to
+   * withhold the window.
+   *
+   * What `All` is actually FOR, now that the other three are behind an arrow: the
+   * dropdown answers "which window do I want", and that is the wrong question
+   * for anyone who does not yet know which window their order moved in. Someone
+   * whose last update was a week ago has no reason to guess "Earlier" over
+   * "Yesterday" — both are plausible from the outside, and both can be empty.
+   * `All` lets them look once instead of tapping through to find out, and the
+   * per-window counts let them skip the tapping when they can see the answer.
+   *
+   * FIRST rather than last on purpose: it is the broadest window, so it reads as
+   * the parent of the three below it rather than as a fourth peer. The three
+   * named windows stay in recency order, so the list still reads top-to-bottom as
+   * newest-first.
    *
    * THE COUNTS ARE NOT DECORATION. "Earlier" is a catch-all — everything older
    * than yesterday — so it is unbounded where Today and Yesterday are typically
@@ -196,10 +219,16 @@ export class NotificationsPage implements ViewWillEnter {
    * move for someone trying to cut clutter down is to pick the longest-looking
    * option, and in a dropdown there are no options side by side to do better
    * with. With a count on each, "Earlier (24)" is a decision rather than a guess.
+   *
+   * `counts.all` is the length of the whole retained feed, and `countByPeriod`
+   * sets it first so the three buckets can never sum to more than it. One
+   * caveat worth stating: the feed is capped at `FEED_LIMIT`, so "All (50)" means
+   * fifty retained, not fifty ever, for a user with a longer history than that.
    */
   protected readonly filterOptions = computed(
     () =>
       [
+        { value: 'all', label: 'All', count: this.periodCounts().all },
         { value: 'today', label: 'Today', count: this.periodCounts().today },
         { value: 'yesterday', label: 'Yesterday', count: this.periodCounts().yesterday },
         { value: 'earlier', label: 'Earlier', count: this.periodCounts().earlier },
@@ -247,9 +276,22 @@ export class NotificationsPage implements ViewWillEnter {
    * The newest window that actually has orders in it, or `undefined` if none do.
    *
    * THE WAY OUT OF AN EMPTY WINDOW. This used to be "Show all updates" and an
-   * `all` tab to land on. The dropdown has no `all`, so the escape hatch needs a
+   * `all` tab to land on. The dropdown had no `all`, so the escape hatch needed a
    * different destination, and the only one that is true rather than merely legal
    * is the newest window with something in it.
+   *
+   * IT STILL IS, NOW THAT `all` IS BACK, and that is a deliberate non-change
+   * rather than an oversight. `All` is one tap away in the dropdown above, so a
+   * user in an empty window is never more than one tap from everything anyway —
+   * which is exactly what made a button promising "everything" redundant. But
+   * this button is not redundant: it appears in place of a feed, and "Show all
+   * updates" on an empty Today would dump the user into a long list when the
+   * thing they want is usually one or two orders. "Show yesterday's updates"
+   * lands them on the thing they came for.
+   *
+   * The narrowness is also what keeps the button from going stale. It reads the
+   * same counts that label the dropdown, so it can never point at a window the
+   * control is simultaneously showing as empty.
    *
    * `undefined` is unreachable from the template — it needs an empty feed, and
    * the empty-feed branch renders before this one — but the type says so rather
@@ -292,13 +334,27 @@ export class NotificationsPage implements ViewWillEnter {
   /**
    * Day sections, derived from this page's orders rather than the whole feed.
    *
-   * AT MOST ONE GROUP NOW. The period control is a three-way dropdown, and each
-   * option names one of the three days `groupByDay` can return, so filtering to
-   * a period and then grouping cannot produce anything but the single matching
-   * section. That is why the headings above these groups are gone: with one
-   * group, named by the control the user just tapped, a heading is the same word
-   * twice. `groupByDay` is kept rather than bypassed because `filterByPeriod` is
-   * built on it, and they must not be able to disagree about where midnight is.
+   * UP TO THREE GROUPS NOW, because `All` is a selectable option again and it is
+   * the only one that does not name a single window. This comment used to claim
+   * the loop could produce at most one section, which was true of the three named
+   * windows and nothing else — and that is exactly what made the day headings
+   * look redundant enough to delete.
+   *
+   * The headings are BACK, but only under `All`, and the split is the whole
+   * design. Filtering to Today means the heading would read "Today" directly
+   * above a list the control already says is Today's, which is the same word
+   * twice, immediately above the thing it labels. Under `All` there is no such
+   * redundancy: the control says "everything" and the headings are the only thing
+   * telling the reader which of these moved today and which did not. That was
+   * always the heading's real job, and it only exists on this one option.
+   *
+   * Gated on the filter rather than unconditional, which is not a style
+   * preference: the version before this had a guarded copy AND a second
+   * unconditional one, so every heading on the "All" view rendered twice.
+   *
+   * `groupByDay` is kept rather than bypassed, and `filterByPeriod` is built on
+   * it, because all three of them — plus `periodOf` underneath — must not be able
+   * to disagree about where midnight is.
    */
   protected readonly groups = computed(() =>
     groupByDay(

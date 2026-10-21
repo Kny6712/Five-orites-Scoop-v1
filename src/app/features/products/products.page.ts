@@ -12,6 +12,7 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import {
   IonHeader,
   IonToolbar,
@@ -34,18 +35,20 @@ import {
   IonSegment,
   IonSegmentButton,
   IonButton,
+  IonModal,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
 import { Subscription } from 'rxjs';
 import { catchError, of } from 'rxjs';
-import { InventoryService } from '@core/services/inventory.service';
-import { WishlistService } from '@core/services/wishlist.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { WishlistService } from '@core/services/identity/wishlist.service';
 import { Product, FlavorSet, SizeVariant, ProductSort } from '@core/models/product.model';
-import { ProductCardComponent } from '@shared/components/product-card/product-card.component';
-import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
+import { ProductCardComponent } from '@shared/components/commerce/product-card.component';
+import { QuickViewService } from '@core/services/catalog/quick-view.service';
+import { CartButtonComponent } from '@shared/components/commerce/cart-button.component';
 import { SET_NAMES, SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 interface SetChip {
   label: string;
@@ -119,6 +122,7 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
     IonSegment,
     IonSegmentButton,
     IonButton,
+    IonModal,
     ProductCardComponent,
     CartButtonComponent,
     AppIconComponent,
@@ -132,6 +136,10 @@ const MAX_PRICE_OPTIONS: SelectOption<number | null>[] = [
 export class ProductsPage implements OnInit, OnDestroy {
   private inventoryService = inject(InventoryService);
   private wishlistService = inject(WishlistService);
+  /** The flavour quick-view, which the app shell renders over everything. */
+  private quickView = inject(QuickViewService);
+  private route = inject(ActivatedRoute);
+  private routeSub?: Subscription;
   private sub?: Subscription;
   private wishlistSub?: Subscription;
 
@@ -211,6 +219,68 @@ export class ProductsPage implements OnInit, OnDestroy {
       this.maxPrice() !== null ||
       this.sortBy() !== 'featured',
   );
+
+  /**
+   * The filter SHEET's open state.
+   *
+   * The sheet is the phone's home for the five filter controls. On a phone the
+   * band used to carry all five itself, stacked — 234px of sticky furniture on
+   * an 800px screen, with a 36px Flavors box, a 34px pair of toggles and a
+   * 16px-tall switch hit area squeezed into it.
+   *
+   * So the controls leave the band on a phone, and what stays on screen is the
+   * search and the sort. This flag is the whole difference.
+   */
+  readonly filterSheetOpen = signal(false);
+
+  /**
+   * How many of the sheet's five filters are set.
+   *
+   * NOT `hasActiveFilters()`: that one also counts the search text and the
+   * sort, neither of which the sheet contains. The badge on the trigger has to
+   * count what is behind the button, or it lies.
+   */
+  readonly activeFilterCount = computed(() => {
+    let n = 0;
+    if (this.effectiveSet() !== null) n++;
+    if (this.selectedSize() !== null) n++;
+    if (this.maxPrice() !== null) n++;
+    if (this.inStockOnly()) n++;
+    if (this.wishlistOnly()) n++;
+    return n;
+  });
+
+  /**
+   * The `ngTemplateOutlet` contexts for the two copies of the filter controls.
+   *
+   * They exist to give each copy its own element ids — two elements cannot
+   * share an id, and the band and the sheet are both in the document while the
+   * sheet is open — and to give each copy its own `justify`, which is where
+   * the select paints its value inside its own box.
+   *
+   * They are plain fields, not computed signals, on purpose: `ngTemplateOutlet`
+   * compares its context object by identity, and a fresh object on every
+   * change-detection pass would tear down and rebuild the embedded view on
+   * every tick.
+   *
+   * `space-between` in the band is what it already was, unchanged: the band
+   * gives each control a box exactly as wide as its content, so the value and
+   * its chevron sit together at the left.
+   *
+   * `end` in the sheet is the other half of the sheet's layout: a row that is
+   * a full-width line, with the caption on the left and the value hard right
+   * against the edge — a settings line, not a chip.
+   */
+  readonly bandContext = { uid: 'band', justify: 'space-between' as const };
+  readonly sheetContext = { uid: 'sheet', justify: 'end' as const };
+
+  openFilterSheet(): void {
+    this.filterSheetOpen.set(true);
+  }
+
+  closeFilterSheet(): void {
+    this.filterSheetOpen.set(false);
+  }
 
   @ViewChild('searchbar') searchbar?: ElementRef<HTMLIonSearchbarElement>;
 
@@ -367,11 +437,36 @@ export class ProductsPage implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadProducts();
     this.wishlistSub = this.wishlistService.wishlist$.subscribe((ids) => this.wishlistIds.set(ids));
+    // A flavour in the URL opens the quick-view over the grid. This is the
+    // deep link (/products/:id hands its id over) and the way back out of it:
+    // the parameter is taken off the URL when the dialog closes, so the
+    // browser's back button never walks into it again.
+    this.routeSub = this.route.queryParamMap.subscribe((params) => {
+      const open = params.get('open');
+      if (open === this.quickView.productId()) return;
+      if (open) this.quickView.open(open);
+      else this.quickView.close();
+    });
   }
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
     this.wishlistSub?.unsubscribe();
+    this.routeSub?.unsubscribe();
+    // The quick-view lives in the shell, so it outlives this page by
+    // construction — which means this page has to close it on its way out.
+    // Navigating away with the quick-view still open would leave a dialog
+    // floating over whatever came next.
+    this.quickView.close();
   }
+
+  /**
+   * The flavour whose quick-view is open, if any.
+   *
+   * The state is the service's, not this page's: the dialog is rendered by
+   * the app shell, over the whole app rather than over this page's column
+   * of the screen. See QuickViewService for why.
+   */
+  readonly openProductId = computed(() => this.quickView.productId());
 
   loadProducts(): void {
     this.isLoading.set(true);
@@ -447,14 +542,28 @@ export class ProductsPage implements OnInit, OnDestroy {
    * the grid showed everything, which reads as a broken control.
    */
   clearFilters(): void {
+    this.clearFilterSelections();
     this.searchQuery.set('');
+    this.sortBy.set('featured');
+    if (this.searchbar?.nativeElement) this.searchbar.nativeElement.value = '';
+    this.resetPagination();
+  }
+
+  /**
+   * Reset the five FILTERS — the ones the sheet contains — and nothing else.
+   *
+   * The sheet's own "Clear filters" button calls this, not `clearFilters()`.
+   * Clearing the search text from inside a sheet called "Filters" would take
+   * away something the user cannot see and cannot undo from there; clearing
+   * the sort would too. The band keeps its "Clear all", which does clear
+   * everything, because the band holds all of it.
+   */
+  clearFilterSelections(): void {
     this.selectedSet.set(null);
     this.inStockOnly.set(false);
     this.wishlistOnly.set(false);
     this.selectedSize.set(null);
     this.maxPrice.set(null);
-    this.sortBy.set('featured');
-    if (this.searchbar?.nativeElement) this.searchbar.nativeElement.value = '';
     this.resetPagination();
   }
 

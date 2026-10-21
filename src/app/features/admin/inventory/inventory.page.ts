@@ -19,26 +19,25 @@ import {
   IonCardContent,
   IonCardHeader,
   IonCardTitle,
-  IonChip,
   IonPopover,
   AlertController,
   ToastController,
   ModalController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
 import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
 import { Subscription } from 'rxjs';
-import { InventoryService } from '@core/services/inventory.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
 import { Product, SizeVariant, StockLevel } from '@core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 import { flavourBackground } from '@core/logic/flavour-colour';
 import { totalStock } from '@core/logic/stock';
-import { ShopSettingsService } from '@core/services/shop-settings.service';
-import { slug } from '@core/logic/csv-import';
+import { ShopSettingsService } from '@core/services/shop/shop-settings.service';
+import { slug } from '@core/logic/csv/product-import';
 import { CsvImportModalComponent } from '@features/admin/inventory/csv-import-modal.component';
 import { describeFirestoreError } from '@core/logic/firestore-error';
 import { AddProductModalComponent } from '@features/admin/inventory/add-product-modal.component';
@@ -80,13 +79,12 @@ const EMPTY_CATALOGUE_MAX_SET = 0;
     IonCardContent,
     IonCardHeader,
     IonCardTitle,
-    IonChip,
     IonPopover,
     AppIconComponent,
     EmptyStateComponent,
     PaginationComponent,
     CloudinaryPipe,
-    AppFooterComponent,
+    AdminFooterComponent,
     AlertBannerComponent,
   ],
   templateUrl: './inventory.page.html',
@@ -136,11 +134,25 @@ export class InventoryPage implements OnInit, OnDestroy {
    * carries, and it is what the cards already show beside the set name.
    */
   readonly setFilter = signal<number | 'all'>('all');
-  readonly setPopoverOpen = signal(false);
 
-  openSetPopover(): void {
-    this.setPopoverOpen.set(true);
-  }
+  /**
+   * Whether the set-filter popover is open - a MIRROR of the overlay's real
+   * state, not the thing that opens it.
+   *
+   * It used to be the driver: the button's `(click)` set it true and `[isOpen]`
+   * followed. That works only if Ionic can work out where to put the popover, and
+   * with no `trigger` and no event it could not - it fell back to a hardcoded
+   * viewport-centre default and the list opened in the middle of the screen,
+   * detached from the button. The button now names itself as the popover's
+   * `trigger` and Ionic presents from a real click event, so this only has to
+   * report what happened.
+   *
+   * Written from `didPresent`/`didDismiss`, and read solely by the button's
+   * `aria-expanded`, which is why it is worth keeping at all: an expanded-state
+   * that disagrees with the overlay is worse for a screen-reader user than not
+   * having the attribute at all.
+   */
+  readonly setPopoverOpen = signal(false);
 
   closeSetPopover(): void {
     this.setPopoverOpen.set(false);
@@ -287,7 +299,7 @@ export class InventoryPage implements OnInit, OnDestroy {
 
   // ── Bulk CSV import ────────────────────────────────────────────────────────
   /* README and REFACTOR_PLAN.md both deferred "CSV bulk product import". The
-     validation lives in `core/logic/csv-import.ts` and is all-or-nothing: one
+     validation lives in `core/logic/csv/product-import.ts` and is all-or-nothing: one
      bad row rejects the whole file, because a partial import is the one outcome
      an admin cannot recover from — 40 of 64 flavors written with no record of
      which 40 leaves a catalog nothing else can describe as correct. */
@@ -321,12 +333,13 @@ export class InventoryPage implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.shop.watch();
+    // The shop settings listener belongs to the app shell, not to this page.
+    // See `AppComponent` — and the note in `DashboardPage.ngOnInit` for why
+    // two pages owning one root-level listener was a bug.
     this.loadProducts();
   }
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
-    this.shop.stop();
   }
 
   loadProducts(): void {

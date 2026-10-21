@@ -21,9 +21,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { ModalController } from '@ionic/angular/standalone';
 
-import { InventoryService } from '@core/services/inventory.service';
-import { ImageUploadService } from '@core/services/image-upload.service';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { ImageUploadService } from '@core/services/catalog/image-upload.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
 import type { Product } from '@core/models/product.model';
 
 @Component({

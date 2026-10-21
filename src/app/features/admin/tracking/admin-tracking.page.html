@@ -1,7 +1,7 @@
 <!-- src/app/features/admin/tracking/admin-tracking.page.html -->
 <!-- Five-orites Scoop — Admin Delivery Map -->
 
-<ion-header>
+<ion-header class="flat-header">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
@@ -38,62 +38,110 @@
   }
 
   <!--
-    Map on the left, search panel on the right.
+    Search panel on the LEFT, map on the RIGHT.
 
-    The map used to be a 340px letterbox across the full width, with the order
-    list below it — so the two things you compare while working (where the
-    orders are, and which orders those are) were never on screen together. A
-    square map beside the panel keeps both visible at once on a tablet or
-    desktop, and stacks on a phone where there is no room to do otherwise.
+    It was the other way round: the map took the wide column and the panel the
+    narrow one on the right. The panel is the thing you work with — the search,
+    the status filter, and the selected order — and the map is the thing you
+    check, so the panel now leads.
+
+    THE DOM ORDER WAS SWAPPED TOO, not just the grid columns, and that is the
+    part that matters: the keyboard order follows the DOM, and Leaflet's map
+    container is focusable, so leaving the map first in the markup would have
+    made the tab order walk the page differently from the way the eye reads it.
   -->
   <div class="track-split">
-    <div class="map-col">
-      <app-scoop-map
-        [markers]="mapMarkers()"
-        [square]="true"
-        ariaLabel="Map of active delivery destinations and the shop"
-        (markerTapped)="onMarkerTapped($event)"
-      />
-      <p class="map-caption">
-        <app-icon name="map-pin" />
-        <span
-          >The shop plus {{ mappedOrders().length }} active order{{ mappedOrders().length === 1 ? '' : 's' }} with a
-          resolved address. Tap a pin to select it.</span
-        >
-      </p>
-    </div>
-
     <aside class="panel-col">
       <!-- Search & filters -->
       <section class="search-panel">
-        <ion-searchbar
-          placeholder="Search order, email or address"
-          debounce="250"
-          (ionInput)="onQuery($event)"
-          [value]="query()"
-          class="track-search"
-          aria-label="Search active orders"
-        ></ion-searchbar>
+        <!--
+          THE FILTER AND THE SEARCH, ON ONE ROW, THE FILTER FIRST.
 
-        <div class="status-chips" role="group" aria-label="Filter by status">
-          @for (opt of statusOptions; track opt.value) {
-            <button
-              type="button"
-              class="status-chip"
-              [class.is-on]="statusFilter() === opt.value"
-              [attr.aria-pressed]="statusFilter() === opt.value"
-              (click)="onStatusFilter(opt.value)"
-            >
-              {{ opt.label }}
-            </button>
-          }
+          They were stacked: the field above, the dropdown below it. Two rows
+          of controls for one panel, with the count under them, and the panel
+          is only as wide as it needs to be — so the row the eye actually
+          reads was the one with the field on it and the filter hanging off
+          the end.
+
+          On one line they read as what they are: two controls that narrow the
+          same list, and the filter comes first because it is the coarser of
+          the two. The field gives up the width it was borrowing from the
+          panel to pay for the filter sitting beside it.
+        -->
+        <div class="panel-controls">
+          <!--
+            THE STATUS FILTER, AS ONE DROPDOWN.
+
+            It was a row of five chips — All, Placed, Confirmed, Preparing, Out —
+            which is a lot of control for a filter that is usually left alone,
+            and the row it sat in was the loudest thing on the panel: five
+            filled and outlined pills above a search field.
+
+            Now it is ONE control that opens a list, which is what the
+            fulfilment queue's status filter and the users directory's role
+            filter already are. Same `.select-chip` treatment, same popover,
+            same shared list styles — so this is the app's dropdown, not a
+            third kind of dropdown.
+
+            "All" is the default and the label the trigger shows until a
+            status is chosen; the trigger then shows that status, so the
+            control says where it is without being opened.
+          -->
+          <button
+            type="button"
+            id="status-filter-trigger"
+            class="select-chip status-select"
+            [class.is-active]="statusFilter() !== 'all'"
+            aria-haspopup="true"
+            [attr.aria-expanded]="statusFilterPopoverOpen()"
+            tabindex="0"
+            (keydown.enter)="openStatusFilterPopover()"
+            (keydown.space)="openStatusFilterPopover()"
+          >
+            <span class="status-select-label">{{ statusFilterLabel() }}</span>
+            <app-icon name="chevron-down" class="select-chip-arrow" />
+          </button>
+
+          <ion-searchbar
+            placeholder="Search orders"
+            debounce="250"
+            (ionInput)="onQuery($event)"
+            [value]="query()"
+            class="track-search"
+            aria-label="Search active orders by order id, customer email or address"
+          ></ion-searchbar>
         </div>
+
+        <ion-popover
+          trigger="status-filter-trigger"
+          [cssClass]="'status-filter-popover tracking-filter-popover'"
+          [isOpen]="statusFilterPopoverOpen()"
+          (didPresent)="statusFilterPopoverOpen.set(true)"
+          (didDismiss)="closeStatusFilterPopover()"
+          side="bottom"
+          alignment="start"
+        >
+          <ng-template>
+            <div class="status-filter-popover-list">
+              @for (opt of statusOptions; track opt.value) {
+                <button
+                  type="button"
+                  class="status-filter-popover-item"
+                  [class.active]="statusFilter() === opt.value"
+                  (click)="onStatusFilter(opt.value); closeStatusFilterPopover()"
+                >
+                  {{ opt.label }}
+                </button>
+              }
+            </div>
+          </ng-template>
+        </ion-popover>
 
         <p class="result-count" role="status">
           @if (visibleOrders().length === 0) {
             No matching orders
           } @else {
-            {{ visibleOrders().length }} of {{ activeOrders().length }} active
+            {{ visibleOrders().length }} of {{ activeOrders().length }} active &middot; nearest first
             @if (hiddenCount() > 0) {
               &middot; {{ hiddenCount() }} hidden
             }
@@ -108,9 +156,20 @@
         }
       </section>
 
-      <!-- Selected order detail. Sits above the list, under the filters, because
-           it is the answer to "what did I just tap" and should not require a
-           scroll to find. -->
+      <!-- Selected order detail.
+
+           IT IS THE ONLY CARD ON THIS SIDE OF THE SPLIT.
+
+           The panel column used to be a white box with a hairline, holding the
+           filters and this card — and tapping a pin on the map dropped the
+           card out from under the filters and shoved the page down, because
+           the card was a SIBLING of the box rather than part of it.
+
+           The box is gone now: the field, the chips and the count sit on the
+           page, and this is the one thing here that is a card, because it is
+           the one thing here that arrives and leaves. It is a powder field
+           with a hairline, the same treatment the selected rows in the table
+           below wear. -->
       @if (selectedOrder(); as sel) {
         <section class="selected-card">
           <header class="selected-head">
@@ -126,33 +185,93 @@
           <p class="selected-address">{{ sel.deliveryAddress }}</p>
           <p class="selected-meta">
             {{ sel.customerEmail }} &middot; {{ itemCount(sel) }} item{{ itemCount(sel) === 1 ? '' : 's' }} &middot;
-            {{ distanceFor(sel) }} away
+            @if (distanceLabel(sel); as d) {
+              {{ d }} away
+            } @else {
+              No location yet
+            }
           </p>
 
           @if (canAdvance(sel)) {
-            <ion-button
-              expand="block"
-              class="advance-btn"
-              (click)="advance($event, sel)"
-              [disabled]="busyId() === sel.id"
-            >
+            <!--
+              A PLAIN <button>, and the reason is the same one the inventory
+              page's "+ Add Product" has: an `ion-button` paints its fill on an
+              inner shadow-root element, so its Material elevation shadow and
+              its uppercase md scale are both out of reach of a stylesheet
+              outside the component. A plain <button> states its own background,
+              radius and type outright, and it owns its own focus ring because
+              Ionic's came with the component.
+
+              The label was ALREADY sentence case — "Mark as Out for Delivery" —
+              and the uppercase the page was showing was Ionic's md
+              `text-transform`, which goes with the element.
+            -->
+            <button type="button" class="advance-btn" (click)="advance($event, sel)" [disabled]="busyId() === sel.id">
               {{ busyId() === sel.id ? 'Updating…' : nextLabel(sel) }}
-            </ion-button>
+            </button>
           }
         </section>
       }
     </aside>
+
+    <div class="map-col">
+      <app-scoop-map
+        [markers]="mapMarkers()"
+        [square]="true"
+        ariaLabel="Map of active delivery destinations and the shop"
+        (markerTapped)="onMarkerTapped($event)"
+      />
+      <p class="map-caption">
+        <app-icon name="map-pin" />
+        <span
+          >The shop plus {{ mappedOrders().length }} active order{{ mappedOrders().length === 1 ? '' : 's' }} with a
+          resolved address. Tap a pin to select it.</span
+        >
+      </p>
+    </div>
   </div>
 
-  <!-- Order list, as a table -->
+  <!--
+    THE ORDERS WITH NO LOCATION, SAID ONCE.
+
+    They used to be a list of their own, below the table — and every order in
+    that list was ALREADY a row in the table above it, because both are drawn
+    from the same active set. The same eleven orders, printed twice on one
+    screen, with the second print wearing a different colour.
+
+    So the panel now COUNTS them rather than repeating them. The row says "No
+    pin yet", the route puts them last, and this strip says how many there are
+    and what can be done about them.
+
+    THEY STAY VISIBLE, and that is the reason the strip exists at all. An order
+    staff cannot see is an order they may not prepare. And there is no way to
+    fix a missing pin from this page: the only writer of `geo` is the
+    CUSTOMER's tracker, which geocodes the address on demand and caches it on
+    the order. So the instruction is the most this page can actually offer.
+  -->
+  @if (unmappedOrders().length > 0) {
+    <section class="unmapped">
+      <app-icon name="map-pin" class="unmapped-icon" />
+      <div class="unmapped-text">
+        <h3 class="unmapped-title">
+          {{ unmappedOrders().length }} of {{ activeOrders().length }} active orders have no location yet
+        </h3>
+        <p class="unmapped-note">
+          They sort last and are flagged &ldquo;No pin yet&rdquo;. Open one on the customer&rsquo;s tracker once to
+          resolve its location.
+        </p>
+      </div>
+    </section>
+  }
+
+  <!-- The route, as a table. -->
   @if (isLoading()) {
     <div class="table-wrap">
       @for (s of [1, 2, 3, 4]; track s) {
         <div class="skeleton-row">
-          <ion-skeleton-text animated style="width: 26%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 34%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 12%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 18%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 22%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 40%; height: 14px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="width: 22%; height: 14px"></ion-skeleton-text>
         </div>
       }
     </div>
@@ -173,10 +292,10 @@
       [compact]="true"
     />
   } @else {
-    <div class="table-wrap">
-      <table class="track-table">
+    <div class="table-wrap" [class.has-notice]="unmappedOrders().length > 0">
+      <table class="track-table stackable-table">
         <caption class="visually-hidden">
-          Active delivery orders,
+          Active delivery stops, nearest first,
           {{
             visibleOrders().length
           }}
@@ -186,9 +305,7 @@
           <tr>
             <th scope="col">Order</th>
             <th scope="col">Destination</th>
-            <th scope="col" class="num">Items</th>
-            <th scope="col" class="num">Value</th>
-            <th scope="col">Status</th>
+            <th scope="col" class="col-status">Status</th>
             <th scope="col"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
@@ -207,7 +324,17 @@
               thing. Neither is nested inside the other.
             -->
             <tr class="track-row" [class.is-selected]="selectedId() === order.id">
-              <td data-label="Order">
+              <!--
+                THE LEAD CELL. The order number is the row's identity, so on a
+                narrow screen it is the card's heading rather than one
+                labelled field among four.
+
+                The pick button stays the way it is — the row itself is not
+                clickable, and that is a deliberate decision recorded below —
+                so on a card the order number and the thing that selects it
+                are still the same control the admin has always used.
+              -->
+              <td class="cell-lead">
                 <button
                   type="button"
                   class="pick-btn"
@@ -216,42 +343,90 @@
                   [attr.aria-label]="'Select order ' + order.id.slice(-6).toUpperCase()"
                 >
                   <app-icon name="map-pin" class="pick-icon" />
-                  <span class="pick-text">
-                    <span class="row-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
-                    <span class="row-email">{{ order.customerEmail }}</span>
-                  </span>
+                  <span class="row-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
                 </button>
               </td>
 
+              <!--
+                THE ADDRESS AND THE DISTANCE, which is the whole reason this
+                list exists and the two columns Fulfillment does not have.
+
+                The email, the item count and the peso total used to be here as
+                well, and they were Fulfillment's columns: a delivery stop has
+                no scoop count and no total. They are on the fulfilment queue,
+                and the customer who wants them is on the fulfilment queue.
+              -->
               <td data-label="Destination">
                 <span class="row-address">{{ order.deliveryAddress }}</span>
-                <span class="row-distance">{{ distanceFor(order) }}</span>
-              </td>
-
-              <td class="num" data-label="Items">
-                <span class="row-items">{{ itemCount(order) }}</span>
-              </td>
-
-              <td class="num" data-label="Value">
-                <span class="row-value">{{ order.grandTotal | peso }}</span>
+                @if (distanceLabel(order); as d) {
+                  <span class="row-distance">{{ d }}</span>
+                } @else {
+                  <span class="row-no-pin">No pin yet</span>
+                }
               </td>
 
               <td data-label="Status">
                 <app-order-status-badge [status]="order.status"></app-order-status-badge>
               </td>
 
-              <td class="action-cell">
+              <!--
+                THE ACTIONS CELL. "Next step" advances the order, and on a
+                narrow screen it was in the one column that fell off the right
+                edge of the table.
+
+                `cell-actions` puts it in its own row at the foot of the card,
+                over a hairline, so it reads as the card's button rather than
+                as one more field.
+              -->
+              <td class="action-cell cell-actions">
                 @if (canAdvance(order)) {
-                  <ion-button
-                    size="small"
-                    fill="outline"
+                  <!--
+                    A plain <button> for the same reason as the one above, and
+                    it is the QUIET one: white, one hairline, 12px of radius.
+                    It used to be a 999px lozenge with a navy rim, which read
+                    as a different species of control from everything else in
+                    the app — and this one repeats down every row, so it is the
+                    one a quiet treatment matters most on.
+
+                    IT STAYS, even though the selected card above has a
+                    "Mark as …" button for the same order. The two are not in
+                    the same view: the card is what a MAP PIN opens, at the top
+                    of the page, and this is the fast path down a list of ten
+                    stops on a delivery run. Fulfillment removed its panel's
+                    duplicate because its panel unfolds directly under its
+                    row; this card is a different column, a different distance
+                    away, and a different way in.
+
+                    "NEXT STEP", NOT "ADVANCE", and the arrow is the reason.
+
+                    "Advance" said that something would move and left the
+                    admin to work out what. "Next step" is the app's OWN
+                    phrase for this gesture: the fulfilment queue's status
+                    popover promotes an entry labelled "Next step" to the top
+                    of its list and draws an arrow-right in front of it, so the
+                    two admin pages now say the same words for the same
+                    action.
+
+                    The arrow is that same arrow, and it is what makes the
+                    label an ACTION rather than a state — which matters here
+                    because the STATUS column beside it is full of states.
+
+                    The aria-label still names the exact status, so the button
+                    says which step and the screen reader says which status. -->
+                  <button
+                    type="button"
                     class="row-advance"
                     (click)="advance($event, order)"
                     [disabled]="busyId() === order.id"
                     [attr.aria-label]="'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + nextLabel(order)"
                   >
-                    {{ busyId() === order.id ? '…' : 'Advance' }}
-                  </ion-button>
+                    @if (busyId() === order.id) {
+                      <span aria-hidden="true">…</span>
+                    } @else {
+                      <app-icon name="arrow-right" class="row-advance-icon" />
+                      <span>Next step</span>
+                    }
+                  </button>
                 }
               </td>
             </tr>
@@ -269,26 +444,5 @@
     />
   }
 
-  <!-- Orders with no coordinates, kept visible below the table. -->
-  @if (unmappedOrders().length > 0) {
-    <section class="unmapped">
-      <h3 class="unmapped-title">
-        <app-icon name="map-pin" />
-        {{ unmappedOrders().length }} order{{ unmappedOrders().length === 1 ? '' : 's' }} not on the map
-      </h3>
-      <p class="unmapped-note">
-        These have an address but no coordinates yet. They are not hidden — open one on the customer's tracker once to
-        resolve its location.
-      </p>
-      <ul class="unmapped-list">
-        @for (order of unmappedOrders().slice(0, 6); track order.id) {
-          <li class="unmapped-item">
-            <span class="unmapped-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
-            <span class="unmapped-address">{{ order.deliveryAddress }}</span>
-          </li>
-        }
-      </ul>
-    </section>
-  }
-  <app-footer></app-footer>
+  <app-admin-footer></app-admin-footer>
 </ion-content>

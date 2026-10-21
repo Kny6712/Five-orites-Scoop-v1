@@ -295,6 +295,28 @@
   background: var(--ion-color-light);
   border-radius: 16px;
   margin: 8px;
+
+  /* IT STAYS AT THE BOTTOM OF THE DRAWER, WHATEVER THE SCROLL.
+
+     The drawer is a scrolling column of every navigation item in the app, and
+     on an admin's phone that is seventeen items: eight under MENU and nine
+     under ADMIN PANEL. Measured at 360x640 — the smallest phone still
+     common — the panel's Sign out button sat at y=1264, in a viewport 640px
+     tall. Reaching it meant scrolling 700px past the middle of the drawer,
+     which is a long way to travel to log out and the reason a person gives
+     up and closes the menu instead.
+
+     `position: sticky` with `bottom: 0` pins the panel to the bottom of the
+     drawer's scroll area, so it is where it is expected to be — the foot of
+     the menu — at every scroll position. Measured after: the button is at
+     y=568 and a hit test at its centre reaches it.
+
+     The `z-index` is what keeps the nav list from scrolling over it, and the
+     solid `--ion-color-light` background is what stops the list showing
+     through it. */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
 }
 
 .user-info {

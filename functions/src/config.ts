@@ -80,13 +80,25 @@ export interface VoucherPricing {
  * This is the client's `calculateDiscount` verbatim. It returns 0 for an inactive
  * voucher or a subtotal below its minimum, and caps a fixed discount at the
  * subtotal so a total can never go negative.
+ *
+ * MUST stay in sync with src/app/core/logic/voucher.ts — a test asserts equality.
  */
 export function calculateDiscount(subtotal: number, voucher: VoucherPricing): number {
   if (!voucher.isActive) return 0;
   if ((voucher.minOrder ?? 0) > subtotal) return 0;
   if (voucher.type === 'percent') {
     const pct = Math.min(Math.max(voucher.value, 0), MAX_PERCENT_DISCOUNT);
-    return Math.floor((subtotal * pct) / 100);
+    return roundMoney((subtotal * pct) / 100);
   }
-  return Math.min(Math.max(voucher.value, 0), subtotal);
+  return roundMoney(Math.min(Math.max(voucher.value, 0), subtotal));
+}
+
+/**
+ * Rounds a peso amount to two decimal places.
+ *
+ * MUST stay in sync with src/app/core/logic/money.ts — a test asserts equality.
+ */
+export function roundMoney(amount: number): number {
+  if (!Number.isFinite(amount)) return 0;
+  return Math.round((amount + Number.EPSILON) * 100) / 100;
 }

@@ -15,17 +15,13 @@ import {
   IonContent,
   IonButtons,
   IonMenuButton,
-  IonButton,
 } from '@ionic/angular/standalone';
-import { CartButtonComponent } from '@shared/components/cart-button/cart-button.component';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import {
-  ScoopMapComponent,
-  type MapMarker,
-} from '@shared/components/scoop-map/scoop-map.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { CartButtonComponent } from '@shared/components/commerce/cart-button.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { ScoopMapComponent, type MapMarker } from '@shared/components/commerce/scoop-map.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
 import { SHOP_LOCATION, SHOP_HOURS } from '@core/config/shop.config';
-import { ShopSettingsService } from '@core/services/shop-settings.service';
+import { ShopSettingsService } from '@core/services/shop/shop-settings.service';
 import {
   HERO,
   STORY,
@@ -48,7 +44,6 @@ import {
     IonContent,
     IonButtons,
     IonMenuButton,
-    IonButton,
     CartButtonComponent,
     AppIconComponent,
     ScoopMapComponent,

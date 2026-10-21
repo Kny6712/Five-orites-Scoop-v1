@@ -23,13 +23,6 @@ export type FlavorSet = number;
  */
 export type ProductCategory = 'flavor' | 'sundae' | 'cone';
 
-/** Display label for a category, and the order they appear in filter chips. */
-export const PRODUCT_CATEGORIES: readonly { value: ProductCategory; label: string }[] = [
-  { value: 'flavor', label: 'Flavors' },
-  { value: 'sundae', label: 'Sundaes' },
-  { value: 'cone', label: 'Cones' },
-];
-
 /** A product's category, defaulting to 'flavor' for documents written before the field existed. */
 export function productCategory(product: { category?: string }): ProductCategory {
   return product.category === 'sundae' || product.category === 'cone' ? product.category : 'flavor';
@@ -47,6 +40,32 @@ export interface StockLevel {
   pint: number;
   halfGallon: number;
   gallon: number;
+}
+
+/**
+ * The price of one size, or null when the product has no price for it.
+ *
+ * READ THIS INSTEAD OF `product.pricing[size]`.
+ *
+ * A product document written by an older seed, a half-finished CSV import or
+ * a hand-edit can be missing its `pricing` map altogether. Reading it
+ * directly (`product.pricing[size]`) then throws `Cannot read properties of
+ * undefined` — and it throws INSIDE a template's update pass, which aborts
+ * the whole change-detection tick for the page. Every view after the broken
+ * card in the template is left exactly as it was: its bindings keep their
+ * initial empty state and its `@if` branches never appear. One malformed
+ * document was enough to blank out everything after it on the page.
+ *
+ * So the price is read through here, and a product with no price for a size
+ * is `null` — a state the surfaces can show honestly ("—") rather than a
+ * crash they cannot show at all.
+ */
+export function sizePrice(
+  product: { pricing?: Partial<SizePricing> } | null | undefined,
+  size: SizeVariant,
+): number | null {
+  const price = product?.pricing?.[size];
+  return typeof price === 'number' && Number.isFinite(price) ? price : null;
 }
 
 export interface Product {

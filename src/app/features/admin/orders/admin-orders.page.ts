@@ -16,25 +16,24 @@ import {
   IonLabel,
   IonButton,
   IonSearchbar,
-  IonSelect,
-  IonSelectOption,
+  IonPopover,
   IonSkeletonText,
   IonRefresher,
   IonRefresherContent,
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { OrderService } from '@core/services/order.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { OrderService } from '@core/services/orders/order.service';
 import { Order, OrderStatus, ORDER_STATUS_META } from '@core/models/order.model';
 import { describeFirestoreError } from '@core/logic/firestore-error';
-import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv';
-import { CsvExportService } from '@core/services/csv-export.service';
-import { OrderStatusBadgeComponent } from '@shared/components/order-status-badge/order-status-badge.component';
+import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv/cell';
+import { CsvExportService } from '@core/services/commerce/csv-export.service';
+import { OrderStatusBadgeComponent } from '@shared/components/commerce/order-status-badge.component';
 import { PesoPipe } from '@shared/pipes/peso.pipe';
 import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 
@@ -94,15 +93,14 @@ const ALL_STATUSES: readonly OrderStatus[] = [
     IonLabel,
     IonButton,
     IonSearchbar,
-    IonSelect,
-    IonSelectOption,
+    IonPopover,
     IonSkeletonText,
     IonRefresher,
     IonRefresherContent,
     OrderStatusBadgeComponent,
     PesoPipe,
     PaginationComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
     AppIconComponent,
     EmptyStateComponent,
     AlertBannerComponent,
@@ -125,7 +123,8 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    */
 
   allOrders = signal<Order[]>([]);
-  selectedFilter = signal<OrderStatus | 'all'>('all');
+  /** The status the queue is narrowed to, or 'all' for the whole queue. */
+  statusFilter = signal<OrderStatus | 'all'>('all');
   isLoading = signal(true);
   /** Non-empty when the order list failed to load, as opposed to being empty. */
   loadError = signal('');
@@ -134,15 +133,40 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   updatingId = signal<string | null>(null);
   expandedId = signal<string | null>(null);
 
-  readonly sizeLabels = SIZE_DISPLAY_LABELS;
-  readonly statusMeta = ORDER_STATUS_META;
-  readonly nextStatus = NEXT_STATUS;
+  /**
+   * Which row's status popover is open, or null when none is.
+   *
+   * ONE signal for the whole table rather than a per-row boolean, because that is
+   * the only way to guarantee what the per-row `ion-select` version could not: that
+   * at most one overlay is ever open. With one flag per row nothing stops an admin
+   * from opening two, and two full-viewport overlays at `z-index: 1001` is a
+   * backdrop over the queue.
+   *
+   * It also serves as the single source for `aria-expanded` on every row's button,
+   * so the announced state cannot drift from the rendered one.
+   */
+  readonly statusPopoverId = signal<string | null>(null);
 
   /**
-   * The lifecycle order the status windows are listed in. Cancelled was missing
-   * from the original list, so a cancelled order could only be found under
-   * "All" — which is exactly the list that goes incomplete once the shop passes
-   * the 100-order read cap.
+   * Whether the STATUS FILTER popover is open - a MIRROR of the overlay's real
+   * state, written by didPresent/didDismiss and read by the trigger button's
+   * aria-expanded.
+   *
+   * A mirror and not a driver, for the same reason `statusPopoverId` is one:
+   * with `trigger` set, Ionic presents the overlay itself, and a signal that
+   * drove it would be a second way of opening the same thing.
+   */
+  readonly statusFilterPopoverOpen = signal(false);
+
+  readonly sizeLabels = SIZE_DISPLAY_LABELS;
+  readonly statusMeta = ORDER_STATUS_META;
+
+  /**
+   * The lifecycle order the status windows are listed in.
+   *
+   * Cancelled was missing from the original list, so a cancelled order could
+   * only be found under "All" - which is exactly the list that goes incomplete
+   * once the shop passes the 100-order read cap.
    */
   private static readonly FILTER_ORDER: readonly OrderStatus[] = [
     'pending',
@@ -154,10 +178,29 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   ];
 
   /**
+   * The labels the QUEUE uses for each state.
+   *
+   * NOT the customer-facing ORDER_STATUS_META strings. "Delivery" and "Done" are
+   * what a fulfilment queue calls those states; the customer page's "Out for
+   * Delivery" and "Delivered" are a different voice for a different reader, and
+   * sharing a control with that page does not mean sharing its wording. The
+   * longest of these is seven characters, which is what keeps the popover
+   * narrow enough for the counts to survive in it.
+   */
+  private static readonly FILTER_LABELS: Record<OrderStatus, string> = {
+    pending: 'Pending',
+    confirmed: 'Confirmed',
+    preparing: 'Preparing',
+    out_for_delivery: 'Delivery',
+    delivered: 'Done',
+    cancelled: 'Cancelled',
+  };
+
+  /**
    * The filter's options: 'All' plus one per status, each carrying how many of
    * the queued orders it would show.
    *
-   * THE COUNTS ARE NOT DECORATION — the same argument the customer orders page
+   * THE COUNTS ARE NOT DECORATION - the same argument the customer orders page
    * makes for its own status dropdown. A list of bare words invites picking the
    * longest-looking option, and "Cancelled (0)" is a decision in a way that
    * "Cancelled" is not. On a queue this matters more than on a personal history:
@@ -169,14 +212,10 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    * as orders move through the lifecycle, and an admin who has never cancelled
    * an order would never learn the window exists.
    *
-   * Derived from the whole queue rather than the current page, so the counts do
-   * not change as the admin pages through.
-   *
-   * THE LABELS ARE ADMIN SHORTHAND, not the customer-facing
-   * ORDER_STATUS_META strings. "Delivery" and "Done" are what this queue calls
-   * those states; the customer page's "Out for Delivery" and "Delivered" are a
-   * different voice for a different reader, and borrowing the control from that
-   * page does not mean borrowing its wording.
+   * DERIVED FROM THE WHOLE QUEUE, not the current page and not the current
+   * search. The counts describe the queue's shape - how many orders sit in each
+   * state - and a count that changed every time the admin typed a character
+   * would be answering a different question, one nobody asked.
    */
   readonly statusOptions = computed(() => {
     const counts = new Map<OrderStatus, number>();
@@ -193,15 +232,6 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     ];
   });
 
-  private static readonly FILTER_LABELS: Record<OrderStatus, string> = {
-    pending: 'Pending',
-    confirmed: 'Confirmed',
-    preparing: 'Preparing',
-    out_for_delivery: 'Delivery',
-    delivered: 'Done',
-    cancelled: 'Cancelled',
-  };
-
   /**
    * Free-text search across id, customer, address and item names.
    *
@@ -210,47 +240,46 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    * differently depending on which one you happened to open. Both now do the same
    * thing, so the answer does not depend on the page.
    *
+   * It narrows WITHIN the status filter, not instead of it: a status says which
+   * state, the search says which order.
+   *
    * Client-side on purpose: the queue is already an in-memory array capped at
    * ORDERS_QUEUE_MAX, so a Firestore `where`/`orderBy` would need a composite
    * index and would still not cover a substring of an address.
    */
   search = signal('');
-  query = signal('');
 
+  /**
+   * The search narrows the queue as you type.
+   *
+   * It used to commit on blur instead, and the Enter path was a DEAD BINDING:
+   * `ionKeyDown` is an ion-INPUT event and ion-searchbar does not emit it, so
+   * Angular was listening for an event that does not exist and only the blur
+   * path ever narrowed anything. Typing looked broken.
+   *
+   * Now the filter reads this signal directly, which is what the sibling
+   * queues do - the reviews, tracking, products, inventory and vouchers pages
+   * all narrow on `ionInput`. The two-signal `search`/`query` split is gone.
+   */
   onSearch(value: string | null | undefined): void {
     this.search.set(value ?? '');
     this.page.set(1);
   }
 
-  /** Order ids for bulk actions — survives a filter change. */
-  private readonly selectedIds = signal<ReadonlySet<string>>(new Set<string>());
-
-  isSelected(orderId: string): boolean {
-    return this.selectedIds().has(orderId);
-  }
-
-  selectedCount = computed(() => this.selectedIds().size);
-
-  toggleSelected(orderId: string): void {
-    const next = new Set(this.selectedIds());
-    if (next.has(orderId)) next.delete(orderId);
-    else next.add(orderId);
-    this.selectedIds.set(next);
-  }
-
-  selectAllOnPage(): void {
-    const next = new Set(this.selectedIds());
-    for (const o of this.pagedOrders()) next.add(o.id);
-    this.selectedIds.set(next);
-  }
-
-  clearSelection(): void {
-    this.selectedIds.set(new Set());
-  }
-
+  /**
+   * The queue, narrowed by status and then by the search text.
+   *
+   * STATUS FIRST, then the text. The order matters only for the counts the
+   * two produce, not for the rows themselves: a row either is in the state or
+   * it is not, and then either matches the text or it does not.
+   *
+   * Both narrowings are applied to the WHOLE queue before it is paged, so a
+   * filter can never land the admin on a page that is empty because the
+   * matching rows happened to sit on page two.
+   */
   filteredOrders = computed(() => {
-    const filter = this.selectedFilter();
-    const q = this.query().trim().toLowerCase();
+    const filter = this.statusFilter();
+    const q = this.search().trim().toLowerCase();
 
     return this.allOrders().filter((o) => {
       if (filter !== 'all' && o.status !== filter) return false;
@@ -262,6 +291,24 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
         (o.items ?? []).some((i) => (i.variantName ?? '').toLowerCase().includes(q))
       );
     });
+  });
+
+  /**
+   * What the empty state says when nothing matched.
+   *
+   * It has to name the STATUS, because the status is the wider of the two
+   * narrowings: an empty "Cancelled" window is a different fact from an empty
+   * search, and "No orders matching this search" would be pointing the admin at
+   * the wrong control.
+   */
+  readonly emptyMessage = computed(() => {
+    const filter = this.statusFilter();
+    const searching = this.search().trim().length > 0;
+    if (filter === 'all') {
+      return searching ? 'No orders matching this search.' : 'No orders.';
+    }
+    const label = AdminOrdersPage.FILTER_LABELS[filter].toLowerCase();
+    return searching ? `No ${label} orders matching this search.` : `No ${label} orders.`;
   });
 
   /**
@@ -284,6 +331,24 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     const start = (this.page() - 1) * this.PAGE_SIZE;
     return this.filteredOrders().slice(start, start + this.PAGE_SIZE);
   });
+
+  /**
+   * The row's position in the FILTERED set, counting from one.
+   *
+   * It used to be a checkbox, and a checkbox could not answer the question the
+   * queue is actually asked: how many are there? A number can. The admin reads
+   * the last number on the last page and has the total.
+   *
+   * THE NUMBER RUNS ACROSS PAGES, not from 1 on each one. Page 2 starts at 11,
+   * and the last row of a 37-order queue reads 37. Restarting per page would
+   * have been a number that lies about the size of the queue.
+   *
+   * The offset is the same slice `pagedOrders` takes, so the number and the
+   * row cannot drift apart.
+   */
+  rowNumber(index: number): number {
+    return (this.page() - 1) * this.PAGE_SIZE + index + 1;
+  }
 
   skeletonItems = Array(5).fill(0);
 
@@ -309,6 +374,11 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   onPageChange(next: number): void {
     this.page.set(next);
     this.expandedId.set(null);
+    // The open popover's trigger is about to be destroyed along with every row on
+    // the page being left, so `statusPopoverId` has to stop naming it. Otherwise a
+    // new page's row at the same `$index` inherits the open state, and the first
+    // row of page 2 opens with a popover nobody asked for.
+    this.statusPopoverId.set(null);
   }
 
   ngOnInit(): void {
@@ -401,78 +471,49 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
     })();
   }
 
-  /**
-   * Stock only comes back for an order that never left the shop, so cancelling
-   * a dispatched order is allowed but must not read as a restock. The service
-   * enforces this; the button is hidden to avoid offering an action whose
-   * inventory side effect differs from what the label implies.
-   */
-  canCancel(order: Order): boolean {
-    return (
-      order.status !== 'delivered' &&
-      order.status !== 'cancelled' &&
-      order.status !== 'out_for_delivery'
-    );
-  }
-
-  onFilterChange(event: CustomEvent): void {
-    this.selectedFilter.set(event.detail.value);
-    this.expandedId.set(null);
-    // A status change usually shrinks the result set. Without this the page can
-    // be left on, say, page 4 of a list that now has 2 pages, showing nothing.
-    this.page.set(1);
-  }
-
   toggleExpand(orderId: string): void {
     this.expandedId.set(this.expandedId() === orderId ? null : orderId);
   }
 
-  getNextStatusLabel(status: OrderStatus): string {
-    const next = NEXT_STATUS[status];
-    return next ? ORDER_STATUS_META[next].label : '';
+  /**
+   * Label for the current status filter shown in the trigger button, with the
+   * matching count — same shape as the users page's role filter chip label.
+   *
+   * The count is the whole answer to "how many are in this state", so it is
+   * IN the label rather than behind the control: a button reading just
+   * "Cancelled" and a popover reading "Cancelled (3)" would make the admin
+   * open the thing to find out what it is for.
+   */
+  getStatusFilterLabel(): string {
+    const opt = this.statusOptions().find((o) => o.value === this.statusFilter());
+    return opt ? `${opt.label} (${opt.count})` : `All (${this.allOrders().length})`;
   }
 
-  async advanceStatus(order: Order): Promise<void> {
-    const next = NEXT_STATUS[order.status];
-    if (!next) return;
+  /**
+   * Opens the status filter popover (driven by the button's `trigger` attribute).
+   */
+  openStatusFilterPopover(): void {
+    this.statusFilterPopoverOpen.set(true);
+  }
 
-    const alert = await this.alertCtrl.create({
-      header: 'Advance Order',
-      message: `Mark order #${order.id.slice(-6).toUpperCase()} as "${ORDER_STATUS_META[next].label}"?`,
-      buttons: [
-        { text: 'Cancel', role: 'cancel' },
-        {
-          text: 'Confirm',
-          handler: async () => {
-            this.updatingId.set(order.id);
-            try {
-              await this.orderService.updateOrderStatus(order.id, next);
-              // No customer notification here: this is the ADMIN's device. The
-              // owner's device is notified by OrderNotificationService, which
-              // watches their own orders.
-              const toast = await this.toastCtrl.create({
-                message: `Order updated to "${ORDER_STATUS_META[next].label}"`,
-                color: 'success',
-                duration: 2000,
-                position: 'top',
-              });
-              await toast.present();
-            } catch {
-              const toast = await this.toastCtrl.create({
-                message: 'Failed to update order status.',
-                color: 'danger',
-                duration: 3000,
-                position: 'top',
-              });
-              await toast.present();
-            } finally {
-              this.updatingId.set(null);
-            }
-          },
-        },
-      ],
-    });
-    await alert.present();
+  closeStatusFilterPopover(): void {
+    this.statusFilterPopoverOpen.set(false);
+  }
+
+  /**
+   * Apply a status filter choice from the popover.
+   *
+   * The page goes back to 1 because a status change usually shrinks the result
+   * set, and without this the admin can be left on page 4 of a list that now
+   * has 2 pages, showing nothing.
+   */
+  onStatusFilter(next: OrderStatus | 'all'): void {
+    this.statusFilter.set(next);
+    this.expandedId.set(null);
+    // The open popover's trigger goes with the rows that are about to be
+    // re-rendered, so `statusPopoverId` must stop naming it.
+    this.statusPopoverId.set(null);
+    this.page.set(1);
   }
 
   /**
@@ -565,21 +606,51 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Every status an order can legally be moved to, for the free-form picker.
+   * The popover id for one row, and the `ion-popover`'s `trigger` reference.
    *
-   * `delivered` and `cancelled` are reachable here for the first time. Before,
-   * the only way to mark an order delivered was to step through
-   * pending → confirmed → preparing → out_for_delivery → delivered, which is
-   * correct for the happy path and wrong for a shop that takes a phone order and
-   * hands it straight over. Both remain reachable by the normal button, so this
-   * adds a route rather than replacing one.
-   *
-   * A status is excluded when it is where the order already is — offering
-   * "mark as Delivered" on a delivered order is a no-op that looks like a
-   * failure.
+   * DERIVED FROM `$index`, NOT FROM `order.id`. Only the current page is ever in
+   * the DOM, so the row's position is already a unique key, and an id attribute
+   * built from a Firestore document id is one unescaped character away from
+   * breaking the `trigger` lookup. This cannot have that failure mode.
    */
-  statusOptionsFor(order: Order): readonly OrderStatus[] {
-    return ALL_STATUSES.filter((s) => s !== order.status);
+  statusTriggerId(rowIndex: number): string {
+    return `order-status-trigger-${rowIndex}`;
+  }
+
+  isStatusPopoverOpen(rowIndex: number): boolean {
+    return this.statusPopoverId() === this.statusTriggerId(rowIndex);
+  }
+
+  closeStatusPopover(): void {
+    this.statusPopoverId.set(null);
+  }
+
+  /**
+   * The obvious next step for this order, or undefined at a terminal status.
+   *
+   * Deliberately the same map the row's old "Confirmed →" pill was reading, so the
+   * popover's promoted first option and the pill it replaces are the same decision
+   * — this moves where that decision is *offered*, not what it is.
+   */
+  nextStepFor(order: Order): OrderStatus | undefined {
+    return NEXT_STATUS[order.status];
+  }
+
+  /**
+   * The statuses left over for the popover's "all statuses" group: everything
+   * except where the order already is, and except the next step, which has already
+   * been promoted above them.
+   *
+   * Excluding the current status is unchanged in substance and still for the reason
+   * it was first written — offering "mark as Delivered" on a delivered order is a
+   * no-op that looks like a failure. What changed is that the current status is no
+   * longer simply absent: it is shown at the top of the popover as the chip itself,
+   * marked Current, so the admin can see where the order is without the list
+   * pretending it does not know.
+   */
+  otherStatusOptions(order: Order): readonly OrderStatus[] {
+    const next = NEXT_STATUS[order.status];
+    return ALL_STATUSES.filter((s) => s !== order.status && s !== next);
   }
 
   readonly allStatuses = ALL_STATUSES;
@@ -626,59 +697,6 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
             } finally {
               this.updatingId.set(null);
             }
-          },
-        },
-      ],
-    });
-    await alert.present();
-  }
-
-  /**
-   * Advances every selected order in one go.
-   *
-   * Deliberately sequential rather than parallel: `updateOrderStatus` appends to
-   * `statusHistory` and each write re-reads the document, so firing them at once
-   * would have several transactions racing on the same doc. Sequential is slower
-   * and correct, which is the right trade for a button an admin taps once.
-   *
-   * Cancelling is NOT offered in bulk — it restores stock, and doing that to 30
-   * orders by accident is not a mistake worth supporting.
-   */
-  async bulkAdvance(target: OrderStatus): Promise<void> {
-    const ids = [...this.selectedIds()];
-    if (!ids.length || target === 'cancelled') return;
-
-    const alert = await this.alertCtrl.create({
-      header: `Move ${ids.length} order${ids.length === 1 ? '' : 's'}`,
-      message: `Mark all ${ids.length} selected as "${ORDER_STATUS_META[target].label}"?`,
-      buttons: [
-        { text: 'Back', role: 'cancel' },
-        {
-          text: 'Confirm',
-          handler: async () => {
-            let ok = 0;
-            const failed: string[] = [];
-            for (const id of ids) {
-              this.updatingId.set(id);
-              try {
-                await this.orderService.updateOrderStatus(id, target);
-                ok++;
-              } catch {
-                failed.push(id.slice(-6).toUpperCase());
-              } finally {
-                this.updatingId.set(null);
-              }
-            }
-            this.clearSelection();
-            const t = await this.toastCtrl.create({
-              message: failed.length
-                ? `${ok} updated, ${failed.length} failed: ${failed.slice(0, 3).join(', ')}`
-                : `${ok} order${ok === 1 ? '' : 's'} marked "${ORDER_STATUS_META[target].label}".`,
-              color: failed.length ? 'warning' : 'success',
-              duration: 3200,
-              position: 'top',
-            });
-            await t.present();
           },
         },
       ],

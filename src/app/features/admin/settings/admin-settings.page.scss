@@ -3,11 +3,62 @@
 
 .settings-body {
   padding: 16px 16px 8px;
-  max-width: 760px;
+  max-width: 1000px;
   margin: 0 auto;
+
+  /* `width: 100%`, and this is a bug fix rather than a preference.
+
+     A grid container is shrink-to-fit by default: it takes the width of its
+     contents rather than filling its parent. Here that meant the body was
+     330px wide inside a 320px phone — 10px past the right edge of the screen,
+     with the "Low stock" panel's own hairline cut off.
+
+     The cause is the grid's own tracks. `repeat(2, 1fr)` with an `auto`
+     minimum, and the columns below it hold elements that cannot shrink
+     (`white-space: nowrap` labels, a 258px "Run reconciliation check"
+     button), so the grid's minimum width was larger than the space it had.
+
+     `width: 100%` makes the grid fill the width it was given and lets the
+     tracks shrink inside it, which is what a two-column grid in a phone is
+     for. Below 768px the grid is a single column, and this is the only thing
+     keeping it inside the screen. */
+  width: 100%;
+
+  display: grid;
+  /* `minmax(0, 1fr)`, and this is the other half of the fix above.
+
+     A `1fr` track has an AUTOMATIC MINIMUM of min-content: the track refuses
+     to be narrower than its content wants to be, whatever the container
+     gives it. `width: 100%` on the body stopped the GRID being shrink-to-fit,
+     but the TRACK could still push past the screen — the body measured 390px
+     with 396px of content in it, and the columns ran off the right edge.
+
+     `minmax(0, 1fr)` takes the automatic minimum away. The track is exactly
+     the width it is given, and anything inside that cannot shrink is clipped
+     by its own panel instead of pushing the whole page sideways.
+
+     The same applies to the two columns above 768px, where the reconciliation
+     button and the nowrap labels are the widest things in the grid. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+}
+
+.settings-body .save-settings {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 768px) {
+  .settings-body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-6);
+  }
+}
+
+.col-1,
+.col-2 {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-4);
 }
 
 .panel {
@@ -23,13 +74,24 @@
 }
 
 .panel-title {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-3);
   font-size: 16px;
   font-weight: 700;
   color: var(--color-ink);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+.panel-header .panel-title {
+  margin: 0;
 }
 .panel-icon {
   --icon-size: 18px;

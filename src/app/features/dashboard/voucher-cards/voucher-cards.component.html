@@ -42,21 +42,37 @@
         </p>
 
         <div class="voucher-actions">
-          <ion-button
-            size="small"
+          <!--
+            THE APP'S GOLD CTA, as a plain button.
+
+            It was an <ion-button>, which brought Ionic's md treatment with it:
+            a three-layer elevation shadow under the fill, `text-transform:
+            uppercase` on the label (so it read "COPY"), and no gap between the
+            glyph and the word — the lucide "copy" drawing was jammed against the
+            C. The glyph is now line art at a lighter stroke, it stands on its
+            own 6px of space, and it swaps to a tick when the code is copied.
+          -->
+          <button
+            type="button"
             class="copy-btn"
             (click)="copyCode(voucher)"
-            [attr.aria-label]="'Copy code ' + voucher.code"
+            [attr.aria-label]="
+              copiedCode() === voucher.code ? 'Copied code ' + voucher.code : 'Copy code ' + voucher.code
+            "
           >
-            <app-icon name="copy" slot="start" />
-            @if (copiedCode() === voucher.code) {
-              Copied!
-            } @else {
-              Copy
-            }
-          </ion-button>
+            <app-icon [name]="copiedCode() === voucher.code ? 'check' : 'copy'" class="btn-glyph" />
+            <span>{{ copiedCode() === voucher.code ? 'Copied!' : 'Copy' }}</span>
+          </button>
 
-          <ion-button size="small" fill="outline" class="use-btn" (click)="useCode(voucher)"> Use in cart </ion-button>
+          <!--
+            THE APP'S QUIET CONTROL: a white pill with one hairline and a teal
+            label — the same shape as the admin's file buttons.
+
+            It was an outline <ion-button>, which printed the label in uppercase
+            and drew its rim in the pastel primary (the powder brand hue) rather
+            than in a hairline.
+          -->
+          <button type="button" class="use-btn" (click)="useCode(voucher)">Use in cart</button>
         </div>
 
         @if (manualCopyCode() === voucher.code) {

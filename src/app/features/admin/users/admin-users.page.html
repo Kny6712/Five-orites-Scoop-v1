@@ -1,4 +1,4 @@
-<ion-header>
+<ion-header class="flat-header">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
@@ -41,60 +41,105 @@
     />
   }
 
-  <!-- ── Filters ──────────────────────────────────────────────────────── -->
-  <div class="filters">
-    <div class="search-wrap">
-      <!-- A magnifier, not a funnel: this is a text field, and a funnel icon
-           beside it invites the reader to expect a filter panel. -->
-      <app-icon name="search" class="search-icon" />
-      <ion-input
-        [ngModel]="search()"
-        (ngModelChange)="onSearch($event)"
-        placeholder="Search name, email or phone"
-        type="search"
-        aria-label="Search users"
-      ></ion-input>
-    </div>
+  <!--
+    ── The toolbar ───────────────────────────────────────────────────────────
+    THE ROLE FILTER AND THE SEARCH, on one row, in the order the fulfilment
+    queue puts them: what you are filtering BY, then where you type.
 
-    <div class="role-chips" role="group" aria-label="Filter by role">
-      <button type="button" class="role-chip" [class.active]="roleFilter() === 'all'" (click)="onRoleFilter('all')">
-        All ({{ users().length }})
-      </button>
-      <!--
-        Customers only. Managers and Staff used to sit here too, and they are now
-        rendered by the staff-tier row below — which now actually includes `admin`,
-        where before the tier filter compared ranks the wrong way round and only
-        `owner` survived. Keeping both would have produced two `Staff (1)` chips
-        wired to the same filter, both showing as pressed at once.
-      -->
-      <button
-        type="button"
-        class="role-chip"
-        [class.active]="roleFilter() === 'customer'"
-        (click)="onRoleFilter('customer')"
-      >
-        Customers ({{ customerCount() }})
-      </button>
-    </div>
+    THE ROLE CHIP WAS A DIFFERENT OBJECT FROM EVERY OTHER CONTROL IN THE ADMIN.
+    It was a grey `--ion-color-light` pill, 48px tall, with its own caret at a
+    different size from the one beside it — while the fulfilment queue's status
+    filter, which is the same control, was a flat white box with a hairline at
+    36px. Two dropdowns that look like different objects from each other is
+    the same drift this app keeps finding, so both are now one shared rule:
+    `.select-chip` in global.scss.
 
-    <!--
-      Every tier the signed-in user does not outrank, with live counts. One
-      "Admins (3)" chip stopped meaning anything once there were four roles, and
-      the question behind it — "who can do what I cannot?" — is asked per tier.
-    -->
-    <div class="role-chips" role="group" aria-label="Filter by staff tier">
-      @for (tier of staffTiers(); track tier.role) {
-        <button
-          type="button"
-          class="role-chip role-chip--tier"
-          [class.active]="roleFilter() === tier.role"
-          [attr.aria-pressed]="roleFilter() === tier.role"
-          (click)="onRoleFilter(tier.role)"
-        >
-          {{ tier.label }} ({{ tier.count }})
-        </button>
-      }
-    </div>
+    THE SUSPENDED CHIP WAS UNSTYLED. It carried `role-chip role-chip--danger`,
+    and neither of those classes exists in this page's stylesheet — the matches
+    are on the developers page. So the button that filters out blocked
+    accounts was rendering with the browser's own default button styling, on a
+    page whose every other control is flat.
+  -->
+  <div class="toolbar">
+    <!-- Role filter chip replacing the ion-select dropdown -->
+    <button
+      type="button"
+      id="role-filter-trigger"
+      class="select-chip"
+      [class.is-active]="roleFilter() !== 'all'"
+      aria-haspopup="true"
+      [attr.aria-expanded]="rolePopoverOpen()"
+      [attr.aria-label]="'Filter by role: ' + getRoleFilterLabel()"
+      tabindex="0"
+      (keydown.enter)="openRolePopover()"
+      (keydown.space)="openRolePopover()"
+    >
+      <span class="role-filter-label">{{ getRoleFilterLabel() }}</span>
+      <app-icon name="chevron-down" class="select-chip-arrow" />
+    </button>
+    <ion-popover
+      trigger="role-filter-trigger"
+      [isOpen]="rolePopoverOpen()"
+      (didPresent)="rolePopoverOpen.set(true)"
+      (didDismiss)="closeRolePopover()"
+      side="bottom"
+      alignment="start"
+    >
+      <ng-template>
+        <div class="role-popover-list">
+          <button
+            type="button"
+            class="role-popover-item"
+            [class.active]="roleFilter() === 'all'"
+            (click)="onRoleFilter('all'); closeRolePopover()"
+          >
+            All ({{ users().length }})
+          </button>
+          <button
+            type="button"
+            class="role-popover-item"
+            [class.active]="roleFilter() === 'customer'"
+            (click)="onRoleFilter('customer'); closeRolePopover()"
+          >
+            Customers ({{ customerCount() }})
+          </button>
+          <button
+            type="button"
+            class="role-popover-item"
+            [class.active]="roleFilter() === 'staff'"
+            (click)="onRoleFilter('staff'); closeRolePopover()"
+          >
+            Staff ({{ staffCount() }})
+          </button>
+          <button
+            type="button"
+            class="role-popover-item"
+            [class.active]="roleFilter() === 'manager'"
+            (click)="onRoleFilter('manager'); closeRolePopover()"
+          >
+            Managers ({{ managerCount() }})
+          </button>
+          <button
+            type="button"
+            class="role-popover-item"
+            [class.active]="roleFilter() === 'admin'"
+            (click)="onRoleFilter('admin'); closeRolePopover()"
+          >
+            Admins ({{ adminCount() }})
+          </button>
+          @if (myRole === 'owner') {
+            <button
+              type="button"
+              class="role-popover-item"
+              [class.active]="roleFilter() === 'owner'"
+              (click)="onRoleFilter('owner'); closeRolePopover()"
+            >
+              Owners ({{ ownerCount() }})
+            </button>
+          }
+        </div>
+      </ng-template>
+    </ion-popover>
 
     <!--
       Suspended accounts get their own chip rather than a column, because they
@@ -102,127 +147,57 @@
       not on every pass down the list.
     -->
     @if (suspendedCount() > 0) {
-      <div class="role-chips" role="group" aria-label="Filter by account status">
-        <button
-          type="button"
-          class="role-chip role-chip--danger"
-          [class.active]="statusFilter() === 'suspended'"
-          [attr.aria-pressed]="statusFilter() === 'suspended'"
-          (click)="onStatusFilter('suspended')"
-        >
-          <app-icon name="lock" class="chip-icon" />
-          Suspended ({{ suspendedCount() }})
-        </button>
-      </div>
+      <button
+        type="button"
+        class="filter-chip filter-chip--danger"
+        [class.is-on]="statusFilter() === 'suspended'"
+        [attr.aria-pressed]="statusFilter() === 'suspended'"
+        (click)="onStatusFilter('suspended')"
+      >
+        <app-icon name="lock" class="chip-icon" />
+        Suspended ({{ suspendedCount() }})
+      </button>
     }
+
+    <!--
+      THE SEARCH, and it is the app's search field now.
+
+      It was not a searchbar: it was an `ion-input` inside a hand-rolled white
+      PILL with a drop shadow on it, 48px tall, and the placeholder clipped at
+      its own width — "Search name, emai". Every other search field in the app
+      is a flat 36px box with one hairline, and this one was the only control
+      in the admin that looked like a different object from the four beside it.
+
+      The placeholder is "Search users" and the aria-label carries the
+      enumeration, which is the fulfilment queue's own arrangement: the sighted
+      label is the short prompt, the announced name is the fuller description.
+      A placeholder is not reliably used as the accessible name on an
+      ion-searchbar — the aria-label is — so the two are allowed to differ.
+    -->
+    <ion-searchbar
+      class="user-search"
+      placeholder="Search users"
+      [value]="search()"
+      (ionInput)="onSearch($any($event).detail?.value)"
+      aria-label="Search users by name, email or phone"
+    ></ion-searchbar>
   </div>
-
-  <!-- ── Editor ────────────────────────────────────────────────────────── -->
-  @if (editing()) {
-    <section class="editor">
-      <h2 class="editor-title">Edit user</h2>
-
-      <label class="field">
-        <span class="field-label">Display name</span>
-        <ion-input [(ngModel)]="editName" maxlength="60"></ion-input>
-      </label>
-
-      <label class="field">
-        <span class="field-label">Phone number</span>
-        <ion-input [(ngModel)]="editPhone" type="tel" inputmode="tel" placeholder="0917 123 4567"></ion-input>
-      </label>
-
-      <!--
-        Staff note. Written only by an admin: the rules whitelist on the owner's
-        branch means a customer cannot write this field, so it cannot be forged
-        or erased from the client.
-      -->
-      <label class="field">
-        <span class="field-label">Staff note</span>
-        <ion-textarea
-          [(ngModel)]="editNote"
-          rows="2"
-          maxlength="300"
-          placeholder="Anything worth remembering about this customer…"
-        ></ion-textarea>
-      </label>
-
-      <!--
-        Suspension. A FLAG, not a delete — `allow delete: if false` means the
-        account's order history has to survive being blocked.
-      -->
-      <div class="field">
-        <div class="suspend-toggle">
-          <div class="suspend-text">
-            <span class="field-label">Account suspended</span>
-            <span class="field-hint"> Blocks sign-in. Their orders are kept. </span>
-          </div>
-          <ion-toggle [(ngModel)]="isSuspended" aria-label="Suspend this account"></ion-toggle>
-        </div>
-      </div>
-
-      @if (isSuspended) {
-        <label class="field">
-          <span class="field-label">Reason</span>
-          <ion-input
-            [(ngModel)]="suspendReason"
-            maxlength="200"
-            placeholder="Shown to the customer at sign-in"
-          ></ion-input>
-          <span class="field-hint"> Left empty, the customer is told to contact the shop instead. </span>
-        </label>
-      }
-
-      <div class="field">
-        <span class="field-label">Role</span>
-        @if (canChangeEditRole()) {
-          <ion-select [(ngModel)]="editRole" interface="popover" aria-label="Role">
-            @for (opt of roleOptions; track opt.value) {
-              <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-            }
-          </ion-select>
-        } @else {
-          <!--
-            Shown, not offered. An `admin` CAN edit this profile but cannot change
-            the role — the rules exclude `role` from `isAdminUserEdit`. A control
-            that looks enabled and is rejected on save is worse than one that says
-            plainly why it is off.
-          -->
-          <p class="field-hint">{{ editRole | titlecase }} — only an Owner can change a role.</p>
-        }
-      </div>
-
-      @if (isSelf()(editUid()!)) {
-        <!--
-          Not merely disabled: the reason is shown. A silently inert control
-          reads as a bug, and the reason (self-lockout) is not obvious.
-        -->
-        <p class="field-hint warn">This is your own account — you cannot change your own role.</p>
-      }
-
-      <p class="field-hint">Email is not editable here. It is the address the person signs in with.</p>
-
-      <div class="editor-actions">
-        <ion-button fill="clear" (click)="cancelEdit()">Cancel</ion-button>
-        <ion-button expand="block" class="save-btn" [disabled]="busyUid() !== null" (click)="save()">
-          Save changes
-        </ion-button>
-      </div>
-    </section>
-  }
 
   <!-- ── List ─────────────────────────────────────────────────────────── -->
   @if (isLoading()) {
     <div class="table-wrap">
-      @for (s of [1, 2, 3, 4, 5]; track s) {
-        <div class="skeleton-row">
-          <ion-skeleton-text animated style="width: 24%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 28%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 14%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 12%; height: 14px"></ion-skeleton-text>
-          <ion-skeleton-text animated style="width: 14%; height: 14px"></ion-skeleton-text>
-        </div>
-      }
+      <!-- The loading rows wear the same card the loaded table does. -->
+      <div class="skeleton-table">
+        @for (s of [1, 2, 3, 4, 5]; track s) {
+          <div class="skeleton-row">
+            <ion-skeleton-text animated style="width: 24%; height: 14px"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 28%; height: 14px"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 14%; height: 14px"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 12%; height: 14px"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 14%; height: 14px"></ion-skeleton-text>
+          </div>
+        }
+      </div>
     </div>
   } @else if (pagedUsers().length === 0) {
     <app-empty-state
@@ -251,7 +226,7 @@
       rather than 46px, and the action icons drop to 16px.
     -->
     <div class="table-wrap">
-      <table class="users-table">
+      <table class="users-table stackable-table">
         <caption class="visually-hidden">
           Registered users,
           {{
@@ -275,7 +250,7 @@
                 "
               >
                 Spent
-                <app-icon [name]="spendSort() === -1 ? 'chevron-down' : 'chevron-right'" class="sort-icon" />
+                <app-icon [name]="spendSort() === -1 ? 'chevron-up' : 'chevron-down'" class="sort-icon" />
               </button>
             </th>
             <th scope="col">Role</th>
@@ -285,7 +260,17 @@
         <tbody>
           @for (user of pagedUsers(); track user.uid) {
             <tr class="user-row">
-              <td class="col-user">
+              <!--
+                THE LEAD CELL. The user's name and avatar are the row's
+                identity, so on a narrow screen they are the card's heading
+                rather than one labelled field among seven — and they carry no
+                label of their own, because "User" above a name that is
+                already a name says nothing.
+
+                `cell-lead` is what the shared stacked-table treatment looks
+                for. See src/app/shared/styles/_stacked-table.scss.
+              -->
+              <td class="col-user cell-lead">
                 <div class="user-cell">
                   <ion-avatar class="user-avatar">
                     @if (user.photoURL) {
@@ -298,13 +283,13 @@
                     }
                   </ion-avatar>
                   <span class="user-name">{{ user.displayName || 'Unnamed' }}</span>
-                  @if (isSelf()(user.uid)) {
+                  @if (user.uid === myUid) {
                     <span class="self-badge">You</span>
                   }
                 </div>
               </td>
 
-              <td class="col-email">
+              <td class="col-email" data-label="Email">
                 <span class="user-email">{{ user.email }}</span>
               </td>
 
@@ -356,7 +341,18 @@
                 }
               </td>
 
-              <td class="col-actions">
+              <!--
+                THE ACTIONS CELL. The Edit and Delete buttons are the two
+                things an admin opens this page to do, and on a narrow screen
+                they were in the one column that fell off the right edge of the
+                table — unreachable without discovering a sideways scroll.
+
+                `cell-actions` puts them in their own row at the foot of the
+                card, over a hairline, so they read as the card's buttons
+                rather than as one more field. They carry no label: a row of
+                buttons does not need to be introduced.
+              -->
+              <td class="col-actions cell-actions">
                 <div class="user-actions">
                   <button
                     type="button"
@@ -366,19 +362,15 @@
                   >
                     <app-icon name="pencil" />
                   </button>
-                  @if (user.role === 'admin' || user.role === 'customer') {
+                  @if (canDelete(user)) {
                     <button
                       type="button"
-                      class="icon-btn"
-                      [class.icon-btn--danger]="user.role === 'admin'"
+                      class="icon-btn icon-btn--danger"
                       [disabled]="busyUid() === user.uid"
-                      (click)="changeRole(user, user.role === 'admin' ? 'customer' : 'admin')"
-                      [attr.aria-label]="
-                        (user.role === 'admin' ? 'Remove admin access from ' : 'Make admin: ') +
-                        (user.displayName || user.email)
-                      "
+                      (click)="deleteUser(user)"
+                      [attr.aria-label]="'Delete ' + (user.displayName || user.email)"
                     >
-                      <app-icon [name]="user.role === 'admin' ? 'shield-check' : 'sparkles'" />
+                      <app-icon name="trash" />
                     </button>
                   }
                 </div>
@@ -397,5 +389,5 @@
       (pageChange)="onPageChange($event)"
     />
   }
-  <app-footer></app-footer>
+  <app-admin-footer></app-admin-footer>
 </ion-content>

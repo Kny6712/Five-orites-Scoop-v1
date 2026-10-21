@@ -1,116 +1,204 @@
 // src/app/features/admin/analytics/analytics.page.scss
 
+@use '../../../shared/styles/stacked-table' as *;
+
+/* THE COLUMN IS AS WIDE AS IT SAYS.
+
+   `width: 100%` is not optional here, and it is not tidiness. ion-content's
+   scroll element is a COLUMN flexbox (global.scss, `ion-content::part(scroll)`),
+   and `margin: 0 auto` in the cross axis takes the item OUT of the stretch — an
+   auto margin absorbs the free space, so the item is sized by its CONTENT
+   instead, and `max-width` only ever clamps that.
+
+   Without the width, this column would be as wide as its widest unbreakable
+   line, which is the trend chart's peak label, and the 960px below would be a
+   number the page never reached. The reviews page had exactly this bug and
+   rendered at 642px against a declared 900px. */
 .analytics-body {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
   padding: 16px 16px 40px;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+/* ── The flat card ──────────────────────────────────────────────────────────
+   WHITE, ONE HAIRLINE, NO SHADOW. This is the app's card recipe.
+
+   THE SHADOW WAS DOING THE WORK. The chart panels used to be `ion-card`, whose
+   background resolves to #FFF9F4 — the same cream as the page — so six panels
+   were separated from their background by `box-shadow: 0 2px 12px
+   rgba(61,43,69,.1)` and by nothing else. The card's own fill measures 1.04:1
+   against the page; the hairline measures 1.79:1. The edge comes from the
+   hairline now, which is what the flat vocabulary is for. */
+.flat-card {
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+}
+
+.skeleton-card {
+  display: block;
+}
+
+/* ── The toolbar: the range on the left, the export on the right ───────────
+   One row, and it wraps as a whole. At 1440 the row is one line; on a phone
+   the chips take the first line and the export the second, still at the right
+   of its line. */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.range-row {
+  display: flex;
+  /* 8px, not 6px.
+
+     The chips are 44px tall on a phone, and a 6px gap between two 44px
+     targets is a mis-tap waiting to happen. 8px is the app's floor for
+     adjacent controls. */
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* FLAT: a white field, one definite hairline, and no shadow. The glyph is line
+   art at the app's standard 18px and the label is the solid typography. This is
+   the same construction as the reviews queue's export and the fulfilment
+   queue's, so the three admin queues read as one system.
+
+   `margin-left: auto` opens the gap between the chips and it, which puts it at
+   the RIGHT END of the toolbar rather than butted up against them. */
+.export-btn {
+  /* The button itself is the shared .csv-btn — see src/global.scss. What is
+     left here is the auto margin that opens the gap between the chips and the
+     button, which puts it at the RIGHT END of the toolbar rather than butted
+     up against them. */
+  margin-left: auto;
+}
+
+/* ── The four figures ───────────────────────────────────────────────────────
+   FOUR ACROSS FROM 760px. They were two across on every screen, which gave
+   each tile 510 pixels to hold three words and a number.
+
+   THE TILE IS THE APP'S FLAT CARD, and the pastel moved onto the ICON. The
+   tiles were four coloured panels with no border at all, and they were only
+   just visible: mint on the cream page measured 1.12:1, powder 1.10:1 and
+   lemon 1.06:1 — under the 1.15:1 floor for a filled surface, and under the
+   1.20:1 that variables.scss states for a large filled area. The app had
+   already rejected --tile-lemon on cream for exactly that reason (the gate
+   still carries it as a REJECTED row) and these tiles were using it.
+
+   So the fill is now a 36px disc behind the glyph, where it is an accent
+   rather than a panel, and the card around it is white with a hairline. */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
+@media (min-width: 760px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .kpi-tile {
-  border-radius: 16px;
-  padding: 16px;
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+
+  /* LEFT-ALIGNED, and the disc with it. The icon used to be centred in the
+     tile while the label and the value were left-aligned, because an app-icon
+     is stretched by the column flexbox and centres its own glyph. */
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  align-items: flex-start;
+  gap: 6px;
 }
-/* Pastel tile + dark ink, per the "soft pastel accents only" rule. These were
-   three saturated Material gradients (deep green, teal, orange) on white text.
-   Each pair below is a `--tone-*` / `--tile-*` triple already carrying a
-   contrast-verified ink: 6.35:1, 8.61:1, 5.17:1 and 5.32:1 respectively, so the
-   figure is still comfortably readable at 22px/800. The ink is set per tile
-   rather than once on `.kpi-tile`, because each pastel has its own dark ink. */
+
+/* A solid disc behind the glyph, in the tile's own pastel, with a rim in the
+   same family.
+
+   THE RIM IS WHY THE DISC HAS AN EDGE. The fills measure 1.10:1 to 1.18:1
+   against the white card, which is below the 1.20:1 floor — so the disc is
+   rimmed and the rim carries the edge, exactly as the reviews page's staff
+   reply tile does. The rims measure 1.70:1 to 2.05:1 against the card. */
+.kpi-disc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--kpi-disc-bg);
+
+  /* An outline rather than a border, so the disc stays exactly 36px and the
+     rim paints inside it. */
+  outline: 1px solid var(--kpi-disc-rim);
+  outline-offset: -1px;
+}
+
 .kpi-revenue {
-  background: var(--tone-success-bg);
+  --kpi-disc-bg: var(--tone-success-bg);
+  --kpi-disc-rim: var(--tone-success-border);
   --kpi-ink: var(--tone-success-ink);
 }
 .kpi-orders {
-  background: var(--tone-info-bg);
+  --kpi-disc-bg: var(--tone-info-bg);
+  --kpi-disc-rim: var(--tone-info-border);
   --kpi-ink: var(--tone-info-ink);
 }
 .kpi-delivered {
-  background: var(--tile-mint);
+  --kpi-disc-bg: var(--tile-mint);
+  --kpi-disc-rim: var(--color-brand-secondary);
   --kpi-ink: var(--color-mint-ink);
 }
 .kpi-avg {
-  background: var(--tile-lemon);
-  --kpi-ink: var(--color-sunny-ink);
+  --kpi-disc-bg: var(--tone-warning-bg);
+  --kpi-disc-rim: var(--tone-warning-border);
+  --kpi-ink: var(--tone-warning-ink);
 }
 
 .kpi-icon {
-  --icon-size: 22px;
+  --icon-size: 18px;
   color: var(--kpi-ink);
-  opacity: 0.75;
-}
-.kpi-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--kpi-ink);
-  opacity: 0.8;
-  margin: 0;
-}
-.kpi-val {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--kpi-ink);
-  margin: 0;
 }
 
+/* 12px in --ion-color-medium: 4.93:1 on the white card. The old label was
+   11px at 0.8 opacity on its pastel, which composited down to a figure the
+   gate cannot see because it reads solid pairs. */
+.kpi-label {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ion-color-medium);
+}
+
+/* The figure the tile exists to show, so it is the loudest thing in it. */
+.kpi-val {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Section headings ─────────────────────────────────────────────────────── */
 .section-title {
   font-size: 18px;
   font-weight: 700;
-  margin: 4px 0 8px;
+  margin: 0 0 4px;
   color: var(--ion-color-dark);
-}
-
-// Chart panels. The section title used to float directly on the page background;
-// a card per chart gives each one a boundary so three of them do not blur into a
-// single column of bars.
-.chart-card {
-  margin: var(--space-3) 0;
-}
-
-/* ── Trend measure toggle ────────────────────────────────── */
-/* Three real buttons with aria-pressed, not a segmented control: these change
-   WHICH measure is drawn rather than filtering a list, so "selected" would be
-   the wrong announcement. */
-.trend-toggles {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin: 10px 0 14px;
-}
-
-.trend-toggle {
-  appearance: none;
-  border: 1px solid var(--ion-color-light-shade);
-  background: var(--color-white);
-  border-radius: var(--radius-pill);
-  padding: 6px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-ink-soft);
-  cursor: pointer;
-  min-height: 36px;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
-}
-.trend-toggle:hover {
-  background: var(--tile-powder);
-}
-.trend-toggle.is-on {
-  background: var(--color-brand-primary);
-  border-color: var(--color-primary-ink);
-  color: var(--color-ink);
 }
 
 .chart-sub {
@@ -119,81 +207,24 @@
   line-height: 1.45;
   color: var(--ion-color-medium);
 }
-.no-data {
-  font-size: 14px;
-  color: var(--ion-color-medium);
-}
 
-// Discloses that the admin's own orders are filtered out of the KPIs, so the
-// figures are never quietly wrong.
-.analytics-note {
-  margin: 10px 0 0;
-  padding: 9px 12px;
-  border-radius: 10px;
-  background: var(--ion-color-light);
-  border-left: 3px solid var(--color-primary-ink);
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--ion-color-dark);
-}
-
-// ── Toolbar row (Export) ────────────────────────────────
-// Export sits on its own row rather than spanning the page. It was
-// `expand="block"`, which made a secondary action the largest control on the
-// screen and pushed every figure below the fold.
-.toolbar-row {
+/* ── Trend measure toggle ───────────────────────────────────────────────────
+   The same chip the range filters use — it is the same control: a pressed
+   toggle in a group of choices. */
+.trend-toggles {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 10px 0 14px;
 }
 
-.export-btn {
-  --border-radius: var(--radius-pill);
-  --border-color: var(--color-primary-ink);
-  --color: var(--color-primary-ink);
-  font-size: 13px;
-  font-weight: 700;
-  --padding-start: 12px;
-  --padding-end: 12px;
-}
-
-.export-btn app-icon {
-  --icon-size: 15px;
-}
-
-// ── Chart pair ──────────────────────────────────────────
-// Two charts side by side from tablet up. A donut is square and a bar chart is
-// not; stacking them full-width made the donut taller than the data beneath it
-// warranted, and pushed the size breakdown — the number an owner usually wants —
-// to the bottom of the scroll.
-.chart-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0;
-}
-
-@media (min-width: 720px) {
-  .chart-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--space-3);
-  }
-  .chart-row .chart-card {
-    margin: var(--space-3) 0;
-  }
-}
-
-/* The donut is capped so it cannot grow to fill a wide column. The SVG sizes
-   itself from its container, so without a max-width a 700px-wide card renders
-   a 700px-wide donut and the numbers inside it become unreadable. */
-.chart-card--donut app-donut-chart {
-  display: block;
-  max-width: 300px;
-  margin: 0 auto;
-}
-
+/* ── The leader callout ─────────────────────────────────────────────────────
+   Powder with the app's standard hairline around it, so the rim carries the
+   edge the fill cannot: #E4F1F8 on a white card is 1.15:1. */
 .chart-callout {
   margin: 0 0 var(--space-3);
   padding: 8px 11px;
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-sm);
   background: var(--tile-powder);
   font-size: 13px;
@@ -205,7 +236,47 @@
   color: var(--color-primary-ink);
 }
 
-// ── Ranked flavors table ────────────────────────────────
+/* Discloses that the admin's own orders are filtered out of the KPIs, so the
+   figures are never quietly wrong.
+
+   THE APP'S OWN INFO TONE — powder, a rim in the same family, navy ink —
+   because that is what an informational disclosure looks like everywhere else
+   in the app. It was a grey box with a heavy left rule, which is neither. */
+.analytics-note {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--tone-info-border);
+  border-radius: var(--radius-sm);
+  background: var(--tone-info-bg);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--tone-info-ink);
+}
+
+// ── Chart pair ──────────────────────────────────────────────────────────────
+// Two charts side by side from tablet up. A donut is square and a bar chart is
+// not; stacking them full-width made the donut taller than the data beneath it
+// warranted, and pushed the size breakdown — the number an owner usually wants —
+// to the bottom of the scroll.
+.chart-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .chart-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* The donut sizes itself. It used to be capped at 300px and centred, because
+   the SVG sizes itself from its container and without a cap a wide card renders
+   a wide donut with unreadable numbers in it — but the component now sets its
+   own width (a 190px ring with the legend beside it), so there is nothing left
+   for this rule to do and it would only fight the component's own layout. */
+
+// ── Ranked flavors table ────────────────────────────────────────────────────
 .table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -249,7 +320,11 @@
 
 /* The top three get a tinted row: on a list this long, "which are my best
    sellers" is answered by position, and position is hard to see in 40 identical
-   rows. */
+   rows.
+
+   The tint is --tile-powder, which measures 1.15:1 against the white card — the
+   same figure it measured against the cream card this table sat on before, so
+   the move did not cost the cue anything. */
 .flavor-table tbody tr:nth-child(-n + 3) {
   background: var(--tile-powder);
 }
@@ -269,10 +344,17 @@
 .flavor-name {
   font-weight: 700;
 }
+
+/* The Set column hugs its content, so the Flavor column carries the slack.
+   They were 500 pixels apart, with the set name floating in the middle of
+   nothing. */
 .flavor-set {
   color: var(--ion-color-medium);
   font-size: 12px;
+  width: 1%;
+  white-space: nowrap;
 }
+
 .revenue {
   font-weight: 700;
   color: var(--color-primary-ink);
@@ -284,9 +366,16 @@
   width: 1px;
   height: 1px;
   padding: 0;
-  margin: -1px;
+  margin: 0;
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
   border: 0;
 }
+
+/* The stacked-card treatment for a narrow screen: the shared mixin,
+   compiled into this page's own stylesheet so that it carries this
+   page's scoping attribute and can override the table rules above.
+   See src/app/shared/styles/_stacked-table.scss for why it is a mixin
+   and not a rule in global.scss. */
+@include stacked-table;

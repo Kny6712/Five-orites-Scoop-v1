@@ -3,6 +3,9 @@
 //
 // Framework-free so the unit tests exercise the real pricing path.
 
+import { formatLocalDate } from '@core/logic/date';
+import { roundMoney } from '@core/logic/money';
+
 export type VoucherType = 'percent' | 'fixed';
 
 // Shape calculateDiscount needs — not part of the public surface.
@@ -28,9 +31,13 @@ export function calculateDiscount(subtotal: number, voucher: VoucherLike): numbe
   if ((voucher.minOrder ?? 0) > subtotal) return 0;
   if (voucher.type === 'percent') {
     const pct = Math.min(Math.max(voucher.value, 0), MAX_PERCENT_DISCOUNT);
-    return Math.floor((subtotal * pct) / 100);
+    // ROUNDED, not floored. The old `Math.floor` silently took half a peso
+    // off a 10% voucher on a ₱65 basket, while the fixed-amount branch
+    // applied no rounding at all — so the two paths disagreed about what a
+    // peso is.
+    return roundMoney((subtotal * pct) / 100);
   }
-  return Math.min(Math.max(voucher.value, 0), subtotal);
+  return roundMoney(Math.min(Math.max(voucher.value, 0), subtotal));
 }
 
 /**
@@ -46,3 +53,20 @@ export function calculateDiscount(subtotal: number, voucher: VoucherLike): numbe
  * that typed it and must not outlive the trip to checkout.
  */
 export const PENDING_VOUCHER_KEY = 'five_orites_pending_voucher';
+
+/**
+ * `YYYY-MM-DD` for a stored epoch ms, or '' when there is no date.
+ *
+ * LOCAL time, deliberately: the date input in the voucher editor speaks local
+ * dates, so the window the owner edits and the window written into a CSV have
+ * to agree. A UTC formatter would put a code that starts tonight in the shop
+ * on tomorrow's date in the file.
+ *
+ * It lives here rather than beside either caller because there are two of them
+ * — the editor and the export — and two copies of a date formatter are two
+ * formats by the next change.
+ */
+export function voucherDate(ms?: number): string {
+  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
+  return formatLocalDate(ms);
+}

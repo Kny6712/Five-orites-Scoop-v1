@@ -1,12 +1,34 @@
 <!-- src/app/features/dashboard/dashboard.page.html -->
 <!-- Five-orites Scoop — Role-Aware Dashboard -->
 
-<ion-header>
+<!--
+  ONE PAGE, TWO HEADERS.
+
+  The toolbar is the customer dashboard's, so it keeps the brand stripe for a
+  customer and goes flat for an admin — the same white bar and hairline the
+  other nine admin pages carry, because this is the page an admin lands on.
+
+  The class goes on the <ion-header> rather than the <ion-toolbar> because one
+  word then styles both: the header's shadow, and the toolbar's fill through
+  --ion-toolbar-background, which is read inside the toolbar's shadow root and
+  inherits through the boundary.
+-->
+<ion-header [class.flat-header]="isAdmin()">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
-    <ion-title>Dashboard</ion-title>
+    <!--
+      The title says which dashboard this is, because the same page serves two
+      roles and an admin is never in doubt which one they are looking at.
+
+      It is the HEADER that says it, not a heading below it. The page used to
+      carry "Admin Dashboard" in the toolbar AND repeat it in a heading under
+      the toolbar, which said the same thing twice on one screen; the heading
+      is gone and the title below the admin tiles now reads "Admin Dashboard"
+      for an admin and "Dashboard" for a customer.
+    -->
+    <ion-title>{{ isAdmin() ? 'Admin Dashboard' : 'Dashboard' }}</ion-title>
   </ion-toolbar>
 </ion-header>
 
@@ -134,10 +156,10 @@
     </div>
 
     @if (isLoading()) {
-      <ion-grid>
+      <ion-grid class="featured-grid">
         <ion-row>
           @for (s of [1, 2, 3, 4]; track s) {
-            <ion-col size="6">
+            <ion-col size="6" size-md="4" size-lg="3">
               <ion-card class="skeleton-card">
                 <ion-skeleton-text animated style="height: 120px"></ion-skeleton-text>
                 <ion-card-content>
@@ -150,10 +172,23 @@
         </ion-row>
       </ion-grid>
     } @else if (!loadError()) {
-      <ion-grid>
+      <ion-grid class="featured-grid">
         <ion-row>
           @for (product of featuredProducts(); track trackProduct($index, product)) {
-            <ion-col size="6" size-md="3">
+            <!--
+              size-md="4", NOT size-md="3".
+
+              Four across at the md breakpoint put the cards at 117px in the
+              498px of content a 768px window leaves once the split-pane menu
+              has taken its 270px. At that width the size chips had nowhere to
+              go: four chips need 198px and the card had 83px of body left
+              after its padding, so they stacked four rows of one.
+
+              The products grid has always used size-md="4" for the same
+              reason, and the two grids are showing the same card — they
+              should agree on how many of them fit across.
+            -->
+            <ion-col size="6" size-md="4" size-lg="3">
               <app-product-card [product]="product"></app-product-card>
             </ion-col>
           }
@@ -186,28 +221,22 @@
   ═══════════════════════════════════════ -->
   @if (isAdmin()) {
     <!--
-      One row holding the page title and the admin navigation, rather than two
-      separate blocks stacked on each other.
+      THE ADMIN NAVIGATION, and nothing else.
 
-      The title and these two tiles are the same kind of thing: chrome, not data.
-      The heading names the page, the tiles are the only two ways off it. Giving
-      them a row to themselves meant a 64px band that separated the title from the
-      figures and said nothing, so they now share the title's line and the band
-      costs no vertical space at all.
+      This row used to carry a heading as well — "Admin Dashboard", the same
+      words the toolbar above it now carries — so the page named itself twice
+      within a hundred pixels. The heading is gone: the toolbar's title says
+      which dashboard this is, and this row is left with the only two things
+      that were actually on it, which are the two ways off this page.
 
-      They are still a sibling of .kpi-grid rather than nested in it. Nesting them
-      would tie them to the grid's column structure, so this placement would break
-      the moment the grid rewrapped. Only flex positions them here, which holds at
-      every tile count.
-
-      Both sit inside .admin-header, so they share one 16px inset. Left to their own
-      wrappers the heading was at 16px and the tiles at 12px, and at 4px apart that
-      read as a misalignment rather than as breathing room.
+      They stay right-aligned, at the toolbar corner, because that is where a
+      person looks for a way off a page. The row is still a sibling of the KPI
+      grid rather than nested in it: nesting them would tie them to the grid's
+      column structure, so this placement would break the moment the grid
+      rewrapped. Only flex positions them here, which holds at every tile
+      count.
     -->
-    <div class="admin-header">
-      <div class="admin-welcome">
-        <h2 class="admin-title">Admin Dashboard</h2>
-      </div>
+    <div class="admin-page-head">
       <div class="admin-actions">
         <a class="action-tile" [routerLink]="'/admin/inventory'">
           <span class="action-icon"><app-icon name="layers" /></span>
@@ -239,35 +268,40 @@
       <!-- .kpi-grid, and not for looks: a bare <ion-grid> here was shrink-to-fit,
            so the four tiles rendered at 459px centred inside a 922px content area
            on desktop — barely half the width available. See .kpi-grid in the
-           stylesheet for the measurement and the cause. -->
+           stylesheet for the measurement and the cause.
+
+           The tiles themselves are the app's flat card — white, one hairline, no
+           shadow — with the pastel moved onto the glyph, where it is a 36px
+           accent instead of a 400px panel. Same tile as the analytics page's
+           four figures. -->
       <ion-grid class="kpi-grid">
         <ion-row>
           <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-revenue">
-              <span class="kpi-badge"><app-icon name="banknote" class="kpi-icon" /></span>
+              <span class="kpi-disc"><app-icon name="banknote" class="kpi-icon" /></span>
               <p class="kpi-label">Today's Revenue</p>
-              <p class="kpi-value">{{ todayRevenue() | peso }}</p>
+              <p class="kpi-val">{{ todayRevenue() | peso }}</p>
             </div>
           </ion-col>
           <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-pending">
-              <span class="kpi-badge"><app-icon name="clock" class="kpi-icon" /></span>
+              <span class="kpi-disc"><app-icon name="clock" class="kpi-icon" /></span>
               <p class="kpi-label">Pending Orders</p>
-              <p class="kpi-value">{{ pendingOrderCount() }}</p>
+              <p class="kpi-val">{{ pendingOrderCount() }}</p>
             </div>
           </ion-col>
           <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-lowstock">
-              <span class="kpi-badge"><app-icon name="circle-alert" class="kpi-icon" /></span>
+              <span class="kpi-disc"><app-icon name="circle-alert" class="kpi-icon" /></span>
               <p class="kpi-label">Low Stock Alerts</p>
-              <p class="kpi-value">{{ lowStockCount() }}</p>
+              <p class="kpi-val">{{ lowStockCount() }}</p>
             </div>
           </ion-col>
           <ion-col size="6" size-md="3">
             <div class="kpi-card kpi-total">
-              <span class="kpi-badge"><app-icon name="receipt" class="kpi-icon" /></span>
+              <span class="kpi-disc"><app-icon name="receipt" class="kpi-icon" /></span>
               <p class="kpi-label">Total Orders</p>
-              <p class="kpi-value">{{ totalOrderCount() }}</p>
+              <p class="kpi-val">{{ totalOrderCount() }}</p>
             </div>
           </ion-col>
         </ion-row>
@@ -301,18 +335,35 @@
                 <span class="low-stock-name">{{ product.variantName }}</span>
                 <span class="low-stock-set">{{ product.setName }}</span>
               </div>
+              <!--
+                Four chips, and they were <ion-chip> until now.
+
+                Swapped to plain <span> for the reason every other chip in the app
+                was: ion-chip hard-codes `border-radius: 16px` and exposes no
+                custom property for it, so a rectangular chip cannot be one. The
+                box comes from the global ".chip" class, and ".stock-chip-sm" is
+                what carries the size, the fill and the orange outline.
+
+                THE CLASS IS STATIC AGAIN. It used to be a `[class]="chip(...)"`
+                binding, because an empty size was a different pill and the
+                binding was the only way to swap it. Every pill is the same
+                white pill with the same ink and the same ring now, so there is
+                nothing to swap and the binding is gone — which also means the
+                `[class]`-binding-replaces-the-attribute trap that came with it
+                has nothing left to bite.
+              -->
               <div class="low-stock-levels">
                 @if (product.stock.cup < lowStockThreshold()) {
-                  <ion-chip [class]="chip(product.stock.cup)">Cup: {{ product.stock.cup }}</ion-chip>
+                  <span class="chip stock-chip-sm">Cup: {{ product.stock.cup }}</span>
                 }
                 @if (product.stock.pint < lowStockThreshold()) {
-                  <ion-chip [class]="chip(product.stock.pint)">Pint: {{ product.stock.pint }}</ion-chip>
+                  <span class="chip stock-chip-sm">Pint: {{ product.stock.pint }}</span>
                 }
                 @if (product.stock.halfGallon < lowStockThreshold()) {
-                  <ion-chip [class]="chip(product.stock.halfGallon)">½ Gal: {{ product.stock.halfGallon }}</ion-chip>
+                  <span class="chip stock-chip-sm">½ Gal: {{ product.stock.halfGallon }}</span>
                 }
                 @if (product.stock.gallon < lowStockThreshold()) {
-                  <ion-chip [class]="chip(product.stock.gallon)">Gal: {{ product.stock.gallon }}</ion-chip>
+                  <span class="chip stock-chip-sm">Gal: {{ product.stock.gallon }}</span>
                 }
               </div>
             </li>
@@ -349,7 +400,14 @@
     <!-- Recent Orders Table -->
     <div class="section-header">
       <h3 class="section-title">Recent Orders</h3>
-      <ion-button fill="clear" size="small" [routerLink]="'/admin/orders'" class="see-all-btn">View All</ion-button>
+      <!--
+        A LINK, not an ion-button. Ionic's clear button uppercases its label —
+        "VIEW ALL" — and the admin's own vocabulary is sentence case on flat
+        surfaces. The customer's "See All" beside the voucher cards is left
+        alone; that is the storefront, and it is a different page in every way
+        that matters.
+      -->
+      <a class="see-all-link" routerLink="/admin/orders">View all</a>
     </div>
     @if (adminRecentOrders().length > 0) {
       <div class="admin-orders-list">

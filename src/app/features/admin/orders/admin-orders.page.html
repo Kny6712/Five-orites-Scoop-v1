@@ -1,17 +1,21 @@
 <!-- src/app/features/admin/orders/admin-orders.page.html -->
 <!-- Five-orites Scoop — Admin Order Fulfillment -->
 
-<ion-header>
+<ion-header class="flat-header">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>Order Fulfillment</ion-title>
-    <ion-buttons slot="end">
-      <ion-button size="small" (click)="exportCsv()" aria-label="Export orders as CSV">
-        <app-icon name="download" slot="icon-only" />
-      </ion-button>
-    </ion-buttons>
+    <!--
+      NO BUTTONS ON THE RIGHT.
+
+      The CSV export used to live here, as an icon-only button in the app
+      chrome. That was the wrong place for it twice over: the toolbar is
+      navigation, and an unlabelled glyph in it is a thing to decode rather
+      than a thing to read. It now sits at the right end of the page's own
+      control row, labelled, with the other controls it belongs beside.
+    -->
   </ion-toolbar>
 </ion-header>
 
@@ -21,59 +25,132 @@
   </ion-refresher>
 
   <!--
-    THE CONTROL ROW. Filter and search share one line rather than stacking as two
-    full-width bands above the table.
+    THE CONTROL ROW. Three controls on one line, with the gap between them
+    opened by the export's auto-margin.
 
-    They were stacked, and the two widths disagreed: the filter is shrink-to-fit
-    (it holds "All (42)"), the searchbar was the only control on the page at full
-    pane width, and the result was a toolbar that read as two unrelated strips
-    rather than one row of controls. One row, one gap, one rhythm.
+    They were stacked as two full-width bands above the table, and the two
+    widths disagreed — the filter is shrink-to-fit (it holds "All (42)"), the
+    searchbar was the only control on the page at full pane width — and the
+    result was a toolbar that read as two unrelated strips rather than one row
+    of controls. One row, one gap, one rhythm.
 
-    `flex-wrap: wrap` is the fallback rather than a fixed second line: the pair is
-    ~120px + ~440px against the ~960px a 390px phone has inside the pane after the
-    drawer, so it fits at every width — but a control whose placeholder is this
-    long should wrap rather than hand the page a horizontal scrollbar.
+    `flex-wrap: wrap` is the fallback rather than a fixed second line: the trio
+    is ~120px + ~220px + ~440px against the ~960px a 390px phone has inside the
+    pane after the drawer, so it fits at every width — but a control whose
+    placeholder is this long should wrap rather than hand the page a horizontal
+    scrollbar.
 
     NO BOTTOM GAP OF ITS OWN, deliberately. `.table-wrap` below owns the space
-    between this row and the table's top edge, and a second gap here would put two
-    different rhythms one after the other.
+    between this row and the table's top edge, and a second gap here would put
+    two different rhythms one after the other.
 
-    The FILTER is a dropdown rather than the segment it replaced, and it is the
-    same control the customer orders page and the notifications page narrow their
-    lists with. Three reasons, all of which the seven-button strip earned the hard
-    way:
+    THE STATUS FILTER IS BACK, and the reason it went is worth keeping.
 
-      1. Seven windows do not fit. The segment was `scrollable`, so "Cancelled" —
-          the state an admin goes looking for when a customer calls — lived
-          off-screen behind a horizontal scroll that no desktop-width viewport
-          ever revealed.
-      2. It was the tallest thing on the page. A 64px strip of buttons above a
-          table of 56px rows, on a screen whose whole job is scanning a queue.
-      3. It said nothing about how much was behind each window.
+    It was removed for a reason that turned out to be half right. The argument
+    was that narrowing by STATE belongs to the Tracking page, which shows only
+    the four ACTIVE statuses and has status CHIPS for them — so this page
+    should be the full history, searched, and one control should do one job.
 
-    `interface="popover"` so it opens as a small anchored list rather than a
-    full-screen alert, matching My Orders' status select and the notifications
-    page's period select. The `status-filter-popover` width class is the global one
-    from global.scss, which exists precisely because options carrying counts get
-    clipped by Ionic's default popover width.
+    But the search cannot narrow by state, and that gap is real: Cancelled is
+    the state an admin goes looking for when a customer calls, and on this page
+    it was only reachable by opening the dropdown — the same dropdown the
+    argument had just called pointless. A dropdown that is never opened cannot
+    narrow anything, but so can a search field that only knows about text.
 
-    THE COUNTS are computed from the whole queue, not the page, so they do not
-    change as the admin pages through. See statusOptions() for the argument.
+    So the filter is restored, and the split stands: THIS page narrows by
+    STATE, and the Tracking page narrows by LOCATION. Both have an "All", and
+    neither is a duplicate of the other.
+
+    It is a dropdown rather than a chip row because a chip row of six states
+    plus "All" is 700px of control on a page whose search field is 220px, and
+    because a dropdown is the same control the customer orders page and the
+    notifications page narrow their lists with — one shape for "narrow this
+    list" across the app.
+
+    THE COUNTS are computed from the whole queue, not the page and not the
+    search, so they do not change as the admin pages through or types. See
+    statusOptions() for the argument.
   -->
   <div class="filter-row">
+    <!--
+      The status filter: a label and the control it labels.
+
+      "Show" is here because the control shows a STATE and not a filter — "Show
+      All (42)" reads as "showing all 42 of them", and the word the customer
+      orders page and the notifications page use for the identical control.
+
+      The control itself is a BUTTON plus an `ion-popover`, not an `ion-select`.
+      The select would have been less code, but its internals are Ionic's and
+      the control would have been shaped by them rather than by this page's
+      tokens — the same argument the search field below makes, and the reason
+      the search field carries its own styles rather than Ionic's defaults.
+
+      `aria-haspopup` and `aria-expanded` say what the button does, and the
+      expanded state is a MIRROR of the overlay's real state, written by
+      didPresent/didDismiss — so it can never claim open while nothing is open.
+      Every way out of the popover (Escape, a backdrop tap, an option) clears
+      it.
+
+      The keyboard handlers are here because the button is a button: Enter and
+      Space open the popover, and the popover itself takes focus from there.
+    -->
     <span class="filter-label" id="status-filter-label">Show</span>
-    <ion-select
-      class="status-select"
-      interface="popover"
-      [interfaceOptions]="{ cssClass: 'status-filter-popover' }"
-      [value]="selectedFilter()"
-      (ionChange)="onFilterChange($event)"
+    <button
+      type="button"
+      id="status-filter-trigger"
+      class="select-chip"
+      [class.is-active]="statusFilter() !== 'all'"
+      aria-haspopup="true"
+      [attr.aria-expanded]="statusFilterPopoverOpen()"
       aria-labelledby="status-filter-label"
+      tabindex="0"
+      (keydown.enter)="openStatusFilterPopover()"
+      (keydown.space)="openStatusFilterPopover()"
     >
-      @for (opt of statusOptions(); track opt.value) {
-        <ion-select-option [value]="opt.value">{{ opt.label }} ({{ opt.count }})</ion-select-option>
-      }
-    </ion-select>
+      <span class="status-select-label">{{ getStatusFilterLabel() }}</span>
+      <app-icon name="chevron-down" class="select-chip-arrow" />
+    </button>
+    <!--
+      `[cssClass]` IS HOW THE WIDTH GETS HERE, and the class has to land on the
+      HOST `ion-popover` element for it to work: the global
+      `.status-filter-popover { --width: min(320px, 90vw) }` sets a custom
+      property there, and `.popover-viewport` — the element Ionic measures —
+      inherits it.
+
+      A plain `class` attribute would land on the same host and behave the
+      same, which is why the per-row popover below was already working. But
+      `cssClass` is Ionic's own mechanism for it, so it is the one used here:
+      it says "this class belongs to this overlay" rather than leaving it to be
+      inferred from where the attribute happens to sit.
+
+      WITHOUT IT the popover falls back to Ionic's fixed 200px, and the longest
+      option — "Preparing (12)" — clips the count. The count is the part the
+      control exists to show.
+    -->
+    <ion-popover
+      trigger="status-filter-trigger"
+      [cssClass]="'status-filter-popover'"
+      [isOpen]="statusFilterPopoverOpen()"
+      (didPresent)="statusFilterPopoverOpen.set(true)"
+      (didDismiss)="closeStatusFilterPopover()"
+      side="bottom"
+      alignment="start"
+    >
+      <ng-template>
+        <div class="status-filter-popover-list">
+          @for (opt of statusOptions(); track opt.value) {
+            <button
+              type="button"
+              class="status-filter-popover-item"
+              [class.active]="statusFilter() === opt.value"
+              (click)="onStatusFilter(opt.value); closeStatusFilterPopover()"
+            >
+              {{ opt.label }} ({{ opt.count }})
+            </button>
+          }
+        </div>
+      </ng-template>
+    </ion-popover>
 
     <!--
       Search, matching the one on Tracking.
@@ -82,23 +159,33 @@
       which one you opened was the problem; both now search id, customer, address
       and item name the same way.
 
-      `ionBlur` and `ionKeyDown.enter` both re-commit the query, so the list
-      narrows on blur as well as on Enter — an admin who types a fragment and
-      reaches for the scrollbar gets the filtered queue either way.
+      THE SEARCH IS LIVE, on `ionInput`, exactly like the sibling queues: the
+      reviews page, the tracking page, the products page, the inventory page
+      and the vouchers page all narrow as you type. This one used to commit on
+      blur and on Enter instead, and the Enter binding never fired at all:
+      `ionKeyDown` is an ion-INPUT event, and ion-searchbar does not emit it, so
+      Angular was listening for an event that does not exist. Only the blur path
+      ever committed anything, and typing looked broken. The two-signal
+      `search`/`query` split is gone.
 
       The styling is not on the element and lives in `.order-search` below. This
       searchbar used to carry NO tokens at all, which is the whole reason it looked
       unlike every other search field in the app.
 
-      THE PLACEHOLDER IS JUST "Search". It was 44 characters — "Search order id,
-      customer, address or flavor" — which is why the control had to be 320px wide
-      to hold it, and 320px is wider than every other search field in this app
-      (products 220px, inventory 240px). At six characters the field is sized to
-      its content instead, at 220px.
+      THE PLACEHOLDER IS "Search for orders", and it is the app's own
+      vocabulary: "Search codes" on the vouchers page, "Search products..." on
+      the inventory page, "Search name, email or phone" on the users page. A
+      bare "Search" was the odd one out, and it said less than the six other
+      search fields did about what each of them searches.
 
-      What was lost is the enumeration, not the capability: `onSearch` above still
-      matches order id, customer, address and item name. The status dropdown
-      beside it now says what the list is being narrowed by, and the Order column
+      It was 44 characters once — "Search order id, customer, address or
+      flavor" — and THAT is what forced the field to 320px, wider than every
+      other search field in the app. Seventeen characters is a different
+      proposition, and 240px holds it with room to spare: the inventory field
+      carries an equally long placeholder at the same width.
+
+      What was lost is the enumeration, not the capability: `onSearch` above
+      still matches order id, customer, address and item name. The Order column
       header plus the `#LNGVRO` format already say what goes in this box.
 
       `aria-label` DELIBERATELY DOES NOT MATCH. A placeholder is not reliably used
@@ -108,13 +195,29 @@
     -->
     <ion-searchbar
       class="order-search"
-      placeholder="Search"
+      placeholder="Search for orders"
       [value]="search()"
       (ionInput)="onSearch($any($event).detail?.value)"
-      (ionBlur)="query.set(search())"
-      (ionKeyDown.enter)="query.set(search())"
       aria-label="Search orders"
     ></ion-searchbar>
+
+    <!--
+      The CSV export, at the RIGHT END of the control row.
+
+      It was an icon-only button in the app toolbar, which put a page action in
+      the app chrome and left it as a glyph to decode. Here it is a labelled
+      control beside the other two, and `margin-left: auto` opens the gap
+      between the search field and it — the same move the inventory toolbar
+      makes with its first action.
+
+      Flat: a white field, one definite hairline, and no shadow. The glyph is
+      line art at the app's standard 18px, and the label is the solid
+      typography. This is the same construction as the Import button on the
+      vouchers page, so the two admin queues read as one system.
+    -->
+    <button type="button" class="csv-btn export-btn" (click)="exportCsv()" aria-label="Export orders as CSV">
+      <app-icon name="file" />Export CSV
+    </button>
   </div>
 
   <!-- Loading -->
@@ -157,7 +260,7 @@
 
   <!-- Empty -->
   @if (!isLoading() && !loadError() && filteredOrders().length === 0) {
-    <app-empty-state icon="receipt" title="No orders" message="No orders matching this filter." />
+    <app-empty-state icon="receipt" title="No orders" [message]="emptyMessage()" />
   }
 
   <!-- Orders -->
@@ -173,25 +276,19 @@
       per order, which is the entire job of this screen.
 
       The detail panel is preserved below the row, because the items, address and
-      totals are still needed to fulfil, and the action buttons live there.
-    -->
-    <!--
-      Bulk bar. Only rendered once something is selected, so the queue stays
-      uncluttered the 95% of the time nobody is multi-selecting.
-    -->
-    @if (selectedCount() > 0) {
-      <div class="bulk-bar" role="group" aria-label="Bulk actions">
-        <span class="bulk-count">{{ selectedCount() }} selected</span>
-        <div class="bulk-actions">
-          <ion-button size="small" fill="outline" (click)="bulkAdvance('confirmed')"> Confirm </ion-button>
-          <ion-button size="small" fill="outline" (click)="bulkAdvance('preparing')"> Preparing </ion-button>
-          <ion-button size="small" fill="clear" (click)="clearSelection()">Clear</ion-button>
-        </div>
-      </div>
-    }
+      totals are still needed to fulfil.
 
+      SIX COLUMNS, NOT SEVEN. The seventh was an Actions column holding a
+      "next status" pill beside a status dropdown, immediately after a Status
+      column holding the status chip — two controls in the same shape, with the
+      same labels, doing the same job one column apart. It has been folded into the
+      Status cell, which is now the single place an order's status can be read and
+      changed. The row also carries its own full-width "Mark as X" button in the
+      detail panel, so the large-touch-target version of the fast path survives for
+      the admin working a phone.
+    -->
     <div class="table-wrap">
-      <table class="orders-table">
+      <table class="orders-table stackable-table">
         <caption class="visually-hidden">
           Orders awaiting fulfilment,
           {{
@@ -201,44 +298,55 @@
         </caption>
         <thead>
           <tr>
-            <th scope="col" class="col-pick">
-              <button
-                type="button"
-                class="pick-all"
-                (click)="selectAllOnPage()"
-                aria-label="Select every order on this page"
-              >
-                All
-              </button>
-            </th>
+            <!--
+              THE ROW NUMBER, not a checkbox.
+
+              The column was a pick column: a checkbox on every row and a
+              tri-state one in the header, feeding a bulk bar that could move a
+              whole selection to "confirmed" or "preparing". It was the only
+              thing in the table that was not information.
+
+              A number answers a question the checkboxes could not: HOW MANY.
+              "Are there nine orders or nine hundred?" is the question an admin
+              asks of a queue, and with ten rows to a page it is a question the
+              PAGE ANSWERS BY ITSELF — you count the rows, or you read the last
+              number. A checkbox column answers neither; it answers "which ones
+              do you want", which on a fulfilment queue is asked far less often
+              than "how many are waiting".
+
+              The numbers run across the whole filtered set, not the page, so the
+              last row on the last page reads as the total. Page 2 starts at 11,
+              and 37 on the last page means thirty-seven orders.
+
+              THE HEADER IS "No." AND NOT "#", deliberately. The Order column
+              already shows its id with a leading hash — "#LNGVRO" — and a "#"
+              over the row numbers would read as a second kind of order number
+              rather than as a position in the list.
+            -->
+            <th scope="col" class="col-num">No.</th>
             <th scope="col" class="col-order">Order</th>
             <th scope="col" class="col-customer">Customer</th>
             <th scope="col" class="col-items">Items</th>
             <th scope="col" class="col-total">Total</th>
             <th scope="col" class="col-status">Status</th>
-            <th scope="col" class="col-action"><span class="visually-hidden">Actions</span></th>
           </tr>
         </thead>
         <tbody>
           @for (order of pagedOrders(); track trackOrder($index, order)) {
-            <tr
-              class="order-row"
-              [class.is-expanded]="expandedId() === order.id"
-              [class.is-selected]="isSelected(order.id)"
-            >
-              <td class="col-pick" data-label="Pick">
-                <button
-                  type="button"
-                  class="pick-btn"
-                  [class.is-on]="isSelected(order.id)"
-                  [attr.aria-pressed]="isSelected(order.id)"
-                  [attr.aria-label]="'Select order ' + order.id"
-                  (click)="toggleSelected(order.id)"
-                >
-                  <app-icon name="check" class="pick-icon" />
-                </button>
-              </td>
-              <td class="col-order" data-label="Order">
+            <tr class="order-row" [class.is-expanded]="expandedId() === order.id">
+              <td class="col-num" data-label="No.">{{ rowNumber($index) }}</td>
+              <!--
+                THE LEAD CELL. The order number is the row's identity, so on a
+                narrow screen it is the card's heading rather than one
+                labelled field among six.
+
+                The disclosure button stays exactly as it was — the row itself
+                is not clickable, and that is a deliberate decision recorded
+                below — so on a card the order number and the thing that
+                expands it are still the same control the admin has always
+                used.
+              -->
+              <td class="col-order cell-lead">
                 <!--
                   The row itself is not clickable. It was, before, and that put a
                   nested interactive region inside another one — which is why the
@@ -276,84 +384,221 @@
                 <span class="order-total">{{ order.grandTotal | peso }}</span>
               </td>
 
+              <!--
+                THE STATUS CHIP IS THE CONTROL.
+
+                This cell used to hold the chip, a "Confirmed →" pill, and a status
+                dropdown — three controls for one concept, two of which sat side by
+                side doing the same job in the same shape. The pill's longest label
+                ("Preparing Your Scoops", ~178px at 12px bold with its padding and
+                arrow) is the same width as the chip's longest label (173.5px) — the
+                same box, the same words, one column apart. It read as a mirror, and
+                it was.
+
+                So the cell is now ONE control. The chip states where the order is;
+                the caret says it can be moved; the popover does the moving.
+
+                A PLAIN <button>, TRANSPARENT, wrapping the chip — background: none,
+                border: 0, padding: 0. Not because a wrapper is free, but because
+                the alternative was worse: restyling the chip's own six tone classes
+                into a control (hover rim, focus ring, pressed state) would have put
+                six statuses' worth of state on a shared presentational component
+                that renders on seven call sites, four of which are not clickable
+                and have no business looking clickable.
+
+                `app-order-status-badge` is INSIDE, untouched, so the admin is looking
+                at the identical chip the customer sees on My Orders and the admin
+                sees on Tracking. That is the whole reason the chip is a component
+                and it is why this cell was worth collapsing rather than deleting.
+
+                THE HOVER CUE LIVES ON THE CARET, NOT THE CHIP, and that is a
+                limitation rather than a choice. Angular's emulated encapsulation
+                means this stylesheet cannot reach `.st-*` inside the badge without
+                ::ng-deep or a new input on the component, so a hover rim on the
+                chip itself is not available here. The caret deepening and nudging
+                down is what the mouse has to work with. The focus ring IS on the
+                button, because that one is reachable and a keyboard user should not
+                have to rely on the caret either.
+
+                `aria-haspopup` + `aria-expanded` are both real, not decorative: the
+                expanded state is read off `statusPopoverId`, the same signal that
+                drives which popover is actually presented, so the announced state
+                cannot drift from the rendered one.
+
+                `disabled` while this order is mid-write, matching the aria-busy the
+                old pill carried, so the row cannot be double-advanced.
+              -->
               <td class="col-status" data-label="Status">
-                <app-order-status-badge [status]="order.status"></app-order-status-badge>
-              </td>
-
-              <td class="col-action">
-                <!--
-                  Two controls, both on the row's own baseline and both from the
-                  SAME tonal-control recipe this page's own filter and search use
-                  (powder fill, powder-deep rim, --radius-sm). The row used to mix
-                  a filled primary ion-button with a bare-text ion-select — two
-                  visual languages in one 100px cell, which is what pushed the
-                  select onto a second line under the button.
-
-                  NEITHER IS A PILL ANY MORE. Both ends were --radius-pill, which
-                  at 30px tall wraps to a 15px semicircle and read as a lozenge —
-                  while the searchbar and the filter dropdown above them were
-                  already --radius-sm. Three corner shapes on one screen; now one.
-
-                  A PLAIN <button>, not an ion-button, for the same reason My Orders
-                  documents: an ion-button brings its own padding, radius and inner
-                  shadow DOM, and every one of those has to be overridden to paint
-                  this shape — each override being somewhere it can leak.
-
-                  THE LABEL NEVER CHANGES. It used to read "Updating..." mid-write,
-                  which is 38px wider than the label it replaced and nudged the pill
-                  out of its column while the row was still being pressed. The busy
-                  state is `[disabled]` + `aria-busy` only, the same call My Orders
-                  made on Cancel for the same reason.
-                -->
-                <div class="row-actions">
-                  @if (nextStatus[order.status]) {
-                    <button
-                      type="button"
-                      class="advance-pill"
-                      [disabled]="updatingId() === order.id"
-                      [attr.aria-busy]="updatingId() === order.id"
-                      [attr.aria-label]="
-                        'Mark order ' + order.id.slice(-6).toUpperCase() + ' as ' + getNextStatusLabel(order.status)
-                      "
-                      (click)="advanceStatus(order)"
-                    >
-                      {{ getNextStatusLabel(order.status) }}
-                      <app-icon name="arrow-right" />
-                    </button>
-                  }
+                <button
+                  type="button"
+                  class="status-change"
+                  [id]="statusTriggerId($index)"
+                  aria-haspopup="true"
+                  [attr.aria-expanded]="isStatusPopoverOpen($index)"
+                  [attr.aria-label]="
+                    'Order ' +
+                    order.id.slice(-6).toUpperCase() +
+                    ', status ' +
+                    statusMeta[order.status].label +
+                    '. Change status.'
+                  "
+                  [attr.aria-busy]="updatingId() === order.id"
+                  [disabled]="updatingId() === order.id"
+                >
                   <!--
-                    Any-status picker, beside the normal "next step" control.
+                    THE CHIP IS THE CONTROL, and there is no glyph beside it.
 
-                    A phone order handed over in person has no path to Delivered
-                    that does not require four false status changes first.
+                    It used to be the chip plus a 14px `chevron-down` hanging off
+                    its right edge on a 6px gap, which said two things at once
+                    and said neither of them well: the pill read as a badge with
+                    a stray arrow beside it, and the column repeated the same
+                    arrow ten times, which is a column of noise where the eye
+                    wants data.
 
-                    It shows the CURRENT status rather than a "Set status"
-                    placeholder. A placeholder here claimed this control was empty
-                    on every row, including rows where it already held the value
-                    the admin could see two columns to the left — so the one
-                    control that could change a status to anything read as unset.
+                    So the caret is gone, and the affordance moved ONTO the chip:
+                    hovering it deepens the rim to the app's navy and takes the
+                    ink with it (the badge is themeable through `--chip-border`
+                    and `--chip-ink` for exactly this). The button around the
+                    chip is transparent, so the chip you see IS the thing you
+                    click — one object, one job.
                   -->
-                  <ion-select
-                    class="row-status-pick"
-                    interface="popover"
-                    [interfaceOptions]="{ cssClass: 'status-filter-popover' }"
-                    [value]="order.status"
-                    [disabled]="updatingId() === order.id"
-                    [attr.aria-label]="'Change status of order ' + order.id.slice(-6).toUpperCase()"
-                    (ionChange)="setStatus(order, $any($event).detail.value)"
-                  >
-                    @for (s of statusOptionsFor(order); track s) {
-                      <ion-select-option [value]="s">{{ statusMeta[s].label }}</ion-select-option>
-                    }
-                  </ion-select>
-                </div>
+                  <app-order-status-badge [status]="order.status" />
+                </button>
+
+                <!--
+                  The popover, INSIDE the cell, one per row.
+
+                  Safe in a <td> because Ionic's popover host is `position: fixed`
+                  with `inset: 0` (popover.md.css) — it is out of flow, so it cannot
+                  perturb the table's column widths or the row height. It is hidden
+                  by `:host(.overlay-hidden) { display: none }`, which Ionic manages
+                  itself; the same mechanism the inventory page's set-filter popover
+                  has always relied on, just at ten rows instead of one. That is the
+                  assumption most worth checking on a real device, because the
+                  failure mode if `overlay-hidden` is ever absent is a transparent
+                  full-viewport box at z-index 1001 eating every tap on the page.
+
+                  `trigger` IS WHAT GIVES IT A REFERENCE ELEMENT, and the inventory
+                  page documents at length why that matters: without one, Ionic's JS
+                  positioning has nothing to measure against and the popover lands
+                  floating in the middle of the screen, ignoring `side` and
+                  `alignment`. Hence a per-row trigger id rather than a Controller
+                  call with an `event`.
+
+                  NO `(click)` ANYWHERE ON THE PRESENTING PATH. With `trigger` set,
+                  Ionic attaches its own listener to the button that calls
+                  presentFromTrigger; a second one on either the button or the
+                  popover would present the overlay twice per tap. That is why the
+                  button below has no handler of its own, and why the signal is
+                  written by didPresent rather than by the tap.
+
+                  `statusPopoverId` IS A MIRROR, NOT A DRIVER. Nothing sets it on
+                  click: with `trigger` set, Ionic has its own listener on the button
+                  and that listener is what presents the overlay. A `(click)` here as
+                  well would be a second handler on one tap, and the inventory page
+                  already went through this — its popover is presented by the trigger
+                  alone and its signal is written only by didPresent/didDismiss, "so
+                  aria-expanded on the button stays truthful without being the thing
+                  that drives the overlay." Same arrangement here, so `aria-expanded`
+                  can never claim open while nothing is open, and every way out of
+                  the popover (Escape, a backdrop tap, the item buttons) clears it.
+                -->
+                <ion-popover
+                  [cssClass]="'status-filter-popover'"
+                  [trigger]="statusTriggerId($index)"
+                  [isOpen]="isStatusPopoverOpen($index)"
+                  (didPresent)="statusPopoverId.set(statusTriggerId($index))"
+                  (didDismiss)="closeStatusPopover()"
+                  side="bottom"
+                  alignment="end"
+                >
+                  <ng-template>
+                    <div class="status-popover">
+                      <p class="status-popover-head">Order #{{ order.id.slice(-6).toUpperCase() }}</p>
+
+                      <!--
+                        WHERE IT IS, shown with the chip itself rather than with a
+                        copy of the chip's six tone backgrounds. Re-rendering
+                        <app-order-status-badge> is both shorter and exact: the row
+                        at the top of the popover is provably the same component
+                        whose chip the admin just clicked.
+
+                        NOT A BUTTON, and `aria-current` rather than a checkmark —
+                        it is a statement, not a choice. Making it clickable would
+                        recreate the no-op the old option list worked so hard to
+                        avoid.
+                      -->
+                      <div class="status-popover-now" aria-current="true">
+                        <app-order-status-badge [status]="order.status" />
+                        <span class="status-popover-tag">Current</span>
+                      </div>
+
+                      @if (nextStepFor(order); as next) {
+                        <!--
+                          THE FAST PATH, PROMOTED. "Advance this order along" is
+                          what a fulfilment queue is mostly for, so it is the first
+                          thing in the list — one tap to open, one tap to choose,
+                          then the same confirm dialog there was before. The row's
+                          old pill made it zero taps to open; this costs one, and
+                          buys back the ~270px of table width that pill and the
+                          column holding it were spending.
+
+                          `setStatus`, NOT `advanceStatus`, for every option in
+                          here including this one. This list is "pick a status",
+                          and one code path for the whole list is easier to reason
+                          about than one path that happens to start at the top.
+                          `advanceStatus` still exists for the detail panel's block
+                          button, which is a single deliberate action and not a list.
+                        -->
+                        <p class="status-popover-label">Next step</p>
+                        <button
+                          type="button"
+                          class="status-popover-item is-next"
+                          (click)="setStatus(order, next); closeStatusPopover()"
+                        >
+                          <app-icon name="arrow-right" class="status-popover-arrow" />
+                          {{ statusMeta[next].label }}
+                        </button>
+                      }
+
+                      <p class="status-popover-label">All statuses</p>
+                      <!--
+                        NO ARROW ON THESE, and that is the second half of the
+                        same decision.
+
+                        Four identical `arrow-right` glyphs in a list of four
+                        options say the same thing four times — "you may click
+                        this" — and a list inside a popover is not a place that
+                        needs saying it. Worse, they made the popover's
+                        language collide with the row's: an arrow meant "open
+                        this" in one place and "move to this" in another, in the
+                        same interaction.
+
+                        So the ONE arrow left in this interaction is the
+                        promoted "Next step" row above, where it marks the move
+                        the queue is there to make — and the tracking page's own
+                        "Next step" button wears the same arrow for the same
+                        reason.
+                      -->
+                      @for (s of otherStatusOptions(order); track s) {
+                        <button
+                          type="button"
+                          class="status-popover-item"
+                          (click)="setStatus(order, s); closeStatusPopover()"
+                        >
+                          {{ statusMeta[s].label }}
+                        </button>
+                      }
+                    </div>
+                  </ng-template>
+                </ion-popover>
               </td>
             </tr>
 
             <!-- Expanded Detail Panel -->
             @if (expandedId() === order.id) {
               <tr class="detail-row">
-                <td [attr.colspan]="7">
+                <td [attr.colspan]="6">
                   <div class="order-detail-panel">
                     <!-- Items -->
                     <p class="detail-section-label">Items</p>
@@ -390,35 +635,41 @@
                       </div>
                     </div>
 
-                    <!-- Action Buttons -->
-                    <div class="detail-actions">
-                      @if (nextStatus[order.status]) {
-                        <ion-button
-                          expand="block"
-                          class="advance-btn"
-                          (click)="advanceStatus(order)"
-                          [disabled]="updatingId() === order.id"
-                        >
-                          <app-icon name="arrow-right" slot="start" />
-                          {{
-                            updatingId() === order.id ? 'Updating...' : 'Mark as ' + getNextStatusLabel(order.status)
-                          }}
-                        </ion-button>
-                      }
-                      @if (canCancel(order)) {
-                        <ion-button
-                          expand="block"
-                          fill="outline"
-                          color="danger"
-                          class="cancel-btn"
-                          (click)="cancelOrder(order)"
-                          [disabled]="updatingId() === order.id"
-                        >
-                          <app-icon name="x" slot="start" />
-                          Cancel Order
-                        </ion-button>
-                      }
-                    </div>
+                    <!--
+                      NO ACTION BUTTONS HERE.
+
+                      This panel used to carry a full-width "Mark as X" and a
+                      full-width "Cancel Order" under the totals, and both were
+                      second paths to something the row already offers:
+
+                        · "Mark as X" is what the status popover's "Next step"
+                          entry does — the same action, one tap further away,
+                          and the popover PROMOTES it to the top of the list
+                          with an arrow precisely because advancing an order
+                          is what a fulfilment queue is mostly for.
+
+                        · "Cancel Order" is what the popover's "Cancelled"
+                          entry does, down to the dialog: `setStatus` routes
+                          'cancelled' straight into `cancelOrder`, so both
+                          controls opened the same confirm and wrote the same
+                          thing.
+
+                      Two controls for one concept, one column apart, is the
+                      exact defect this page already removed once — three
+                      status controls became one in the Status cell, and the
+                      same argument applies here.
+
+                      So the panel is now purely INFORMATIONAL: the items, the
+                      address and the totals, which is what you open a row to
+                      read. The order's state is changed in exactly one place,
+                      the status control in the row.
+
+                      The cost is a tap on a phone: the fast path was one tap
+                      on a big button and is now two — the chip, then "Next
+                      step" in the popover. The popover's rows are large
+                      targets, so it is a small price for one way to do the
+                      thing.
+                    -->
                   </div>
                 </td>
               </tr>
@@ -436,5 +687,5 @@
       (pageChange)="onPageChange($event)"
     />
   }
-  <app-footer></app-footer>
+  <app-admin-footer></app-admin-footer>
 </ion-content>

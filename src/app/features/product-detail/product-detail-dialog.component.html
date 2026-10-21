@@ -1,0 +1,269 @@
+<!--
+  THE PRODUCT DIALOG.
+
+  A fixed-size panel over the flavours list: the photo on the left, everything
+  you can DO on the right, and the reviews under them. The same two columns on
+  every screen, because a dialog has a size and a page does not.
+-->
+
+<div class="dialog-shell">
+  <div class="dialog-head">
+    <button type="button" class="dialog-back" (click)="close()">
+      <app-icon name="arrow-left" class="dialog-glyph" />
+      <span>Flavors</span>
+    </button>
+    <app-cart-button></app-cart-button>
+  </div>
+
+  <div class="dialog-body">
+    @if (isLoading()) {
+      <div class="product-layout">
+        <ion-skeleton-text animated class="hero-skeleton"></ion-skeleton-text>
+        <div class="detail-main">
+          <ion-skeleton-text animated style="height: 24px; width: 70%; margin-bottom: 8px"></ion-skeleton-text>
+          <ion-skeleton-text animated style="height: 140px"></ion-skeleton-text>
+        </div>
+      </div>
+    } @else if (errorMessage()) {
+      <div class="error-state" role="alert">
+        <p>{{ errorMessage() }}</p>
+      </div>
+    } @else if (product()) {
+      <div class="product-layout">
+        <div class="hero-wrap">
+          <img
+            [src]="(product()!.imageUrl | cloudinary: 1000) || '/assets/placeholder-scoop.svg'"
+            [alt]="product()!.variantName"
+            class="hero-image"
+            onerror="this.src = '/assets/placeholder-scoop.svg'"
+          />
+          <div class="hero-overlay">
+            <ion-badge class="set-badge-hero" [style.background]="setFlavourBackground()">
+              Set {{ product()!.setNumber }} · {{ product()!.setName }}
+            </ion-badge>
+          </div>
+        </div>
+
+        <div class="detail-main">
+          <h1 class="detail-name">{{ product()!.variantName }}</h1>
+
+          @if (isUnavailable()) {
+            <div class="error-state" role="alert">
+              <p>This flavor is no longer available and cannot be ordered.</p>
+            </div>
+          }
+          <app-star-rating [rating]="avgRating()" [showCount]="true" [reviewCount]="reviewCount()"></app-star-rating>
+          <!-- The app's quiet control: a white pill with one hairline. It was an
+               outline ion-button, which printed the label in uppercase and
+               inherited the pastel primary as its foreground — measured at
+               1.71:1 on this page's cream ground. -->
+          <button type="button" class="wishlist-btn" (click)="toggleWishlist()">
+            <app-icon name="heart" class="wishlist-icon" [class.wished]="isWished()" />
+            <span>{{ isWished() ? 'Wishlisted' : 'Wishlist' }}</span>
+          </button>
+          <p class="detail-description">{{ product()!.description }}</p>
+
+          <h2 class="section-title">Choose Your Size</h2>
+          <div class="size-grid">
+            @for (opt of sizeOptions; track opt.key) {
+              <button
+                class="size-tile"
+                [class.selected]="selectedSize() === opt.key"
+                [class.out-of-stock]="stockFor(opt.key) === 0"
+                (click)="selectSize(opt.key)"
+                [attr.aria-pressed]="selectedSize() === opt.key"
+              >
+                <span class="tile-size">{{ opt.label }}</span>
+                <span class="tile-price">{{ priceFor(opt.key) === null ? '—' : (priceFor(opt.key) | peso) }}</span>
+                <span
+                  class="tile-stock"
+                  [class.stock-in-stock]="stockFor(opt.key) >= lowStockThreshold()"
+                  [class.stock-low-stock]="stockFor(opt.key) > 0 && stockFor(opt.key) < lowStockThreshold()"
+                  [class.stock-out-of-stock]="stockFor(opt.key) === 0"
+                >
+                  {{
+                    stockFor(opt.key) === 0
+                      ? 'Out of Stock'
+                      : stockFor(opt.key) < lowStockThreshold()
+                        ? 'Low Stock (' + stockFor(opt.key) + ')'
+                        : 'In Stock'
+                  }}
+                </span>
+              </button>
+            }
+          </div>
+
+          <div class="buy-row">
+            <!--
+              THE CONTROLS, on the first line: how many, and what that comes to.
+
+              The total was on this line before, squeezed between the stepper and
+              the button, with the button's width holding it off the right edge.
+              The button has its own line now, so the total takes the space the
+              button was holding and sits at the end of this one.
+            -->
+            <div class="buy-row-controls">
+              <span class="qty-label">Quantity</span>
+              <!-- Shared stepper, replacing a 32x32 hand-rolled pair. The ceiling is
+                   the live stock, so the button disables itself at the limit. -->
+              <app-qty-stepper [value]="quantity()" [max]="stepperMax()" (changed)="quantity.set($event)" />
+              <!--
+                The TOTAL, and it says so. The number sat on the right of the row
+                on its own, next to a quantity, where it read as the unit price —
+                which it is not, and the size tile above already shows. A label in
+                the app's quiet field-label voice makes it the line total and
+                nothing else.
+              -->
+              <span class="line-total">
+                <span class="line-total-label">Total</span>
+                <span class="line-total-value">{{ lineTotal() | peso }}</span>
+              </span>
+            </div>
+
+            <!-- The app's gold CTA, as a plain button: sentence case, a declared gap
+                 between the glyph and the label, and no elevation shadow under the
+                 fill. It was an <ion-button>, so the label came out uppercase and
+                 the trolley's wheel touched the "A".
+
+                 It has a line of its own now, under the controls. Sharing the line
+                 with the stepper and the total meant the three of them were read
+                 as one line of text, and the action — the only thing on this card
+                 a customer came for — was the smallest part of it. Its right edge
+                 lines up with the total's above it. -->
+            <button
+              type="button"
+              class="add-to-cart-cta"
+              [disabled]="!canPurchase() || isAdding()"
+              (click)="addToCart()"
+            >
+              <app-icon name="cart" class="cta-glyph" />
+              <span>
+                {{
+                  isAdding()
+                    ? 'Adding...'
+                    : isUnavailable()
+                      ? 'No Longer Available'
+                      : isOutOfStock()
+                        ? 'Out of Stock'
+                        : 'Add to Cart'
+                }}
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="reviews-section">
+        <h2 class="section-title">Customer Reviews</h2>
+
+        <!--
+          THE LIST AND THE FORM, SIDE BY SIDE.
+
+          Writing a review is a different job from reading them, so the form
+          has always been its own block. It was a block UNDER the list, which
+          meant reading a page of other people's reviews and then scrolling
+          past all of it to find the box you type in. Beside the list, it is
+          in the same view as what it is answering.
+        -->
+        <div class="reviews-layout">
+          <div class="reviews-list">
+            @if (reviewsError()) {
+              <div class="reviews-empty">
+                <app-star-rating [rating]="0" [showCount]="false"></app-star-rating>
+                <p class="error-state" role="alert">{{ reviewsError() }}</p>
+              </div>
+            } @else if (reviews().length === 0) {
+              <div class="reviews-empty">
+                <app-star-rating [rating]="0" [showCount]="true" [reviewCount]="0"></app-star-rating>
+                <p class="no-reviews">No reviews yet — be the first!</p>
+              </div>
+            } @else {
+              @if (reviewsTruncated()) {
+                <p class="reviews-truncated">Showing the most recent {{ reviews().length }} reviews.</p>
+              }
+              @for (r of pagedReviews(); track r.id) {
+                <div class="review-item">
+                  <app-star-rating [rating]="r.rating"></app-star-rating>
+                  <p class="review-author">{{ r.displayName }}</p>
+                  <p class="review-comment">{{ r.comment }}</p>
+                  <!--
+                    THE STAFF REPLY, and it is the other half of a sentence the
+                    moderation queue used to say on its own.
+
+                    That queue said "Replying is public — the customer sees it on
+                    their product page", and it was untrue: `adminResponse` was
+                    written to Firestore and rendered NOWHERE but the admin's own
+                    page, so a published reply went into a void and the customer
+                    never saw a word of it.
+
+                    It is the shared component, so the reply looks the same here as
+                    it does in the queue — which is the point: the admin can now
+                    see exactly what the customer sees.
+                  -->
+                  @if (r.adminResponse) {
+                    <app-staff-reply
+                      [name]="r.adminResponderName || 'Five-orites Scoop'"
+                      [text]="r.adminResponse"
+                    ></app-staff-reply>
+                  }
+                  @if (r.userId === currentUserId()) {
+                    <!-- A text action, not a control. It was an <ion-button
+                         fill="clear">, which carries Ionic's md treatment: an
+                         uppercased label, and 0.9em of inline padding plus 2px of
+                         inline margin that left "Withdraw" hanging a dozen pixels
+                         right of the review it belongs to. -->
+                    <button
+                      type="button"
+                      class="withdraw-review-btn"
+                      (click)="withdrawReview(r)"
+                      [disabled]="isSubmittingReview()"
+                    >
+                      <app-icon name="trash" class="withdraw-glyph" />
+                      Withdraw
+                    </button>
+                  }
+                </div>
+              }
+              <!--
+                Pages the RENDER only. The stars above the fold and the "(n)" beside
+                them still come from summarizeRatings() over every fetched review, so
+                paging cannot move an average.
+              -->
+              <app-pagination
+                [page]="reviewsPage()"
+                [total]="reviews().length"
+                [pageSize]="REVIEWS_PER_PAGE"
+                itemLabel="reviews"
+                (pageChange)="reviewsPage.set($event)"
+              />
+            }
+          </div>
+
+          <div class="review-form">
+            <h3 class="section-title">{{ hasMyReview() ? 'Update your review' : 'Write a review' }}</h3>
+            @if (hasMyReview()) {
+              <p class="review-form-note">
+                You already reviewed this flavor. Submitting again updates your existing review.
+              </p>
+            }
+            <app-star-rating
+              [rating]="newRating()"
+              [interactive]="true"
+              (ratingChange)="newRating.set($event)"
+            ></app-star-rating>
+            <ion-textarea
+              id="review-comment"
+              [(ngModel)]="newComment"
+              placeholder="What did you love?"
+              aria-label="Review comment"
+              rows="3"
+            ></ion-textarea>
+            <button type="button" class="submit-review-btn" (click)="submitReview()" [disabled]="isSubmittingReview()">
+              {{ isSubmittingReview() ? 'Submitting...' : 'Submit Review' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+</div>

@@ -20,9 +20,9 @@ import {
   ModalController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { InventoryService } from '@core/services/inventory.service';
-import { ImageUploadService } from '@core/services/image-upload.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { ImageUploadService } from '@core/services/catalog/image-upload.service';
 import { SET_NAMES, SIZE_DISPLAY_LABELS, getPricingForSet } from '@core/config/pricing.config';
 import { SizeVariant } from '@core/models/product.model';
 import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
@@ -83,6 +83,7 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
               labelPlacement="stacked"
               placeholder="e.g. Pistachio"
               [(ngModel)]="newSetName"
+              class="modal-input"
             ></ion-input>
           </ion-item>
           <ion-item>
@@ -91,6 +92,7 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
               labelPlacement="stacked"
               placeholder="e.g. Roasted Pistachio"
               [(ngModel)]="variantName"
+              class="modal-input"
             ></ion-input>
           </ion-item>
         } @else {
@@ -118,6 +120,7 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
                 labelPlacement="stacked"
                 placeholder="e.g. Rocky Road"
                 [(ngModel)]="customVariant"
+                class="modal-input"
               ></ion-input>
             </ion-item>
           }
@@ -137,6 +140,7 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
             placeholder="Describe this flavor…"
             rows="3"
             [(ngModel)]="description"
+            class="modal-input"
           ></ion-textarea>
         </ion-item>
 
@@ -169,6 +173,7 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
                 placeholder="0"
                 [ngModel]="stockInput[f.key]"
                 (ngModelChange)="onStockInput(f.key, $event)"
+                class="modal-input"
               ></ion-input>
             </ion-item>
           }
@@ -314,6 +319,24 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
         font-size: 12px;
         color: var(--ion-color-warning-shade, #9a6b00);
         margin: 6px 2px 0;
+      }
+      .modal-input {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--tile-powder-deep);
+        border-radius: var(--radius-xs);
+        background: var(--color-white);
+        color: var(--color-ink);
+        font: inherit;
+        font-size: 15px;
+      }
+      /* Host element, not ::part(input): Ionic 7 exposes no shadow part on
+         ion-input / ion-textarea, so ::part(input) matched nothing and the
+         padding written through it was silently dropped. The text inset comes
+         from --padding-start / --padding-end in global.scss, which is the only
+         mechanism that actually reaches the native control. */
+      .modal-input:focus-within {
+        border-color: var(--color-primary-ink) !important;
       }
     `,
   ],

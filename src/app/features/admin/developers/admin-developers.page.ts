@@ -22,66 +22,52 @@
 
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import {
   IonHeader,
   IonToolbar,
   IonTitle,
   IonContent,
   IonButtons,
-  IonButton,
   IonMenuButton,
-  IonList,
-  IonItem,
-  IonInput,
-  IonTextarea,
-  IonSpinner,
   AlertController,
+  ModalController,
   ToastController,
 } from '@ionic/angular/standalone';
 
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
 import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { DeveloperService } from '@core/services/developer.service';
-import { ImageUploadService } from '@core/services/image-upload.service';
-import { AuthService } from '@core/services/auth.service';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { DeveloperService } from '@core/services/team/developer.service';
+import { ImageUploadService } from '@core/services/catalog/image-upload.service';
+import { AuthService } from '@core/services/identity/auth.service';
 import { initialsOf } from '@core/logic/flavour';
-import { canManageTeam } from '@core/models/user.model';
-import { DEVELOPER_ACCENTS, type Developer, type DeveloperDoc } from '@core/models/developer.model';
+import {
+  canWriteCredits,
+  creditsViewState,
+  canDeleteCredit,
+  reorderIds,
+  type CreditsLoadState,
+} from '@core/logic/credits';
+import type { Developer } from '@core/models/developer.model';
 import { describeFirestoreError } from '@core/logic/firestore-error';
-
-/** Roles offered as one-tap suggestions. Free text is still accepted. */
-const ROLE_SUGGESTIONS: readonly string[] = [
-  'Main Project Lead',
-  'Full Stack Dev',
-  'UI/UX Designer Lead',
-  'UI/UX Designer',
-  'QA',
-  'Documentation',
-];
+import { DeveloperFormModalComponent } from './developer-form-modal.component';
 
 @Component({
   selector: 'app-admin-developers',
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     IonHeader,
     IonToolbar,
     IonTitle,
     IonContent,
     IonButtons,
-    IonButton,
     IonMenuButton,
-    IonList,
-    IonItem,
-    IonInput,
-    IonTextarea,
-    IonSpinner,
     AppIconComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
+    EmptyStateComponent,
     CloudinaryPipe,
     AlertBannerComponent,
   ],
@@ -94,11 +80,19 @@ export class AdminDevelopersPage implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly alertCtrl = inject(AlertController);
   private readonly toastCtrl = inject(ToastController);
+  private readonly modalCtrl = inject(ModalController);
 
-  readonly developers = this.developersService.developers;
+  /**
+   * The real records. NOT `developersService.developers`.
+   *
+   * See the note on `liveDevelopers`. The fallback list is for the PUBLIC page,
+   * where a blank credits page is worse than stale data. Here it is the opposite:
+   * four names that look editable and are not, with every write rejected against
+   * a document that was never created.
+   */
+  readonly developers = this.developersService.liveDevelopers;
   readonly usingFallback = this.developersService.usingFallback;
-  readonly accents = DEVELOPER_ACCENTS;
-  readonly roleSuggestions = ROLE_SUGGESTIONS;
+  readonly loadState = this.developersService.state;
 
   /**
    * The signed-in user's role, as a SIGNAL.
@@ -110,20 +104,65 @@ export class AdminDevelopersPage implements OnInit, OnDestroy {
    */
   readonly myRole = signal<string | null>(null);
 
-  readonly canEdit = computed(() => canManageTeam(this.myRole()));
-  readonly canDelete = computed(() => this.myRole() === 'owner');
+  /**
+   * Owner-only, and only when there is something real to act on.
+   *
+   * Hidden rather than disabled for anyone below owner: a permanently greyed-out
+   * control on a page you can otherwise use is noise, and the rules would refuse
+   * it anyway.
+   */
+  readonly canDelete = computed(() =>
+    canDeleteCredit(this.myRole(), this.loadState() as CreditsLoadState),
+  );
 
-  /** The record being edited, or null. Drives the form panel. */
-  readonly editing = signal<Developer | 'new' | null>(null);
-  readonly saving = signal(false);
-  readonly errorMessage = signal('');
+  /**
+   * Whether a write can possibly succeed — the AND of two independent gates.
+   *
+   * PERMISSION ALONE IS NOT enough, and that was a real bug rather than a
+   * hypothetical one. An empty or failed read left the page rendering the
+   * fallback list, so Add / Edit / Reorder / Delete all looked live; every one
+   * of them wrote to a document id that did not exist, and `firestore.rules`
+   * refused each with PERMISSION_DENIED. From the UI that is indistinguishable
+   * from a broken button — which is exactly how it was reported.
+   *
+   * So the controls are gated on whether there is anything real to write TO,
+   * not only on who is asking.
+   *
+   * `canManageCredits()` inside it is NOT `canManageTeam()`, and the difference
+   * is also a real bug: `canManageTeam()` is a rank comparison and admin
+   * outranks manager, so it returns true for admin, while the rules spell the
+   * same intent as `myRole() in ['manager', 'owner']`, which does not. An admin
+   * therefore saw four live controls here and was refused on all of them. The
+   * rules are the authority — see the note on `canManageCredits`.
+   */
+  readonly canWrite = computed(() =>
+    canWriteCredits(this.myRole(), this.loadState() as CreditsLoadState),
+  );
+
+  /**
+   * What the screen should present: an outage, an empty collection, or the
+   * list.
+   *
+   * This used to be `this.loadState() === 'failed'` inline — the same decision
+   * the framework-free helper already made, re-implemented. `creditsViewState`
+   * exists precisely so that this page and the rules cannot disagree about
+   * what "failed" means, and a second copy of the decision is a second thing
+   * to keep in sync.
+   */
+  readonly creditsState = computed(() =>
+    creditsViewState(this.myRole(), this.loadState() as CreditsLoadState),
+  );
+
+  /** True when the read failed, as opposed to genuinely finding nothing. */
+  readonly readFailed = computed(() => this.creditsState() === 'error');
+
+  /** True when the credits collection is genuinely empty. */
+  readonly isEmpty = computed(() => this.creditsState() === 'empty');
+
   readonly uploadingFor = signal<string | null>(null);
 
-  formName = '';
-  formRoles: string[] = [];
-  formRoleDraft = '';
-  formAccent = DEVELOPER_ACCENTS[0].hex;
-  formPhotoURL: string | null = null;
+  /** True while a reorder is in flight. Guards against interleaved clicks. */
+  readonly moving = signal(false);
 
   private unsubscribe?: () => void;
 
@@ -146,96 +185,74 @@ export class AdminDevelopersPage implements OnInit, OnDestroy {
     return initialsOf(dev.name);
   }
 
-  // ── Form ────────────────────────────────────────────────────────────────
-
-  startEdit(dev: Developer): void {
-    this.errorMessage.set('');
-    this.editing.set(dev);
-    this.formName = dev.name;
-    this.formRoles = [...dev.roles];
-    this.formRoleDraft = '';
-    this.formAccent = dev.accent;
-    this.formPhotoURL = dev.photoURL;
+  /**
+   * The tint a role's chip wears, as a class rather than an Ionic colour name.
+   *
+   * This is DevelopersPage.roleClass(), duplicated deliberately rather than
+   * extracted. The one thing this page is FOR is previewing what the public
+   * credits page will render, so an admin editing a record has to see the same
+   * chip colour they will get there - and if the two lists ever diverge, the
+   * preview is lying about the thing it exists to preview.
+   *
+   * An unrecognised role degrades to `role-plain` in both rather than inventing
+   * a hue of its own, which would put an unchecked colour pair into the page
+   * every time somebody adds a role.
+   */
+  roleClass(role: string): string {
+    if (role.includes('Lead')) return 'role-lead';
+    if (role.includes('Full Stack')) return 'role-dev';
+    if (role.includes('UI/UX')) return 'role-design';
+    if (role === 'QA') return 'role-qa';
+    return 'role-plain';
   }
 
-  startCreate(): void {
-    this.errorMessage.set('');
-    this.editing.set('new');
-    this.formName = '';
-    this.formRoles = [];
-    this.formRoleDraft = '';
-    this.formAccent = DEVELOPER_ACCENTS[0].hex;
-    this.formPhotoURL = null;
-  }
-
-  cancelEdit(): void {
-    this.editing.set(null);
-    this.errorMessage.set('');
-  }
-
-  addRole(role: string): void {
-    const trimmed = role.trim();
-    // Case-insensitive, so "qa" and "QA" cannot both end up on one card.
-    if (!trimmed || this.formRoles.some((r) => r.toLowerCase() === trimmed.toLowerCase())) return;
-    this.formRoles = [...this.formRoles, trimmed];
-    this.formRoleDraft = '';
-  }
-
-  removeRole(role: string): void {
-    this.formRoles = this.formRoles.filter((r) => r !== role);
-  }
+  // ── Add / edit ─────────────────────────────────────────────────────────
 
   /**
-   * Saves the form.
+   * Opens the add form.
    *
-   * Client-side validation mirrors `developerIsWellFormed()` in firestore.rules
-   * deliberately. The rules are the real gate — a rule the UI duplicates is a
-   * second thing to keep in step — but failing here turns a PERMISSION_DENIED into
-   * a readable message instead of a generic one.
+   * A modal rather than the inline panel this replaced - see the note at the top
+   * of developer-form-modal.component.ts for why the vouchers page's "keep the
+   * list visible while you type" reasoning does not transfer to this page.
+   *
+   * The outcome is read back rather than assumed, because the modal decides what
+   * it saved: it dismisses with `{ saved: true }` only after the Firestore write
+   * resolves, so a failure leaves the modal open showing its error and this
+   * presenter never reaches the toast.
    */
-  async save(): Promise<void> {
-    if (this.saving()) return;
-    const name = this.formName.trim();
-    if (!name) {
-      this.errorMessage.set('Enter a name.');
-      return;
-    }
-    if (name.length > 80) {
-      this.errorMessage.set('That name is longer than 80 characters.');
-      return;
-    }
-    if (this.formRoles.length > 12) {
-      this.errorMessage.set('Twelve roles is the limit.');
-      return;
-    }
-    if (!this.formRoles.length) {
-      this.errorMessage.set('Add at least one role.');
-      return;
-    }
+  async startCreate(): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: DeveloperFormModalComponent,
+      componentProps: { developer: 'new' as const },
+      cssClass: 'large-sheet-modal',
+    });
+    // THIS LINE WAS MISSING, and nothing happened when the button was pressed.
+    //
+    // `ModalController.create()` only BUILDS the overlay - it constructs the
+    // component and hands back a handle. It does not put it on screen. Without
+    // `present()` the modal is created, never shown, and the very next line
+    // (`onDidDismiss()`) then waits forever on an overlay that was never
+    // presented. So the handler ran, built a modal, and returned.
+    //
+    // `inventory.page.ts` `openImport()` is the reference: create, present, then
+    // read the dismiss result. Same order here.
+    await modal.present();
+    const result = await modal.onDidDismiss();
+    if (result?.data?.saved) await this.toast('Developer added.', 'success');
+  }
 
-    this.saving.set(true);
-    this.errorMessage.set('');
-    const payload: Omit<DeveloperDoc, 'order'> = {
-      name,
-      roles: this.formRoles,
-      accent: this.formAccent,
-      photoURL: this.formPhotoURL,
-    };
-
-    try {
-      const target = this.editing();
-      if (target === 'new') {
-        await this.developersService.create(payload);
-      } else if (target) {
-        await this.developersService.update(target.id, payload);
-      }
-      this.editing.set(null);
-      await this.toast(target === 'new' ? 'Developer added.' : 'Developer updated.', 'success');
-    } catch (err: unknown) {
-      this.errorMessage.set(describeFirestoreError('the developer list', err));
-    } finally {
-      this.saving.set(false);
-    }
+  /** Opens the same modal, seeded with an existing record. */
+  async startEdit(dev: Developer): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: DeveloperFormModalComponent,
+      componentProps: { developer: dev },
+      cssClass: 'large-sheet-modal',
+    });
+    // Present, or see the note on startCreate() above - this handler had the
+    // identical omission, so Edit was as dead as Add.
+    await modal.present();
+    const result = await modal.onDidDismiss();
+    if (result?.data?.saved) await this.toast('Developer updated.', 'success');
   }
 
   // ── Photo ───────────────────────────────────────────────────────────────
@@ -246,29 +263,27 @@ export class AdminDevelopersPage implements OnInit, OnDestroy {
    * `uploadAvatar` rather than `uploadProductImage` — square centre-crop at 512px,
    * which is what an avatar wants, against a product image's aspect ratio.
    *
-   * The returned URL is written to the record only when the form is saved, so
-   * picking a photo and then cancelling does not leave an orphaned asset behind
-   * pointing at nothing. The asset is not destroyed on cancel — see the note in
-   * ImageUploadService — but nothing references it.
+   * Written immediately rather than staged in the modal: this button sits on the
+   * row itself, and there is no form open behind it to hold a value in. That is
+   * why the modal carries its own picker - this is the one-tap path for the
+   * common case of fixing a photo, and the modal's is the one that lets a photo
+   * be chosen as part of creating a record.
+   *
+   * The asset is not destroyed if this fails or the photo is later removed - see
+   * the note in ImageUploadService - it just stops being referenced.
    */
-  async onPhotoSelected(event: Event, dev: Developer | 'new'): Promise<void> {
+  async onPhotoSelected(event: Event, dev: Developer): Promise<void> {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    // Reset immediately, or picking the same file twice fires no change event.
     input.value = '';
     if (!file) return;
 
-    const key = dev === 'new' ? 'new' : dev.id;
-    this.uploadingFor.set(key);
+    this.uploadingFor.set(dev.id);
     try {
       const url = await this.imageUpload.uploadAvatar(file);
-      if (dev === 'new') {
-        this.formPhotoURL = url;
-      } else {
-        // Saved immediately rather than held: a photo swap on an existing card has
-        // no form open to stage it in.
-        await this.developersService.update(dev.id, { photoURL: url });
-        await this.toast('Photo updated.', 'success');
-      }
+      await this.developersService.update(dev.id, { photoURL: url });
+      await this.toast('Photo updated.', 'success');
     } catch (err: unknown) {
       await this.toast(
         err instanceof Error ? err.message : 'Could not upload that photo.',
@@ -298,16 +313,52 @@ export class AdminDevelopersPage implements OnInit, OnDestroy {
    * that actually happened.
    */
   async move(index: number, delta: -1 | 1): Promise<void> {
-    const list = this.developers();
-    const target = index + delta;
-    if (index < 0 || target < 0 || target >= list.length) return;
-    const a = list[index];
-    const b = list[target];
+    // Double-tap guard. Without it two clicks read the SAME stale list and
+    // interleave, so the second commit silently undoes the first and the row
+    // appears not to move at all. One write in flight at a time.
+    if (this.moving()) return;
+    const ids = this.developers().map((d) => d.id);
+    const orders = reorderIds(ids, index, delta);
+    if (!orders.size) return;
+
+    this.moving.set(true);
     try {
-      await this.developersService.update(a.id, { order: b.order } as Partial<DeveloperDoc>);
-      await this.developersService.update(b.id, { order: a.order } as Partial<DeveloperDoc>);
+      await this.developersService.writeOrder(orders);
     } catch (err: unknown) {
       await this.toast(describeFirestoreError('the developer order', err), 'danger');
+    } finally {
+      this.moving.set(false);
+    }
+  }
+
+  /**
+   * Repairs records left holding tied or gapped `order` values.
+   *
+   * The old swap wrote the two `order` fields in two separate calls, so the
+   * collection could be observed with both records carrying the same value — and
+   * a swap of two equal values is `x -> x`. That pair was then permanently
+   * un-movable: no error, no toast, and it survives a reload. This is the only
+   * thing that can undo it, so the page offers it explicitly rather than
+   * hoping the ties sort themselves out.
+   *
+   * Offered only when there is genuinely something to repair, so a healthy list
+   * never shows a pointless control.
+   */
+  readonly orderIsTied = computed(() => {
+    const orders = this.developers().map((d) => d.order);
+    return new Set(orders).size !== orders.length;
+  });
+
+  async repairOrder(): Promise<void> {
+    if (this.moving()) return;
+    this.moving.set(true);
+    try {
+      await this.developersService.normaliseOrder(this.developers().map((d) => d.id));
+      await this.toast('Order repaired.', 'success');
+    } catch (err: unknown) {
+      await this.toast(describeFirestoreError('the developer order', err), 'danger');
+    } finally {
+      this.moving.set(false);
     }
   }
 

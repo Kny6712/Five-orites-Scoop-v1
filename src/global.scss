@@ -11,11 +11,59 @@
 @import '@ionic/angular/css/flex-utils.css';
 
 /* Large centered card modals (admin forms) — bigger and more presentable
-   than the default small alert dialogs. */
+   than the default small alert dialogs.
+
+   WIDER, because the forms in it were cramped: 680px is not enough room for a
+   description, four price boxes and a photo, and the product form showed it —
+   the fields sat shoulder to shoulder and the sheet read as a list of boxes
+   rather than as a form. 760px is the width the admin's own page content uses,
+   so a form in a sheet is the same measure as the page it was opened from.
+
+   --radius-sm, not 18px: every flat surface in the admin is 12px, and a sheet
+   is a surface.
+
+   ── THE SHADOW, AND WHY IT KEPT COMING BACK ──
+
+   The note here used to say "the elevation shadow was never here to begin
+   with — Ionic's md modal sets --box-shadow: none — so the sheet is defined
+   by the dimmed page behind it and its own hairline". That was true of the
+   BASE rule and false from 768px up: Ionic's md modal re-sets
+   `--box-shadow: 0 28px 48px rgba(0, 0, 0, 0.4)` inside a
+   `min-width: 768px` media query, so on every desktop the sheet floated on a
+   heavy drop shadow. The flat vocabulary has no drop shadows, and the admin
+   side is where that rule is strictest.
+
+   Declaring `--box-shadow: none` HERE beats it: a declaration in the outer
+   document outranks a `:host` rule in the shadow tree for the same custom
+   property, whatever the media query did.
+
+   The hairline is the edge instead — the same 1px --tile-powder-deep the
+   admin's panels and the app's flat cards carry. */
 .large-sheet-modal {
-  --width: min(680px, 94vw);
-  --height: min(720px, 92vh);
-  --border-radius: 18px;
+  --width: min(760px, 94vw);
+  --height: min(760px, 92vh);
+  --border-radius: var(--radius-sm);
+  --box-shadow: none;
+  --border-width: 1px;
+  --border-style: solid;
+  --border-color: var(--tile-powder-deep);
+  --background: var(--color-white);
+}
+
+/* A sheet that fits its content instead of filling a fixed box.
+
+   The report sheets — the reconciliation result — are short: a banner, three
+   figures and a sentence. In a fixed 760px-tall sheet they sat in the top
+   third with two thirds of white space under them, which read as a dialog
+   that had failed to load.
+
+   `--height: auto` lets the sheet take the height of its content, and the
+   max-height caps it on a short screen. The content scrolls INSIDE the cap
+   (the component's own host does it), because Ionic's modal wrapper is
+   `--overflow: hidden` and would clip instead. */
+.report-sheet-modal {
+  --height: auto;
+  --max-height: min(760px, 92vh);
 }
 
 /* ── Layout utilities ────────────────────────────────────────────────────
@@ -104,7 +152,14 @@
    The track is a muted surface and the handle is white, which is the modern
    convention: the ON state is indicated by the track filling with the brand
    colour, not by the handle changing. That also means the handle is identical
-   in both states, so nothing shifts when the switch moves. */
+   in both states, so nothing shifts when the switch moves.
+
+   NO SHADOW UNDER THE HANDLE. It was `0 2px 5px rgba(61, 43, 69, 0.28)` —
+   the one drop shadow left on a control in a flat app, and a heavy one: a
+   28%-alpha smudge under a 22px white knob, which is what made the switch look
+   like a physical object rather than a drawn one. It goes here rather than per
+   page because the switch is ONE component: a shadow on it in one page and not
+   in another is the same inconsistency the flat vocabulary exists to stop. */
 ion-toggle {
   --track-background: var(--ion-color-light-shade);
   --track-background-checked: var(--color-brand-primary);
@@ -113,7 +168,7 @@ ion-toggle {
   --handle-width: 22px;
   --handle-height: 22px;
   --handle-spacing: 3px;
-  --handle-box-shadow: 0 2px 5px rgba(61, 43, 69, 0.28);
+  --handle-box-shadow: none;
   --border-radius: 999px;
 }
 
@@ -126,6 +181,410 @@ ion-toggle::part(native)::after {
 ion-toggle.toggle-checked::part(native) {
   border: 1px solid var(--color-primary-ink);
 }
+
+/* ── No green line. Anywhere. ─────────────────────────────────────────────
+   Ionic's md input, select and textarea each paint a 2px bar along their
+   bottom edge, and that bar is coloured by the FIELD'S VALIDITY: blue while
+   it is focused, GREEN as soon as it holds a valid value. The select's is
+   worse — it is the element that scales in on hover, so simply pointing at a
+   select put a green line under it.
+
+   A green line under a field the customer has just filled in correctly reads
+   as a warning, and it is the one piece of colour in the app that is not a
+   deliberate signal. The fields in this app say "focused" the app's way — the
+   hairline darkens to the brand ink (see the :focus-within rules) — so the
+   bar is not carrying information that anything else is not.
+
+   The three custom properties are the whole mechanism. Each control derives
+   --highlight-color from the state that applies (focused / valid / invalid)
+   and paints its bar with it, so making all three transparent removes the bar
+   in every state and on every trigger, in one place, for the whole app.
+
+   !important, and it is needed: the controls declare these three in a
+   `:host` rule inside their own stylesheet, and a `:host` rule outranks a
+   plain type selector from the outer document on specificity — so
+   `ion-input { --highlight-color-valid: transparent }` was simply overruled
+   and the bar stayed green. The custom properties here are not fighting a
+   cascade of our own, only Ionic's, and the bar is the one thing in the app
+   that is coloured for no reason.
+
+   This is a global rule on purpose: the bar is Ionic's, it appears on every
+   field in the app, and the request was that it appear nowhere. */
+ion-input,
+ion-select,
+ion-textarea {
+  --highlight-color-focused: transparent !important;
+  --highlight-color-valid: transparent !important;
+  --highlight-color-invalid: transparent !important;
+}
+
+/* The textarea's bar is a separate element rather than a border, so it needs
+   its own rule — the same one the textarea has carried here since the flat
+   pass, now with the reason restated above. */
+ion-textarea .textarea-highlight {
+  display: none;
+}
+
+/* -- Text field inset -------------------------------------------------------
+   Ionic 7 exposes NO shadow parts on ion-input or ion-textarea. Their inner
+   <input> and <textarea> elements carry no `part` attribute at all, so every
+   ::part(input) / ::part(native) rule written against them matches NOTHING.
+   The supported knobs are the --padding-start / --padding-end custom
+   properties, and those are what actually indent the text and the
+   placeholder: ion-input applies them to .input-wrapper, ion-textarea to
+   .native-textarea, ion-select to .select-wrapper.
+
+   Ionic's own :host rule also sets `padding: 0 !important`, which silently
+   kills any padding set on the host element from outside the shadow root.
+   That, plus the dead ::part() rules, is why the first letter of every field
+   sat flush against its border.
+
+   !important is required on the custom properties because input.md.css
+   resets --padding-start to 0 for any control sitting inside an ion-item, and
+   that :host-context() rule outranks a plain element selector.
+
+   16px is Ionic's own value for the outline and solid fills, so bordered
+   fields here now match the platform default. */
+ion-input,
+ion-textarea,
+ion-select {
+  --padding-start: 16px !important;
+  --padding-end: 16px !important;
+}
+
+/* ── ion-textarea: vertical resize handle + no green underline bar ─────────
+   Ionic renders ion-textarea as scoped light DOM: the actual <textarea>
+   carries class .native-textarea and has `resize: none` hardcoded
+   (textarea.md.css line 209). Our earlier `resize: vertical` on the host
+   therefore did nothing — the grip targets the native element.
+
+   Ionic also paints a 2px .textarea-highlight bar at bottom: -1px that turns
+   green (--ion-color-success) when the field is :focus/:valid. Since we
+   already draw a full powder-blue box border on the host, this underline bar
+   is duplicate chrome and looks like a bug. Suppress it.
+
+   Specificity check: Ionic's .native-textarea.sc-ion-textarea-md is (0,2,0);
+   our ion-textarea textarea.native-textarea is (0,1,2) — loses — so we need
+   !important. Ionic's .textarea-highlight is only (0,1,0), so plain selector
+   wins. */
+ion-textarea textarea.native-textarea {
+  resize: vertical !important;
+
+  /* Chrome draws the resize grip at the BOTTOM-RIGHT CORNER of the native
+     textarea's border box, ignoring its padding. Ionic insets that border
+     box by --padding-end (16px) on .textarea-wrapper, which parked the grip
+     16px short of the visible right border — it looked like it was floating
+     in the corner instead of hugging it.
+
+     Take the 16px off the wrapper's inline-end padding and put the SAME 16px
+     on the textarea's own inline-end padding. The text stays exactly 16px
+     from the border, and the grip now lands flush in the corner.
+
+     !important is required: Ionic's .native-textarea.sc-ion-textarea-md sets
+     `padding-right: 0` and, being a physical property, outranks a logical
+     `padding-inline-end` of equal origin unless ours is also !important. */
+  padding-inline-end: 16px !important;
+}
+ion-textarea .textarea-wrapper {
+  padding-inline-end: 0 !important;
+}
+
+/* ── The developer sheet's role field: text that stops before the button ────
+   Its + button sits INSIDE the field's top-right corner, so the text has to
+   stop short of it — otherwise a long role title runs underneath the button
+   and the last few letters are hidden behind it.
+
+   The inset cannot be set on the host: Ionic zeroes the host's padding with
+   !important (see the note above), and the inner <textarea> carries no
+   _ngcontent attribute, so the only way to reach it is from here.
+
+   44px is the 30px button plus its 8px inset plus a 6px gap. It applies to
+   every line rather than only to the first, which is the price of a button
+   living in a field: the measure is 44px shorter than the box. A role title
+   is a handful of words and never reaches that, so the cost is invisible
+   where it matters. */
+ion-textarea.role-textarea textarea.native-textarea {
+  padding-inline-end: 44px !important;
+}
+
+/* ── ion-searchbar: a flat field with a hairline edge ──────────────────────
+   Ionic's Material search field paints a three-layer Material elevation
+   shadow on its inner <input> (--box-shadow), which is the ONLY edge the
+   field has — the input carries no border at all.
+
+   On a white card that reads as a floating pill. On a CREAM page background
+   it reads as a soft grey smudge, and the shadow was doing a border's job.
+   Both are wrong for the flat/minimal language the admin toolbar speaks, so
+   the shadow goes and a hairline border comes in to replace it.
+
+   THIS MUST LIVE HERE, not in a component stylesheet. The <input> belongs to
+   ion-searchbar, not to the page that hosts it, so it does not carry the
+   page's _ngcontent attribute and a page-scoped rule can never match it.
+   The class names below are what keeps it to the fields that need it: the
+   ones whose fill is a pale tile, and so have no edge of their own once the
+   shadow is gone. The other search bars in the app sit on white and keep the
+   fill alone.
+
+   THE STOREFRONT'S FIELD IS ON THE LIST for the same reason and not for the
+   same setting: it is not on a cream page, it is on the white filter bar
+   beside five --tile-powder control boxes, and its own fill is --tile-powder
+   too — so it is the same pale tile that needs the same edge. Without the
+   hairline it dissolved into the bar exactly as the boxes did into the page.
+
+   Specificity check: Ionic's .searchbar-input.sc-ion-searchbar-md is (0,2,0)
+   and declares no border, so this (0,3,0) needs no !important — there is
+   nothing to outrank, only a border to add. */
+ion-searchbar.voucher-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.order-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.inv-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.track-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.review-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.user-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.product-searchbar .searchbar-input.sc-ion-searchbar-md {
+  border: 1px solid var(--tile-powder-deep);
+}
+
+/* The field's HEIGHT, levelled with the controls standing next to it.
+
+   THE HOST'S `height: 36px` (admin-orders.page.scss) ALREADY MATCHES THE
+   CHIP, and it changed nothing — because the visible field is not the host.
+   The host is a flex box; the thing you actually see is the `input` inside
+   ion-searchbar, and the input's height comes from its own content: a 30px
+   line-height plus 12px of Ionic's vertical padding, which is 44px. So the
+   host was 36px tall with a 44px field sitting inside it, overflowing the
+   control it was supposed to be level with. The row read as two sizes because
+   the number everyone was reading was the wrong one.
+
+   So the height is set on the INPUT, and the same reason as the border above
+   puts it here: the input belongs to ion-searchbar and carries no _ngcontent
+   attribute, so a page-scoped rule can never reach it.
+
+   `padding-top` and `padding-bottom` go to 0 because that padding is what
+   made it 44px in the first place, and `line-height` takes over the input's
+   height so the text stays optically centred in the shorter box rather than
+   sitting on the old baseline.
+
+   THE ICON IS RE-CENTRED WITH IT, because Ionic positions it at a hard
+   `top: 11px` — the top of a 21px icon in a 44px field. Left alone it would
+   hang below the bottom edge of a 36px field. 7.5px is the same icon in the
+   same place relative to the text: the top of a 21px icon in a 36px field.
+
+   THE CLEAR BUTTON NEEDS NOTHING: it is `top: 0; height: 100%` and follows
+   the field's height on its own. */
+ion-searchbar.order-search .searchbar-input.sc-ion-searchbar-md {
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 36px;
+}
+
+ion-searchbar.order-search .searchbar-search-icon.sc-ion-searchbar-md {
+  top: 7.5px;
+}
+
+/* The reviews page's field, levelled the same way — 36px, because the export
+   button standing beside it in the control row is 36px.
+
+   It was the last search field in the app still carrying Ionic's Material
+   elevation shadow, because the shadow is removed per page (on the HOST, as
+   `--box-shadow: none`) and this page never did it. Measured on the running
+   page: `rgba(0,0,0,.14) 0 2px 2px, rgba(0,0,0,.2) 0 3px 1px -2px,
+   rgba(0,0,0,.12) 0 1px 5px` — three layers, on a page whose cards had just
+   been flattened. */
+ion-searchbar.review-search .searchbar-input.sc-ion-searchbar-md {
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 36px;
+}
+
+ion-searchbar.review-search .searchbar-search-icon.sc-ion-searchbar-md {
+  top: 7.5px;
+}
+
+/* The users directory's field, levelled the same way — 36px, because the role
+   filter chip standing beside it is 36px.
+
+   It was not a searchbar at all: it was an `ion-input` inside a hand-rolled
+   white PILL with a drop shadow on it, 48px tall, which made it the only
+   control in the admin that looked like a different object from the four
+   search fields beside it. */
+ion-searchbar.user-search .searchbar-input.sc-ion-searchbar-md {
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 36px;
+}
+
+ion-searchbar.user-search .searchbar-search-icon.sc-ion-searchbar-md {
+  top: 7.5px;
+}
+
+/* The inventory toolbar's field, levelled the same way — 40px, which is what
+   the three action buttons and the set filter beside it now are.
+
+   The host was 48px and the visible field inside it was 42px, so the row
+   carried three heights at once: 48 for the set filter, 42 for the field, 40
+   for the buttons. The set filter is 40 now, so the field is too.
+
+   9.5px for the icon, which is the same 21px icon centred in a 40px field
+   rather than pinned to the top of a 44px one. */
+ion-searchbar.inv-search .searchbar-input.sc-ion-searchbar-md {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 40px;
+}
+
+ion-searchbar.inv-search .searchbar-search-icon.sc-ion-searchbar-md {
+  top: 9.5px;
+}
+
+/* The delivery map's field, levelled the same way — 36px, because the status
+   filter chip standing beside it is 36px.
+
+   It was 44px: Ionic's own padding on the input, which the other four fields
+   in the app have had taken off so they could stand level with the control
+   beside them. It is the only search field in the app still carrying that
+   padding, and it is now the only one standing next to a chip on its row. */
+ion-searchbar.track-search .searchbar-input.sc-ion-searchbar-md {
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 36px;
+}
+
+ion-searchbar.track-search .searchbar-search-icon.sc-ion-searchbar-md {
+  top: 7.5px;
+}
+
+/* The storefront's field, levelled the same way — 36px, because the filter
+   chips standing beside it are 36px.
+
+   It was the last search field in the app still at Ionic's own height: the
+   input's 12px of vertical padding made the visible field 44px in a band
+   whose five control boxes were 38. So the first control in the row was
+   visibly taller than the four beside it, and the row read as two sizes.
+
+   Same rule, same reason, same place — the input belongs to ion-searchbar and
+   carries no _ngcontent attribute, so no page stylesheet can reach it. */
+ion-searchbar.product-searchbar .searchbar-input.sc-ion-searchbar-md {
+  height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 36px;
+}
+
+ion-searchbar.product-searchbar .searchbar-search-icon.sc-ion-searchbar-md {
+  top: 7.5px;
+}
+
+/* THE FIELD'S STATES, and the one rule that is worth reading.
+
+   HOVER: the hairline darkens. That is the whole gesture, and it is the
+   gesture the two controls beside this field already make — the export button
+   and the status chip both go from a --tile-powder-deep rim to a
+   --color-primary-ink one on hover, with the same 0.15s. One row, one
+   response to the pointer.
+
+   FOCUS: the hairline darkens too, and the FILL lifts to white, because the
+   border alone cannot tell focus from hover — both are the same dark line —
+   and a surface change is the soft way of saying "this one has the
+   keyboard".
+
+   NEITHER STATE ADDS A THICKNESS. The border is 1px in every one of them, and
+   no outline, ring or shadow is drawn anywhere: the point of the whole change
+   is that a click on this field must not put a band of dark ink around it.
+
+   That is what it used to do, three times over. The app's global
+   `:focus-visible` rule (variables.scss) is a 3px outline 2px off the
+   element, and Chrome matches `:focus-visible` on a text input even when it
+   was CLICKED; the page's own stylesheet added a 3px box-shadow ring on the
+   host and a 3px outline of its own. Three thicknesses stacked on a 1px
+   hairline, on a 220px field, and the control looked like it had been pressed
+   into the page.
+
+   The global ring is overridden HERE rather than changed globally, because a
+   3px ring is the right treatment for a 24px icon button and the wrong one
+   for a 220px field. */
+ion-searchbar.voucher-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.order-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.inv-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.track-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.review-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.user-search .searchbar-input.sc-ion-searchbar-md,
+ion-searchbar.product-searchbar .searchbar-input.sc-ion-searchbar-md {
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+ion-searchbar.voucher-search .searchbar-input.sc-ion-searchbar-md:hover,
+ion-searchbar.order-search .searchbar-input.sc-ion-searchbar-md:hover,
+ion-searchbar.inv-search .searchbar-input.sc-ion-searchbar-md:hover,
+ion-searchbar.track-search .searchbar-input.sc-ion-searchbar-md:hover,
+ion-searchbar.review-search .searchbar-input.sc-ion-searchbar-md:hover,
+ion-searchbar.user-search .searchbar-input.sc-ion-searchbar-md:hover,
+ion-searchbar.product-searchbar .searchbar-input.sc-ion-searchbar-md:hover {
+  border-color: var(--color-primary-ink);
+}
+
+ion-searchbar.voucher-search .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.voucher-search .searchbar-input.sc-ion-searchbar-md:focus-visible,
+ion-searchbar.order-search .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.order-search .searchbar-input.sc-ion-searchbar-md:focus-visible,
+ion-searchbar.inv-search .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.inv-search .searchbar-input.sc-ion-searchbar-md:focus-visible,
+ion-searchbar.track-search .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.track-search .searchbar-input.sc-ion-searchbar-md:focus-visible,
+ion-searchbar.review-search .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.review-search .searchbar-input.sc-ion-searchbar-md:focus-visible,
+ion-searchbar.user-search .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.user-search .searchbar-input.sc-ion-searchbar-md:focus-visible,
+ion-searchbar.product-searchbar .searchbar-input.sc-ion-searchbar-md:focus,
+ion-searchbar.product-searchbar .searchbar-input.sc-ion-searchbar-md:focus-visible {
+  border-color: var(--color-primary-ink);
+  background: var(--color-white);
+  outline: none;
+  box-shadow: none;
+}
+
+/* The focus ring, and it is not optional.
+
+   Flattening the field removed the only focus indicator it had: Ionic's
+   elevation shadow did not change on focus, the border did not change, and
+   Ionic's own stylesheet sets `.searchbar-input { outline: none }`, deleting
+   the user-agent ring. The focused field was pixel-identical to the blurred
+   one, which is a WCAG 2.4.7 Focus Visible (AA) failure — and this is the
+   control an owner tabs into first.
+
+   THE INDICATOR IS THE BORDER'S COLOUR, and no thicker than the border was.
+
+   It used to be a 2px outline in the primary ink, drawn on top of a 1px
+   hairline — and on the fulfilment queue's field there were three thicknesses
+   stacked at once, because that field also carried a 3px box-shadow ring on
+   its host and a 3px outline of its own. Clicking a 220px field and getting
+   a 3px band of dark ink around it is not a focus indicator, it is a
+   contradiction of the flat language the rest of the control speaks.
+
+   A single hairline that changes COLOUR says the same thing more quietly and
+   more clearly: --tile-powder-deep on cream measures 1.79:1 and is very nearly
+   invisible, and --color-primary-ink measures 6.82:1 and is not. One pixel
+   going from "cannot see it" to "cannot miss it" is a better indicator than
+   three pixels of ink, and it adds nothing to the page.
+
+   THE FILL LIFTS TO WHITE ON FOCUS, because the border alone cannot tell
+   focus from hover — both are the same dark hairline — and a surface change
+   is the soft way of saying "this one has the keyboard". It cannot thicken
+   anything either.
+
+   NO OUTLINE, NO RING, NO SHADOW, in any state. The app's global
+   `:focus-visible` rule (variables.scss) is a 3px outline 2px off the
+   element, and Chrome matches `:focus-visible` on a text input even when it
+   was CLICKED — so a plain click on this field was producing that ring. It is
+   overridden here rather than changed globally, because a 3px ring is the
+   right treatment for a 24px icon button and the wrong one for a 220px
+   field. */
 
 /* ── Map pins ─────────────────────────────────────────────────────────────
    These MUST live here, not in a component stylesheet.
@@ -145,8 +604,11 @@ ion-toggle.toggle-checked::part(native) {
   width: 18px;
   height: 18px;
   border-radius: 50%;
+  /* The 3px white ring is what separates a pin from a busy street map, and
+     it is enough. The shadow under it was the last drop shadow on the admin
+     map, and it made a flat dot look like a bead sitting on the page rather
+     than a mark drawn on it. */
   border: 3px solid var(--color-white);
-  box-shadow: 0 2px 6px rgba(61, 43, 69, 0.35);
 }
 
 .scoop-pin-dot.tone-primary {
@@ -221,6 +683,263 @@ ion-segment-button {
   --indicator-color: var(--color-brand-primary);
 }
 
+/* ── Chips ─────────────────────────────────────────────────────────────────────
+ *
+ * THE GEOMETRY OF A CHIP, IN ONE PLACE, because the app has eighteen of them and
+ * every one of them used to declare its own box inside a component stylesheet.
+ *
+ * WHY THIS FILE AND NOT THE COMPONENTS. Three of the reasons, in order of how
+ * much they cost:
+ *
+ * 1. `ion-chip` HAS NO `--border-radius`. It ships a hard `border-radius: 16px`
+ *    and exposes nothing to override it with. So a chip that wants a rectangle
+ *    cannot be an `ion-chip` at all — and every chip in this app WAS an
+ *    `ion-chip`, which is why declaring `--radius-chip` on them did nothing
+ *    visible. Their own rule lost to a stylesheet Ionic attaches lazily, when
+ *    the component first renders, from outside Angular entirely.
+ *
+ * 2. Once the chips are plain elements there is no such fight, but the box would
+ *    still have been copied nine times. It is here once instead.
+ *
+ * 3. LOAD ORDER IS THE TIEBREAKER AND THIS FILE WINS IT. angular.json's `styles`
+ *    array is ordered, and the comment above it says so: "Both files land in one
+ *    concatenated stylesheet, so array order is the only tiebreaker." This file is
+ *    LAST of three, so `.chip` beats a same-specificity rule in any component
+ *    stylesheet. A page that genuinely needs a different box overrides a
+ *    property; it never has to fight for the right to.
+ *
+ * THE VALUES ARE ION-CHIP'S, COPIED NOT GUESSED, so swapping the elements for
+ * plain ones does not move a single pixel. From @ionic/core's chip host rule:
+ * `padding: 6px 12px`, `min-height: 32px`, `display: inline-flex`,
+ * `align-items: center`, `box-sizing: border-box`. The 4px margin on all four
+ * sides is DELIBERATELY NOT COPIED: it is Ionic's gutter for chips sitting in a
+ * wrapping flow, and none of these chips is ever one of several — each is alone
+ * in a grid cell or as a lone flex child. `margin: 0` here is therefore a
+ * removal, and the status badge's own stylesheet says so at the site.
+ *
+ * SIZES STAY PER SITE. Only `min-height` is set below, to ion-chip's default.
+ * The app's chips are genuinely two sizes — 32px for the status badge and the
+ * dashboard's low-stock chips, 22-24px for the size and role chips — so a site
+ * that needs the smaller one declares it, and this rule does not pretend they
+ * are all one size.
+ *
+ * NOT FOR DOTS, BARS OR CTA BUTTONS. See the --radius-chip comment in
+ * variables.scss for why the pill radius is still correct for those. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 6px 12px;
+  min-height: 32px;
+  border-radius: var(--radius-chip);
+  /* One line, one line box. Without it a long label wraps inside the pill and the
+     row holding it grows - the exact defect that put three different row heights
+     on the customer ledger before its Status column was measured. */
+  white-space: nowrap;
+  /* A chip in a flex row is free to shrink below the width its own label needs,
+     which re-wraps that label. Pin it to its content instead, so an
+     undersized container is a visible overflow in THAT stylesheet - where it
+     belongs - rather than a silently clipped label here. */
+  flex: 0 0 auto;
+}
+
+/* ── Filter chips ─────────────────────────────────────────────────────────────
+ *
+ * A row of toggle buttons that narrows what the page below shows: the reviews
+ * queue's four filters and the analytics page's date ranges.
+ *
+ * WHY A PLAIN <button> AND NOT AN ion-chip OR AN ion-segment. A chip's
+ * `selected` reads as "chosen option" in a radio group, which is not what a
+ * filter row is, and the pressed state has to be ANNOUNCED — so these carry
+ * aria-pressed rather than aria-selected. Ionic's segment is the wrong control
+ * for the same reason plus one more: it stretches to the full width of its
+ * container, which put four short labels across a thousand pixels of empty bar
+ * on /admin/analytics.
+ *
+ * THE VALUES ARE THE REVIEWS PAGE'S, MOVED HERE RATHER THAN COPIED. This is the
+ * second page to need them, and this file's own header says what happens when a
+ * rule is copied instead: seventeen hardcoded pastel triples across eleven
+ * files, one of which was a shadow that silently stopped being applied. One
+ * rule, two pages.
+ *
+ * 36px, so a chip is the same height as the search field and the export button
+ * it shares a row with. The reviews page's chips were 30px, which left its own
+ * control row a step short of the two controls beside them.
+ *
+ * THE COUNTS STAY ON THE REVIEWS PAGE. `.chip-num` is the reviews queue's own
+ * thing — how many reviews sit behind each filter — and the analytics ranges
+ * have no count to carry, so it stays there. */
+.filter-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid var(--ion-color-light-shade);
+  background: var(--color-white);
+  border-radius: var(--radius-chip);
+  padding: 7px 12px;
+  min-height: 36px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink-soft);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+.filter-chip:hover {
+  background: var(--tile-powder);
+}
+/* The selected chip is the brand periwinkle with the plum ink on it: 6.40:1,
+   and the only chip in the app that is a filled shape rather than an outline. */
+.filter-chip.is-on {
+  background: var(--color-brand-primary);
+  border-color: var(--color-primary-ink);
+  color: var(--color-ink);
+}
+
+/* ── Select chips ────────────────────────────────────────────────────────────
+ *
+ * THE OTHER KIND OF CHIP: a button that opens a list of choices in a popover,
+ * rather than a toggle that is one of a row of options.
+ *
+ * Two pages need it — the fulfilment queue's status filter and the users
+ * directory's role filter — and they were not the same control. The queue's
+ * was a white box with a hairline and a caret; the directory's was a grey
+ * `--ion-color-light` pill, 48px tall, with its own caret at a different size.
+ * Two dropdowns that look like different objects from each other is the same
+ * problem the app had with its search fields, and it is what this file exists
+ * to stop.
+ *
+ * `--radius-sm`, NOT `--radius-pill`. At 36px tall a pill radius wraps both
+ * ends to an 18px semicircle, which reads as a lozenge rather than a control.
+ *
+ * `width: fit-content` so the control shrinks to "All (7)" instead of
+ * stretching across the pane; `max-width: 100%` keeps it inside a phone
+ * viewport however long an option gets. */
+.select-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  flex: 0 1 auto;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  margin: 0;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* A filter IS applied. The tint is the signal, and it is the only thing the
+   tint is used for on either page. */
+.select-chip.is-active {
+  background: var(--tile-powder);
+}
+
+/* The hairline darkens, the way the export button's does. */
+.select-chip:hover {
+  border-color: var(--color-primary-ink);
+}
+
+/* The focus ring, which a plain <button> in the tab order must have. Same ring
+   as the export button's, so the focusable controls in a row behave
+   identically. */
+.select-chip:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The caret, sized to the label rather than to the app-icon default of 20px, so
+   the control reads as a control and not as a chip with a logo on it. */
+.select-chip-arrow {
+  --icon-size: 14px;
+  flex: 0 0 auto;
+}
+
+/* ── The file button ──────────────────────────────────────────────────────────
+   ONE quiet control for every file operation in the admin: the export
+   buttons, the import buttons, the template downloads, the drift report.
+
+   It was five near-identical rules in five stylesheets, and they had drifted.
+   The inventory's and the vouchers' import buttons were 40px tall on a fixed
+   76px width; the vouchers' label was the soft ink while every other one was
+   the full plum; the analytics page's had no hover and no focus state at all;
+   and four of the nine were `ion-button`s, which print their labels in
+   uppercase and cannot be given a hairline. Same button, four different
+   buttons.
+
+   So the shape lives here once: a white PILL with one hairline, a teal glyph
+   and a plum label. The pill is the point — a 12px radius on a 36px control
+   reads as a rectangle, and the rounded end is what makes the file button
+   look like the button in the reference rather than like a field with a
+   label in it.
+
+   The rules left in the pages are the ones that are genuinely per-page: the
+   height, where the button shares a row with taller controls, and the auto
+   margin that pushes it to the end of a toolbar. */
+.csv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 36px;
+  flex: 0 0 auto;
+  padding: 0 14px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+/* The hairline darkens, the way the select chip's does. */
+.csv-btn:hover:not(:disabled) {
+  border-color: var(--color-primary-ink);
+}
+
+/* The focus ring, which a plain <button> in the tab order must have. Same ring
+   as the select chip's, so the focusable controls in a row behave
+   identically. */
+.csv-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.csv-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* The glyph, not a chip. A filled square would be the one solid block left in
+   a row of flat controls, and this was a 32px powder square back when the
+   button was a 64px tile. */
+.csv-btn app-icon {
+  --icon-size: 18px;
+  color: var(--color-primary-ink);
+  flex: 0 0 auto;
+}
+
 /* ── Outline buttons ──────────────────────────────────────────────────────────
  *
  * An `ion-button fill="outline"` with no declared foreground inherits
@@ -241,6 +960,45 @@ ion-segment-button {
 ion-button:where([fill='outline']) {
   --color: var(--color-primary-ink);
 }
+/* ── Tables that stack into cards on a narrow screen ─────────────────────────
+   THE ADMIN'S THREE QUEUES, AND THE ANALYTICS TABLE.
+
+   A real <table> is right for these — they are queues of comparable records,
+   and the browser's own table semantics are worth having. But a table is also
+   the one layout that cannot shrink: the fulfilment queue's six columns need
+   1128px of natural width, the users list needs 1120px, and the delivery stops
+   need 1120px. On a 390px phone each of those tables was 719-751px wide
+   inside a 390px scroller, and the columns that fell off the right edge were
+   the ones the admin came for:
+
+     /admin/users    Role and Actions were off-screen. The Actions column holds
+                     the Edit and Delete buttons, so the two things an admin
+                     opens that page to do were both unreachable.
+     /admin/orders   Total and Status were off-screen.
+     /admin/tracking Destination, Status and Actions were off-screen.
+     /admin/analytics Revenue was off-screen.
+
+   And the scroller gave no hint: no fade, no shadow, no "scroll for more".
+   A table that simply stops is a table that looks complete.
+
+   The treatment itself lives in src/app/shared/styles/_stacked-table.scss, as
+   a MIXIN, and each of those four pages @includes it.
+
+   IT IS NOT HERE, AND THAT IS THE POINT. This file is not scoped by Angular,
+   so its selectors lose to a component stylesheet's: the page's own
+   `.orders-table { min-width: 520px }` compiles to `.orders-table[_ngcontent-
+   abc]` — an attribute selector, which counts as a class — and beats a bare
+   `.stackable-table` written here. A rule in this file would have been
+   silently overridden on exactly the properties it was meant to change.
+
+   A mixin is compiled INTO each page's stylesheet, so its rules carry that
+   page's own scoping attribute and sit at the same specificity as the page's
+   rules. Included last, they win.
+
+   The `data-label` attribute the treatment reads was already on the cells of
+   all three queues, and no stylesheet in the app was reading it. That is what
+   the attribute is FOR, and finishing it is the fix. */
+
 /* ── Scroll-area layout ───────────────────────────────────────────────────────
    ion-content's scroll element is display: block, so slottable children stack
    in normal flow. When a page's content is SHORTER than the viewport, the
@@ -285,3 +1043,341 @@ ion-content > * {
 .status-filter-popover {
   --width: min(320px, 90vw);
 }
+
+/* The delivery map's status filter gets a popover sized to its own words.
+
+   The shared 320px above is sized for the fulfilment queue's options, which
+   carry a full status name and a count ("Preparing Your Scoops (12)"). This
+   page's options are one word each — All, Placed, Confirmed, Preparing, Out —
+   so at 320px the list was a menu with 200px of nothing down its right-hand
+   side. The list and its items are shared; only the width is this page's. */
+.tracking-filter-popover {
+  --width: min(180px, 90vw);
+}
+
+/* ── The list inside a status filter's popover ─────────────────────────────
+   SHARED, because the popover is shared and the list was not.
+
+   Ionic's overlay controller creates the popover and appends it to ion-app,
+   outside the page's own element, so it carries no _ngcontent attribute — a
+   scoped rule in a page's stylesheet compiles to a selector that matches
+   nothing and the list comes out unstyled. That is why the WIDTH above has to
+   live in this file, and it is the same reason the list's own rules do.
+
+   The fulfilment queue had them in its own stylesheet, where they did not
+   apply, and the users directory had its own copy under different names for
+   the same control. The delivery map's status filter is the third of these,
+   so the list is here once and all of them use it. */
+.status-filter-popover-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.status-filter-popover-item {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: var(--color-ink);
+  cursor: pointer;
+  width: 100%;
+}
+
+/* The option that is chosen, which is the one the trigger is showing, so the
+   control says where it is before it is even opened. */
+.status-filter-popover-item.active {
+  background: var(--ion-color-light);
+  font-weight: 700;
+}
+
+.status-filter-popover-item:hover {
+  background: var(--ion-color-light);
+}
+
+/* ── Every popover in the app ────────────────────────────────────────────
+   FLAT, AND ROUNDED, because Ionic's popover is neither.
+
+   Ionic's MD popover is a Material surface, and two things about it are wrong
+   for this design. The first is the shadow: it is a three-layer elevation
+   shadow, the single element in the app that floats. The rule here is clean
+   line art on flat surfaces, and a slab of white hovering over the cream with
+   a drop shadow under it is neither flat nor minimal — it is the 3D this
+   vocabulary exists to avoid.
+
+   The second is the corners, which is what the request was about. MD mode
+   sets NO border-radius on `.popover-content` at all — not a small one, none —
+   so the panel came out with hard 90° corners while every control around it
+   was rounded. It looked like a different object from the control that opened
+   it.
+
+   So the shadow goes and a HAIRLINE takes its place. That is the same trade
+   the app already made for the search fields, the table card and the export
+   button: the shadow was doing a border's job.
+
+   `--radius-sm` because that is the radius every control and card in this app
+   carries. 12px on a 320px panel is a soft corner, not a lozenge.
+
+   `::part(content)` AND NOT A CLASS, because the surface is inside Ionic's
+   shadow root and there is no class on it that an outer rule can reach. Ionic
+   marks that div `part="content"`, and `::part()` is the only door in from
+   here — the same reason the `ion-content::part(scroll)` rule above exists.
+
+   `--box-shadow` IS SET ON THE HOST rather than in the `::part` rule, because
+   the shadow root's own declaration is `box-shadow: var(--box-shadow)` and the
+   variable is inherited down to it. Setting the variable is how Ionic says
+   "no elevation", and it beats fighting the shadow's cascade from outside.
+
+   `overflow` IS NOT TOUCHED. Ionic's own `overflow: auto` on the content
+   already clips to the border-radius — the overflow region follows the rounded
+   padding box — so the corners are clean without a second declaration, and
+   nothing is lost: a popover taller than its panel still scrolls.
+
+   ONE RULE, EVERY POPOVER. The status dropdown, the per-row status popover,
+   the users page's role popover, the notifications page's period popover and
+   the inventory page's set popover are all the same control, and a dropdown
+   that looks like a different object from the dropdown next to it is exactly
+   the problem this app's flat vocabulary exists to prevent. */
+ion-popover {
+  --box-shadow: none;
+}
+
+ion-popover::part(content) {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--tile-powder-deep);
+}
+
+/* ── The product quick-view's dim ────────────────────────────────────────────
+   THE SCRIM BEHIND THE DIALOG.
+
+   The product detail is a dialog over the flavours list, so the list stays
+   there behind it — the shop you were looking at, dimmed. The dim is what
+   separates the two; a drop shadow under the panel would not, and this
+   vocabulary does not have drop shadows.
+
+   The z-index clears ion-menu's 1000, because the sidebar is on the same
+   plane as the content and a dim that stops short of it leaves the app's own
+   navigation bright on one side of the dialog. */
+.product-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(29, 20, 33, 0.42);
+}
+
+/* The quick-view's placeholder, while its code is still being fetched. The
+   panel's own size, so the shop does not jump when the dialog arrives. */
+.product-dialog-placeholder {
+  position: fixed;
+  z-index: 9001;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(980px, calc(100vw - 24px));
+  height: min(92vh, calc(100vh - 24px));
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+}
+
+/* ── Mobile touch targets ────────────────────────────────────────────────
+   44x44, on a phone, for everything a thumb has to hit.
+
+   THIS BLOCK IS AT THE END OF THE FILE ON PURPOSE.
+
+   It is not decoration. A container query adds no specificity, and a media
+   query adds none either, so a rule here competes with every other rule in
+   this file ON SOURCE ORDER ALONE. `.filter-chip` and `.select-chip` each
+   set their own `min-height: 36px`; when this block sat ABOVE them, the
+   chips kept their 36px and the rule silently did nothing.
+
+   A rule that matches nothing looks exactly like a rule that works. Nothing
+   fails, so nothing is reported. The same trap the admin tables fell into
+   with their `data-label` markup.
+
+   WHY A GLOBAL RULE AND NOT A PER-PAGE ONE.
+
+   Angular's emulated encapsulation adds a `[_ngcontent-…]` attribute to every
+   component selector, and an attribute selector counts as a class for
+   specificity. So a `global.scss` rule and a page rule that name the same
+   element are NOT equal — the page's own rule wins, whatever `global.scss`
+   says and whatever order the two files are in.
+
+   That trap is why the admin tables needed a `stacked-table` MIXIN
+   `@include`d into each page: the rules could not live in `global.scss` and
+   reach the pages.
+
+   It is avoided here by using `min-height` and `min-width` rather than `height`
+   and `width`. They are DIFFERENT properties, so specificity does not
+   arbitrate between them: a page that says `height: 30px` and a global that
+   says `min-height: 44px` produce a 44px control, because the minimum wins
+   over the height outright. Only a page that sets `min-height` ITSELF can
+   hold a smaller target, and there are three of those — they are listed at
+   the end of this block and fixed where they live.
+
+   WHY 768px AND NOT 620px.
+
+   The storefront's filter band switches to its sheet at a 619px CONTAINER,
+   but a container query measures the content column, and the admin's content
+   column is the viewport less a 28% split-pane menu. A viewport query is the
+   only one that can cover the admin's tables, and 768 is the app's own
+   existing breakpoint — the width at which the menu stops being an overlay
+   and the layout becomes a desktop with a mouse.
+
+   THE DESKTOP IS NOT AFFECTED.
+
+   The app's controls are 36px tall on purpose — a dense shop wants dense
+   controls, and that vocabulary is documented and deliberate. Everything below
+   is inside the phone breakpoint, so the desktop preview is untouched. */
+@media (max-width: 768px) {
+  /* Every control a thumb has to hit. */
+  button,
+  ion-button,
+  ion-toggle,
+  ion-checkbox,
+  ion-radio,
+  ion-segment-button,
+  ion-searchbar,
+  ion-select,
+  [role='button'],
+  [role='switch'] {
+    min-height: 44px;
+  }
+
+  /* And the square, icon-only ones need the width too. */
+  button,
+  ion-segment-button {
+    min-width: 44px;
+  }
+
+  /* THE SHARED CHIPS.
+
+     `.filter-chip` and `.select-chip` set their own `min-height: 36px`, and a
+     class selector outranks the bare `button` selector above — so the rule
+     above does not reach them. Same specificity as the chip rules and later in
+     the file, so these win. */
+  .filter-chip,
+  .select-chip {
+    min-height: 44px;
+  }
+
+  /* AND A LITTLE NARROWER, so a row of four fits on a phone.
+
+     The reviews queue's four filters measured 55 + 92 + 113 + 98 = 358px of
+     chip in a 358px row, before the gaps — so they wrapped three and one,
+     and a fourth row of one chip looked like a mistake.
+
+     At 11px and 10px of padding they come to 303px and fit with 31px to
+     spare. Two pixels of type is invisible at this size; a row of four chips
+     with a ragged last row is not.
+
+     The alternative was a horizontally scrolling strip, which is the pattern
+     the sort segment already uses — but that SLICES the fourth chip at the
+     screen edge, and a chip cut in half reads as broken rather than as
+     "scroll for more". A control that is only half there is not a control. */
+  .filter-chip {
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  /* A TEXTAREA THAT IS ONE ROW ON A PHONE.
+
+     The developer modal's role field holds ONE line of free text — the
+     model's own comment says the titles are free text — and it was four rows
+     tall on a phone, which is a large empty box for a single line.
+
+     It is not enough to shorten the HOST. Ionic sizes the NATIVE textarea
+     from its `rows` attribute, so the host alone left the native box four
+     rows tall inside a 48px shell, overflowing it, with the browser's resize
+     grip drawn at the native box's bottom-right — below the field, reading
+     as a stray mark on the page.
+
+     This is in the GLOBAL sheet on purpose. The native textarea is Ionic's
+     element, not Angular's, so it carries no scoping attribute, and a rule
+     inside a component's stylesheet compiles to a selector that matches
+     nothing. The same trap the note above the ion-textarea rules describes
+     for ::part().
+
+     The resize grip is LEFT ALONE — global.scss sets
+     `ion-textarea textarea.native-textarea { resize: vertical !important }`
+     deliberately, and a 48px box puts the grip inside the field's own
+     bottom-right corner, where it belongs. The + button is in the TOP-right
+     corner, which is why the grip is in the bottom one. */
+  ion-textarea.role-textarea {
+    height: 48px;
+  }
+  ion-textarea.role-textarea textarea.native-textarea {
+    height: 48px;
+  }
+
+  /* The switch.
+
+     The host is now 44px tall, which is the important half: the track inside
+     it is 16px, and the 36px width was the track's. A 36x44 target around a
+     36px-wide switch is a switch that is easy to miss on the right; 44x44
+     makes the whole of it the target.
+
+     `align-items: center` puts the track back in the middle of that taller,
+     wider host rather than leaving it pinned to the top left. */
+  ion-toggle {
+    align-items: center;
+    min-width: 44px;
+  }
+
+  /* ── `.hit-44`: A 44px TARGET WITHOUT A 44px BOX ─────────────────────────
+     THE ESCAPE HATCH FOR THE RULE ABOVE.
+
+     The rule above is right for a control that IS the control — a button that
+     is the whole of what you are aiming at. It is wrong for a control that is
+     a PART of something bigger: a chip's ×, a badge's caret, a chip on a
+     pill.
+
+     The role chip on the developer modal is the case in point. Its × is a 16px
+     glyph, absolutely positioned inside a 24px pill, with 22px of the chip's
+     padding reserved for it. Blowing every button up to 44px made that × 28px
+     wider than the space reserved for it and 20px taller than the chip it
+     lives in, so it covered the chip's own text:
+
+       .role-chip    59 x 24   "dsds"
+       .role-remove 44 x 44   ← exactly on top of the text
+
+     A rule that fixes twenty controls and breaks one is not a rule that works.
+     It is a rule that is right MOST of the time, and the exception has to be
+     found by being photographed.
+
+     So a button that is a part of something bigger takes `.hit-44` instead:
+     it keeps its own box, and its 44px target is a transparent overlay that
+     extends past it and paints nothing. The glyph stays 16px, the pill stays
+     the size the design wants, and the thumb still gets 44px.
+
+     `position: relative` is the button's own job — the overlay is positioned
+     against it. */
+  button.hit-44,
+  ion-button.hit-44 {
+    min-width: 0;
+    min-height: 0;
+    position: relative;
+  }
+  button.hit-44::after,
+  ion-button.hit-44::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* ── Mobile touch targets: the three that hold a smaller minimum ──────────
+   A page rule that sets `min-height` itself outranks a global `min-height`,
+   so these three keep their old size no matter what the rule above says.
+   Each is fixed where it lives, and each is listed here so the list of them
+   is one place to look.
+
+   - `.add-to-cart-btn`  (product-card.component.scss)  40px
+   - `.pager-num`        (pagination.component.ts)     38px
+   - `.pager-step`       (pagination.component.ts)     40px */

@@ -105,7 +105,7 @@
   color: var(--color-primary-ink);
   background: var(--tile-powder);
   border: 2px solid var(--tile-powder-deep);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
 }
 
 /* No phone tier, and none is needed. The products filter bar hides its captions
@@ -137,6 +137,50 @@
    thresholds tied to the 280px sidebar to re-measure when the menu width
    changes. The only rule is `flex-direction: column` and the gap it has always
    carried. */
+/* ── The day heading, "All" view only ───────────────────────────────────────
+   A SECTION LABEL, and it is matched to `.filter-label` above rather than
+   invented: same page, same kind of element (a small uppercase label on the page
+   ground), same size/weight/tracking/ink. Reusing that treatment is what stops
+   the heading reading as a foreign object dropped into an established page.
+
+   The ink needs no new contrast argument. `--color-ink-soft` on the page ground
+   at 4.5:1 is already asserted by `check:contrast` as "the order column header on
+   the page ground" — the My Orders ledger's 10px uppercase label over the same
+   cream. Same ink, same background, same kind of job, and this is 11px rather
+   than 10, so it is the easier of the two and needs no exemption.
+
+   IT EXISTS BECAUSE `.feed` HAS NO WAY TO SEPARATE ITSELF FROM ITSELF. Three
+   `.feed` blocks under "All" would otherwise butt together with nothing between
+   them: `.feed` is `margin: 0`, the lists are identical, and the reader would see
+   one continuous feed with the day boundaries invisible. The heading is the only
+   thing on the page that says which of these moved today, so it is load-bearing
+   rather than decorative — but it is also the reason this is a margin on a
+   heading rather than a `gap` on `.feed`, which would have reopened the
+   today's-list-from-today's-list problem the three-window views do not have. */
+.feed-heading {
+  margin: var(--space-6) 0 var(--space-3);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}
+
+/* The FIRST heading sits directly under the filter bar, which already carries
+   `margin-bottom: var(--space-3)`. Leaving this heading's own `--space-6` top
+   margin in place would stack the two into a 44px void reading as a layout fault
+   rather than a section break.
+
+   Keyed off `.filter-row` rather than `:first-child` because these headings are
+   NOT first children — `.filter-row` and the (conditionally rendered) empty
+   state both precede them, and the feed only ever renders under `!isEmpty()`,
+   which is exactly the condition that renders the filter row. So this pair is
+   always adjacent when it renders, and the selector cannot match a case where it
+   would be wrong. */
+.filter-row + .feed-heading {
+  margin-top: 0;
+}
+
 .feed {
   list-style: none;
   margin: 0;

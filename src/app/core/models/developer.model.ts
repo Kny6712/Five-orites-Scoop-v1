@@ -76,15 +76,50 @@ export interface Developer extends Omit<DeveloperDoc, 'photoURL'> {
 }
 
 /**
- * The five records the page started with, kept as an offline fallback.
+ * The four records the page started with, kept as an offline fallback.
  *
- * Not decoration. The credits page is PUBLIC — no route guard, so a signed-out
- * guest reaches it — and a Firestore read that fails would otherwise render a blank
- * page where there used to be five names. Falling back to the last-known-good
+ * Not decoration. The credits page is PUBLIC - no route guard, so a signed-out
+ * guest reaches it - and a Firestore read that fails would otherwise render a blank
+ * page where there used to be four names. Falling back to the last-known-good
  * contents is the difference between a degraded page and an empty one. Mirrors the
  * `DEFAULT_SHOP_SETTINGS` pattern in ShopSettingsService.
  *
  * `scripts/seed-developers.ts` writes exactly these to Firestore.
+ *
+ * -- THIS LIST IS NOT WHAT THE PAGE RENDERS. --
+ *
+ * `DevelopersPage` reads `DeveloperService.developers`, which is a computed over a
+ * live `onSnapshot` of the `developers` collection. This array is reached only when
+ * that read fails or resolves to zero documents. Removing an entry here changes the
+ * degraded path and the no-backend path, and NOTHING about the page as a visitor
+ * sees it.
+ *
+ * That is why a departure is never a one-line change. Removing a credit is TWO
+ * edits in TWO places:
+ *
+ *   1. this array, for the fallback, and
+ *   2. the Firestore document itself, via the owner-only delete on
+ *      `/admin/developers` - or, failing a session, the Firebase console.
+ *
+ * Doing only the first leaves the card on the live page while the fallback quietly
+ * disagrees with it, which is the worst of the two outcomes: right in one place,
+ * wrong in the other, and no visible sign of the split.
+ *
+ * Do not reach for `npm run seed:developers -- --force` to reconcile them. The
+ * seeder is additive by construction - every write is a `setDoc` with
+ * `merge: true` and it never issues a delete - so it can add the four but is
+ * structurally incapable of removing a fifth that is still stored.
+ *
+ * The `order` values below are NOT contiguous, and that is deliberate. `watch()`
+ * sorts with `orderBy('order', 'asc')`, which needs a total order, not a gapless
+ * one, so 1/3/4/5 is perfectly valid. Renumbering here would also drift from the
+ * live documents, which keep their own values, leaving the two sources to disagree
+ * about a field that neither the page nor the admin list displays.
+ *
+ * Heaven Alvior left the group, which is why this reads four and not five. Their
+ * document still has to be deleted at the source, and their photo, if one was ever
+ * uploaded, stays in the Cloudinary media library - the admin delete warns about
+ * exactly that, and nothing here cleans it up.
  */
 export const DEFAULT_DEVELOPERS: readonly Developer[] = [
   {
@@ -94,14 +129,6 @@ export const DEFAULT_DEVELOPERS: readonly Developer[] = [
     accent: '#CFE4F2',
     photoURL: null,
     order: 1,
-  },
-  {
-    id: 'heaven-alvior',
-    name: 'Heaven Alvior',
-    roles: ['QA', 'Documentation'],
-    accent: '#CDEAD9',
-    photoURL: null,
-    order: 2,
   },
   {
     id: 'justin-curby-esguerra',

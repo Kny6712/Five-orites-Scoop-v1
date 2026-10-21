@@ -1,4 +1,32 @@
-<ion-header>
+<!--
+  THE HEADER, and whose side of the app you are on.
+
+  The CUSTOMER header — the candy stripe, the retro script and the gold
+  sticker — is the same one every customer page carries. It was flattened once,
+  on the reading that a stripe is a gradient and a sticker is a shadow. Both
+  of those are true, and both of them are the brand on this side of the app.
+
+  BUT THIS PAGE IS NOT CUSTOMER-ONLY. It serves customers AND admins, and an
+  admin reaching it from the admin panel was standing under the storefront's
+  shopfront: the striped bar said "you are a customer" while the sidebar
+  beside it said "you are staff". The dashboard solved this by swapping its
+  header on the same condition, and this page now does the same thing for the
+  same reason — one condition, one rule, and the bar above the page stops
+  disagreeing with the menu beside it.
+
+  The admin side's header is .flat-header: a white surface, one hairline
+  along the bottom, and the title in the same plain solid face the admin
+  page headings use (see the note on the class in theme/variables.scss). It
+  is the flat/minimalist vocabulary the admin panel speaks — clean line art
+  and solid typography, no drop shadow, no bevel, no heavy gradient — and the
+  customer side keeps the brand one.
+
+  The class goes on the <ion-header> rather than the <ion-toolbar> because one
+  word then styles both: the header's shadow, and the toolbar's fill through
+  --ion-toolbar-background, which is read inside the toolbar's shadow root
+  and inherits through the boundary.
+-->
+<ion-header [class.flat-header]="isStaff()">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>

@@ -1,0 +1,463 @@
+// src/app/features/product-detail/product-detail-dialog.component.ts
+// Five-orites Scoop — the product quick-view dialog
+//
+// WHY A DIALOG
+// The detail used to be a page, and a page has to fill whatever window it is
+// given: a photo band the width of the screen, two enormous size cards, a
+// gold button 1300px long. Every layout decision on it was really a decision
+// about how much of a browser to spend on one flavour.
+//
+// A dialog has a size. It is 980px wide and 92vh tall on every screen, and
+// the content inside it is the same two columns every time — the photo on the
+// left, everything you can DO on the right. It is presented OVER the flavours
+// list, so the shop is still there behind it, dimmed, and closing it puts the
+// customer back where they were.
+//
+// The route /products/:id still works: it hands the id to the listing, which
+// opens this over the grid. The detail is never a page of its own.
+
+import {
+  Component,
+  OnDestroy,
+  inject,
+  signal,
+  computed,
+  Input,
+  Output,
+  EventEmitter,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import {
+  IonBadge,
+  IonSkeletonText,
+  IonTextarea,
+  ToastController,
+  AlertController,
+} from '@ionic/angular/standalone';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { QtyStepperComponent } from '@shared/components/commerce/qty-stepper.component';
+import { Subscription, catchError, of } from 'rxjs';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { CartService } from '@core/services/commerce/cart.service';
+import { ReviewService, REVIEWS_PAGE_LIMIT } from '@core/services/team/review.service';
+import { WishlistService } from '@core/services/identity/wishlist.service';
+import { Product, SizeVariant, sizePrice } from '@core/models/product.model';
+import { Review } from '@core/models/review.model';
+import { AuthService } from '@core/services/identity/auth.service';
+import { summarizeRatings } from '@core/logic/rating';
+import { PesoPipe } from '@shared/pipes/peso.pipe';
+import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
+import { StarRatingComponent } from '@shared/components/ui/star-rating.component';
+import { StaffReplyComponent } from '@shared/components/admin/staff-reply.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { CartButtonComponent } from '@shared/components/commerce/cart-button.component';
+import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
+import { flavourBackground } from '@core/logic/flavour-colour';
+import { ShopSettingsService } from '@core/services/shop/shop-settings.service';
+
+interface SizeOption {
+  key: SizeVariant;
+  label: string;
+}
+
+@Component({
+  selector: 'app-product-detail-dialog',
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    IonBadge,
+    IonSkeletonText,
+    IonTextarea,
+    PesoPipe,
+    StarRatingComponent,
+    StaffReplyComponent,
+    CloudinaryPipe,
+    CartButtonComponent,
+    AppIconComponent,
+    QtyStepperComponent,
+    PaginationComponent,
+  ],
+  templateUrl: './product-detail-dialog.component.html',
+  styleUrls: ['./product-detail-dialog.component.scss'],
+})
+export class ProductDetailDialogComponent implements OnDestroy {
+  /**
+   * The flavour to show.
+   *
+   * A SETTER, and the loading hangs off it rather than off `ngOnInit`, so the
+   * load starts when the id ARRIVES rather than when the component is
+   * initialised — the two are the same moment here, but only one of them is
+   * guaranteed to happen after the input is bound.
+   */
+  @Input()
+  set productId(value: string) {
+    this.productIdValue = value;
+    this.loadProduct(value);
+  }
+  get productId(): string {
+    return this.productIdValue;
+  }
+  private productIdValue = '';
+
+  /** Raised when the customer closes the dialog. */
+  @Output() readonly closed = new EventEmitter<void>();
+
+  private loadProduct(productId: string): void {
+    if (!productId) {
+      this.errorMessage.set('Product not found.');
+      this.isLoading.set(false);
+      return;
+    }
+
+    this.sub = this.inventoryService
+      .getProductById(productId)
+      .pipe(
+        catchError(() => {
+          // The error is deliberately not surfaced verbatim. Anything thrown here is
+          // either a permissions failure or a missing document, and a customer can
+          // act on neither — they need to know the page failed to load.
+          // describeFirestoreError() exists for the admin surfaces, where the
+          // message is actionable and the operator can do something about it.
+          this.errorMessage.set('Could not load product. Please go back and try again.');
+          return of(null);
+        }),
+      )
+      .subscribe((product) => {
+        if (product) {
+          this.product.set(product);
+          this.isWished.set(this.wishlistService.isWished(product.id));
+          this.loadReviews(product.id);
+        }
+        this.isLoading.set(false);
+      });
+  }
+
+  private inventoryService = inject(InventoryService);
+  private cartService = inject(CartService);
+  private reviewService = inject(ReviewService);
+  private wishlistService = inject(WishlistService);
+  private toastCtrl = inject(ToastController);
+  private alertCtrl = inject(AlertController);
+  private authService = inject(AuthService);
+  private sub?: Subscription;
+  private reviewSub?: Subscription;
+
+  product = signal<Product | null>(null);
+  isLoading = signal(true);
+  errorMessage = signal('');
+  selectedSize = signal<SizeVariant>('cup');
+  quantity = signal(1);
+  isAdding = signal(false);
+  isWished = signal(false);
+  reviews = signal<Review[]>([]);
+  /**
+   * Set when the reviews read fails. This is the important one: the handler
+   * used to be `error: () => this.reviews.set([])`, so a permission error or a
+   * missing `reviews` index rendered "No reviews yet — be the first!" on a
+   * product with dozens of them. That is a fabricated success state, not just
+   * a missing one, so it needs its own branch rather than reusing the
+   * "no reviews" one.
+   */
+  reviewsError = signal('');
+  avgRating = signal(0);
+  reviewCount = signal(0);
+  newRating = signal(5);
+  newComment = '';
+  isSubmittingReview = signal(false);
+
+  readonly sizeOptions: SizeOption[] = [
+    { key: 'cup', label: SIZE_DISPLAY_LABELS.cup },
+    { key: 'pint', label: SIZE_DISPLAY_LABELS.pint },
+    { key: 'halfGallon', label: SIZE_DISPLAY_LABELS.halfGallon },
+    { key: 'gallon', label: SIZE_DISPLAY_LABELS.gallon },
+  ];
+
+  /**
+   * The set badge painted in this product's flavour pastel — the same colour the
+   * product card uses, so the two storefront surfaces agree.
+   *
+   * Computed over the `product` signal, so it is null-safe while the document is
+   * still loading and repaints when one arrives.
+   */
+  readonly setFlavourBackground = computed(() => flavourBackground(this.product()));
+
+  /**
+   * True when the loaded review set hit the query's cap, so the count and
+   * average describe the most recent N reviews rather than every review this
+   * product has ever received. The template needs one line to surface this
+   * ("Showing the 200 most recent reviews") — without it the number is still a
+   * silent understatement on a heavily reviewed flavor.
+   */
+  readonly reviewsTruncated = signal(false);
+
+  /**
+   * Twelve reviews a page. The read still asks for REVIEWS_PAGE_LIMIT (200) — see
+   * the note above — so this only decides what is RENDERED, and the two are not
+   * the same question.
+   *
+   * A flavor with two hundred reviews rendered every one of them under a single
+   * star summary, so reading three recent opinions meant scrolling past a hundred
+   * and thirty older ones, and the write-a-review form was further away than it
+   * needed to be.
+   *
+   * Slicing here rather than in `summarizeRatings` is deliberate and is the whole
+   * reason this is a computed and not a change to the read: the average and the
+   * "(n)" must describe every fetched review, so a page boundary can never move a
+   * star. The summary is taken once over the whole set in loadReviews, from the
+   * same `reviews` array the pager slices.
+   */
+  readonly REVIEWS_PER_PAGE = 12;
+  readonly reviewsPage = signal(1);
+
+  readonly pagedReviews = computed(() => {
+    const start = (this.reviewsPage() - 1) * this.REVIEWS_PER_PAGE;
+    return this.reviews().slice(start, start + this.REVIEWS_PER_PAGE);
+  });
+
+  /**
+   * The admin-editable cutoff, not the build-time constant.
+   *
+   * Same bug as ProductCardComponent: this read `LOW_STOCK_THRESHOLD`
+   * directly, so an owner's threshold change moved the dashboard and the admin
+   * inventory query but left the customer-facing product page flagging at the
+   * build default. Three surfaces, two numbers, no indication which was right.
+   */
+  readonly lowStockThreshold = inject(ShopSettingsService).lowStockThreshold;
+
+  currentPrice = computed(() => sizePrice(this.product(), this.selectedSize()) ?? 0);
+  /**
+   * The price of one size, or null when the product has none.
+   *
+   * The size tiles render each size's price, so they need the same
+   * null-safe read the card uses: a document with no pricing map must show
+   * an em dash on the tile, not throw inside the template and blank out the
+   * rest of the dialog.
+   */
+  priceFor(size: SizeVariant): number | null {
+    return sizePrice(this.product(), size);
+  }
+  /**
+   * The stock of one size, or 0 when the document has none.
+   *
+   * The same reasoning as `priceFor()`: a missing stock map is read as no
+   * stock, which the tiles already know how to say.
+   */
+  stockFor(size: SizeVariant): number {
+    return this.product()?.stock?.[size] ?? 0;
+  }
+  currentStock = computed(() => this.product()?.stock?.[this.selectedSize()] ?? 0);
+  isOutOfStock = computed(() => this.currentStock() === 0);
+  /**
+   * Deactivated by the admin. getProductById has no isActive filter, so a
+   * direct link to /products/:id still resolves a flavor the storefront hides —
+   * the product card and the detail page disagreed about whether it existed.
+   * Enforced here rather than in InventoryService so the admin's own detail
+   * view of a deactivated flavor still loads; see the template note below for
+   * the display half.
+   */
+  isUnavailable = computed(() => this.product()?.isActive === false);
+  /** The single gate add-to-cart and the quantity stepper both consult. */
+  canPurchase = computed(() => !!this.product() && !this.isUnavailable() && !this.isOutOfStock());
+  lineTotal = computed(() => this.currentPrice() * this.quantity());
+
+  ngOnDestroy(): void {
+    this.sub?.unsubscribe();
+    this.reviewSub?.unsubscribe();
+  }
+
+  loadReviews(productId: string): void {
+    this.reviewSub?.unsubscribe();
+    this.reviewSub = this.reviewService.getProductReviews(productId).subscribe({
+      next: (reviews) => {
+        this.reviews.set(reviews);
+        this.reviewsError.set('');
+        // One source for both numbers. The page used to reduce over
+        // `reviews.length` inline — a second copy of logic/rating.ts that could
+        // drift from the unit-tested one — and it paired a `limit()`-truncated
+        // list with a count presented as the product's lifetime total.
+        // summarizeRatings() derives the average AND the count from the same
+        // array, so the stars and the "(n)" can never disagree.
+        const summary = summarizeRatings(reviews);
+        this.avgRating.set(summary.average);
+        this.reviewCount.set(summary.count);
+        this.reviewsTruncated.set(reviews.length >= REVIEWS_PAGE_LIMIT);
+        // A fresh set of reviews can be shorter than the page the reader was on
+        // — someone else's review landing, or their own being withdrawn — and the
+        // newest entry belongs at the top, where they were looking.
+        this.reviewsPage.set(1);
+      },
+      error: (err: unknown) => {
+        console.error('Load reviews error:', err);
+        this.reviews.set([]);
+        this.avgRating.set(0);
+        this.reviewCount.set(0);
+        this.reviewsTruncated.set(false);
+        this.reviewsError.set('Could not load reviews. Please try again.');
+      },
+    });
+  }
+
+  async toggleWishlist(): Promise<void> {
+    const product = this.product();
+    if (!product) return;
+    try {
+      this.isWished.set(this.wishlistService.toggle(product.id));
+    } catch (err) {
+      const toast = await this.toastCtrl.create({
+        message: err instanceof Error ? err.message : 'Sign in to use wishlist.',
+        duration: 2500,
+        color: 'warning',
+        position: 'bottom',
+      });
+      await toast.present();
+    }
+  }
+
+  /** The signed-in user's uid, or null when signed out. */
+  currentUserId(): string | null {
+    return this.authService.currentUserSnapshot?.uid ?? null;
+  }
+
+  /** True when the signed-in user has already reviewed this product. */
+  hasMyReview(): boolean {
+    const uid = this.currentUserId();
+    if (!uid) return false;
+    return this.reviews().some((r) => r.userId === uid);
+  }
+
+  /** Withdraws the signed-in user's own review. */
+  async withdrawReview(review: Review): Promise<void> {
+    const product = this.product();
+    if (!product || this.isSubmittingReview()) return;
+    if (review.userId !== this.currentUserId()) return;
+
+    const confirm = await this.alertCtrl.create({
+      header: 'Withdraw review?',
+      message: 'Your review of this flavor will be removed. You can always write another.',
+      buttons: [
+        { text: 'Keep it', role: 'cancel' },
+        {
+          text: 'Withdraw',
+          role: 'destructive',
+          handler: async () => {
+            this.isSubmittingReview.set(true);
+            try {
+              await this.reviewService.deleteMyReview(product.id);
+              const toast = await this.toastCtrl.create({
+                message: 'Review withdrawn.',
+                duration: 2000,
+                color: 'success',
+                position: 'bottom',
+              });
+              await toast.present();
+            } catch (err) {
+              const toast = await this.toastCtrl.create({
+                message: err instanceof Error ? err.message : 'Could not withdraw review.',
+                duration: 3000,
+                color: 'warning',
+                position: 'bottom',
+              });
+              await toast.present();
+            } finally {
+              this.isSubmittingReview.set(false);
+            }
+          },
+        },
+      ],
+    });
+    await confirm.present();
+  }
+
+  async submitReview(): Promise<void> {
+    const product = this.product();
+    if (!product || this.isSubmittingReview()) return;
+    this.isSubmittingReview.set(true);
+    try {
+      const editing = this.hasMyReview();
+      await this.reviewService.addReview(product.id, this.newRating(), this.newComment);
+      this.newComment = '';
+      this.newRating.set(5);
+      const toast = await this.toastCtrl.create({
+        message: editing ? 'Review updated. Thanks!' : 'Thanks for your review! 💖',
+        duration: 2000,
+        color: 'success',
+        position: 'bottom',
+      });
+      await toast.present();
+    } catch (err) {
+      const toast = await this.toastCtrl.create({
+        message: err instanceof Error ? err.message : 'Could not submit review.',
+        duration: 3000,
+        color: 'warning',
+        position: 'bottom',
+      });
+      await toast.present();
+    } finally {
+      this.isSubmittingReview.set(false);
+    }
+  }
+
+  selectSize(size: SizeVariant): void {
+    this.selectedSize.set(size);
+    this.quantity.set(1);
+  }
+
+  /** The way out: the shop is right there behind the dialog. */
+  close(): void {
+    this.closed.emit();
+  }
+
+  /**
+   * Ceiling for the shared stepper.
+   *
+   * Always at least 1: an out-of-stock product has `currentStock() === 0`, and a
+   * stepper whose max is below its min would render both buttons disabled with a
+   * nonsense bound. The add-to-cart button is disabled separately by
+   * `isOutOfStock`, so the control is not the thing gating the action.
+   */
+  readonly stepperMax = computed(() => Math.max(1, this.currentStock()));
+
+  async addToCart(): Promise<void> {
+    const product = this.product();
+    if (!product || this.isAdding() || !this.canPurchase()) {
+      // canPurchase() also covers isUnavailable(). The template's disabled
+      // binding only checks isOutOfStock(), so without this guard a
+      // deactivated flavor reached by direct link stayed clickable.
+      if (product && this.isUnavailable() && !this.isAdding()) {
+        const toast = await this.toastCtrl.create({
+          message: `${product.variantName} is no longer available.`,
+          duration: 3000,
+          color: 'warning',
+          position: 'bottom',
+        });
+        await toast.present();
+      }
+      return;
+    }
+
+    this.isAdding.set(true);
+    try {
+      this.cartService.addItem(product, this.selectedSize(), this.quantity());
+      const toast = await this.toastCtrl.create({
+        message: `${product.variantName} added to your cart!`,
+        duration: 2000,
+        color: 'success',
+        position: 'bottom',
+      });
+      await toast.present();
+    } catch (err) {
+      console.error('Add to cart error:', err);
+      const toast = await this.toastCtrl.create({
+        message: err instanceof Error ? err.message : 'Could not add to cart.',
+        duration: 3000,
+        color: 'warning',
+        position: 'bottom',
+      });
+      await toast.present();
+    } finally {
+      setTimeout(() => this.isAdding.set(false), 500);
+    }
+  }
+}

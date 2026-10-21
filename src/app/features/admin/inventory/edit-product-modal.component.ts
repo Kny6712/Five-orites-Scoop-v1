@@ -20,8 +20,8 @@ import {
   ModalController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { InventoryService } from '@core/services/inventory.service';
-import { ImageUploadService } from '@core/services/image-upload.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { ImageUploadService } from '@core/services/catalog/image-upload.service';
 import { Product, SizePricing, SizeVariant } from '@core/models/product.model';
 import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 import { flavourOf } from '@core/logic/flavour';
@@ -47,11 +47,20 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
     CloudinaryPipe,
   ],
   template: `
-    <ion-header>
-      <ion-toolbar color="primary">
+    <!--
+      The FLAT header, the same one the admin's pages carry: a white bar, one
+      hairline along the bottom, and the title in the plain body face.
+
+      It was the storefront's header — the candy stripe, the retro script, the
+      gold sticker shadow under the letters — inside a form an admin uses all
+      day. The stripe is a gradient and the sticker is a hard offset shadow,
+      which is the opposite of what a sheet of fields should look like.
+    -->
+    <ion-header class="flat-header">
+      <ion-toolbar>
         <ion-title>Edit Product</ion-title>
         <ion-buttons slot="end">
-          <ion-button (click)="cancel()">Close</ion-button>
+          <ion-button class="close-btn" (click)="cancel()">Close</ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
@@ -66,6 +75,7 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
                 label="Variant name"
                 labelPlacement="stacked"
                 [(ngModel)]="variantName"
+                class="modal-input"
               ></ion-input>
             </ion-item>
             <!--
@@ -97,6 +107,7 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
                 [value]="flavour()"
                 readonly
                 aria-label="Flavor, derived from the product's set"
+                class="modal-input"
               ></ion-input>
             </ion-item>
             <ion-item>
@@ -105,6 +116,7 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
                 labelPlacement="stacked"
                 rows="3"
                 [(ngModel)]="description"
+                class="modal-input"
               ></ion-textarea>
             </ion-item>
           </ion-list>
@@ -137,6 +149,7 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
                   min="0"
                   [ngModel]="price[row.key]"
                   (ngModelChange)="onPriceInput(row.key, $event)"
+                  class="modal-input"
                 ></ion-input>
               </ion-item>
             }
@@ -204,41 +217,79 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
     </ion-content>
 
     <ion-footer>
-      <ion-toolbar>
-        <ion-button
-          expand="block"
-          fill="outline"
-          color="primary"
-          (click)="save()"
-          [disabled]="isSaving || !product"
-          class="save-btn"
-        >
-          {{ isSaving ? 'Saving…' : 'Save Changes' }}
-        </ion-button>
-      </ion-toolbar>
+      <!--
+        A PLAIN <button>, not an ion-button, and that is a bug fix rather than a
+        preference.
+
+        Ionic paints a solid button that sits INSIDE A TOOLBAR with the toolbar's
+        colour rather than the button's own — the inner element's background is
+        var(--ion-toolbar-color, var(--background)). In this app the toolbar
+        colour is the plum, so the Save action came out a plum slab with plum
+        text on it — invisible, and the one control in the sheet that had to
+        work.
+
+        The plain button is also the app's own pattern: every gold CTA in the
+        admin is a plain <button>, and this is the same treatment — an amber
+        fill, plum ink, one radius, no border, no shadow, and a teal hover.
+      -->
+      <button type="button" class="save-btn" [disabled]="isSaving || !product" (click)="save()">
+        {{ isSaving ? 'Saving…' : 'Save Changes' }}
+      </button>
     </ion-footer>
   `,
   styles: [
     `
+      /* ROOM. The sheet was 680px wide with 16px of padding and a field every
+         few pixels, which is what "cramped" means: nothing had space around
+         it, so the form read as a stack of boxes rather than as a set of
+         questions. The width is the shared .large-sheet-modal's business; the
+         padding and the gaps between the fields are here. */
+      ion-content {
+        --padding: 20px 24px 24px;
+      }
+
       .section-title {
         font-size: 15px;
         font-weight: 800;
-        color: var(--ion-color-dark);
-        margin: 18px 2px 8px;
+        color: var(--color-ink);
+        margin: 24px 0 10px;
       }
       .section-title:first-of-type {
-        margin-top: 2px;
+        margin-top: 4px;
       }
+
+      /* THE FIELDS ARE SEPARATE BOXES, not rows pressed together.
+
+         The list was a rounded card with a drop shadow and the fields inside
+         it, touching: one rounded block with four boxes in it, which is two
+         surfaces saying the same thing. Now the list is nothing — no card, no
+         shadow, no radius — and each field is its own flat box with room
+         between it and the next.
+
+         The row's padding is the gap: ion-item's --padding-bottom is what
+         separates one field from the next, and the item itself adds no
+         background or border of its own. */
       .card-list {
-        border-radius: 14px;
-        overflow: hidden;
-        box-shadow: var(--shadow-card);
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+        overflow: visible;
+      }
+      .card-list ion-item {
+        --background: transparent;
+        --padding-start: 0;
+        --padding-end: 0;
+        --inner-padding-end: 0;
+        --border-width: 0;
+        padding-bottom: 12px;
       }
       .pricing-note {
-        margin: -4px 0 8px;
-        padding: 0 16px;
+        margin: -6px 0 12px;
         font-size: 12px;
-        line-height: 1.4;
+        line-height: 1.45;
         color: var(--ion-color-medium);
       }
       /* Two columns of price boxes rather than four stacked rows — the four sizes
@@ -246,7 +297,7 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
       .price-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 0 8px;
+        gap: 0 14px;
       }
       @media (max-width: 380px) {
         .price-grid {
@@ -267,23 +318,26 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
       /* Centred in whatever space is left between the card and the action bar.
        Auto margins collapse to 0 once the content outgrows the area, so the
        layout degrades to normal flow rather than overflowing. */
+      /* The image preview gets room too: the frame was 420px wide and the
+         picture 280px tall, which on a 760px sheet left the photo looking
+         like a stamp in the middle of the page. */
       .image-frame {
         position: relative;
         margin-block: auto;
         margin-inline: auto;
         width: 100%;
-        max-width: 420px;
-        border-radius: 12px;
+        max-width: 480px;
+        border-radius: var(--radius-sm);
         overflow: hidden;
         background: var(--color-brand-light);
-        border: 1px solid rgba(107, 63, 160, 0.14);
+        border: 1px solid var(--tile-powder-deep);
         cursor: pointer;
         transition:
           border-color 150ms ease,
           box-shadow 150ms ease;
       }
       .image-frame:hover {
-        border-color: rgba(107, 63, 160, 0.34);
+        border-color: var(--color-primary-ink);
       }
       .image-frame:focus-visible {
         outline: 2px solid var(--color-brand-primary);
@@ -295,7 +349,7 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
       .image-preview {
         display: block;
         width: 100%;
-        height: 280px;
+        height: 320px;
         object-fit: contain;
       }
       /* Faded while a removal is staged, so "this photo will go" is obvious
@@ -332,58 +386,90 @@ import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
         color: var(--ion-color-warning-shade, #9a6b00);
         text-align: center;
       }
-      /* Pinned action bar: the button stays at the bottom while ion-content scrolls.
-       The hairline separates it from the scrolling card; the violet strip closes
-       the modal off and echoes the header. .large-sheet-modal is Ionic's
-       .modal-wrapper, which is border-radius + overflow: hidden, so the strip is
-       clipped to the same 18px curve as the header instead of poking out square. */
-      ion-footer {
-        box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.06);
-        border-bottom: 3px solid var(--color-primary-ink);
-      }
-      /* variables.scss paints every ion-toolbar brand-violet, which is right for
-       the header but wrong here — this bar must read as part of the white
-       content area. Only the bar changes; the button is an outline treatment. */
-      ion-footer ion-toolbar {
-        --background: var(--ion-background-color, #f8f8f8);
-        --color: var(--ion-text-color, #000000);
-        /* Collapse the toolbar's default 56px so the button tucks right up against
-         the top hairline, with the extra room left underneath for reach. */
-        --min-height: 0;
-        --padding-start: 16px;
-        --padding-end: 16px;
-        --padding-top: 2px;
-        --padding-bottom: 14px;
-      }
-      /* Selector is 'ion-button.save-btn' rather than '.save-btn' on purpose:
-       Ionic's :host(.button-outline) compiles to the same specificity as a
-       component-style class, so the --border-width override would be a coin
-       flip on stylesheet injection order. */
-      ion-button.save-btn {
-        --background: transparent;
-        /* The BORDER was already primary-ink; the LABEL was the brand hue, so the
-           button was a dark outline around powder text. Measured 1.71:1 on the white
-           of this modal. Same token on both halves now.
-
-           Written as a CSS comment because this block is a STYLES string, not
-           JavaScript: a "//" line here is invalid CSS, and the apostrophe in the first
-           draft of this note made the parser report an unterminated string. Build only
-           warned, and the button rendered correctly anyway, so nothing looked broken. */
-        --color: var(--color-primary-ink);
-        --border-color: var(--color-primary-ink);
-        --border-style: solid;
-        --border-width: 1.5px;
-        --border-radius: 12px;
-        --padding-top: 18px;
-        --padding-bottom: 18px;
-        font-weight: 700;
+      .modal-input {
+        width: 100%;
+        min-height: 44px;
+        border: 1px solid var(--tile-powder-deep);
+        border-radius: var(--radius-xs);
+        background: var(--color-white);
+        color: var(--color-ink);
+        font: inherit;
         font-size: 15px;
-        letter-spacing: 0.06em;
-        /* ion-button only uppercases in md mode; this modal also runs on device,
-         where Ionic uses ios mode and would render 'Save Changes' verbatim. */
-        text-transform: uppercase;
+      }
+      /* Host element, not ::part(input): Ionic 7 exposes no shadow part on
+         ion-input / ion-textarea, so ::part(input) matched nothing and the
+         padding written through it was silently dropped. The text inset comes
+         from --padding-start / --padding-end in global.scss, which is the only
+         mechanism that actually reaches the native control. */
+      .modal-input:focus-within {
+        border-color: var(--color-primary-ink) !important;
+      }
+      /* Pinned action bar: the button stays at the bottom while ion-content scrolls.
+
+         A HAIRLINE, not a shadow, and NO violet strip. The strip was there to
+         "close the modal off" — three pixels of brand violet along the bottom
+         edge of a sheet — which is the poster voice, and it put a second accent
+         under a form whose action is already the loudest thing in it. One
+         hairline says "the content stops here" and says nothing else. */
+      ion-footer {
+        box-shadow: none;
+        border-top: 1px solid var(--tile-powder-deep);
+        background: var(--color-white);
+        padding: 14px 24px 18px;
+      }
+      /* The quiet Close control in the header: a pill of plain type in the
+         primary ink, sentence case. It was a bare "CLOSE" in the toolbar's own
+         voice — uppercase, tracked out, the same shout the modal had all over
+         it. */
+      ion-button.close-btn {
+        --color: var(--color-primary-ink);
+        --background: transparent;
+        --background-hover: var(--tile-powder);
+        --background-hover-opacity: 1;
+        --border-radius: var(--radius-pill);
+        --padding-start: 14px;
+        --padding-end: 14px;
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: none;
+        letter-spacing: 0;
         margin: 0;
+      }
+      /* THE APP'S GOLD CTA, the same one the admin's pages use for their primary
+         action: an amber fill with plum ink, one radius, no border, no shadow.
+
+         THE HOVER IS TEAL, and the focus ring goes with it, for the same reason
+         the admin's gold CTAs do it: a teal outline drawn around a gold button
+         reads as a sticker around it; a teal fill is the button itself changing
+         state. */
+      .save-btn {
+        display: block;
+        width: 100%;
         min-height: 48px;
+        border: 0;
+        border-radius: var(--radius-pill);
+        background: var(--color-brand-accent);
+        color: var(--color-ink);
+        font: inherit;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0;
+        cursor: pointer;
+        transition:
+          background-color 0.15s ease,
+          color 0.15s ease;
+      }
+      .save-btn:hover:not(:disabled) {
+        background: var(--color-primary-ink);
+        color: var(--color-white);
+      }
+      .save-btn:focus-visible {
+        outline: 2px solid var(--color-primary-ink);
+        outline-offset: 2px;
+      }
+      .save-btn:disabled {
+        opacity: 0.55;
+        cursor: default;
       }
     `,
   ],

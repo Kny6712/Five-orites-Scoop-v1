@@ -36,27 +36,27 @@ import {
   IonSkeletonText,
   AlertController,
   ToastController,
+  ModalController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { VoucherFormModalComponent } from './voucher-form-modal.component';
 import { describeFirestoreError } from '@core/logic/firestore-error';
+import { CsvExportService } from '@core/services/commerce/csv-export.service';
+import { csvFilename, toCsv } from '@core/logic/csv/cell';
 import {
   Voucher,
-  VoucherType,
+  voucherDate,
   voucherUsability,
   type RedemptionStats,
 } from '@core/models/voucher.model';
-import { MAX_PERCENT_DISCOUNT } from '@core/models/voucher.model';
-import { toCsv, csvFilename } from '@core/logic/csv';
-import { CsvExportService } from '@core/services/csv-export.service';
 import {
   Firestore,
   collection,
   getDocs,
-  setDoc,
   doc,
   updateDoc,
   deleteDoc,
@@ -64,16 +64,7 @@ import {
   where,
   orderBy,
   limit,
-  deleteField,
 } from '@angular/fire/firestore';
-
-/** `YYYY-MM-DD` for a stored epoch ms, or '' when there is no date. */
-function toDateInput(ms?: number): string {
-  if (typeof ms !== 'number' || !Number.isFinite(ms)) return '';
-  const d = new Date(ms);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 /** Per-code totals joined from delivered orders. */
 type VoucherMetrics = Record<string, { orders: number; discount: number; revenue: number }>;
@@ -137,7 +128,8 @@ let metricsMemo: VoucherMetrics | null = null;
     AlertBannerComponent,
     EmptyStateComponent,
     PaginationComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
+    VoucherFormModalComponent,
   ],
   templateUrl: './admin-vouchers.page.html',
   styleUrls: ['./admin-vouchers.page.scss'],
@@ -146,33 +138,13 @@ export class AdminVouchersPage implements OnInit {
   private firestore = inject(Firestore);
   private alertCtrl = inject(AlertController);
   private toast = inject(ToastController);
+  private modalCtrl = inject(ModalController);
   private csvExport = inject(CsvExportService);
 
   vouchers = signal<Voucher[]>([]);
   isLoading = signal(true);
   errorMessage = signal('');
   busyCode = signal<string | null>(null);
-
-  // Editor state. A signal per field rather than a form object so the template
-  // can bind with ngModel without a forms framework.
-  editing = signal(false);
-  originalId = signal<string | null>(null);
-  code = '';
-  type: VoucherType = 'percent';
-  value = 10;
-  minOrder = 0;
-  isActive = true;
-
-  // ── Redemption limits (new) ──────────────────────────────────────────────
-  /* Empty string means "no limit" rather than 0, because 0 is a meaningful
-     value here: a maxRedemptions of 0 means the code is already spent out. The
-     distinction is lost the moment it is stored as a number, so it is preserved
-     on the way in. */
-  maxRedemptions = '';
-  perCustomerLimit = '';
-  /** ISO date strings, because that is what <input type="date"> speaks. */
-  startsAtDate = '';
-  expiresAtDate = '';
 
   /**
    * Per-code performance, joined from delivered orders.
@@ -186,10 +158,18 @@ export class AdminVouchersPage implements OnInit {
    * A WINDOW, not a lifetime: `METRICS_WINDOW` most recent delivered orders.
    */
   readonly stats = signal<VoucherMetrics>({});
-  readonly metricsLoading = signal(false);
 
-  /** Mirrors MAX_PERCENT_DISCOUNT, which the cart service enforces server-side. */
-  readonly maxPercent = MAX_PERCENT_DISCOUNT;
+  /**
+   * The in-flight performance join, so the export can wait for it.
+   *
+   * The export's last four columns are measured, not stored — they come from
+   * the join. Exporting while the join is still running would write zeros into
+   * a file that says "0 delivered orders", which is a claim about the shop
+   * rather than a gap in the file. So the export waits for this promise
+   * instead of racing it. It resolves immediately on a session hit, because the
+   * metrics are memoised.
+   */
+  private metricsPromise: Promise<void> = Promise.resolve();
 
   // ── Search & status filter ────────────────────────────────────────────────
   /* This page had no search and no filter: it listed every voucher, sorted by
@@ -226,41 +206,6 @@ export class AdminVouchersPage implements OnInit {
     this.showInactiveOnly.set(!this.showInactiveOnly());
     this.page.set(1);
   }
-
-  /**
-   * A worked example of what the voucher does.
-   *
-   * The question an admin actually has when creating a discount is "what will a
-   * customer pay", and neither the percent nor the fixed-amount number answers
-   * it on its own. This states it in words against a ₱500 basket, and shows the
-   * minimum-order case too when one is set — because a voucher that does nothing
-   * below ₱X is the easiest mistake to make here.
-   */
-  readonly example = computed(() => {
-    const type = this.type;
-    const value = Number(this.value);
-    const minOrder = Number(this.minOrder);
-    if (!Number.isFinite(value) || value <= 0) return null;
-
-    const BASKET = 500;
-    const apply = (subtotal: number): number => {
-      if (minOrder > 0 && subtotal < minOrder) return subtotal;
-      if (type === 'percent') {
-        const discount = Math.round(subtotal * (Math.min(value, this.maxPercent) / 100));
-        return subtotal - discount;
-      }
-      return subtotal - Math.min(value, subtotal);
-    };
-
-    const discounted = apply(BASKET);
-    return {
-      basket: BASKET,
-      total: discounted,
-      saved: BASKET - discounted,
-      belowMinimum: minOrder > 0 && BASKET < minOrder,
-      minOrder,
-    };
-  });
 
   /** Copy a code to the clipboard, for handing it to a customer directly. */
   async copyCode(voucher: Voucher): Promise<void> {
@@ -303,7 +248,9 @@ export class AdminVouchersPage implements OnInit {
 
   ngOnInit(): void {
     void this.load();
-    void this.loadMetrics();
+    // Kept, not just fired: the export waits on it so the file's measured
+    // columns carry numbers rather than zeros.
+    this.metricsPromise = this.loadMetrics();
   }
 
   /**
@@ -332,41 +279,124 @@ export class AdminVouchersPage implements OnInit {
     }
   }
 
-  startCreate(): void {
-    this.editing.set(true);
-    this.originalId.set(null);
-    this.code = '';
-    this.type = 'percent';
-    this.value = 10;
-    this.minOrder = 0;
-    this.isActive = true;
-    this.maxRedemptions = '';
-    this.perCustomerLimit = '';
-    this.startsAtDate = '';
-    this.expiresAtDate = '';
+  async startCreate(): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: VoucherFormModalComponent,
+      componentProps: { voucher: null, existingCodes: this.codesOfAll() },
+      cssClass: 'large-sheet-modal',
+    });
+    await modal.present();
+    const result = await modal.onDidDismiss();
+    if (result?.data?.saved) {
+      await this.load();
+      await this.toast
+        .create({
+          message: 'Voucher created.',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
+    }
   }
 
-  startEdit(voucher: Voucher): void {
-    this.editing.set(true);
-    this.originalId.set(voucher.id);
-    this.code = voucher.code;
-    this.type = voucher.type;
-    this.value = voucher.value;
-    this.minOrder = voucher.minOrder ?? 0;
-    this.isActive = voucher.isActive;
-    // Back to '' for "no limit", so an absent field does not open as 0 — which
-    // would save a voucher that was previously uncapped into one that is spent.
-    this.maxRedemptions =
-      typeof voucher.maxRedemptions === 'number' ? String(voucher.maxRedemptions) : '';
-    this.perCustomerLimit =
-      typeof voucher.perCustomerLimit === 'number' ? String(voucher.perCustomerLimit) : '';
-    this.startsAtDate = toDateInput(voucher.startsAt);
-    this.expiresAtDate = toDateInput(voucher.expiresAt);
+  /**
+   * The codes of every voucher in the shop, for the collision check.
+   *
+   * From the UNFILTERED list, not the filtered one: the search box narrows what
+   * the owner is LOOKING at, and it must not decide which codes exist.
+   */
+  private codesOfAll(): string[] {
+    return this.vouchers().map((v) => v.code);
   }
 
-  cancelEdit(): void {
-    this.editing.set(false);
-    this.originalId.set(null);
+  /**
+   * Opens the voucher editor on an EXISTING code.
+   *
+   * The same modal the "+ New" button opens, seeded with the record — the form
+   * component already accepted a voucher for exactly this and the only thing
+   * missing was the entry point. Editing is therefore not a second dialog: it is
+   * the same one with a different question behind it.
+   *
+   * The toast says "updated" rather than "created" because the two paths are
+   * otherwise identical, and telling the owner they created a voucher they
+   * merely edited would be a lie about what changed.
+   */
+  async startEdit(voucher: Voucher): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: VoucherFormModalComponent,
+      componentProps: {
+        voucher,
+        // Every code EXCEPT the one being edited, so saving a code over itself
+        // is not treated as a collision.
+        existingCodes: this.codesOfAll().filter((c) => c !== voucher.code),
+      },
+      cssClass: 'large-sheet-modal',
+    });
+    await modal.present();
+    const result = await modal.onDidDismiss();
+    if (result?.data?.saved) {
+      await this.load();
+      await this.toast
+        .create({
+          message: 'Voucher updated.',
+          color: 'success',
+          duration: 2000,
+          position: 'top',
+        })
+        .then((t) => t.present());
+    }
+  }
+
+  /**
+   * Exports the voucher's own file.
+   *
+   * WHAT REPLACED THE IMPORT MODAL
+   * This button used to open a "Bulk import vouchers" sheet: a CSV picker, a
+   * template download and a performance report. That sheet is gone — the owner
+   * asked for it, and a toolbar button that opens a dialog whose title is a
+   * different verb than the button's own label is a trap, not a feature.
+   *
+   * So the button now does what it says: it writes the shop's vouchers to a
+   * CSV. Everything the sheet could do that still matters is in the file —
+   * every code, with its discount, its caps, its window, and how it has sold.
+   *
+   * THE COLUMNS ARE THE TEMPLATE'S.
+   * Same names, same order, same `YYYY-MM-DD` dates as the old
+   * `VOUCHER_CSV_TEMPLATE`, so a file exported here has the shape the shop's
+   * CSV contract describes.
+   *
+   * There is NO IMPORTER BEHIND IT ANY MORE. The bulk-import sheet was
+   * removed at the owner's request, and the parser that used to read these
+   * files went with it — 394 lines of reachable-looking code that no page
+   * could open. The columns are kept in that shape so a file exported today
+   * can still be read by whatever tool the shop already has, and so a future
+   * importer does not have to learn a second format.
+   *
+   * EVERY VOUCHER, NOT THE FILTERED ONES. The filter narrows what the owner is
+   * LOOKING at; a file that silently contained only the codes matching the
+   * search box would be a trap of its own — the owner would export while a
+   * search was on and get a file they did not expect. Every other admin export
+   * mirrors the list it was clicked from, and this one mirrors the whole shop.
+   */
+  async exportCsv(): Promise<void> {
+    // Wait for the performance join first: the file's last four columns are
+    // measured, and a file written mid-join would say "0 delivered orders"
+    // about a code that has sold all month.
+    await this.metricsPromise;
+
+    const result = await this.csvExport.export(toCsv(this.exportRows()), csvFilename('vouchers'));
+    const count = this.vouchers().length;
+    void this.toast
+      .create({
+        message: result.ok
+          ? `Exported ${count} voucher${count === 1 ? '' : 's'}.`
+          : `Export failed${result.error ? `: ${result.error}` : ''}.`,
+        color: result.ok ? 'success' : 'danger',
+        duration: 3200,
+        position: 'top',
+      })
+      .then((t) => t.present());
   }
 
   /**
@@ -390,11 +420,10 @@ export class AdminVouchersPage implements OnInit {
   async loadMetrics(): Promise<void> {
     if (metricsMemo) {
       // Session hit: the aggregate cannot have moved in a way this page caused,
-      // so this is free and must not flash the metrics spinner.
+      // so this is free.
       this.stats.set(metricsMemo);
       return;
     }
-    this.metricsLoading.set(true);
     try {
       const snap = await getDocs(
         query(
@@ -434,8 +463,6 @@ export class AdminVouchersPage implements OnInit {
       // Metrics are an enhancement on top of a working editor; failing to read
       // them must not blank the voucher list. Not memoised, so a retry re-reads.
       this.stats.set({});
-    } finally {
-      this.metricsLoading.set(false);
     }
   }
 
@@ -467,190 +494,59 @@ export class AdminVouchersPage implements OnInit {
     };
   }
 
-  /** Best sellers first, so the report answers "what works?" unprompted. */
-  readonly ranked = computed(() =>
-    this.vouchers()
-      .map((v) => this.statsFor(v))
-      .sort((a, b) => {
-        // Untracked codes sort last rather than first: sorting on 0 would put a
-        // code with no data above one that demonstrably sold 40 times.
-        if (a.untracked !== b.untracked) return a.untracked ? 1 : -1;
-        return (b.discountGiven || b.revenue) - (a.discountGiven || a.revenue);
-      }),
-  );
-
-  async exportReport(): Promise<void> {
-    const rows = [
-      ['code', 'state', 'uses', 'delivered_orders', 'discount_given', 'revenue_affected'],
-      ...this.ranked().map((s) => [
-        s.voucher.code,
+  /**
+   * The export, as CSV rows.
+   *
+   * ONE ROW PER VOUCHER, in the order the page lists them (by code), because a
+   * file that reads in a different order from the screen it came off is a file
+   * the owner has to re-sort before they can check it against the screen.
+   *
+   * The voucher's own fields come first and the measured ones follow, so the
+   * file answers two questions in one: "what codes do I have?" and "which ones
+   * sell?" — the second was the performance report the import sheet used to
+   * own.
+   *
+   * "not tracked" rather than 0 for a code with no usageCount: a code nobody
+   * has counted is a different statement from a code nobody has used, and the
+   * row on screen says the same thing.
+   */
+  readonly exportRows = computed<readonly (readonly (string | number)[])[]>(() => [
+    [
+      'code',
+      'type',
+      'value',
+      'min_order',
+      'max_redemptions',
+      'per_customer_limit',
+      'starts_at',
+      'expires_at',
+      'is_active',
+      'state',
+      'uses',
+      'delivered_orders',
+      'discount_given',
+      'revenue_affected',
+    ],
+    ...this.vouchers().map((v) => {
+      const s = this.statsFor(v);
+      return [
+        v.code,
+        v.type,
+        v.value,
+        v.minOrder ?? '',
+        v.maxRedemptions ?? '',
+        v.perCustomerLimit ?? '',
+        voucherDate(v.startsAt),
+        voucherDate(v.expiresAt),
+        v.isActive ? 'yes' : 'no',
         s.state,
         s.untracked ? 'not tracked' : (s.uses ?? 0),
         s.orders,
         s.discountGiven,
         s.revenue,
-      ]),
-    ];
-    const result = await this.csvExport.export(toCsv(rows), csvFilename('voucher-performance'));
-    void this.toast
-      .create({
-        message: result.ok
-          ? 'Exported voucher performance.'
-          : `Export failed${result.error ? `: ${result.error}` : ''}.`,
-        color: result.ok ? 'success' : 'danger',
-        duration: result.ok ? 2200 : 3200,
-        position: 'top',
-      })
-      .then((t) => t.present());
-  }
-
-  /**
-   * Validates before writing.
-   *
-   * The client checks here are for the ADMIN's benefit — an immediate, specific
-   * message beats a round-trip rejection. They are not the security boundary:
-   * `calculateDiscount` clamps a percent to 90 and a fixed value to the subtotal
-   * regardless, so a hand-crafted write cannot produce a negative total. The real
-   * boundary is that only an admin can write here at all.
-   */
-  private validate(): string | null {
-    const normalized = this.code.trim().toUpperCase();
-    if (!normalized) return 'Enter a voucher code.';
-    if (!/^[A-Z0-9_-]{3,24}$/.test(normalized)) {
-      return 'Use 3–24 letters, numbers, dashes or underscores.';
-    }
-    if (!Number.isFinite(this.value) || this.value <= 0) {
-      return 'Enter a discount value greater than zero.';
-    }
-    if (this.type === 'percent' && this.value > this.maxPercent) {
-      return `A percentage discount cannot exceed ${this.maxPercent}%.`;
-    }
-    if (this.minOrder < 0) return 'Minimum order cannot be negative.';
-    // A window that ends before it starts can never apply, and it is always a
-    // typo rather than an intention.
-    if (
-      this.startsAtDate &&
-      this.expiresAtDate &&
-      this.fromDateInput(this.expiresAtDate) <= this.fromDateInput(this.startsAtDate)
-    ) {
-      return 'The expiry date must be after the start date.';
-    }
-    for (const [label, raw] of [
-      ['Max redemptions', this.maxRedemptions],
-      ['Per-customer limit', this.perCustomerLimit],
-    ] as const) {
-      if (raw === '') continue;
-      const n = Number(raw);
-      if (!Number.isInteger(n) || n < 0) return `${label} must be a whole number of 0 or more.`;
-    }
-    return null;
-  }
-
-  private toCount(raw: string): number {
-    const n = Number(raw);
-    return Number.isInteger(n) && n >= 0 ? n : 0;
-  }
-
-  /**
-   * The stored redemption count for the code being edited, or null when the code
-   * predates tracking.
-   *
-   * Read live from `vouchers` rather than copied into a field, so a redemption
-   * that lands while the editor is open is reflected rather than overwritten on
-   * save.
-   */
-  usageOf(): number | null {
-    const id = this.originalId();
-    if (!id) return null;
-    const found = this.vouchers().find((v) => v.id === id);
-    return typeof found?.usageCount === 'number' ? found.usageCount : null;
-  }
-
-  /** `YYYY-MM-DD` (what the date input speaks) → epoch ms at local midnight. */
-  private fromDateInput(iso: string): number {
-    const [y, m, d] = iso.split('-').map(Number);
-    return new Date(y, (m ?? 1) - 1, d ?? 1).getTime();
-  }
-
-  async save(): Promise<void> {
-    const problem = this.validate();
-    if (problem) {
-      this.errorMessage.set(problem);
-      return;
-    }
-
-    const normalized = this.code.trim().toUpperCase();
-    const originalId = this.originalId();
-
-    // Codes are the user-facing identity, so a duplicate is rejected up front
-    // with a clear message. The document id is derived from the code, so a
-    // collision would otherwise silently overwrite the existing voucher.
-    if (!originalId) {
-      const clash = this.vouchers().find((v) => v.code === normalized);
-      if (clash) {
-        this.errorMessage.set(`${normalized} already exists.`);
-        return;
-      }
-    }
-
-    this.busyCode.set(normalized);
-    this.errorMessage.set('');
-    try {
-      const payload: Record<string, unknown> = {
-        code: normalized,
-        type: this.type,
-        value: this.value,
-        minOrder: this.minOrder > 0 ? this.minOrder : null,
-        isActive: this.isActive,
-        // `deleteField` on an emptied limit, NOT a stored 0. A voucher with no
-        // `maxRedemptions` is uncapped; one stored as 0 is spent out and would
-        // silently stop working the first time an admin cleared the field.
-        ...(this.maxRedemptions === ''
-          ? { maxRedemptions: deleteField() }
-          : { maxRedemptions: this.toCount(this.maxRedemptions) }),
-        ...(this.perCustomerLimit === ''
-          ? { perCustomerLimit: deleteField() }
-          : { perCustomerLimit: this.toCount(this.perCustomerLimit) }),
-        ...(this.startsAtDate
-          ? { startsAt: this.fromDateInput(this.startsAtDate) }
-          : { startsAt: deleteField() }),
-        ...(this.expiresAtDate
-          ? { expiresAt: this.fromDateInput(this.expiresAtDate) }
-          : { expiresAt: deleteField() }),
-      };
-      // A code change means a different document: keyed by code, so editing
-      // SCOOP10 to SCOOP20 must remove the old one. Otherwise the old code would
-      // linger, still valid, and invisible in the list.
-      //
-      // The redemption count is CARRIED OVER on a rename. It is a property of the
-      // PROMOTION, not of the spelling; losing it would let an admin reset a
-      // spent-out code's cap by renaming it, which is the one thing a cap is for.
-      const targetId = normalized;
-      if (originalId && originalId !== targetId) {
-        const previous = this.vouchers().find((v) => v.id === originalId);
-        if (typeof previous?.usageCount === 'number') {
-          payload['usageCount'] = previous.usageCount;
-        }
-        await deleteDoc(doc(this.firestore, `vouchers/${originalId}`));
-      }
-      await setDoc(doc(this.firestore, `vouchers/${targetId}`), payload, { merge: true });
-
-      this.cancelEdit();
-      await this.load();
-      await this.toast
-        .create({
-          message: `${normalized} saved.`,
-          color: 'success',
-          duration: 2000,
-          position: 'top',
-        })
-        .then((t) => t.present());
-    } catch (err) {
-      this.errorMessage.set(describeFirestoreError('the voucher', err));
-    } finally {
-      this.busyCode.set(null);
-    }
-  }
+      ];
+    }),
+  ]);
 
   /**
    * Flip a voucher's active state.

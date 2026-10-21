@@ -135,10 +135,17 @@
 
       1. A PARTIAL LAST ROW LEFT A HOLE. Five developers in a three-column grid
          is 3 + 2, and the empty third slot measured 331px at 1024px, 349px at
-         1440px and 460px at 1900px — it GREW with the viewport, which is
+         1440px and 460px at 1900px - it GREW with the viewport, which is
          backwards. `justify-content: center` centres a partial row at every
          column count, so this stops being a number that has to be re-checked
          each time the team changes size.
+
+         Those hole widths were measured with five people, which is why they are
+         left as written rather than restated for four. Four in three columns is
+         3 + 1, and a lone card leaves a gap twice the width of the one above -
+         so this decision holds for the current team rather than needing revisiting.
+         The widths themselves are not re-derived, because nothing here can measure
+         a live DOM and a number invented from arithmetic would read as observed.
 
       2. CARDS IN THE SAME ROW DID NOT MATCH HEIGHT. Card height follows the
          role-chip count: 2 chips is one row and 193px, 4-5 chips is two rows and
@@ -200,9 +207,15 @@
                       It also drops the double `getRoleColor()` call per chip that
                       the `[outline]` binding was making.
                     -->
-                <ion-chip class="role-chip" [ngClass]="roleClass(role)">
-                  <ion-label>{{ role }}</ion-label>
-                </ion-chip>
+                <!--
+                  A plain <span>, not an <ion-chip>: ion-chip hard-codes a 16px
+                  border-radius and exposes no custom property for it, so a
+                  rectangular chip cannot be one. `role-chip` keeps the size and the
+                  type; the box and the 12px radius are the global `.chip` class.
+                -->
+                <span class="chip role-chip" [ngClass]="roleClass(role)">
+                  <span class="role-chip-text">{{ role }}</span>
+                </span>
               }
             </div>
           </div>
@@ -233,12 +246,19 @@
       `color="primary"` — see the contrast note on that rule. The role chips
       above were measured at 1.11:1 to 1.31:1 before they were fixed, and this
       is the same failure waiting to happen.
+
+      Both chips here are plain `<span>`s now rather than `<ion-chip>`s: ion-chip
+      hard-codes a 16px border-radius and exposes no custom property for it, so a
+      rectangular chip cannot be one. The ink is now set with a plain `color`
+      rather than `--color`, for the same reason --color existed only as ion-chip's
+      paint instruction. The measured contrast ratios are unaffected: the same ink
+      on the same tint, reached by a different declaration.
     -->
     <div class="tech-chips">
       @for (tech of techStack; track tech) {
-        <ion-chip class="tech-chip">
-          <ion-label>{{ tech }}</ion-label>
-        </ion-chip>
+        <span class="chip tech-chip">
+          <span class="tech-chip-text">{{ tech }}</span>
+        </span>
       }
     </div>
 

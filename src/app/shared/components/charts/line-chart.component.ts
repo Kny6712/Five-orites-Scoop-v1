@@ -94,23 +94,34 @@ export interface LinePoint {
       }
 
       .grid {
-        stroke: var(--ion-color-light);
+        /* The gridlines were --ion-color-light (#F2F7FA), which measures 1.08:1
+           on a white card — no line at all. --tile-powder is 1.15:1, which
+           draws a gridline without competing with the data. */
+        stroke: var(--tile-powder);
         stroke-width: 1;
         vector-effect: non-scaling-stroke;
       }
 
+      /* THE LINE IS THE MESSAGE, so the line is drawn in the app's value ink.
+
+         It was --color-brand-primary (#A3B5F0), a pastel, which measures 2.01:1
+         against the card: a trend chart whose whole content is the SHAPE of a
+         line, drawn in a colour that barely differs from the paper. The navy
+         measures 7.12:1 on white and 6.82:1 on cream. */
       .line {
         fill: none;
-        stroke: var(--color-brand-primary);
+        stroke: var(--color-primary-ink);
         stroke-width: 2.5;
         stroke-linecap: round;
         stroke-linejoin: round;
         vector-effect: non-scaling-stroke;
       }
 
+      /* The same hue as the line, at a tenth — the shape under it, not a second
+         colour competing with the stroke. */
       .area {
-        fill: var(--color-brand-primary);
-        opacity: 0.16;
+        fill: var(--color-primary-ink);
+        opacity: 0.1;
       }
 
       .line.animated,
@@ -125,7 +136,7 @@ export interface LinePoint {
       }
 
       .dot {
-        fill: var(--color-brand-primary);
+        fill: var(--color-primary-ink);
         stroke: var(--color-white);
         stroke-width: 1.5;
       }

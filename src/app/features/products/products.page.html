@@ -1,6 +1,23 @@
 <!-- src/app/features/products/products.page.html -->
 <!-- Five-orites Scoop — Product Catalog Template -->
 
+<!--
+  The CUSTOMER header: the candy stripe, the retro script and the gold
+  sticker. It is the client side's general header — the storefront's
+  shopfront — and it is deliberately NOT the admin side's flat white one.
+
+  It was flattened once, on the reading that a stripe is a gradient and a
+  sticker is a hard offset shadow, and both of those are true. But the brand
+  is the point on this side of the app, and a customer who has not seen the
+  admin panel should not be told which side of the app they are on by the
+  colour of the bar above the page. So the stripe and the script came back,
+  and the flat vocabulary was applied to the parts of the header that were
+  never brand: the elevation shadow underneath it, and the cart button.
+
+  THE HEADER IS ONE HEADER. Every customer page carries this same toolbar —
+  the stripe, the script, the title size — and the only thing that differs
+  between them is the title. That is the point of a general header.
+-->
 <ion-header>
   <ion-toolbar>
     <ion-buttons slot="start">
@@ -31,72 +48,62 @@
         aria-label="Search ice cream flavors"
       ></ion-searchbar>
 
+      <!--
+        THE MOBILE FILTER TRIGGER.
+
+        It is `display: none` in the base rules and only becomes visible inside
+        the phone tier's container query, so the desktop band cannot render it
+        even by accident.
+
+        It exists because of a measurement, not a preference. The band used to
+        be five stacked rows — a 36px search, a 36px Flavors box, a 36px pair, a
+        34px pair and a 48px sort row — which is 234px of sticky furniture on
+        an 800px phone. Twenty-nine percent of the screen, permanently, with
+        the controls squeezed into it.
+
+        No amount of gap tuning fixes that: the controls did not get more room
+        by being squeezed, they got LESS room, and the space they lost is why
+        the band read as one congested mass.
+
+        So on a phone the controls leave the band. What stays is the search and
+        the sort — the two things worth having on screen at all times — and the
+        filters live in a sheet where each one is a 48px line with a 12px gap.
+      -->
+      <button type="button" class="filter-trigger" (click)="openFilterSheet()">
+        <app-icon name="filter"></app-icon>
+        <span class="filter-trigger-text">Filters</span>
+        @if (activeFilterCount() > 0) {
+          <span class="filter-trigger-count">{{ activeFilterCount() }}</span>
+        }
+      </button>
+
+      <!--
+        THE FILTERS, RENDERED FROM ONE TEMPLATE.
+
+        `<ng-template>` + `ngTemplateOutlet` rather than a child component, and
+        the reason is worth recording.
+
+        A child component would have been tidier, but Angular's emulated
+        encapsulation gives the child's elements the CHILD's `_ngcontent-…`
+        attribute, not this page's — so every `@container` tier in
+        products.page.scss (the phone tier, the tablet tier, the desktop tier)
+        would stop matching them. The container queries would still resolve by
+        DOM position, but the rules would be scoped to the wrong component and
+        would silently match nothing.
+
+        A rule that matches nothing looks exactly like a rule that works.
+        Nothing fails, so nothing is reported. That is the same trap the admin
+        tables fell into with their `data-label` markup.
+
+        `ngTemplateOutlet` renders the template in THIS page's scope, so every
+        tier keeps applying, to both copies, from one piece of markup.
+
+        The `uid` context makes the element ids unique per copy — two elements
+        cannot share an id, and the sheet and the band are both in the document
+        while the sheet is open.
+      -->
       <div class="filters">
-        <div class="select-panel">
-          <div class="select-row flavor-row">
-            <span class="select-label">Flavors</span>
-            <ion-select
-              id="flavor-select"
-              class="select-control"
-              interface="popover"
-              [value]="effectiveSet()"
-              (ionChange)="onFlavorSetChange($event)"
-              aria-label="Filter by flavor set"
-            >
-              @for (opt of setChips(); track opt.label) {
-                <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-              }
-            </ion-select>
-          </div>
-
-          <div class="select-row">
-            <span class="select-label">Size</span>
-            <ion-select
-              id="size-select"
-              class="select-control"
-              interface="popover"
-              [value]="selectedSize()"
-              (ionChange)="onSizeChange($event)"
-              aria-label="Filter by size"
-            >
-              @for (opt of sizeOptions; track opt.label) {
-                <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-              }
-            </ion-select>
-          </div>
-
-          <div class="select-row">
-            <span class="select-label">Max price</span>
-            <ion-select
-              id="max-price-select"
-              class="select-control"
-              interface="popover"
-              [value]="maxPrice()"
-              (ionChange)="onMaxPriceChange($event)"
-              aria-label="Maximum price"
-            >
-              @for (opt of maxPriceOptions; track opt.label) {
-                <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
-              }
-            </ion-select>
-          </div>
-        </div>
-
-        <div class="switch-rows">
-          <div class="switch-row">
-            <app-icon name="package" class="switch-icon" />
-            <ion-toggle class="switch-toggle" [checked]="inStockOnly()" (ionChange)="onInStockToggle($event)"
-              >In stock only</ion-toggle
-            >
-          </div>
-
-          <div class="switch-row">
-            <app-icon name="heart" class="switch-icon" />
-            <ion-toggle class="switch-toggle" [checked]="wishlistOnly()" (ionChange)="onWishlistToggle($event)"
-              >Wishlist only</ion-toggle
-            >
-          </div>
-        </div>
+        <ng-container *ngTemplateOutlet="filterControls; context: bandContext"></ng-container>
       </div>
 
       <div class="filter-actions">
@@ -107,6 +114,7 @@
             (ionChange)="onSortChange($event)"
             aria-labelledby="sort-label"
             class="sort-segment"
+            scrollable="true"
           >
             @for (opt of sortOptions; track opt.value) {
               <ion-segment-button [value]="opt.value" [attr.aria-label]="opt.label">
@@ -133,6 +141,87 @@
       </div>
     </div>
   </div>
+
+  <!--
+    THE FIVE CONTROLS, WRITTEN ONCE.
+
+    Rendered into the band on desktop and into the sheet on a phone, from this
+    one template. The values and the handlers are the page's own signals, so the
+    two copies cannot disagree: whichever one the user touches writes the same
+    state, and the grid behind re-filters live.
+
+    `let-uid` gives each copy its own element ids.
+  -->
+  <ng-template #filterControls let-uid="uid" let-justify="justify">
+    <div class="select-panel">
+      <div class="select-row flavor-row">
+        <span class="select-label">Flavors</span>
+        <ion-select
+          [id]="'flavor-select-' + uid"
+          class="select-control"
+          interface="popover"
+          [justify]="justify"
+          [value]="effectiveSet()"
+          (ionChange)="onFlavorSetChange($event)"
+          aria-label="Filter by flavor set"
+        >
+          @for (opt of setChips(); track opt.label) {
+            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+          }
+        </ion-select>
+      </div>
+
+      <div class="select-row">
+        <span class="select-label">Size</span>
+        <ion-select
+          [id]="'size-select-' + uid"
+          class="select-control"
+          interface="popover"
+          [justify]="justify"
+          [value]="selectedSize()"
+          (ionChange)="onSizeChange($event)"
+          aria-label="Filter by size"
+        >
+          @for (opt of sizeOptions; track opt.label) {
+            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+          }
+        </ion-select>
+      </div>
+
+      <div class="select-row">
+        <span class="select-label">Max price</span>
+        <ion-select
+          [id]="'max-price-select-' + uid"
+          class="select-control"
+          interface="popover"
+          [justify]="justify"
+          [value]="maxPrice()"
+          (ionChange)="onMaxPriceChange($event)"
+          aria-label="Maximum price"
+        >
+          @for (opt of maxPriceOptions; track opt.label) {
+            <ion-select-option [value]="opt.value">{{ opt.label }}</ion-select-option>
+          }
+        </ion-select>
+      </div>
+    </div>
+
+    <div class="switch-rows">
+      <div class="switch-row">
+        <app-icon name="package" class="switch-icon" />
+        <ion-toggle class="switch-toggle" [checked]="inStockOnly()" (ionChange)="onInStockToggle($event)"
+          >In stock only</ion-toggle
+        >
+      </div>
+
+      <div class="switch-row">
+        <app-icon name="heart" class="switch-icon" />
+        <ion-toggle class="switch-toggle" [checked]="wishlistOnly()" (ionChange)="onWishlistToggle($event)"
+          >Wishlist only</ion-toggle
+        >
+      </div>
+    </div>
+  </ng-template>
 
   <!-- Loading Skeleton -->
   @if (isLoading()) {
@@ -200,3 +289,69 @@
   }
   <app-footer></app-footer>
 </ion-content>
+
+<!--
+  THE FILTER SHEET.
+
+  Ionic 7's own `.modal-sheet` class docks the panel to the bottom edge of the
+  screen; `--height` decides how much of it there is.
+
+  It is a SIBLING of `<ion-content>`, not a child of it, and that is not
+  incidental. `ion-content` scrolls, and an overlay inside a scroll container
+  inherits its clipping. The overlay belongs to the app, not to the page's
+  scroll box.
+
+  It is also outside `.filter-shell`, which is deliberate in the other
+  direction. `.filter-shell` declares `container-type: inline-size`, and
+  `container-type` implies `contain: layout` — which makes the shell a
+  containing block for `position: fixed` descendants. A modal inside it would
+  be sized and placed against the shell (a strip 111px tall), not against the
+  viewport.
+
+  The controls in here are rendered from the SAME `<ng-template>` as the band's,
+  so the sheet and the band can never drift apart, and the values are the page's
+  own signals, so the grid behind re-filters live as the sheet is used.
+-->
+<ion-modal class="modal-sheet filter-sheet" [isOpen]="filterSheetOpen()" (didDismiss)="closeFilterSheet()">
+  <!--
+    THE CONTENT GOES IN AN `<ng-template>`, and that is Ionic Angular's
+    contract, not a stylistic choice.
+
+    `IonModal` queries its first descendant `TemplateRef` and renders THAT:
+
+      queries: [{ propertyName: "template", first: true,
+                  predicate: TemplateRef, descendants: true }]
+
+    Plain elements projected into `<ion-modal>` are not rendered at all — the
+    modal opens empty and shows nothing. The admin's status popover uses the
+    same `<ng-template>` wrapper, which is where the pattern came from.
+  -->
+  <ng-template>
+    <div class="sheet-panel">
+      <div class="sheet-handle" aria-hidden="true"></div>
+
+      <div class="sheet-head">
+        <h2 class="sheet-title" id="filter-sheet-title">Filters</h2>
+        <button type="button" class="sheet-close" (click)="closeFilterSheet()" aria-label="Close filters">
+          <app-icon name="x"></app-icon>
+        </button>
+      </div>
+
+      <div class="sheet-controls">
+        <ng-container *ngTemplateOutlet="filterControls; context: sheetContext"></ng-container>
+      </div>
+
+      <div class="sheet-footer">
+        <button
+          type="button"
+          class="sheet-clear"
+          (click)="clearFilterSelections()"
+          [disabled]="activeFilterCount() === 0"
+        >
+          Clear filters
+        </button>
+        <button type="button" class="sheet-apply" (click)="closeFilterSheet()">Show results</button>
+      </div>
+    </div>
+  </ng-template>
+</ion-modal>

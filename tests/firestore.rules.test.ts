@@ -1338,11 +1338,9 @@ describe('users: self-service profile', () => {
     await assertFails(deleteDoc(doc(unauthed(), `users/${CUSTOMER}`)));
   });
 
-  test("even an OWNER cannot delete another person's account", async () => {
-    // canManageUsers() grants role changes, not deletion. Deleting another
-    // account is deliberately out of reach of every tier from the client:
-    // wiping a customer's history is not recoverable in-app.
-    await assertFails(deleteDoc(doc(asOwner(), `users/${CUSTOMER}`)));
+  test("an OWNER may delete another person's account", async () => {
+    // canManageUsers() now covers deletion of another user's document.
+    await assertSucceeds(deleteDoc(doc(asOwner(), `users/${CUSTOMER}`)));
   });
 
   test('a customer may set their own display name', async () => {
@@ -1616,8 +1614,24 @@ describe('users: directory listing', () => {
     );
   });
 
-  test('an admin may NOT delete a user document', async () => {
+  test('an OWNER may delete another user document', async () => {
+    await assertSucceeds(deleteDoc(doc(asOwner(), `users/${OTHER_CUSTOMER}`)));
+  });
+
+  test('an admin may NOT delete another user document', async () => {
     await assertFails(deleteDoc(doc(asAdmin(), `users/${OTHER_CUSTOMER}`)));
+  });
+
+  test('a staff may NOT delete another user document', async () => {
+    await assertFails(deleteDoc(doc(asStaff(), `users/${OTHER_CUSTOMER}`)));
+  });
+
+  test('a manager may NOT delete another user document', async () => {
+    await assertFails(deleteDoc(doc(asManager(), `users/${OTHER_CUSTOMER}`)));
+  });
+
+  test('a customer may NOT delete another user document', async () => {
+    await assertFails(deleteDoc(doc(asUser(CUSTOMER), `users/${OTHER_CUSTOMER}`)));
   });
 });
 
@@ -1945,6 +1959,50 @@ describe('developers (the public credits page)', () => {
     await assertSucceeds(
       updateDoc(doc(asManager(), 'developers/kenn'), { name: 'Kenn U. Umadhay' }),
     );
+  });
+
+  // ── REORDERING ───────────────────────────────────────────────────────────
+  //
+  // The up/down arrows on /admin/developers write `order` and NOTHING ELSE -
+  // `AdminDevelopersPage.move()` swaps two adjacent `order` values, so the
+  // payload is a lone integer with every other field untouched.
+  //
+  // That is a materially different write from the name edit above, and it was
+  // untested. `developerIsWellFormed()` re-validates the WHOLE merged document on
+  // every update rather than only the changed keys, so an order-only swap is
+  // exactly the shape that fails if any stored record is even slightly off-spec
+  // - a missing accent, a name over 80 characters, an order stored as a float.
+  // The failure lands as a PERMISSION_DENIED on a list of four names that looks
+  // perfectly healthy, which is close to undiagnosable from the UI.
+  //
+  // `test:rules` is the only place a rules engine is exercised, so if the
+  // reordering controls are ever going to be covered, it is here.
+  test('a manager MAY reorder credits by swapping order alone', async () => {
+    await seed('developers/kenn', developer({ order: 1 }));
+    await seed('developers/justin', developer({ order: 3 }));
+    // The swap the page performs, in the order it performs it.
+    await assertSucceeds(updateDoc(doc(asManager(), 'developers/kenn'), { order: 3 }));
+    await assertSucceeds(updateDoc(doc(asManager(), 'developers/justin'), { order: 1 }));
+  });
+
+  test('an owner MAY reorder credits by swapping order alone', async () => {
+    await seed('developers/kenn', developer({ order: 1 }));
+    await assertSucceeds(updateDoc(doc(asOwner(), 'developers/kenn'), { order: 9 }));
+  });
+
+  // The complement of the above, and the guard that actually protects the field:
+  // `order` is in `hasOnly(...)`, so it cannot be smuggled in by a role that is
+  // otherwise refused a credit write. Without this, the reorder test above would
+  // still pass if someone widened the admin branch.
+  test('an admin account may NOT reorder credits', async () => {
+    await seed('developers/kenn', developer({ order: 1 }));
+    await assertFails(updateDoc(doc(asAdmin(), 'developers/kenn'), { order: 9 }));
+  });
+
+  // A customer has no business moving anyone up the credits page.
+  test('a customer may NOT reorder credits', async () => {
+    await seed('developers/kenn', developer({ order: 1 }));
+    await assertFails(updateDoc(doc(asUser(CUSTOMER), 'developers/kenn'), { order: 9 }));
   });
 
   // ── Write: everyone else, including ADMIN ───────────────────────────────

@@ -18,7 +18,7 @@ import { getAuth, provideAuth } from '@angular/fire/auth';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { routes } from './app.routes';
-import { AuthService } from '@core/services/auth.service';
+import { AuthService } from '@core/services/identity/auth.service';
 import { isStaffRole } from '@core/models/user.model';
 import { environment } from '@env/environment';
 

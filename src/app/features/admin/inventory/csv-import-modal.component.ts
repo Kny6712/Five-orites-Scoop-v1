@@ -31,12 +31,16 @@ import {
   ToastController,
 } from '@ionic/angular/standalone';
 
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { InventoryService } from '@core/services/inventory.service';
-import { CsvExportService } from '@core/services/csv-export.service';
-import { parseProductCsv, PRODUCT_CSV_TEMPLATE, type ImportPlan } from '@core/logic/csv-import';
-import { csvFilename } from '@core/logic/csv';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { CsvExportService } from '@core/services/commerce/csv-export.service';
+import {
+  parseProductCsv,
+  PRODUCT_CSV_TEMPLATE,
+  type ImportPlan,
+} from '@core/logic/csv/product-import';
+import { csvFilename } from '@core/logic/csv/cell';
 
 @Component({
   selector: 'app-csv-import-modal',
@@ -71,11 +75,19 @@ import { csvFilename } from '@core/logic/csv';
         </p>
         <input #csvInput type="file" accept=".csv,text/csv" hidden (change)="onCsvPicked($event)" />
         <div class="actions">
-          <ion-button size="small" (click)="csvInput.click()">Choose CSV file</ion-button>
-          <ion-button size="small" fill="clear" (click)="downloadTemplate()">
-            <app-icon name="download" slot="start" />
-            Template
-          </ion-button>
+          <!--
+            The app's amber CTA, as a plain <button>.
+
+            It was an "ion-button", which paints its fill on an inner shadow-root
+            element: the Material elevation shadow and the uppercase md scale
+            were both out of reach of a stylesheet outside the component, and
+            the result was a "CHOOSE CSV FILE" in periwinkle sitting beside the
+            flat file button.
+          -->
+          <button type="button" class="cta" (click)="csvInput.click()">Choose CSV file</button>
+          <button type="button" class="csv-btn" (click)="downloadTemplate()">
+            <app-icon name="file" />Template
+          </button>
         </div>
         <details class="help">
           <summary>Which columns?</summary>
@@ -188,6 +200,29 @@ import { csvFilename } from '@core/logic/csv';
         gap: 8px;
         flex-wrap: wrap;
         margin-bottom: 12px;
+        align-items: center;
+      }
+      /* The app's amber CTA: --color-brand-accent fill, --color-ink ink, one
+         radius, no border, no shadow. The hover is a dimming and nothing
+         else. */
+      .cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 36px;
+        padding: 0 16px;
+        border: 0;
+        border-radius: var(--radius-pill);
+        background: var(--color-brand-accent);
+        color: var(--color-ink);
+        font: inherit;
+        font-size: 13px;
+        font-weight: 800;
+        cursor: pointer;
+        transition: filter 0.15s ease;
+      }
+      .cta:hover {
+        filter: brightness(0.96);
       }
       .errors {
         margin: 8px 0 12px;

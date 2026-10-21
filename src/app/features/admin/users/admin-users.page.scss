@@ -1,53 +1,91 @@
-// ── Filters ─────────────────────────────────────────────
-.filters {
-  padding: var(--space-4) var(--space-4) var(--space-2);
-}
+// src/app/features/admin/users/admin-users.page.scss
 
-.search-wrap {
+@use '../../../shared/styles/stacked-table' as *;
+
+// ── The toolbar ───────────────────────────────────────────
+/* THE FILTERS AND THE SEARCH, ON ONE ROW.
+
+   It was two blocks — the role chip and the search inside a `.filter-group`
+   that took the rest of the row, and the suspended chip in a group of its own
+   beside it — so the suspended chip dropped to a second line whenever there
+   was one, and the search field sat in a box sized to nothing.
+
+   It is now the fulfilment queue's arrangement: what you are filtering BY,
+   then where you type. The chips are the shared `.filter-chip` and
+   `.select-chip` rules in global.scss. */
+.toolbar {
+  padding: var(--space-4) var(--space-4) var(--space-2);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  background: var(--color-white);
-  border-radius: var(--radius-pill);
-  padding: 0 var(--space-4);
-  box-shadow: var(--shadow-card);
-  /* 48px, comfortably past the 44px touch-target guidance — this is the primary
-     control on the page and people reach for it one-handed. */
-  min-height: 48px;
-}
-
-.search-icon {
-  --icon-size: 18px;
-  color: var(--ion-color-medium);
-  flex: 0 0 auto;
-}
-
-.role-chips {
-  display: flex;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
   flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.role-chip {
-  min-height: 38px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-primary-ink);
-  background: transparent;
-  color: var(--color-primary-ink);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+/* The search field, token for token the fulfilment queue's: 240px, 36px tall,
+   the app's flat box. The visible field is the INPUT inside ion-searchbar, so
+   the height and the hairline are set on it in global.scss — the input belongs
+   to ion-searchbar and carries no _ngcontent attribute, so a page-scoped rule
+   can never reach it.
+
+   `min-width: 0` is the load-bearing half: a flex item's default min-width is
+   auto, which resolves to its content — and a searchbar's content is its typed
+   value, which can be any length. Without the 0 the row cannot shrink below
+   it and the page grows a horizontal scrollbar. */
+.user-search {
+  --border-radius: var(--radius-sm);
+  --background: var(--ion-color-light);
+  --box-shadow: none;
+  flex: 1 1 200px;
+  max-width: 240px;
+  min-width: 0;
+  height: 36px;
+  padding: 0;
 }
 
-.role-chip.active {
-  background: var(--color-brand-primary);
+/* The suspended filter's chip. The lock wears the app's danger red so the one
+   filter that hides people cannot be mistaken for the one that lists them. */
+.filter-chip--danger .chip-icon {
+  color: var(--color-danger);
+}
+
+// Role filter popover (trigger-based ion-popover)
+.role-popover-list {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.role-popover-item {
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  background: none;
+  border: 0;
   color: var(--color-ink);
+  cursor: pointer;
+  width: 100%;
+}
+
+.role-popover-item.active {
+  background: var(--ion-color-light);
+  font-weight: 700;
+}
+
+.role-popover-item:hover {
+  background: var(--ion-color-light);
+}
+
+/* The role chip's label, which can be "Customers (12)" and is clipped rather
+   than allowed to push the caret off the end of the control. */
+.role-filter-label {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // ── Editor ──────────────────────────────────────────────
@@ -64,8 +102,43 @@
   font-family: var(--font-display);
   font-size: 18px;
   font-weight: 600;
-  margin: 0 0 var(--space-4);
+  margin: 0;
   color: var(--color-ink);
+}
+
+.editor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.editor-role {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 140px;
+}
+
+.editor-role .field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  margin: 0;
+  white-space: nowrap;
+}
+
+.editor-role ion-select {
+  min-width: 140px;
+}
+
+.editor-role .field-hint {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  margin: 0;
+  white-space: nowrap;
 }
 
 .field {
@@ -107,37 +180,62 @@
   --color: var(--color-ink);
   --border-radius: var(--radius-control);
   font-weight: 700;
-  flex: 1;
+  width: 200px;
   min-height: 46px;
 }
 
 // ── Table ───────────────────────────────────────────────
+// A LINE COMMENT, and not the /* ── Table ── */ header the other pages use.
+//
+// This one opened a block comment and then had `//` lines inside it, which
+// means the block never closed where it should have: the comment ran on to
+// the end of the next comment in the file and swallowed the .table-wrap rule
+// whole. So the table's wrapper had NO padding and NO horizontal scroll —
+// the table sat flush against both edges of the column, which is exactly the
+// cramped look it has always had, and the 560px minimum width could not be
+// scrolled to on a phone.
+//
 // The row-per-user card is gone. It was 46px of avatar plus five stacked fields
 // in a 46px-tall box, and the two things an admin scans this page for — who is
 // an admin, and who has no phone number — were not in any consistent position
 // down the list. One line each, with the role in its own column, is the fix.
 .table-wrap {
+  /* 16px on each side, so the table is inset from the column the way the
+     fulfilment queue's table is. A card that runs to both edges of the page
+     reads as the page itself rather than as a thing on it. */
   padding: var(--space-2) var(--space-4) 0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
+/* THE TABLE IS THE PAGE'S CARD, and it is the app's flat card: white, one
+   hairline, no shadow.
+
+   It was `box-shadow: var(--shadow-card)` on an 18px radius, and the shadow
+   was doing a border's job — the same trade the app already made for the
+   search fields, the popovers and the export button. The analytics table
+   beside it in the admin is white with a 1px `--tile-powder-deep` rim, and two
+   tables in the same admin should not be two different objects. */
 .users-table {
   width: 100%;
   min-width: 560px;
   border-collapse: separate;
   border-spacing: 0;
   background: var(--color-white);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
+/* THE HEADER IS A HEADER, NOT A BAND. It was `--ion-color-light`, a grey
+   stripe across the top of the table, which is the one thing in the admin that
+   still looked like a 2019 admin panel. White with a hairline under it, and
+   the same 10px uppercase label the analytics table carries. */
 .users-table thead th {
-  background: var(--ion-color-light);
+  background: var(--color-white);
   padding: 9px 12px;
   text-align: left;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.4px;
   text-transform: uppercase;
@@ -217,7 +315,7 @@
   letter-spacing: 0.4px;
   text-transform: uppercase;
   padding: 2px 7px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -228,9 +326,6 @@
 /* Four tiers need four readable treatments, but the ESCALATING ramp is only
    right if it also escalates visibly — the point of the tiers is that a `manager`
    can tell at a glance that they are not the top of the ladder. */
-.role-chip--tier {
-  font-size: 12px;
-}
 
 .role-badge--owner {
   background: var(--color-ink);
@@ -293,9 +388,11 @@
   align-items: center;
   gap: 2px;
 }
+
 .sort-btn:hover {
   color: var(--color-primary-ink);
 }
+
 .sort-icon {
   --icon-size: 13px;
 }
@@ -309,14 +406,6 @@
   border-color: var(--tone-danger-border);
 }
 
-.role-chip--danger {
-  color: var(--color-danger);
-}
-.role-chip--danger.active {
-  background: var(--color-danger);
-  border-color: var(--color-danger);
-  color: #fff;
-}
 .chip-icon {
   --icon-size: 13px;
   vertical-align: -2px;
@@ -328,6 +417,7 @@
   align-items: center;
   gap: 10px;
 }
+
 .suspend-text {
   display: flex;
   flex-direction: column;
@@ -378,11 +468,11 @@
 
 .is-empty {
   /* --ion-color-medium, not --ion-color-light-shade. This placeholder is the ONLY
-     thing in the cell when an account has no phone number, so "no value" is itself
-     information - and light-shade (#E4EDF3) measured 1.19:1 on white, i.e. it looked
-     like a rendering glitch rather than a deliberate dash. It is a BORDER token; this
-     is the first place it was used as a foreground. medium is 4.93:1 here and matches
-     the muted text in the sibling columns. */
+      thing in the cell when an account has no phone number, so "no value" is itself
+      information - and light-shade (#E4EDF3) measured 1.19:1 on white, i.e. it looked
+      like a rendering glitch rather than a deliberate dash. It is a BORDER token; this
+      is the first place it was used as a foreground. medium is 4.93:1 here and matches
+      the muted text in the sibling columns. */
   color: var(--ion-color-medium);
 }
 
@@ -397,6 +487,15 @@
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
+
+  /* 8px on a phone.
+
+     Two 44px icon buttons 2px apart is a mis-tap waiting to happen, and one
+     of them deletes a user. The 2px is the desktop's dense-admin spacing and
+     it stays the desktop's. */
+  @media (max-width: 768px) {
+    gap: 8px;
+  }
   flex: 0 0 auto;
 }
 
@@ -422,16 +521,26 @@
 .icon-btn app-icon {
   --icon-size: 16px;
 }
+
 .icon-btn:hover:not(:disabled) {
   background: var(--tile-powder);
   border-color: var(--ion-color-light-shade);
 }
 
+/* The delete affordance wears the app's danger red, so it never reads as a
+   second edit button. This rule existed but was never applied to anything —
+   the trash in the actions column fell through to the base .icon-btn colour
+   (primary-ink navy) and looked exactly like the pencil beside it.
+
+   Same token as the Developers page's .icon-btn.danger, so every delete icon
+   in the admin is the same red. */
 .icon-btn--danger {
-  color: var(--tone-warning-ink);
+  color: var(--color-danger);
 }
+
 .icon-btn--danger:hover:not(:disabled) {
-  background: var(--tile-lemon);
+  background: var(--tone-danger-bg);
+  border-color: var(--tone-danger-border);
 }
 
 .icon-btn:disabled {
@@ -440,6 +549,15 @@
 }
 
 // ── Skeleton ─────────────────────────────────────────────
+/* The loading rows wear the same card the loaded table does: a hairline and a
+   12px radius, no shadow. */
+.skeleton-table {
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
 .skeleton-row {
   display: grid;
   grid-template-columns: 24% 28% 14% 12% 14%;
@@ -450,11 +568,11 @@
   border-bottom: 1px solid var(--ion-color-light);
 }
 .skeleton-row:first-child {
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
 }
 .skeleton-row:last-child {
   border-bottom: none;
-  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
 // Available to assistive tech, invisible on screen.
@@ -469,3 +587,10 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* The stacked-card treatment for a narrow screen: the shared mixin,
+   compiled into this page's own stylesheet so that it carries this
+   page's scoping attribute and can override the table rules above.
+   See src/app/shared/styles/_stacked-table.scss for why it is a mixin
+   and not a rule in global.scss. */
+@include stacked-table;

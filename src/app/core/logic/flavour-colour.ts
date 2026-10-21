@@ -31,7 +31,7 @@
 import { flavourSlug } from '@core/logic/flavour';
 
 /** The nine pastels are defined in theme/variables.scss, not here. */
-export const FLAVOUR_TOKEN_FALLBACK = 'var(--flavor-all)';
+const FLAVOUR_TOKEN_FALLBACK = 'var(--flavor-all)';
 
 /**
  * A `background` value painting this product's flavour in its pastel.

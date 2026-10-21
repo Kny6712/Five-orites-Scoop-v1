@@ -8,6 +8,7 @@ export {
   calculateDiscount,
   MAX_PERCENT_DISCOUNT,
   PENDING_VOUCHER_KEY,
+  voucherDate,
   type VoucherType,
 } from '@core/logic/voucher';
 

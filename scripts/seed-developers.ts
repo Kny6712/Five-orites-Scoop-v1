@@ -3,30 +3,79 @@
 //
 // WHY THIS EXISTS
 //
-// The five team credits were five object literals inside `DevelopersPage`, which
-// meant a misspelled name or a replaced photo was a developer task — a rebuild and
-// a deploy — when the person who most needs to fix it is the owner. They are
+// The team credits were five object literals inside `DevelopersPage`, which
+// meant a misspelled name or a replaced photo was a developer task - a rebuild and
+// a deploy - when the person who most needs to fix it is the owner. They are
 // Firestore documents now, editable from `/admin/developers`.
 //
-// This script moves the existing five across, so nothing has to be retyped and
+// This script moves the records across, so nothing has to be retyped and
 // nothing is lost. It is IDEMPOTENT: each document is written at a FIXED id
 // derived from the name, so running it twice updates rather than duplicates, and
 // running it after someone has already edited a record in the app will OVERWRITE
 // those edits back to the shipped values. That is why the script prints what it is
 // about to do and why `--force` is required for a second run against a live
-// project — the alternative, a fresh auto-id per run, would create five duplicate
+// project - the alternative, a fresh auto-id per run, would create duplicate
 // credits on every invocation.
+//
+// IT CANNOT RETIRE ANYONE. Every write below is a `setDoc` with `merge: true`
+// and this script issues no delete at all, so it will faithfully re-create a credit
+// that has been removed from `DEFAULT_DEVELOPERS` on a previous run - and it will
+// not remove a stored document that has been deleted from the array. Departures
+// are done on `/admin/developers` (owner only) or in the console, never here.
+// `--force` guards the overwrite half of that risk; it does nothing for this one.
 //
 //   npm run seed:developers
 //   npm run seed:developers -- --force
+//   npm run seed:developers:emulator
 //
-// Credentials come from scripts/serviceAccountKey.json, same as the other seeders.
+// THE EMULATOR BRANCH, and it was the missing piece that made this page look
+// broken rather than unseeded.
+//
+// This script used to require `scripts/serviceAccountKey.json` unconditionally.
+// That file is deliberately absent from most checkouts (it is gitignored), so
+// against a local emulator — which `npm start` configures, and which needs no
+// credentials at all — the script could not run even once. The emulator's
+// `developers` collection therefore stayed EMPTY, and `DeveloperService.watch()`
+// treats an empty result as "not loaded" and falls back to `DEFAULT_DEVELOPERS`.
+//
+// That produced a genuinely confusing failure. The page rendered the four
+// fallback credits, so it looked populated and healthy. But every write against
+// those names hit `setDoc` on a document id that did not exist in Firestore, so
+// `developerIsWellFormed()` failed on the absent fields and the rules returned
+// PERMISSION_DENIED. Reordering did nothing, editing did nothing, deleting did
+// nothing — with the list looking like it had data. `scripts/seed-products.ts`
+// already had this exact branch and its comment explains the same reasoning.
+//
+// The fix mirrors seed-products.ts: when FIRESTORE_EMULATOR_HOST is set,
+// connect with no credential rather than demanding production ones.
 
 import * as admin from 'firebase-admin';
 import * as path from 'path';
 import { DEFAULT_DEVELOPERS } from '../src/app/core/models/developer.model';
 
 const SERVICE_ACCOUNT_PATH = path.resolve(__dirname, 'serviceAccountKey.json');
+
+/**
+ * The Firestore handle, connected to whichever backend this run targets.
+ *
+ * When FIRESTORE_EMULATOR_HOST is set, firebase-admin connects to the local
+ * emulator and needs NO credentials — and must not be given any. Requiring
+ * `serviceAccountKey.json` unconditionally is what made the emulator unusable
+ * for local development: that file is deliberately absent from most checkouts,
+ * so the seeder could not populate a sandbox even once the app was pointed at
+ * one. Mirrors the identical branch in `seed-products.ts`.
+ */
+function initAdmin(): admin.firestore.Firestore {
+  if (process.env.FIRESTORE_EMULATOR_HOST) {
+    admin.initializeApp({
+      projectId: process.env.FIREBASE_PROJECT_ID ?? 'demo-five-orites-scoop',
+    });
+  } else {
+    const credential = require(SERVICE_ACCOUNT_PATH);
+    admin.initializeApp({ credential, projectId: process.env.FIREBASE_PROJECT_ID });
+  }
+  return admin.firestore();
+}
 
 /**
  * A stable document id from a name.
@@ -48,10 +97,7 @@ function idFor(name: string): string {
 async function main(): Promise<void> {
   const force = process.argv.includes('--force');
 
-  const credential = require(SERVICE_ACCOUNT_PATH);
-  admin.initializeApp({ credential, projectId: process.env.FIREBASE_PROJECT_ID });
-  const db = admin.firestore();
-  const col = db.collection('developers');
+  const col = initAdmin().collection('developers');
 
   const existing = await col.get();
   if (!existing.empty && !force) {

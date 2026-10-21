@@ -23,32 +23,30 @@ import {
   IonContent,
   IonButtons,
   IonMenuButton,
-  IonButton,
   IonSearchbar,
   IonTextarea,
-  IonChip,
-  IonLabel,
   IonSkeletonText,
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { ReviewService } from '@core/services/review.service';
-import { AuthService } from '@core/services/auth.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { StarRatingComponent } from '@shared/components/ui/star-rating.component';
+import { StaffReplyComponent } from '@shared/components/admin/staff-reply.component';
+import { ReviewService } from '@core/services/team/review.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { AuthService } from '@core/services/identity/auth.service';
 import { Review } from '@core/models/review.model';
+import { Product } from '@core/models/product.model';
 import { describeFirestoreError } from '@core/logic/firestore-error';
-import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv';
-import { CsvExportService } from '@core/services/csv-export.service';
-import { Subscription } from 'rxjs';
+import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv/cell';
+import { CsvExportService } from '@core/services/commerce/csv-export.service';
+import { Subscription, catchError, of } from 'rxjs';
 
 const PAGE_SIZE = 12;
-
-/** Star glyphs, so a rating reads at a glance in a dense table. */
-const STARS = ['★', '★', '★', '★', '★'] as const;
 
 @Component({
   selector: 'app-admin-reviews',
@@ -62,23 +60,23 @@ const STARS = ['★', '★', '★', '★', '★'] as const;
     IonContent,
     IonButtons,
     IonMenuButton,
-    IonButton,
     IonSearchbar,
     IonTextarea,
-    IonChip,
-    IonLabel,
     IonSkeletonText,
     AppIconComponent,
     AlertBannerComponent,
     EmptyStateComponent,
     PaginationComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
+    StarRatingComponent,
+    StaffReplyComponent,
   ],
   templateUrl: './admin-reviews.page.html',
   styleUrls: ['./admin-reviews.page.scss'],
 })
 export class AdminReviewsPage implements OnInit, OnDestroy {
   private reviews = inject(ReviewService);
+  private inventory = inject(InventoryService);
   private auth = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
@@ -101,6 +99,24 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
   readonly pageSize = PAGE_SIZE;
 
   private sub?: Subscription;
+  private productsSub?: Subscription;
+
+  /**
+   * The catalogue, joined in memory.
+   *
+   * A review carries a `productId` — a Firestore document id, which is a key
+   * rather than a name. The queue used to print it raw, so the card read
+   * `prod-ube-halo`, and a queue of keys is a queue you cannot act on: the
+   * admin cannot tell which flavour a complaint is about without leaving the
+   * page to look it up.
+   *
+   * The catalogue is loaded ONCE, with the same query the admin inventory page
+   * uses, and joined here. It is a second query on a page that had one, and
+   * that is the price of the page saying what the product IS. If the catalogue
+   * cannot be read, the queue still works: `productName` falls back to the id,
+   * which is exactly what the page printed before.
+   */
+  private products = signal<Map<string, Product>>(new Map());
 
   ngOnInit(): void {
     this.sub = this.reviews.streamAllReviews().subscribe({
@@ -114,10 +130,23 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
         this.errorMessage.set(describeFirestoreError('Could not load reviews.', err));
       },
     });
+
+    this.productsSub = this.inventory
+      .getAllProducts(200)
+      .pipe(
+        catchError(() => {
+          // The catalogue is an enrichment, not a dependency. A permission
+          // error on `products` must not take the moderation queue down with
+          // it — the names are a nicety, the reviews are the work.
+          return of<Product[]>([]);
+        }),
+      )
+      .subscribe((products) => this.products.set(new Map(products.map((p) => [p.id, p]))));
   }
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+    this.productsSub?.unsubscribe();
   }
 
   /**
@@ -130,15 +159,19 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
   readonly filtered = computed(() => {
     const q = this.search().trim().toLowerCase();
     const mode = this.filter();
+    const products = this.products();
     return this.reviews_().filter((r) => {
       if (mode === 'unanswered' && r.adminResponse) return false;
       if (mode === 'answered' && !r.adminResponse) return false;
       if (mode === 'low' && r.rating > 2) return false;
       if (!q) return true;
+      const product = products.get(r.productId);
       return (
         r.comment.toLowerCase().includes(q) ||
         (r.displayName || '').toLowerCase().includes(q) ||
-        r.productId.toLowerCase().includes(q)
+        r.productId.toLowerCase().includes(q) ||
+        (product?.variantName ?? '').toLowerCase().includes(q) ||
+        (product?.setName ?? '').toLowerCase().includes(q)
       );
     });
   });
@@ -151,6 +184,27 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
   readonly lowCount = computed(() => this.reviews_().filter((r) => r.rating <= 2).length);
   readonly unansweredCount = computed(() => this.reviews_().filter((r) => !r.adminResponse).length);
 
+  /**
+   * The other side of the pair: the ones already answered.
+   *
+   * The "Answered" chip was the only one in the group with no count, which
+   * made it read as a different kind of control rather than a fourth option —
+   * and it is the number an admin least needs, because the count of replies
+   * already published is the reassuring one.
+   */
+  readonly answeredCount = computed(() => this.reviews_().filter((r) => !!r.adminResponse).length);
+
+  /**
+   * The product's name, or its id when the product is not in the catalogue.
+   *
+   * The fallback is the id and not a blank: a review of a product that has
+   * since been deleted still has to say WHICH product it was about, and the id
+   * is what the review document still holds.
+   */
+  productName(productId: string): string {
+    return this.products().get(productId)?.variantName || productId;
+  }
+
   onSearch(value: string | null | undefined): void {
     this.search.set(value ?? '');
     this.page.set(1);
@@ -159,11 +213,6 @@ export class AdminReviewsPage implements OnInit, OnDestroy {
   onFilterChange(next: 'all' | 'unanswered' | 'answered' | 'low'): void {
     this.filter.set(next);
     this.page.set(1);
-  }
-
-  starsFor(rating: number): string {
-    const n = Math.max(0, Math.min(5, Math.round(rating)));
-    return STARS.slice(0, n).join('');
   }
 
   formatDate(value: unknown): string {

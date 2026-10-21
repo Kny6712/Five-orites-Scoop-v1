@@ -35,13 +35,15 @@ import {
   IonSelectOption,
   IonSkeletonText,
   ToastController,
+  ModalController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { ShopSettingsService } from '@core/services/shop-settings.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { ReconciliationResultModalComponent } from './reconciliation-result-modal.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { ShopSettingsService } from '@core/services/shop/shop-settings.service';
 import {
   StockLedgerService,
   STOCK_REASON_LABELS,
@@ -49,12 +51,12 @@ import {
   type StockMovement,
   type StockReason,
   type UnloggedChange,
-} from '@core/services/stock-ledger.service';
-import { InventoryService } from '@core/services/inventory.service';
-import { OrderService } from '@core/services/order.service';
+} from '@core/services/orders/stock-ledger.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { OrderService } from '@core/services/orders/order.service';
 import { Order } from '@core/models/order.model';
-import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv';
-import { CsvExportService } from '@core/services/csv-export.service';
+import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv/cell';
+import { CsvExportService } from '@core/services/commerce/csv-export.service';
 import { describeFirestoreError } from '@core/logic/firestore-error';
 import { firstValueFrom } from 'rxjs';
 
@@ -81,7 +83,7 @@ import { firstValueFrom } from 'rxjs';
     AlertBannerComponent,
     EmptyStateComponent,
     PaginationComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
   ],
   templateUrl: './admin-settings.page.html',
   styleUrls: ['./admin-settings.page.scss'],
@@ -93,6 +95,7 @@ export class AdminSettingsPage implements OnInit {
   private orderService = inject(OrderService);
   private toastCtrl = inject(ToastController);
   private csvExport = inject(CsvExportService);
+  private modalCtrl = inject(ModalController);
 
   isSaving = signal(false);
   loaded = signal(false);
@@ -262,7 +265,27 @@ export class AdminSettingsPage implements OnInit {
   }
 
   /**
-   * The 60 movements that were read, narrowed by the reason filter.
+   * Runs the reconciliation pass, then opens the result modal so the report is
+   * read in its own surface instead of crowding the inline panel flow.
+   */
+  async runReconciliation(): Promise<void> {
+    await this.reconcile();
+    const modal = await this.modalCtrl.create({
+      component: ReconciliationResultModalComponent,
+      componentProps: {
+        drift: this.drift(),
+        verifiedCount: this.verifiedCount(),
+        unverifiableCount: this.unverifiableCount(),
+        totalStockValues: this.totalStockValues(),
+        scannedRows: this.scannedRows(),
+        scannedWindow: this.scannedWindow(),
+      },
+      cssClass: 'large-sheet-modal report-sheet-modal',
+    });
+    await modal.present();
+  }
+
+  /**
    *
    * A computed rather than the method this was, because `pagedMovements` has to
    * re-slice whenever the filter changes; a method call inside a computed is

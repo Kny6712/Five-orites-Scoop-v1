@@ -35,8 +35,13 @@ export interface GeoPoint {
   at: number;
 }
 
-/** The cache shape stored on an order document as `geo`. */
-export interface CachedGeo {
+/**
+ * The cache shape stored on an order document as `geo`.
+ *
+ * NOT EXPORTED. Nothing outside this module reads it — the only use is
+ * `Partial<CachedGeo>` below, for narrowing an untrusted document.
+ */
+interface CachedGeo {
   lat: number;
   lng: number;
   label: string;
@@ -181,5 +186,9 @@ export function distanceMetres(
   const h =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
+  // `h` is mathematically at most 1, but floating-point error can push it to
+  // 1.0000000000000002, and `Math.asin` of anything above 1 is `NaN` — which
+  // rendered as "NaN m away". Clamping is the standard haversine guard.
+  const clamped = Math.min(1, Math.max(0, h));
+  return 2 * R * Math.asin(Math.sqrt(clamped));
 }

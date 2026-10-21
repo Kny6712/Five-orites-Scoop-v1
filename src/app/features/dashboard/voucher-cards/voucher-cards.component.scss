@@ -14,14 +14,26 @@
 
 /* A dashed edge, which is what makes a card read as a coupon rather than as a
    generic surface. One deliberate flourish — the design direction asks for the
-   playful motif to be spent in a few places, not smeared over everything. */
+   playful motif to be spent in a few places, not smeared over everything.
+
+   It is ONE dashed line now. It was a 2px dashed rim with a drop shadow under
+   it, which is the loudest way to draw a shape that is meant to be quiet: the
+   stroke was heavy enough to compete with the code inside it, and the shadow
+   made the flat surface float. The card is now a white sheet, a hairline of
+   dashes, and a 12px corner — the radius every other flat surface in this app
+   uses. */
 .voucher-card {
   position: relative;
+  /* A column, so the actions can sit on the card's floor. The cards in a row
+     are the same height (the grid stretches them), and without this the two
+     actions sat at whatever height the text above them ended — so a card with
+     no "Min. order" line carried its buttons higher than its neighbours. */
+  display: flex;
+  flex-direction: column;
   background: var(--color-white);
-  border: 2px dashed var(--color-primary-ink);
-  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-primary-ink);
+  border-radius: var(--radius-sm);
   padding: var(--space-4);
-  box-shadow: var(--shadow-card);
 }
 
 .skeleton-card {
@@ -39,9 +51,11 @@
 
 .voucher-code {
   font-family: var(--font-mono);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  /* A hair of tracking, so a code reads as a set of characters rather than as a
+     word. */
+  letter-spacing: 0.08em;
   color: var(--color-primary-ink);
   /* Long codes must not push the card wider than its track. */
   overflow-wrap: anywhere;
@@ -49,6 +63,10 @@
 
 .voucher-mark {
   --icon-size: 20px;
+  /* The same light stroke as the button glyphs below. The app's default 2.25
+     is right for a glyph standing alone on a page; on a card built from
+     hairlines it is the heaviest thing in the frame, and this is line art. */
+  --icon-stroke: 1.5;
   // An ICON, so the floor is 3:1 rather than 4.5:1 - but the brand hue is 1.79:1 on
   // this card's white, so it failed that too. primary-ink is 7.12:1.
   color: var(--color-primary-ink);
@@ -82,28 +100,109 @@
 
 .voucher-actions {
   display: flex;
+  align-items: stretch;
   gap: var(--space-2);
-  margin-top: var(--space-3);
-  flex-wrap: wrap;
+  /* `auto` pushes the row to the floor of the card; the padding keeps a
+     12px step between it and the last line of text above. */
+  margin-top: auto;
+  padding-top: var(--space-3);
 }
 
+/* THE APP'S GOLD CTA: a plain button, an amber fill, plum ink, a pill, and a
+   hover that changes the button itself.
+
+   Plum, not white: white on the sunny accent measures 1.58:1. The hover is
+   teal with white ink, the same as every other gold CTA in the app — a teal
+   OUTLINE drawn around a gold button reads as a sticker around it, while a
+   teal fill is the button changing state.
+
+   It was an <ion-button> in the pastel primary: a periwinkle slab with
+   Ionic's three-layer elevation shadow under it and an uppercased label. */
 .copy-btn {
-  --background: var(--color-brand-primary);
-  --color: var(--color-ink);
-  --border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 13px;
   font-weight: 700;
-  flex: 1;
-  min-width: 96px;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
+.copy-btn:hover:not(:disabled) {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+
+.copy-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.copy-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* THE APP'S QUIET CONTROL: a white pill, one hairline, a teal label — the same
+   shape the admin's file buttons and the customers' select chips have.
+
+   It was an outline <ion-button>, which drew its rim in the pastel primary
+   (the powder brand hue) instead of in a hairline, and uppercased the label. */
 .use-btn {
-  --border-radius: var(--radius-pill);
-  // Declared because an outline ion-button otherwise inherits --ion-color-primary,
-  // the powder brand hue: measured #8ECAE6 on white at 1.79:1.
-  --color: var(--color-primary-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 13px;
   font-weight: 700;
-  flex: 1;
-  min-width: 96px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+/* The hairline darkens, the way the select chip's and the file button's do. */
+.use-btn:hover {
+  border-color: var(--color-primary-ink);
+}
+
+.use-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The glyph, at the app's lighter stroke and on its own space.
+
+   The lucide "copy" drawing is two overlapping rounded squares. At the app's
+   default 2.25 stroke and 20px it closed up into a solid black mass — the
+   heaviest thing on a card made of hairlines — and it sat flush against the
+   label, so the two read as one word. A 1.5 stroke at 16px keeps it line art,
+   and the 6px gap lets the label start where the word starts. */
+.btn-glyph {
+  --icon-size: 16px;
+  --icon-stroke: 1.5;
+  flex: 0 0 auto;
 }
 
 .manual-hint {
@@ -127,7 +226,11 @@
 
 .voucher-empty app-icon {
   --icon-size: 36px;
-  color: var(--color-brand-primary);
+  /* The brand ink, not the pastel periwinkle: the powder brand hue measures
+     1.79:1 on this white, which is below the 3:1 an icon owes. The same ticket
+     the loaded cards carry, drawn at the same light stroke. */
+  --icon-stroke: 1.25;
+  color: var(--color-primary-ink);
 }
 
 .voucher-empty p {

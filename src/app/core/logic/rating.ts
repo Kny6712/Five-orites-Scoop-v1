@@ -13,9 +13,20 @@ export interface RatingSummary {
   count: number;
 }
 
-/** Mean rating to one decimal place, plus the number of reviews. */
+/**
+ * Mean rating to one decimal place, plus the number of reviews.
+ *
+ * `Review.rating` is typed `number`, but the document is CUSTOMER-AUTHORED:
+ * a review written before the field existed, or with `rating: null`, makes
+ * the sum `NaN` and the average `NaN`, and the UI then renders "NaN".
+ *
+ * So the ratings are filtered to the finite ones first, and the count is the
+ * count of ratings that were actually usable. A product with one good review
+ * and one broken one has an average, not a NaN.
+ */
 export function summarizeRatings(reviews: readonly RatingLike[]): RatingSummary {
-  if (reviews.length === 0) return { average: 0, count: 0 };
-  const sum = reviews.reduce((s, r) => s + r.rating, 0);
-  return { average: Math.round((sum / reviews.length) * 10) / 10, count: reviews.length };
+  const ratings = reviews.map((r) => r.rating).filter((n) => Number.isFinite(n));
+  if (ratings.length === 0) return { average: 0, count: 0 };
+  const sum = ratings.reduce((s, n) => s + n, 0);
+  return { average: Math.round((sum / ratings.length) * 10) / 10, count: ratings.length };
 }

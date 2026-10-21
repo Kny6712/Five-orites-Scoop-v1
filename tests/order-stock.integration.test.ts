@@ -76,11 +76,11 @@ import { Firestore as AngularFirestore } from '@angular/fire/firestore';
   outsideAngular: { schedule: <T>(fn: () => T) => fn() },
   insideAngular: { schedule: <T>(fn: () => T) => fn() },
 };
-import { OrderService } from '@core/services/order.service';
-import { AuthService } from '@core/services/auth.service';
-import { CartService } from '@core/services/cart.service';
-import { InventoryService } from '@core/services/inventory.service';
-import { VoucherService } from '@core/services/voucher.service';
+import { OrderService } from '@core/services/orders/order.service';
+import { AuthService } from '@core/services/identity/auth.service';
+import { CartService } from '@core/services/commerce/cart.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
+import { VoucherService } from '@core/services/commerce/voucher.service';
 
 let env: RulesTestEnvironment;
 

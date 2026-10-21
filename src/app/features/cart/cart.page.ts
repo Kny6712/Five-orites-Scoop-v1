@@ -1,7 +1,7 @@
 // src/app/features/cart/cart.page.ts
 // Five-orites Scoop — Cart & Checkout (Fixed double-decrement bug)
 
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink, ActivatedRoute } from '@angular/router';
@@ -15,27 +15,28 @@ import {
   IonButton,
   IonText,
   IonTextarea,
+  IonInput,
   IonSpinner,
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
 import { catchError, of } from 'rxjs';
-import { CartService } from '@core/services/cart.service';
-import { OrderService } from '@core/services/order.service';
-import { AddressService } from '@core/services/address.service';
-import { VoucherService } from '@core/services/voucher.service';
-import { InventoryService } from '@core/services/inventory.service';
+import { CartService } from '@core/services/commerce/cart.service';
+import { OrderService } from '@core/services/orders/order.service';
+import { AddressService } from '@core/services/identity/address.service';
+import { VoucherService } from '@core/services/commerce/voucher.service';
+import { InventoryService } from '@core/services/catalog/inventory.service';
 import { Cart, CartItem, getDeliveryFee, FREE_DELIVERY_THRESHOLD } from '@core/models/cart.model';
 import { Product, SizeVariant } from '@core/models/product.model';
 import { PesoPipe } from '@shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 import { PENDING_VOUCHER_KEY } from '@core/models/voucher.model';
-import { QtyStepperComponent } from '@shared/components/qty-stepper/qty-stepper.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { QtyStepperComponent } from '@shared/components/commerce/qty-stepper.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
 
 /**
  * Ceiling used when live stock is unknown.
@@ -73,6 +74,7 @@ type CheckoutStep = 1 | 3;
     IonButton,
     IonText,
     IonTextarea,
+    IonInput,
     IonSpinner,
     PesoPipe,
     CloudinaryPipe,
@@ -85,7 +87,7 @@ type CheckoutStep = 1 | 3;
   templateUrl: './cart.page.html',
   styleUrls: ['./cart.page.scss'],
 })
-export class CartPage implements OnInit {
+export class CartPage implements OnInit, OnDestroy {
   private cartService = inject(CartService);
   private orderService = inject(OrderService);
   private route = inject(ActivatedRoute);
@@ -203,6 +205,23 @@ export class CartPage implements OnInit {
     this.consumeHandedOverVoucher();
   }
 
+  /**
+   * The handle on the post-checkout redirect.
+   *
+   * The redirect is a four-second grace period so the customer sees the
+   * confirmation before the app moves them to the tracker. Without a handle
+   * it could not be cancelled, and the timer fired on a page that may no
+   * longer exist — navigating the customer out of whatever they moved on to.
+   */
+  private redirectTimer?: ReturnType<typeof setTimeout>;
+
+  ngOnDestroy(): void {
+    if (this.redirectTimer !== undefined) {
+      clearTimeout(this.redirectTimer);
+      this.redirectTimer = undefined;
+    }
+  }
+
   goToProducts(): void {
     void this.router.navigate(['/products']);
   }
@@ -298,6 +317,19 @@ export class CartPage implements OnInit {
   useSavedAddress(address: string): void {
     this.selectedAddress.set(address);
     this.deliveryAddress = address;
+  }
+
+  /**
+   * Handles a pick from the saved-addresses <select>.
+   *
+   * The cast lives here rather than in the template: `$event.target` is an
+   * EventTarget there, and every way of narrowing it in a template — a cast
+   * function, a $any() — is looser than the one line this needs.
+   */
+  onAddressSelected(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    if (!value) return;
+    this.useSavedAddress(value);
   }
 
   /**
@@ -420,7 +452,14 @@ export class CartPage implements OnInit {
       this.notes = '';
       this.removeVoucher();
       this.checkoutStep.set(3);
-      setTimeout(() => this.router.navigate(['/orders', orderId]), 4000);
+      // The handle is kept so the timer can be cancelled. Without one it
+      // could not be: the customer taps back, or taps a link, inside the
+      // four-second window, and the timer still fired — navigating them out
+      // of whatever page they had moved on to, into this order.
+      this.redirectTimer = setTimeout(() => {
+        this.redirectTimer = undefined;
+        void this.router.navigate(['/orders', orderId]);
+      }, 4000);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Failed to place order. Please try again.';

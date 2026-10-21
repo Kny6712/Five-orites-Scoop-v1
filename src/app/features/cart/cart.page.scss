@@ -31,6 +31,15 @@
    once - which is the reason About scopes its own value the same way. */
 .cart-shell {
   max-width: 1360px;
+  /* width: 100%, and it is load-bearing.
+
+     ion-content's scroll area is a column flexbox (global.scss,
+     `ion-content::part(scroll)`), so a child of it is sized by its CONTENT
+     rather than by the pane unless it is given a width. Left to its own
+     devices this shell came out 931px wide at 1920 — as wide as the split's
+     content wanted to be — with `margin-inline: auto` centring that, so the
+     page never reached the width it was designed for. */
+  width: 100%;
   margin-inline: auto;
   padding-inline: var(--space-4);
   /* The vertical padding used to live on .checkout-form, which no longer
@@ -68,13 +77,30 @@
 }
 
 // One card treatment for the summary, the voucher and delivery. Matches
-// .cart-item and the About page's value cards: --color-card surface,
-// --radius-md corner, --shadow-card lift.
+// .cart-item and the About page's value cards.
+//
+// THE CARD IS THE WARM ONE. --tile-lemon, the app's pale warm tile: the
+// customer side is a warm place, and the cards are the thing that says so.
+// The blocks INSIDE them are white, so the card reads as the container and
+// the contained block reads as content. It is the other way round that makes
+// a card look like a beige box with some panels on it.
+//
+// ELEVATION. The card now carries --shadow-card, the app's own tint, and the
+// hairline stays: the lemon is 1.05:1 against the cream page, so the rim is
+// what draws the boundary, and the shadow is what lifts the boundary off the
+// page. One of them alone leaves the card looking like a hole or like a slab —
+// this is the "consistent depth" the page was missing, and it is the same
+// shadow on all four cards rather than a different one on each.
+//
+// --radius-md, one step above the panels inside it. The blocks INSIDE the card
+// are --radius-sm, so the card reads as the outer, larger shape and its
+// contents as the smaller ones.
 .cart-card {
-  background: var(--color-card);
+  background: var(--tile-lemon);
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-card);
-  padding: var(--space-4);
+  padding: var(--space-5);
 }
 
 .card-title {
@@ -83,6 +109,22 @@
   font-weight: 700;
   color: var(--color-ink);
   margin: 0 0 var(--space-3);
+}
+
+/* A PHONE IS NOT A SMALL DESKTOP.
+
+   The card padding is 24px — generous, which is the point of it — but on a
+   390px screen that is a quarter of the row's width, and the item's name and
+   the stepper were left fighting over what was left. The padding drops to the
+   app's standard 16px below the phone breakpoint and the item row stacks, so
+   the name gets the whole width and the quantity gets its own line.
+
+   It sits AFTER the rules it overrides: equal specificity means the later
+   declaration wins, and a media query adds none. */
+@media (max-width: 560px) {
+  .cart-card {
+    padding: var(--space-4);
+  }
 }
 
 /* A card whose heading carries an action on the right. Only used where one
@@ -157,16 +199,26 @@
      width and long names will ellipsis before they would have - accepted,
      because the trade is a genuinely separated row rather than a rule between
      two that run together. */
-  padding: var(--space-3);
+  padding: var(--space-4);
   align-items: flex-start;
-  background: var(--ion-color-light);
+  /* WHITE, because the card around it is the warm one. The item row is a
+     contained block inside the card, not the container itself: a pale fill
+     inside a pale card is one beige field with a slightly different beige on
+     it, and nothing reads as "these are the things you are buying".
+
+     The row still needs its own edge. White on the lemon card is 1.10:1, so
+     the 1px rim below is what draws the boundary — the app's own rule about
+     pale surfaces applies here exactly as it does to the products page's
+     filter boxes: a pale fill has to carry an edge or it is not a surface. */
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-sm);
 }
 
 .item-image-wrap {
-  width: 60px;
-  height: 60px;
-  border-radius: 10px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-xs);
   background: var(--color-brand-light);
   flex-shrink: 0;
   overflow: hidden;
@@ -212,7 +264,20 @@
   gap: 6px;
 }
 
+/* The line's own money, on a tinted chip.
+
+   It is the one figure on this row that is not a label — it is what this line
+   costs — and it used to be bare text in the same weight as the product name
+   above it, so the eye had nothing to catch on.
+
+   --tile-powder, and plum on it: 7.2:1. The chip is a tint of the app's own
+   pale blue, not a new colour, and it is the same surface the quiet controls
+   tint their hover with. */
 .item-subtotal {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-xs);
+  background: var(--tile-powder);
   font-size: 15px;
   font-weight: 700;
   // MONEY, and plum is the only value verified on every surface a cart row uses:
@@ -229,6 +294,47 @@
   padding: 4px;
 }
 
+/* The item row on a phone.
+
+   Below the breakpoint the three controls — the quantity, the line's money and
+   the trash — sit on one line of their own beneath the name, right-aligned.
+   Before this the name was ellipsised to "Chocola…" to make room for a 122px
+   stepper beside it.
+
+   THE IMAGE STAYS BESIDE THE NAME, which is what `flex: 1 1 0` on `.item-info`
+   is for. It was `flex: 1 1 100%`, which is a basis of the FULL WIDTH — so
+   the name was pushed onto a line of its own, under the 64px image, and the
+   image stood alone at the left of an otherwise empty row. Measured at 390px
+   before this: the image at x=50-114 and the name at x=50-340, on separate
+   lines, with a 226px band of nothing beside the picture.
+
+   `flex: 1 1 0` is a basis of ZERO, so the name takes whatever the image
+   leaves and the two sit on one line — 50-114 and 126-340, with the 12px
+   gap between them that the row already had. `min-width: 0` lets the name
+   ellipsise rather than pushing the row wider, which is what it did before.
+
+   It comes after the rules it overrides: equal specificity means the later
+   declaration wins, and a media query adds none. */
+@media (max-width: 560px) {
+  .cart-item {
+    flex-wrap: wrap;
+  }
+
+  .item-info {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .item-controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    width: 100%;
+    padding-top: var(--space-2);
+  }
+}
+
 // ── Order Summary ────────────────────────────────────────
 .order-summary {
   margin: 4px 16px 0;
@@ -239,11 +345,19 @@
   flex-direction: column;
   gap: 8px;
 }
+/* The running figures — Subtotal, Delivery Fee — are SECONDARY, and the money
+   at the bottom is the answer. They used to be the same size and weight as
+   each other, with the total only a little larger, so the one number the
+   customer came for had to be hunted for.
+
+   --color-ink-soft, not --ion-color-dark: these are labels, and 13px labels
+   want the quieter ink. It measures 6.3:1 on white, well clear of AA. */
 .summary-row {
   display: flex;
   justify-content: space-between;
-  font-size: 14px;
-  color: var(--ion-color-dark);
+  gap: var(--space-3);
+  font-size: 13px;
+  color: var(--color-ink-soft);
 }
 
 /* Inside the step-1 card the summary sits in the same contained surface as the
@@ -258,8 +372,25 @@
    shape and changing it is not part of this work. */
 .cart-card--summary .order-summary {
   margin: 0;
-  padding: 2px var(--space-3);
-  background: var(--ion-color-light);
+  /* --space-4 ALL ROUND, and the vertical half is the point.
+
+     It was `2px var(--space-3)`: two pixels of top and bottom, and a label
+     sitting two pixels under the panel's own hairline. "Subtotal" read as
+     being part of the border rather than as the first line inside the box —
+     the text's own line-height was doing all the work of the padding, so the
+     first row looked glued to the edge and the last row looked glued to the
+     other one.
+
+     Sixteen is the app's card padding everywhere else — the tracker, the
+     order list, the review form — so the contained panel now has the same
+     breathing room as the card that holds it. */
+  padding: var(--space-4);
+  /* White, like the item row: the card is the warm container, this is the
+     block inside it. */
+  background: var(--color-white);
+  /* Same edge as the item row above: a pale panel inside a warm card needs a
+     hairline to read as a panel. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-sm);
   gap: var(--space-2);
 }
@@ -269,16 +400,16 @@
    the UA default of 1em top and bottom on a <p> would blow the panel apart and
    leave a second, uneven gap under the gap.
 
-   --ion-color-dark, not --ion-color-medium. The hint is secondary, and 12px is
+   --color-ink-soft, not --ion-color-medium. The hint is secondary, and 12px is
    what makes it secondary - the colour is doing very little work here, so it has
-   to clear AA outright rather than lean on size. --ion-color-dark measures 11.9:1
+   to clear AA outright rather than lean on size. --color-ink-soft measures 6.3:1
    on the contained panel. (It was originally --ion-color-dark because medium
    measured about 1.7:1 on the mint panel, which is long gone.) */
 .free-delivery-hint {
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
-  color: var(--ion-color-dark);
+  color: var(--color-ink-soft);
 }
 
 /* The unlocked state is a chip rather than a sentence, because it is the one
@@ -337,9 +468,25 @@
   padding-top: var(--space-4);
   margin-top: var(--space-2);
 }
+
+/* The word, then the figure.
+
+   The two are now a pair rather than a line of text: the label sits at the
+   size of the words above it but in plum and bold, and the figure is nearly
+   twice the size of the running totals. Before this they were both 14px, so
+   "Total ₱115" was the same shape on the page as "Subtotal ₱65" and the
+   eye had nothing to stop on. */
+.total-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-ink);
+  align-self: center;
+}
+
 .total-amount {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 800;
+  line-height: 1.1;
   // Plum on the contained panel measures 11.9:1. It has always been plum rather
   // than --color-primary-ink - primary-ink was the obvious candidate back when
   // this amount sat on the mint tile and FAILED at 4.09:1 there. That token is
@@ -348,20 +495,82 @@
 }
 
 // ── Voucher row ──────────────────────────────────────────
-// Input and Apply share a line. The old markup stacked a full-width field above
-// a full-width button, which took two full-width bands to express one idea.
-// flex-wrap keeps it usable if the rail ever narrows: the button drops to its
-// own line rather than crushing the field.
+// The field is FULL WIDTH and the Apply button lives inside its right end, so
+// the row is a single child and the button is positioned against the field
+// rather than sitting beside it.
+.voucher-field {
+  position: relative;
+}
+
+.voucher-row {
+  display: block;
+}
+.voucher-row .input-wrap {
+  margin-bottom: 0;
+}
 /* ── Saved addresses ────────────────────────────────────────
-   A list in the same contained surface the cart rows and the text fields use.
-   Bare rows on the ivory card were the last thing still following the older
-   convention, and the mismatch was most obvious here - three plain strings on
-   ivory sitting directly above two obviously-boxed fields. */
+   A chooser, drawn as a chooser.
+
+   The list of radio rows is still here — it is what Manage reveals — but the
+   resting state of this field is a single <select>, because a saved address
+   is picked rather than typed, and a field that can be typed into says the
+   wrong thing about what it is. */
+.select-wrap {
+  position: relative;
+  display: block;
+}
+
+/* A native <select>, restyled into the app's field.
+
+   The native one is used rather than a custom listbox on purpose: the
+   browser's own dropdown is the one that opens correctly on a phone, scrolls
+   correctly when there are many addresses, and is announced correctly by a
+   screen reader. The arrow is the only thing replaced — the app's chevron,
+   in the app's teal, so the control matches the quiet ones beside it. */
+.address-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 42px 10px 16px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  /* The native arrow is replaced with the app's chevron below. */
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.address-select:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+  border-color: var(--color-primary-ink);
+}
+
+.select-chevron {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  --icon-size: 18px;
+  --icon-stroke: 1.75;
+  color: var(--color-primary-ink);
+  /* The chevron is a picture of the affordance, not the affordance: clicking
+     it has to reach the select underneath. */
+  pointer-events: none;
+}
 
 .saved-addresses {
   display: flex;
   flex-direction: column;
-  background: var(--ion-color-light);
+  /* White, like the item row and the summary panel: the card around it is the
+     warm container. */
+  background: var(--color-white);
+  /* The edge the list was missing, for the same reason as the item row. */
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-sm);
   padding: 2px var(--space-3);
 }
@@ -434,19 +643,8 @@
   white-space: nowrap;
 }
 
-/* Fixed 16px slot holding either the tick or the trash. Same width either way,
-   so pressing Manage swaps the control rather than shifting the row. */
-.saved-address-mark {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-right: 10px;
-  color: var(--color-primary-ink);
-}
-
+/* The 16px slot holding the trash. The list only appears while Manage is
+   pressed, so there is no tick to share the slot with any more. */
 .saved-address-delete {
   flex: 0 0 auto;
   display: flex;
@@ -472,25 +670,9 @@
   background: var(--tone-danger-bg);
 }
 
-.voucher-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--space-2);
-}
-.voucher-row .input-wrap {
-  flex: 1 1 140px;
-  min-width: 0;
-  margin-bottom: 0;
-}
-.voucher-row .apply-voucher-btn {
-  flex: 0 0 auto;
-  /* 44px: the shared minimum touch target. The button is now narrower, so the
-     height matters more, not less. */
-  min-height: 44px;
-  --border-radius: var(--radius-sm);
-  font-weight: 700;
-}
+/* The voucher row is a single field now — the Apply button lives inside its
+   right end — so there is no flex row here any more. The rules that made the
+   field and the button share a line are gone with the layout they served. */
 
 .input-wrap {
   margin-bottom: 14px;
@@ -503,17 +685,61 @@
   margin-bottom: 6px;
 }
 .field-input {
-  --background: var(--ion-color-light);
-  --border-radius: 12px;
+  /* THE APP'S FLAT FIELD: white, one hairline, and the hairline darkening
+     when the field is focused.
+
+     It was --ion-color-light with no edge at all, which on the ivory card
+     measured 1.04:1 — the field was not a surface, it was a tint behind the
+     placeholder, and where it sat on the white card it was a pale hole. The
+     app already settled this for the admin's modals (edit-user-modal): white,
+     a 1px --tile-powder-deep rim, and the rim going to the brand ink on
+     focus. This is that, on the cart's three fields.
+
+     The border and the fill are on the HOST, and both need !important:
+     Ionic's own :host rule for ion-textarea sets `padding: 0 !important`, and
+     its `.textarea-wrapper` paints `background: var(--background)`, so the
+     host is the only place either of them can be set from outside the shadow
+     root. `:focus-within` does reach the native control, unlike ::part(). */
+  --background: var(--color-white);
+  --border-radius: var(--radius-sm);
   --padding-start: 14px;
   --padding-end: 14px;
+  border: 1px solid var(--tile-powder-deep) !important;
+  background: var(--color-white) !important;
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.field-input:focus-within {
+  border-color: var(--color-primary-ink) !important;
+}
+
+/* THE PROMO CODE FIELD, as a single-line input.
+
+   Ionic's md input draws two things of its own that this field does not want:
+   a 1px underline under the box (--border-width) and a 2px bar that runs along
+   the bottom of the field. The bar is gone app-wide — see the "No green line"
+   rule in global.scss — and the underline goes here, because this field draws
+   its own box on the host and a second line inside it is one too many.
+
+   The text stops short of the Apply button, which lives inside the field's
+   right end. The inset cannot be set on the host — Ionic zeroes the host's
+   padding with !important — so it goes on the custom property, the same
+   treatment the developer sheet's role field gets in global.scss.
+
+   The height is the app's minimum touch target. */
+.voucher-input {
+  --border-width: 0;
+  /* 78px: the Apply button (60px) plus its 6px inset and a 12px gap. */
+  --padding-end: 78px !important;
+  font-size: 15px;
 }
 
 /* Clear Cart, at the foot of the card it belongs to. It was a full-width bar in
    the right-hand rail directly under the checkout button, so two actions with
    opposite consequences were the same shape and the same size.
 
-   Left-aligned rather than centred: it belongs to the items, and a destructive
+   Right-aligned rather than centred: it belongs to the items, and a destructive
    action that drifts to the middle of a card reads as a heading.
 
    The negative margin it used to carry is gone with it — that existed only to
@@ -531,20 +757,66 @@
    card's content width. */
 .cart-clear-row {
   display: flex;
-  justify-content: flex-start;
+  /* Right-aligned: the action belongs to the list above it, and the card has
+     two edges to sit on. The right edge is the one the eye returns to, and it
+     is where the other destructive control on this card — the per-row trash —
+     already is. */
+  justify-content: flex-end;
   margin-top: var(--space-2);
   padding-top: var(--space-2);
   box-shadow: inset 0 1px 0 rgb(61 43 69 / 10%);
 }
 
+/* AN OUTLINED SECONDARY BUTTON.
+
+   It was a red text link: no box, no glyph of its own, and a target no wider
+   than the word. The outline gives it an identity — this is a control, and it
+   is the destructive one — and the trash glyph says what it does without a
+   word having to.
+
+   The rim is the app's own danger at half strength. A full-strength danger rim
+   would be the loudest line on the card; the fill is white, which is the same
+   treatment the page's other quiet controls get.
+
+   `color="danger"` did not set the foreground when this was an ion-button; the
+   label came out as the app primary, powder on cream at 1.71:1. Third instance
+   of this in the session - the Cancel buttons on /orders and on the order
+   tracker needed the same declaration. Danger on this ground is 5.38:1. */
 .clear-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 0;
+  padding: 8px 16px;
+  border: 1px solid rgb(198 40 40 / 45%);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-danger);
+  font: inherit;
   font-size: 13px;
-  /* `color="danger"` did not set the foreground; the label came out as the app
-     primary, powder on cream at 1.71:1. Third instance of this in the session - the
-     Cancel buttons on /orders and on the order tracker needed the same declaration.
-     Danger on this ground is 5.38:1. */
-  --color: var(--color-danger);
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.clear-btn:hover {
+  background: var(--tone-danger-bg);
+  border-color: var(--color-danger);
+}
+
+.clear-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The glyph at the size the row can afford, and at the app's lighter stroke:
+   the trash at 18px with a 2.25 stroke is a heavy black mark. */
+.clear-glyph {
+  --icon-size: 16px;
+  --icon-stroke: 1.75;
+  flex: 0 0 auto;
 }
 
 // ── Checkout actions ──────────────────────────────────────
@@ -572,27 +844,114 @@
 
 /* Plum, not white. This was white on sunny yellow, which measures 1.58:1 — it
    was a pre-existing failure on the old palette too, and the pastel makes it
-   no better. 8.16:1 with plum. */
+   no better. 8.16:1 with plum.
+
+   THE APP'S GOLD CTA, as a plain button: an amber fill, plum ink, a pill, and
+   a hover that changes the button itself rather than drawing a teal outline
+   around it — an outline around a gold button reads as a sticker stuck on
+   the gold. */
 .place-order-btn {
-  --background: var(--color-brand-accent);
-  --color: var(--color-ink);
-  --border-radius: var(--radius-sm);
-  --padding-top: 14px;
-  --padding-bottom: 14px;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
   font-size: 16px;
-  /* Zeroed: .cart-rail's flex gap already spaces this from the summary card,
-     and the old 16px was compensating for a stack that no longer exists. */
-  margin-top: 0;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
-/* Back to browsing, sized to its own label rather than matching Place Order
-   above it: it is an escape route, not an alternative to the action. */
-.back-btn {
-  --border-radius: var(--radius-sm);
-  align-self: center;
-  margin-top: 0;
+.place-order-btn:hover:not(:disabled) {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+
+.place-order-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.place-order-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* THE WAY BACK, at the page's top left.
+
+   It was a button at the foot of the right-hand rail, below the Place Order
+   button — the way out of the shop stacked underneath the way into it, with
+   the quieter of the two underneath.
+
+   It is now a link at the left edge of the page, directly under the header
+   and outside the capped column, which is where the order tracker puts its
+   own. One shape for the way back, in the two pages that have one.
+
+   24px BELOW THE HEADER, not 12px. At 12 it sat close enough to the toolbar
+   to read as part of it — a second thing in the header's band, on the
+   header's side — and the page has one header. Lowered, it belongs to the
+   content it is a link into, and the gap above it says so.
+
+   The word is teal because it is a link, and the arrow is 16px because it is
+   a glyph rather than the point. */
+.cart-top {
+  padding: var(--space-5) var(--space-4) 0;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-primary-ink);
   font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.back-link:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.back-glyph {
+  --icon-size: 16px;
+}
+
+/* Removing a voucher is a quiet action on a card that already carries a
+   button: the same shape as .manage-toggle and the other quiet controls. */
+.remove-voucher-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.remove-voucher-btn:hover {
+  background: var(--tile-powder);
+}
+.remove-voucher-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
 }
 
 // ── Confirmed ────────────────────────────────────────────
@@ -606,8 +965,19 @@
   text-align: center;
   padding: 20px;
 }
+/* 56px, at a 1.2 stroke.
+
+   An SVG scales its stroke with its viewBox, so the app's default 2.25px
+   stroke on an 80px icon is a 7.5px line — the check in the circle came out
+   as a heavy green ring, which is the one piece of weight on a screen that
+   is otherwise a sentence and two buttons. 1.2 at 56px is a 2.8px line: the
+   weight a 24px icon has at its natural size.
+
+   --icon-stroke is the app-icon component's own hook, so the vendored Lucide
+   geometry is untouched. */
 .confirmed-icon {
-  --icon-size: 80px;
+  --icon-size: 56px;
+  --icon-stroke: 1.2;
   color: var(--color-success);
 }
 .confirmed-title {
@@ -633,8 +1003,131 @@
   max-width: 320px;
 }
 
-/* An outline ion-button inherits --ion-color-primary - the powder brand hue - which
-   measured #8ECAE6 on cream at 1.71:1. */
+/* The pair of buttons, as the app's two button families: the gold CTA and the
+   quiet control. They were ion-buttons — an uppercased gold slab with a
+   three-layer elevation shadow, and an outline button with a 4px radius and
+   Ionic's blue — and the confirmation is the one screen where the customer is
+   looking at exactly one thing. */
+.confirmed-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.confirmed-cta:hover {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+.confirmed-cta:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* The quiet control: a white pill with one hairline, the same shape the
+   admin's file buttons and the customers' select chips have. */
+.confirmed-alt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 10px 16px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.confirmed-alt:hover {
+  border-color: var(--color-primary-ink);
+}
+.confirmed-alt:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+/* Apply, as the app's quiet control: a white oval with one hairline and a
+   teal label — the same shape the admin's file buttons and the customers'
+   select chips have.
+
+   It was an <ion-button fill="outline">, which is a 4px-radius box with
+   Ionic's blue rim and an uppercased label, standing next to a field that
+   was the app's flat shape. Two controls that were meant to be one kind of
+   thing looked like two.
+
+   IT LIVES INSIDE THE FIELD, at its right end. It used to stand beside it,
+   which meant the two of them shared the row: the field got what was left
+   over, and the field is where a promo code is typed. The button is now
+   positioned against the field's inside corner, so the field is the full
+   width of the card and the action is where the eye goes after typing.
+
+   36px, not 44px: it is inside a 44px field, and the difference is the
+   4px of breathing room either side of it. It is still a 24px-or-more target
+   in both directions, and the page's other destructive control (the cancel
+   pill on the orders list) is 30px. */
 .apply-voucher-btn {
-  --color: var(--color-primary-ink);
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  /* z-index 3, and it is load-bearing.
+
+     Ionic's ion-input host carries `position: relative; z-index: 2` of its own,
+     so a positioned sibling with the default z-index paints UNDER the field
+     rather than over it — the button was there, measurable, and invisible. */
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--tile-powder-deep);
+  /* AN OVAL, NOT A PILL — `border-radius: 50%`.
+
+     A pill radius is 999px, and on a box 36px tall the browser clamps it to
+     18px: the two ends become semicircles of 18px radius and the shape
+     reads as a lozenge rather than as an oval. The app's own theme file says
+     as much when it moved the chips off --radius-pill — "at 36px tall a pill
+     radius wraps both ends to an 18px semicircle, which reads as a lozenge".
+
+     `50%` asks for an ELLIPSE instead: the horizontal radius is half the
+     width and the vertical radius is half the height, so the ends are
+     flatter arcs than a semicircle and the whole shape is an oval.
+
+     The label clears the curve comfortably — "Apply" is 38px of text in a
+     66px oval, and at the top and bottom of the text the oval is still 58px
+     wide, so nothing crowds the edge. */
+  border-radius: 50%;
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.apply-voucher-btn:hover {
+  border-color: var(--color-primary-ink);
+}
+.apply-voucher-btn:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
 }

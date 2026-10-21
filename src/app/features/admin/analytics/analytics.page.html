@@ -1,6 +1,6 @@
 <!-- src/app/features/admin/analytics/analytics.page.html -->
 
-<ion-header>
+<ion-header class="flat-header">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
@@ -17,7 +17,9 @@
   @if (isLoading()) {
     <div class="analytics-body">
       @for (s of [1, 2, 3, 4]; track s) {
-        <ion-card><ion-skeleton-text animated style="height: 80px"></ion-skeleton-text></ion-card>
+        <div class="flat-card skeleton-card">
+          <ion-skeleton-text animated style="height: 80px"></ion-skeleton-text>
+        </div>
       }
     </div>
   }
@@ -30,36 +32,56 @@
 
   @if (!isLoading() && !loadError()) {
     <div class="analytics-body">
-      <ion-segment [value]="dateRange()" (ionChange)="setDateRange($any($event).detail.value)">
-        <ion-segment-button value="all"><ion-label>All</ion-label></ion-segment-button>
-        <ion-segment-button value="today"><ion-label>Today</ion-label></ion-segment-button>
-        <ion-segment-button value="7d"><ion-label>7d</ion-label></ion-segment-button>
-        <ion-segment-button value="30d"><ion-label>30d</ion-label></ion-segment-button>
-      </ion-segment>
       <!--
-        Export, left-aligned and narrow.
+        THE TOOLBAR: the date range on the left, the export on the right.
 
-        It was `expand="block"` — a full-width bar directly under the range
-        segment, which made a secondary action the most prominent control on the
-        page. It is now sized to its own label and sits on the left of the range
-        selector, which is where an export belongs: at the edge, out of the way of
-        the figures.
+        IT WAS AN ion-segment, and the segment was the widest thing on the
+        page: four short labels — ALL, TODAY, 7D, 30D — spread across the full
+        thousand pixels of the content column, with the selected one marked by a
+        lavender block. Most of the control was empty space.
+
+        The ranges are now the same chip the reviews queue filters with, so the
+        two admin queues read as one system, and the row is a row rather than a
+        band. The chips are the shared `.filter-chip` rule in global.scss.
+
+        The export moved from a second row to the right end of this one, and
+        from an `ion-button` to the app's quiet control: a white field with one
+        definite hairline. Ionic's outline button paints a Material elevation
+        shadow and uppercases its label, and both are wrong here.
       -->
-      <div class="toolbar-row">
-        @if (exportError()) {
-          <!--
+      <div class="toolbar">
+        <div class="range-row" role="group" aria-label="Date range">
+          @for (r of ranges; track r.value) {
+            <button
+              type="button"
+              class="filter-chip"
+              [class.is-on]="dateRange() === r.value"
+              [attr.aria-pressed]="dateRange() === r.value"
+              (click)="setDateRange(r.value)"
+            >
+              {{ r.label }}
+            </button>
+          }
+        </div>
+
+        <button
+          type="button"
+          class="csv-btn export-btn"
+          (click)="exportCsv()"
+          aria-label="Export delivered sales as CSV"
+        >
+          <app-icon name="file" />Export CSV
+        </button>
+      </div>
+
+      @if (exportError()) {
+        <!--
           An export that reports success but produced no file is worse than a
           visible failure: the admin walks away believing they have a report. On a
           device the old anchor-click path did exactly that.
         -->
-          <app-alert-banner tone="danger" title="Export failed" [message]="exportError()" />
-        }
-
-        <ion-button size="small" fill="outline" class="export-btn" (click)="exportCsv()">
-          <app-icon name="download" slot="start" />
-          Export CSV
-        </ion-button>
-      </div>
+        <app-alert-banner tone="danger" title="Export failed" [message]="exportError()" />
+      }
 
       @if (truncated()) {
         <!--
@@ -84,24 +106,43 @@
         />
       }
 
+      <!--
+        THE FOUR FIGURES, AS FLAT CARDS.
+
+        They were four pastel tiles with no border at all, and they were only
+        just visible: mint on the cream page measures 1.12:1, powder 1.10:1 and
+        lemon 1.06:1, against a floor of 1.15:1 for a large filled area. The
+        app had already rejected --tile-lemon on cream for exactly this reason
+        (scripts/check-contrast.mjs carries it as a REJECTED row), and these
+        tiles were still using it.
+
+        So the fill moved onto the ICON, where it is a 36px accent rather than a
+        500px panel, and the card itself is the app's flat card: white, one
+        hairline, no shadow. The tile's icon sits on a disc of its own pastel
+        with a rim in the same family, so the disc has an edge of its own
+        rather than relying on a colour difference to draw one.
+
+        FOUR ACROSS FROM 760px. They were two across on every screen, which gave
+        each tile 510 pixels to hold three words and a number.
+      -->
       <div class="kpi-grid">
         <div class="kpi-tile kpi-revenue">
-          <app-icon name="banknote" class="kpi-icon" />
+          <span class="kpi-disc"><app-icon name="banknote" class="kpi-icon" /></span>
           <p class="kpi-label">Revenue (Delivered)</p>
           <p class="kpi-val">{{ totalRevenue() | peso }}</p>
         </div>
         <div class="kpi-tile kpi-orders">
-          <app-icon name="receipt" class="kpi-icon" />
+          <span class="kpi-disc"><app-icon name="receipt" class="kpi-icon" /></span>
           <p class="kpi-label">Total Orders ({{ rangeLabel() }})</p>
           <p class="kpi-val">{{ totalOrders() }}</p>
         </div>
         <div class="kpi-tile kpi-delivered">
-          <app-icon name="trending-up" class="kpi-icon" />
+          <span class="kpi-disc"><app-icon name="trending-up" class="kpi-icon" /></span>
           <p class="kpi-label">Delivered ({{ rangeLabel() }})</p>
           <p class="kpi-val">{{ deliveredOrders() }}</p>
         </div>
         <div class="kpi-tile kpi-avg">
-          <app-icon name="ice-cream" class="kpi-icon" />
+          <span class="kpi-disc"><app-icon name="ice-cream" class="kpi-icon" /></span>
           <p class="kpi-label">Avg. Delivered Order</p>
           <p class="kpi-val">{{ avgOrderValue() | peso }}</p>
         </div>
@@ -109,7 +150,11 @@
 
       <!-- Say so out loud rather than quietly filtering: if the admin ever
            wonders why revenue looks lower than Fulfillment's order count, the
-           answer is here instead of being a mystery. -->
+           answer is here instead of being a mystery.
+
+           The app's own info tone — powder, a rim in the same family, navy ink —
+           because that is what an informational disclosure looks like everywhere
+           else in the app. It was a grey box with a heavy left rule. -->
       @if (myOrderCount() > 0) {
         <p class="analytics-note">
           Excludes your {{ myOrderCount() }} own order{{ myOrderCount() === 1 ? '' : 's' }} in {{ rangeLabel() }} — an
@@ -131,17 +176,15 @@
              full pie because the hole carries the total, which is the number
              people actually want. -->
         @if (deliveredOnly().length > 0) {
-          <ion-card class="chart-card chart-card--donut">
-            <ion-card-content>
-              <h3 class="section-title">Order status mix</h3>
-              <p class="chart-sub">Every order in {{ rangeLabel() }}, not just delivered ones.</p>
-              <app-donut-chart
-                [slices]="statusSlices()"
-                centreLabel="Orders"
-                ariaLabel="Distribution of orders by status"
-              />
-            </ion-card-content>
-          </ion-card>
+          <section class="flat-card">
+            <h3 class="section-title">Order status mix</h3>
+            <p class="chart-sub">Every order in {{ rangeLabel() }}, not just delivered ones.</p>
+            <app-donut-chart
+              [slices]="statusSlices()"
+              centreLabel="Orders"
+              ariaLabel="Distribution of orders by status"
+            />
+          </section>
         }
 
         <!--
@@ -152,41 +195,37 @@
           the bar lengths.
         -->
         @if (salesBySize().length > 0) {
-          <ion-card class="chart-card">
-            <ion-card-content>
-              <h3 class="section-title">Sales volume by size</h3>
-              <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
-              @if (topSize(); as top) {
-                <p class="chart-callout">
-                  <strong>{{ top.label }}</strong> leads with {{ top.count }} unit{{
-                    top.count === 1 ? '' : 's'
-                  }}
-                  &middot; {{ top.revenue | peso }}
-                </p>
-              }
-              <app-bar-chart
-                [data]="sizeBars()"
-                [format]="formatUnits"
-                emptyMessage="No delivered sales in this range yet."
-              />
-            </ion-card-content>
-          </ion-card>
+          <section class="flat-card">
+            <h3 class="section-title">Sales volume by size</h3>
+            <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
+            @if (topSize(); as top) {
+              <p class="chart-callout">
+                <strong>{{ top.label }}</strong> leads with {{ top.count }} unit{{
+                  top.count === 1 ? '' : 's'
+                }}
+                &middot; {{ top.revenue | peso }}
+              </p>
+            }
+            <app-bar-chart
+              [data]="sizeBars()"
+              [format]="formatUnits"
+              emptyMessage="No delivered sales in this range yet."
+            />
+          </section>
         }
       </div>
 
       <!-- Bar: units sold per flavor. Horizontal because flavor names are long. -->
       @if (topFlavors().length > 0) {
-        <ion-card class="chart-card">
-          <ion-card-content>
-            <h3 class="section-title">Top flavors by units sold</h3>
-            <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}. Top ten shown.</p>
-            <app-bar-chart
-              [data]="flavorBars()"
-              [format]="formatUnits"
-              emptyMessage="No delivered flavors in this range yet."
-            />
-          </ion-card-content>
-        </ion-card>
+        <section class="flat-card">
+          <h3 class="section-title">Top flavors by units sold</h3>
+          <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}. Top ten shown.</p>
+          <app-bar-chart
+            [data]="flavorBars()"
+            [format]="formatUnits"
+            emptyMessage="No delivered flavors in this range yet."
+          />
+        </section>
       }
 
       <!--
@@ -199,56 +238,70 @@
         4,000), so the percentage is what makes the ranking mean anything.
       -->
       @if (topFlavors().length > 0) {
-        <ion-card class="chart-card">
-          <ion-card-content>
-            <h3 class="section-title">Flavors ranked by units sold</h3>
-            <p class="chart-sub">
-              All {{ topFlavors().length }} flavor{{ topFlavors().length === 1 ? '' : 's' }} that sold, highest to
-              lowest. Delivered orders only, in {{ rangeLabel() }}.
-            </p>
+        <section class="flat-card">
+          <h3 class="section-title">Flavors ranked by units sold</h3>
+          <p class="chart-sub">
+            All {{ topFlavors().length }} flavor{{ topFlavors().length === 1 ? '' : 's' }} that sold, highest to lowest.
+            Delivered orders only, in {{ rangeLabel() }}.
+          </p>
 
-            <div class="table-wrap">
-              <table class="flavor-table">
-                <caption class="visually-hidden">
-                  Every flavor that sold in
-                  {{
-                    rangeLabel()
-                  }}, ranked by units sold
-                </caption>
-                <thead>
+          <div class="table-wrap">
+            <table class="flavor-table stackable-table stackable-table--inset">
+              <caption class="visually-hidden">
+                Every flavor that sold in
+                {{
+                  rangeLabel()
+                }}, ranked by units sold
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="num">#</th>
+                  <th scope="col">Flavor</th>
+                  <th scope="col">Set</th>
+                  <th scope="col" class="num">Units</th>
+                  <th scope="col" class="num">Share</th>
+                  <th scope="col" class="num">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (flavor of pagedFlavors(); track flavor.name; let i = $index) {
                   <tr>
-                    <th scope="col" class="num">#</th>
-                    <th scope="col">Flavor</th>
-                    <th scope="col">Set</th>
-                    <th scope="col" class="num">Units</th>
-                    <th scope="col" class="num">Share</th>
-                    <th scope="col" class="num">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (flavor of pagedFlavors(); track flavor.name; let i = $index) {
-                    <tr>
-                      <td class="num rank">{{ flavorPageOffset() + i + 1 }}</td>
-                      <td class="flavor-name">{{ flavor.name }}</td>
-                      <td class="flavor-set">{{ flavor.setName }}</td>
-                      <td class="num">{{ flavor.count }}</td>
-                      <td class="num">{{ shareLabel(flavor.name) }}</td>
-                      <td class="num revenue">{{ flavor.revenue | peso }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
+                    <!--
+                      THE LEAD CELL, and the labels below.
 
-            <app-pagination
-              [page]="flavorPage()"
-              [total]="topFlavors().length"
-              [pageSize]="FLAVOR_PAGE_SIZE"
-              itemLabel="flavors"
-              (pageChange)="flavorPage.set($event)"
-            />
-          </ion-card-content>
-        </ion-card>
+                      This is a report rather than a queue — there is nothing to
+                      click — so it has no actions cell and no button at its
+                      foot. The flavour's NAME is the row's identity and is
+                      the card's heading; the rank is a field of it, not the
+                      heading, because "3" on its own at the top of a card
+                      says nothing about what the card is.
+
+                      The labels exist for the same reason they do on the three
+                      queues: this table's six columns need 894px, so on a
+                      phone the revenue column — the one the owner opened the
+                      page for — fell off the right edge with nothing to
+                      indicate it had.
+                    -->
+                    <td class="num rank" data-label="Rank">{{ flavorPageOffset() + i + 1 }}</td>
+                    <td class="flavor-name cell-lead">{{ flavor.name }}</td>
+                    <td class="flavor-set" data-label="Set">{{ flavor.setName }}</td>
+                    <td class="num" data-label="Units">{{ flavor.count }}</td>
+                    <td class="num" data-label="Share">{{ shareLabel(flavor.name) }}</td>
+                    <td class="num revenue" data-label="Revenue">{{ flavor.revenue | peso }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <app-pagination
+            [page]="flavorPage()"
+            [total]="topFlavors().length"
+            [pageSize]="FLAVOR_PAGE_SIZE"
+            itemLabel="flavors"
+            (pageChange)="flavorPage.set($event)"
+          />
+        </section>
       }
 
       <!--
@@ -256,71 +309,75 @@
         window, so nothing here could answer "is it going up or down?" — which
         is the first question an owner asks.
       -->
-      <ion-card class="chart-card">
-        <ion-card-content>
-          <h3 class="section-title">Revenue trend</h3>
-          @if (rangeDays() === null) {
-            <p class="chart-sub">Pick a date range to see the trend — "All time" has no window to plot against.</p>
-          } @else {
-            <p class="chart-sub">
-              Delivered orders only{{ rangeDays()! > 14 ? ', by week' : ', by day' }}, in {{ rangeLabel() }}.
-            </p>
+      <section class="flat-card">
+        <h3 class="section-title">Revenue trend</h3>
+        @if (rangeDays() === null) {
+          <p class="chart-sub">Pick a date range to see the trend — "All time" has no window to plot against.</p>
+        } @else {
+          <p class="chart-sub">
+            Delivered orders only{{ rangeDays()! > 14 ? ', by week' : ', by day' }}, in {{ rangeLabel() }}.
+          </p>
 
-            <div class="trend-toggles" role="group" aria-label="Trend measure">
-              <button
-                type="button"
-                class="trend-toggle"
-                [class.is-on]="trendSeries() === 'daily'"
-                [attr.aria-pressed]="trendSeries() === 'daily'"
-                (click)="trendSeries.set('daily')"
-              >
-                Per day
-              </button>
-              <button
-                type="button"
-                class="trend-toggle"
-                [class.is-on]="trendSeries() === 'cumulative'"
-                [attr.aria-pressed]="trendSeries() === 'cumulative'"
-                (click)="trendSeries.set('cumulative')"
-              >
-                Running total
-              </button>
-              <button
-                type="button"
-                class="trend-toggle"
-                [class.is-on]="trendSeries() === 'orders'"
-                [attr.aria-pressed]="trendSeries() === 'orders'"
-                (click)="trendSeries.set('orders')"
-              >
-                Orders
-              </button>
-            </div>
+          <!--
+            Three real buttons with aria-pressed, not a segmented control: these
+            change WHICH measure is drawn rather than filtering a list, so
+            "selected" would be the wrong announcement.
 
-            <app-line-chart
-              [points]="activeTrend()"
-              [format]="trendSeries() === 'orders' ? formatCount : formatPeso"
-              [seriesLabel]="trendSeries() === 'orders' ? 'Delivered orders' : 'Revenue'"
-              emptyMessage="No delivered orders in this range yet."
-            />
-          }
-        </ion-card-content>
-      </ion-card>
+            They are the same chip the range filters are — it is the same
+            control: a pressed toggle in a group of choices.
+          -->
+          <div class="trend-toggles" role="group" aria-label="Trend measure">
+            <button
+              type="button"
+              class="filter-chip"
+              [class.is-on]="trendSeries() === 'daily'"
+              [attr.aria-pressed]="trendSeries() === 'daily'"
+              (click)="trendSeries.set('daily')"
+            >
+              Per day
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              [class.is-on]="trendSeries() === 'cumulative'"
+              [attr.aria-pressed]="trendSeries() === 'cumulative'"
+              (click)="trendSeries.set('cumulative')"
+            >
+              Running total
+            </button>
+            <button
+              type="button"
+              class="filter-chip"
+              [class.is-on]="trendSeries() === 'orders'"
+              [attr.aria-pressed]="trendSeries() === 'orders'"
+              (click)="trendSeries.set('orders')"
+            >
+              Orders
+            </button>
+          </div>
+
+          <app-line-chart
+            [points]="activeTrend()"
+            [format]="trendSeries() === 'orders' ? formatCount : formatPeso"
+            [seriesLabel]="trendSeries() === 'orders' ? 'Delivered orders' : 'Revenue'"
+            emptyMessage="No delivered orders in this range yet."
+          />
+        }
+      </section>
 
       <!-- Bar: revenue by flavor set. -->
       @if (salesBySet().length > 0) {
-        <ion-card class="chart-card">
-          <ion-card-content>
-            <h3 class="section-title">Revenue by flavor set</h3>
-            <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
-            <app-bar-chart
-              [data]="setBars()"
-              [format]="formatPeso"
-              emptyMessage="No delivered sales in this range yet."
-            />
-          </ion-card-content>
-        </ion-card>
+        <section class="flat-card">
+          <h3 class="section-title">Revenue by flavor set</h3>
+          <p class="chart-sub">Delivered orders only, in {{ rangeLabel() }}.</p>
+          <app-bar-chart
+            [data]="setBars()"
+            [format]="formatPeso"
+            emptyMessage="No delivered sales in this range yet."
+          />
+        </section>
       }
     </div>
   }
-  <app-footer></app-footer>
+  <app-admin-footer></app-admin-footer>
 </ion-content>

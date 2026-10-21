@@ -483,7 +483,7 @@ production` to `start` — the app just quietly writes to the real database.
 | `npm run emulators`           | Start the emulator UI to inspect rules interactively                                                                                                                                                                               |
 | `npm run seed`                | Seed 64 products (add `seed:preserve-stock` to keep stock)                                                                                                                                                                         |
 | `npm run seed:admin`          | Promote an account: `npm run seed:admin -- <uid> owner`                                                                                                                                                                            |
-| `npm run seed:developers`     | Publish the five team credits to Firestore. Refuses a second run without `--force`, which would discard edits made in the app                                                                                                      |
+| `npm run seed:developers`     | Publish the team credits to Firestore. Refuses a second run without `--force`, which would discard edits made in the app. Adds and overwrites only — it never deletes, so it cannot retire a credit                                |
 | `npm run images:generate`     | Generate one placeholder SVG per flavor                                                                                                                                                                                            |
 | `npm run images:seed`         | Re-seed with those images, so products are not imageless                                                                                                                                                                           |
 | `npm run upload:images`       | Upload product photos to Cloudinary (`--dir=<folder> --upload --write`)                                                                                                                                                            |
@@ -575,7 +575,6 @@ this field existed keep appearing in the catalog.
 | Name                          | Roles                                                                         |
 | ----------------------------- | ----------------------------------------------------------------------------- |
 | **Kenn Karlo Umadhay**        | Main Project Lead · Full Stack Dev · UI/UX Designer Lead · QA · Documentation |
-| **Heaven Alvior**             | QA · Documentation                                                            |
 | **Justin Curby P. Esguerra**  | Full Stack Dev · UI/UX Designer · QA · Documentation                          |
 | **Renz Gabriel De la Cruz**   | QA · Documentation                                                            |
 | **Antonio Miguel Villanueva** | Full Stack Dev · UI/UX Designer · QA · Documentation                          |

@@ -9,26 +9,18 @@ import {
   IonContent,
   IonButtons,
   IonMenuButton,
-  IonCard,
-  IonCardContent,
-  IonText,
   IonSkeletonText,
   IonRefresher,
   IonRefresherContent,
-  IonChip,
-  IonLabel,
-  IonButton,
-  IonSegment,
-  IonSegmentButton,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
 
-import { OrderService } from '@core/services/order.service';
-import { AuthService } from '@core/services/auth.service';
+import { OrderService } from '@core/services/orders/order.service';
+import { AuthService } from '@core/services/identity/auth.service';
 import { Order, OrderStatus } from '@core/models/order.model';
 import { describeFirestoreError } from '@core/logic/firestore-error';
-import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv';
-import { CsvExportService } from '@core/services/csv-export.service';
+import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv/cell';
+import { CsvExportService } from '@core/services/commerce/csv-export.service';
 import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
 import type { SizeVariant } from '@core/models/product.model';
 import {
@@ -38,10 +30,10 @@ import {
 import { BarChartComponent, type BarDatum } from '@shared/components/charts/bar-chart.component';
 import { LineChartComponent, type LinePoint } from '@shared/components/charts/line-chart.component';
 import { bucketsFor, bucketize, runningTotal } from '@core/logic/series';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
 import { PesoPipe } from '@shared/pipes/peso.pipe';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
 
 /** One row of the ranked flavors table. setName is carried so the table can
  *  group by set without a second lookup at render time. */
@@ -85,17 +77,9 @@ const ANALYTICS_MAX_ORDERS = 5000;
     IonContent,
     IonButtons,
     IonMenuButton,
-    IonCard,
-    IonCardContent,
-    IonText,
     IonSkeletonText,
     IonRefresher,
     IonRefresherContent,
-    IonChip,
-    IonLabel,
-    IonButton,
-    IonSegment,
-    IonSegmentButton,
     PesoPipe,
     AppIconComponent,
     DonutChartComponent,
@@ -103,7 +87,7 @@ const ANALYTICS_MAX_ORDERS = 5000;
     LineChartComponent,
     AlertBannerComponent,
     PaginationComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
   ],
   templateUrl: './analytics.page.html',
   styleUrls: ['./analytics.page.scss'],
@@ -135,6 +119,26 @@ export class AnalyticsPage implements OnInit, OnDestroy {
    */
   loadError = signal('');
   dateRange = signal<'all' | 'today' | '7d' | '30d'>('all');
+
+  /**
+   * The date ranges, as data, because they are drawn as chips now rather than
+   * as a segment.
+   *
+   * The segment was the widest control on the page: four short labels spread
+   * across the whole content column, with most of the control being empty
+   * space. The chips are the same control the reviews queue filters with, so
+   * the two admin queues read as one system.
+   *
+   * The labels are the segment's own — "All", "Today", "7d", "30d" — because
+   * they are short, they fit a phone, and the long form of each range is
+   * already spelled out on the tiles below ("Total Orders (Last 30 Days)").
+   */
+  readonly ranges: { value: 'all' | 'today' | '7d' | '30d'; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'today', label: 'Today' },
+    { value: '7d', label: '7d' },
+    { value: '30d', label: '30d' },
+  ];
 
   /**
    * True when the read hit ANALYTICS_MAX_ORDERS, meaning the figures are a

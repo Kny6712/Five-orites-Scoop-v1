@@ -1,0 +1,591 @@
+// src/app/features/order-tracker/order-tracker.page.scss
+//
+// THE TRACKER, in the flat house.
+//
+// The page was one full-bleed column: a bare header row, a red-outlined
+// "CANCEL ORDER" stretched across the whole window, a list of circles that
+// looked like a list rather than a track, and three cards with a drop shadow
+// under each. None of that is the vocabulary this app uses anywhere else.
+//
+// What it is now:
+//
+//   · a capped, two-column page — the order and its status on one side, the
+//     route, the address and the items on the other;
+//   · white surfaces with ONE hairline and a 12px corner, and no shadow;
+//   · the cancel action as the small tonal pill the orders LIST already uses;
+//   · the status as a track: a rail, markers on it, and the timestamps in a
+//     column of their own.
+
+.tracker-body {
+  max-width: var(--container-max);
+  /* width: 100%, and it is load-bearing.
+
+     ion-content's scroll area is a column flexbox (global.scss,
+     `ion-content::part(scroll)`), so a child of it is sized by its CONTENT
+     rather than by the pane unless it is given a width. Left to its own
+     devices this column came out 996px wide at 1920 — as wide as the tracker's
+     widest card wanted to be — with `margin: 0 auto` centring that. The width
+     is what makes the cap and the centring mean what they say. */
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4) 40px;
+}
+
+/* THE WAY BACK, at the page's left edge.
+
+   It is deliberately OUTSIDE the capped column: it is flush with the left of
+   the content, not lined up with the cards inside it. It is the only thing on
+   the page allowed to sit outside the column, because it belongs to the page
+   rather than to the content.
+
+   The word is teal because it is a link, and the arrow is 16px because it is a
+   glyph rather than the point — the same quiet voice as the "Open in Maps"
+   control below. */
+.tracker-top {
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-primary-ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.back-link:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.back-glyph {
+  --icon-size: 16px;
+}
+
+.error-state {
+  display: flex;
+  justify-content: center;
+  padding: 40px;
+  color: var(--color-danger);
+}
+
+// ── The two columns ─────────────────────────────────────────
+/* The page's whole shape.
+
+   The tracker has two halves — WHAT this order is and WHERE it has got to,
+   and the detail the customer came for — so it is laid out as two halves.
+   At 1340px that is the difference between a 1300px-wide map with a 300px
+   list of two scoops floating on it, and a page that reads. */
+.tracker-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .tracker-grid {
+    grid-template-columns: minmax(320px, 380px) 1fr;
+    gap: var(--space-5);
+  }
+}
+
+.tracker-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+// ── The card ────────────────────────────────────────────────
+/* THE APP'S FLAT CARD: a white surface, ONE hairline, a 12px corner, and no
+   shadow. The drop shadow was the loudest thing about this page — a cream
+   ground with three slabs floating over it — and this vocabulary does not
+   have shadows in it at all. */
+.flat-card {
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  padding: var(--space-4);
+}
+
+/* The section label: the app's quiet, uppercase, teal voice. It is the same
+   rule the map, address and items cards used, and the status card now wears
+   it too — four sections on one page all labelled the same way reads as one
+   page rather than as four unrelated blocks. */
+.info-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  // primary-ink: 1.71:1 on cream becomes 6.82:1. At 11px this is small text and owes
+  // the full 4.5:1, so the brand hue could never have cleared it here at any weight.
+  color: var(--color-primary-ink);
+  margin: 0 0 var(--space-3);
+}
+
+// ── Order Summary ───────────────────────────────────────────
+/* Three blocks on one line: the order's number, when it was placed, and where
+   it has got to. The status badge sits in its own column because it is a
+   fixed-width chip and the other two are text of any length. */
+.summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+}
+
+/* `min-width: 0` ALONE IS WHAT BROKE THIS.
+
+   A flex item's default `min-width: auto` means it will not shrink below its
+   content — which is what stopped the order number from ever colliding with
+   the date beside it. Setting `min-width: 0` removed that floor, and since
+   `.order-id` is `white-space: nowrap` the mono order number had nowhere to
+   go but THROUGH its sibling.
+
+   Measured at 390px, before this fix: the order number rendered L33-R117 and
+   the date block began at L95, so `#PARNG1` was printed straight through
+   "Tue, Oct 20, 05:57 AM". The text-on-text overlap was visible, not
+   theoretical.
+
+   `min-width: auto` puts the floor back for the ORDER block specifically. The
+   date block keeps `min-width: 0` because its text is ordinary prose that is
+   free to wrap — and it has to be, because the order number's 84px plus the
+   date's longest line plus the status chip do not fit a phone side by side.
+   That is what the stacked layout below is for. */
+.summary-block {
+  min-width: 0;
+}
+
+/* The order number is an identifier and must never wrap — a number broken
+   across two lines is not a number. So the block that holds it does not
+   shrink either: it is either wide enough for the whole thing or the row
+   stacks. */
+.summary-block:has(.order-id) {
+  min-width: auto;
+  flex: 0 0 auto;
+}
+
+.summary-status {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* THE THREE BLOCKS STACK WHEN THE CARD IS NARROW — not when the window is.
+
+   This has to be a CONTAINER query and not a viewport media query, because the
+   summary card does not get wider as the window does. It lives in the tracker's
+   LEFT column, and that column is 320-380px wide from 900px up. Measured
+   content widths of the card at each viewport:
+
+     390px viewport  -> card 326px wide
+     768px viewport  -> card 434px wide   (still one column)
+     900px viewport  -> card 348px wide   (the two-column layout arrives)
+    1340px viewport  -> card 348px wide
+
+   So the card is NARROWER at a 1340px desktop than it is at a 768px tablet, and
+   a viewport breakpoint would have had to stack the summary on tablets and
+   NOT on desktops — which is exactly backwards.
+
+   What the three blocks actually need, measured: the order number is 84px and
+   never wraps, the date is up to 72px and may wrap to two lines, and the
+   status chip is a fixed 174px. That is 290px of content that cannot shrink,
+   plus two 16px gaps, plus a date worth reading — so about 400px of card.
+
+   Below that the blocks go on three lines: order number, then date, then where
+   it has got to.
+
+   400px is the card's own width, and `container-type` is declared on the card
+   below, so this query asks the card how wide it is rather than asking the
+   window. */
+.order-summary {
+  container-type: inline-size;
+  container-name: order-summary;
+}
+
+@container order-summary (max-width: 400px) {
+  .summary-row {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  /* The chip was pushed to the far right of the row with `margin-left: auto`.
+     In a column that would push it past the right edge of the card, so the
+     auto margin comes off and it sits with the rest of the stack. */
+  .summary-status {
+    margin-left: 0;
+  }
+
+  /* The label sits directly above its value, so the gap between one pair and
+     the next has to be bigger than the gap inside one. */
+  .summary-block .info-label,
+  .summary-status .info-label {
+    margin-bottom: var(--space-1);
+  }
+}
+
+/* The order number, in the app's mono token — it is an identifier, and an
+   identifier that is set in the body face is hard to read back over the
+   phone. It never wraps: a number broken across two lines is not a number. */
+.order-id {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+.order-date {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--color-ink);
+  margin: 0;
+}
+
+// ── The cancelled notice ────────────────────────────────────
+/* The app's danger tone — a tinted surface, a matching rim and a dark ink —
+   rather than a hand-written #fde8e8 with a raw red on it. */
+.cancelled-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--tone-danger-border);
+  border-radius: var(--radius-xs);
+  background: var(--tone-danger-bg);
+  color: var(--tone-danger-ink);
+}
+
+.cancelled-glyph {
+  --icon-size: 18px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.cancelled-copy {
+  min-width: 0;
+}
+
+.cancelled-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.cancelled-reason {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+// ── The cancel action ───────────────────────────────────────
+/* A small tonal pill, and the SAME one the orders list uses for the same
+   action. It was an <ion-button fill="outline" color="danger"> stretched
+   across the whole window, which made a routine "never mind this order" read
+   as the page's headline — and a full-width red bar on a page whose subject
+   is "your order is fine" is a lie about the page. */
+.summary-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--tile-powder-deep);
+}
+
+.cancel-order-btn {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  font: 700 13px var(--font-body);
+  color: var(--tone-danger-ink);
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-border);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+/* Hover deepens the RIM, not the fill: --tile-blush and --tone-danger-bg are
+   the same value, so there is no second tint to hover into. */
+.cancel-order-btn:hover:not(:disabled) {
+  border-color: var(--tone-danger-ink);
+}
+
+.cancel-order-btn:focus-visible {
+  outline: 2px solid var(--tone-danger-ink);
+  outline-offset: 2px;
+}
+
+.cancel-order-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+// ── The status track ────────────────────────────────────────
+/* A TRACK, not a list.
+
+   The rail is one hairline running down the left, the markers sit ON it, and
+   the completed part of the rail is drawn in the success colour so the eye
+   can see how far along the order is without reading a single label. The
+   timestamps are in a column of their own on the right, which is what makes
+   it a track and not a list — a list of times under a list of labels is two
+   lists. */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.timeline-step {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: start;
+  column-gap: var(--space-3);
+}
+
+.step-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--tile-powder-deep);
+  background: var(--color-white);
+  color: var(--ion-color-medium);
+}
+
+.step-line {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  width: 2px;
+  height: calc(100% + 16px - 28px);
+  transform: translateX(-50%);
+  background: var(--tile-powder-deep);
+}
+
+.step-icon {
+  --icon-size: 16px;
+}
+
+.step-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 0 18px;
+  min-width: 0;
+}
+
+.step-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.step-desc {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ion-color-medium);
+}
+
+/* The time of the step, in the app's quiet voice, right-aligned in its own
+   column so the five times line up down the page. */
+.step-time {
+  padding: 5px 0 18px;
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+// ── Step states ─────────────────────────────────────────────
+/* DONE: a filled marker and a filled rail behind it.
+
+   The green is the app's --color-success, which is a dark green and keeps
+   white glyphs at 5.28:1. It is a FILL on a small disc, which is a shape —
+   and a shape is allowed to be a colour that text is not. */
+.step-completed {
+  .step-marker {
+    background: var(--color-success);
+    border-color: var(--color-success);
+    .step-icon {
+      color: var(--color-white);
+    }
+  }
+  .step-line {
+    background: var(--color-success);
+  }
+  .step-label {
+    color: var(--color-ink);
+  }
+}
+
+/* NOW: the marker is filled with the brand teal and carries a ring.
+
+   THE RING IS A BORDER, NOT A SHADOW. The active step had
+   `box-shadow: 0 0 0 4px var(--tile-powder)` — a drop shadow, which is the
+   one thing this vocabulary does not use — and it is now a 3px ring drawn
+   around the marker in the same powder. Flat, and the same shape. */
+.step-active {
+  .step-marker {
+    background: var(--tile-powder);
+    border-color: var(--color-primary-ink);
+    box-shadow: none;
+    outline: 3px solid var(--tile-powder);
+    .step-icon {
+      // Not white. White on the powder marker measured 1.79:1, and this is the
+      // CURRENT step — the one glyph on the page that most needs to be
+      // findable. An icon owes 3:1, and primary-ink on powder is 3.98:1.
+      color: var(--color-primary-ink);
+    }
+  }
+  .step-label {
+    color: var(--color-ink);
+    font-weight: 700;
+  }
+}
+
+/* STILL TO COME: the marker is an empty ring and the label is quiet.
+
+   The de-emphasis is the label's, not the marker's — a marker nobody can see
+   is not a state, it is a gap in the track. */
+.step-upcoming {
+  .step-icon {
+    // light-shade is a BORDER token; as a glyph on white it measured 1.19:1. A dimmed
+    // UPCOMING step still has to be perceivable, and medium is 4.93:1 — so the
+    // de-emphasis now comes from the step's own dimming rather than from a colour
+    // nobody can see.
+    color: var(--ion-color-medium);
+  }
+  .step-label {
+    color: var(--ion-color-medium);
+    font-weight: 600;
+  }
+}
+
+// ── The map ─────────────────────────────────────────────────
+/* The map card's label sits above the map, so the card needs no extra top
+   padding for it. */
+.map-card .info-label {
+  margin-bottom: var(--space-3);
+}
+
+.map-note {
+  margin: var(--space-3) 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+}
+
+// ── The address ─────────────────────────────────────────────
+.address-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--color-ink);
+}
+
+.info-notes {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ion-color-medium);
+  margin: var(--space-1) 0 0;
+}
+
+/* The app's quiet control: a white surface, one hairline, a teal label. */
+.quiet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  margin-top: var(--space-3);
+  padding: 0 14px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 0.15s ease;
+}
+
+.quiet-link:hover {
+  border-color: var(--color-primary-ink);
+}
+
+.quiet-link:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.quiet-link app-icon {
+  --icon-size: 16px;
+}
+
+// ── The items ───────────────────────────────────────────────
+/* One row per flavour: the name, the size and how many, and the money. The
+   hairline between rows is the card's own rim colour, so the list reads as
+   one object rather than as rows in a table. */
+.order-item-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--tile-powder-deep);
+}
+
+.item-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+.item-meta {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+  white-space: nowrap;
+}
+
+.item-price {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-primary-ink);
+  white-space: nowrap;
+}
+
+.totals-block {
+  margin-top: var(--space-3);
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 5px 0;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+
+/* THE TOTAL, and it says so — the same treatment the quick-view's buy row
+   gives it, so the two places a customer reads a total look the same. */
+.total-row--grand {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--tile-powder-deep);
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+}

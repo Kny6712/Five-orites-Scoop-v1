@@ -31,7 +31,13 @@ export function assertCanAddToCart(
 
 /** Clamps a requested quantity to what is actually available (never below 0). */
 export function clampToStock(quantity: number, available: number | undefined): number {
-  if (available === undefined) return quantity;
+  // A non-finite `available` returns the requested quantity unchanged rather
+  // than propagating `NaN`. The old `Math.max(available, 0)` turned a `NaN`
+  // stock level into `NaN`, and the caller (`CartService`) guards with
+  // `if (capped <= 0)` — and `NaN <= 0` is FALSE, so a `NaN` quantity
+  // survived into the cart and `totalAmount` became `NaN`, which then flowed
+  // into the delivery fee and the order total.
+  if (available === undefined || !Number.isFinite(available)) return quantity;
   return Math.min(quantity, Math.max(available, 0));
 }
 

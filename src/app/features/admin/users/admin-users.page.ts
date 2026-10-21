@@ -16,7 +16,6 @@
 
 import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import {
   IonHeader,
   IonToolbar,
@@ -25,22 +24,20 @@ import {
   IonButtons,
   IonMenuButton,
   IonButton,
-  IonInput,
+  IonSearchbar,
   IonAvatar,
-  IonToggle,
-  IonSelect,
-  IonSelectOption,
   IonSkeletonText,
-  IonTextarea,
+  IonPopover,
   AlertController,
   ToastController,
+  ModalController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { AuthService } from '@core/services/auth.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { AuthService } from '@core/services/identity/auth.service';
 import { describeFirestoreError } from '@core/logic/firestore-error';
 import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
 import {
@@ -51,12 +48,14 @@ import {
   ROLE_SUMMARY,
   asRole,
 } from '@core/models/user.model';
+import { EditUserModalComponent } from './edit-user-modal.component';
 import {
   Firestore,
   collection,
   getDocs,
   doc,
   setDoc,
+  deleteDoc,
   query,
   orderBy,
   limit,
@@ -88,7 +87,6 @@ const ORDERS_FOR_STATS_MAX = 300;
   standalone: true,
   imports: [
     CommonModule,
-    FormsModule,
     IonHeader,
     IonToolbar,
     IonTitle,
@@ -96,19 +94,17 @@ const ORDERS_FOR_STATS_MAX = 300;
     IonButtons,
     IonMenuButton,
     IonButton,
-    IonInput,
+    IonSearchbar,
     IonAvatar,
-    IonToggle,
-    IonSelect,
-    IonSelectOption,
     IonSkeletonText,
-    IonTextarea,
+    IonPopover,
     AppIconComponent,
     AlertBannerComponent,
     CloudinaryPipe,
     EmptyStateComponent,
     PaginationComponent,
-    AppFooterComponent,
+    AdminFooterComponent,
+    EditUserModalComponent,
   ],
   templateUrl: './admin-users.page.html',
   styleUrls: ['./admin-users.page.scss'],
@@ -118,6 +114,7 @@ export class AdminUsersPage implements OnInit {
   private auth = inject(AuthService);
   private alertCtrl = inject(AlertController);
   private toast = inject(ToastController);
+  private modalCtrl = inject(ModalController);
 
   users = signal<AppUser[]>([]);
   isLoading = signal(true);
@@ -128,53 +125,18 @@ export class AdminUsersPage implements OnInit {
   busyUid = signal<string | null>(null);
 
   search = signal('');
-  roleFilter = signal<'all' | 'staff' | 'manager' | 'admin' | 'owner' | 'customer'>('all');
-
-  // Editor
-  editing = signal(false);
-  editUid = signal<string | null>(null);
-  editName = '';
-  editPhone = '';
-  editRole: UserRole = 'customer';
+  roleFilter = signal<UserRole | 'all'>('all');
 
   /**
-   * Roles this admin may hand out.
-   *
-   * An `admin` cannot create an `owner` — handing out the role that grants the
-   * user directory is exactly the power `firestore.rules` takes away from them
-   * (`isAdminUserEdit` excludes `role` entirely). Offering 'Owner' in this
-   * dropdown would be a control the rules reject on save, which is worse than
-   * not offering it.
+   * The signed-in admin's role, exposed so the template can gate the "Owners"
+   * popover option on it (only an Owner may hand out the Owner role).
    */
-  readonly roleOptions = ((): { value: UserRole; label: string }[] => {
-    const all: { value: UserRole; label: string }[] = (
-      ['customer', 'staff', 'manager', 'admin', 'owner'] as UserRole[]
-    ).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
-    return this.myRole === 'owner' ? all : all.filter((r) => r.value !== 'owner');
-  })();
-
-  private get myRole(): UserRole {
+  get myRole(): UserRole {
     return asRole(this.auth.currentUserSnapshot?.role);
   }
-  /** Staff note. Admin-only; the rules whitelist forbids a customer writing it. */
-  editNote = '';
-  isSuspended = false;
-  suspendReason = '';
 
-  /**
-   * The signed-in admin's own uid, so the page can refuse to let them demote
-   * themselves.
-   *
-   * This is a real hazard, not a hypothetical: `allow update: if isAdmin()` is
-   * unconditional, so an admin CAN change their own role to 'customer'. The rules
-   * do not prevent it and cannot easily — there is no "keep at least one admin"
-   * invariant expressible here. Once demoted, `isAdmin()` is false for every
-   * subsequent request and every admin page including this one becomes
-   * unreachable. A blocked checkbox is the whole defence.
-   */
-  private readonly myUid = this.auth.currentUserSnapshot?.uid ?? null;
-
-  readonly isSelf = computed(() => (uid: string) => uid === this.myUid);
+  /** The signed-in admin's own uid, used to refuse self-demotion and self-delete. */
+  readonly myUid = this.auth.currentUserSnapshot?.uid ?? null;
 
   /**
    * Suspended accounts, as a filter rather than a column.
@@ -217,6 +179,22 @@ export class AdminUsersPage implements OnInit {
    */
   readonly customerCount = computed(
     () => this.users().filter((u) => asRole(u.role) === 'customer').length,
+  );
+
+  readonly staffCount = computed(
+    () => this.users().filter((u) => asRole(u.role) === 'staff').length,
+  );
+
+  readonly managerCount = computed(
+    () => this.users().filter((u) => asRole(u.role) === 'manager').length,
+  );
+
+  readonly adminCount = computed(
+    () => this.users().filter((u) => asRole(u.role) === 'admin').length,
+  );
+
+  readonly ownerCount = computed(
+    () => this.users().filter((u) => asRole(u.role) === 'owner').length,
   );
 
   /**
@@ -368,10 +346,63 @@ export class AdminUsersPage implements OnInit {
     this.spendSortActive.set(false);
   }
 
-  onRoleFilter(role: 'all' | 'staff' | 'manager' | 'admin' | 'owner' | 'customer'): void {
-    this.roleFilter.set(role);
+  /**
+   * Whether the role filter popover is open - a MIRROR of the overlay's real
+   * state, not the thing that opens it.
+   *
+   * Written from `didPresent`/`didDismiss`, and read solely by the button's
+   * `aria-expanded`.
+   */
+  readonly rolePopoverOpen = signal(false);
+
+  /**
+   * Opens the role filter popover (driven by the button's `trigger` attribute).
+   */
+  openRolePopover(): void {
+    // Ionic presents from the trigger element; this only mirrors state if needed.
+    this.rolePopoverOpen.set(true);
+  }
+
+  closeRolePopover(): void {
+    this.rolePopoverOpen.set(false);
+  }
+
+  /**
+   * Apply a role filter choice from the popover.
+   */
+  onRoleFilter(next: UserRole | 'all'): void {
+    this.roleFilter.set(next);
     this.page.set(1);
     this.spendSortActive.set(false);
+  }
+
+  /**
+   * Returns a label for the current role filter suitable for display in the chip.
+   */
+  getRoleFilterLabel(): string {
+    const role = this.roleFilter();
+    if (role === 'all') {
+      return `All (${this.users().length})`;
+    }
+
+    const countMap: Record<UserRole, number> = {
+      customer: this.customerCount(),
+      staff: this.staffCount(),
+      manager: this.managerCount(),
+      admin: this.adminCount(),
+      owner: this.ownerCount(),
+    };
+
+    const count = countMap[role];
+    const labelMap: Record<UserRole, string> = {
+      customer: 'Customers',
+      staff: 'Staff',
+      manager: 'Managers',
+      admin: 'Admins',
+      owner: 'Owners',
+    };
+
+    return `${labelMap[role]} (${count})`;
   }
 
   /**
@@ -384,39 +415,6 @@ export class AdminUsersPage implements OnInit {
   roleLabel(user: AppUser): string {
     return ROLE_LABELS[asRole(user.role)];
   }
-
-  /**
-   * How many staff accounts exist at or above each tier.
-   *
-   * A single "Admins (3)" count was true only while there was one admin role.
-   * With four tiers it is the kind of number that stops meaning anything, and the
-   * question it answered — "who could do this before I could?" — is asked per
-   * tier.
-   */
-  readonly staffTiers = computed(() => {
-    const rank = ROLE_RANK[this.myRole];
-    // `<=`, not `>=`. The page sits behind `capabilityGuard('manage_users')`,
-    // which is OWNER-only, so `rank` is always 4 and `>= 4` selected `owner`
-    // alone: `admin` — a whole tier — got NO chip anywhere on the page, and the
-    // doc comment's "at or above each tier" described the opposite of what the
-    // code did.
-    //
-    // `<=` means "this tier and everyone above it", which is what an owner needs:
-    // the question behind this row is "who can do what I cannot?", and the answer
-    // for an owner is every tier that exists.
-    //
-    // This is why group one of the chips (All / Customers / Managers / Staff) has
-    // its Managers and Staff entries removed: they appear here already, and
-    // leaving both would render two `Staff (1)` chips wired to the same filter,
-    // both lighting up as active at once.
-    return (['staff', 'manager', 'admin', 'owner'] as UserRole[])
-      .filter((r) => ROLE_RANK[r] <= rank)
-      .map((role) => ({
-        role,
-        label: ROLE_LABELS[role],
-        count: this.users().filter((u) => asRole(u.role) === role).length,
-      }));
-  });
 
   /**
    * True when the signed-in admin may change this user's role at all.
@@ -432,16 +430,16 @@ export class AdminUsersPage implements OnInit {
   }
 
   /**
-   * The same check for the open editor, where only the uid is known.
+   * True when the signed-in owner may delete this user's Firestore document.
    *
-   * A separate method because Angular templates cannot write `as AppUser`, and
-   * `AppUser` has eleven fields of which the check reads exactly one. Building a
-   * partial object in the template to satisfy a signature would be worse than a
-   * one-line method named for what it answers.
+   * Self-delete is refused: removing your own account strands every admin page,
+   * and `AuthService.deleteAccount` already owns that path (it refuses staff
+   * roles entirely). Deletion removes only `users/{uid}` — the Auth record and
+   * the user's orders survive.
    */
-  canChangeEditRole(): boolean {
-    const uid = this.editUid();
-    return !!uid && this.canChangeRole({ uid } as AppUser);
+  canDelete(user: AppUser): boolean {
+    if (this.myRole !== 'owner') return false;
+    return user.uid !== this.myUid;
   }
 
   /**
@@ -489,100 +487,23 @@ export class AdminUsersPage implements OnInit {
     }
   }
 
-  startEdit(user: AppUser): void {
-    this.editing.set(true);
-    this.editUid.set(user.uid);
-    this.editName = user.displayName ?? '';
-    this.editPhone = user.phone ?? '';
-    this.editRole = asRole(user.role);
-    this.editNote = user.adminNote ?? '';
-    // `=== true`, not truthy: `isSuspended` is optional and a document written
-    // before the field existed must open as NOT suspended, never as "suspended
-    // with no reason" because of a stray non-boolean.
-    this.isSuspended = user.isSuspended === true;
-    this.suspendReason = user.suspendReason ?? '';
-  }
-
-  cancelEdit(): void {
-    this.editing.set(false);
-    this.editUid.set(null);
-  }
-
-  /**
-   * Saves another user's details.
-   *
-   * `merge: true` is mandatory here for the same reason it is in AuthService: the
-   * admin branch of the users rule is `allow update: if isAdmin()`, with no
-   * validation at all. A non-merged write that omits `role` SUCCEEDS and strips
-   * it, which silently demotes the target — and if the target is the admin doing
-   * the writing, locks them out of the app's admin side entirely.
-   *
-   * `email` is not editable. The users rule has no `hasOnly`, so an admin could
-   * write any string into someone's `email` field — including one that does not
-   * match their real Firebase Auth account, which is the address they sign in
-   * with. Changing someone's sign-in identity is a different, more dangerous
-   * operation than editing a display name, so it is not offered here.
-   */
-  async save(): Promise<void> {
-    const uid = this.editUid();
-    if (!uid) return;
-
-    const name = this.editName.trim();
-    if (!name) {
-      this.errorMessage.set('Enter a display name.');
-      return;
-    }
-    if (uid === this.myUid && this.editRole !== this.myRole) {
-      this.errorMessage.set(
-        'You cannot change your own role — that would lock you out of the admin pages you can reach.',
-      );
-      return;
-    }
-    // Mirrors `isAdminUserEdit()` in the rules. Better to refuse here with a
-    // clear sentence than to let the write fail with a permission error the
-    // admin has no way to interpret.
-    if (uid !== this.myUid && !this.canChangeRole({ uid } as AppUser)) {
-      this.errorMessage.set('Only an Owner can change a role.');
-      return;
-    }
-
-    this.busyUid.set(uid);
-    this.errorMessage.set('');
-    try {
-      await setDoc(
-        doc(this.firestore, `users/${uid}`),
-        {
-          displayName: name,
-          phone: this.editPhone.trim() || null,
-          role: this.editRole,
-          adminNote: this.editNote.trim() || null,
-          // A suspension always carries a timestamp and a reason, written
-          // together. A bare flag with neither is how an admin forgets why they
-          // blocked someone, and the customer gets told nothing at sign-in.
-          isSuspended: this.isSuspended,
-          ...(this.isSuspended
-            ? {
-                suspendReason: this.suspendReason.trim() || 'No reason given',
-                suspendedAt: Date.now(),
-              }
-            : { suspendReason: null, suspendedAt: null }),
-        },
-        { merge: true },
-      );
-      this.cancelEdit();
+  async startEdit(user: AppUser): Promise<void> {
+    const modal = await this.modalCtrl.create({
+      component: EditUserModalComponent,
+      componentProps: { user },
+      cssClass: 'large-sheet-modal',
+    });
+    await modal.present();
+    const result = await modal.onDidDismiss();
+    if (result?.data?.saved) {
       await this.load();
-      await this.toast
-        .create({
-          message: 'User updated.',
-          color: 'success',
-          duration: 2000,
-          position: 'top',
-        })
-        .then((t) => t.present());
-    } catch (err) {
-      this.errorMessage.set(describeFirestoreError('that user', err));
-    } finally {
-      this.busyUid.set(null);
+      const t = await this.toast.create({
+        message: 'User updated.',
+        color: 'success',
+        duration: 2000,
+        position: 'top',
+      });
+      await t.present();
     }
   }
 
@@ -632,6 +553,53 @@ export class AdminUsersPage implements OnInit {
             try {
               await setDoc(doc(this.firestore, `users/${user.uid}`), { role }, { merge: true });
               await this.load();
+            } catch (err) {
+              this.errorMessage.set(describeFirestoreError('that user', err));
+            } finally {
+              this.busyUid.set(null);
+            }
+          },
+        },
+      ],
+    });
+    await alert.present();
+  }
+
+  /**
+   * Deletes another user's Firestore `users/{uid}` document behind a
+   * confirmation dialog.
+   *
+   * Only the Firebase Auth record's user document is removed here — NOT the Auth
+   * record (that requires `deleteUser()` plus a recent sign-in), and NOT the
+   * user's orders, which are financial records and must survive.
+   */
+  async deleteUser(user: AppUser): Promise<void> {
+    if (!this.canDelete(user)) return;
+
+    const alert = await this.alertCtrl.create({
+      header: 'Delete this user?',
+      message:
+        "Their account document will be removed and they won't be able to sign in. " +
+        'Their order history is kept as a financial record.',
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        {
+          text: 'Delete',
+          role: 'destructive',
+          handler: async () => {
+            this.busyUid.set(user.uid);
+            this.errorMessage.set('');
+            try {
+              await deleteDoc(doc(this.firestore, `users/${user.uid}`));
+              await this.load();
+              await this.toast
+                .create({
+                  message: 'User deleted.',
+                  color: 'success',
+                  duration: 2000,
+                  position: 'top',
+                })
+                .then((t) => t.present());
             } catch (err) {
               this.errorMessage.set(describeFirestoreError('that user', err));
             } finally {

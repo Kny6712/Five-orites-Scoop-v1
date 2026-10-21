@@ -12,7 +12,8 @@
 // The admin-only capability (editing OTHER users) lives on /admin/users, where
 // the destructive parts (role changes) are visible and confirmed.
 
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject, signal, computed } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
@@ -32,13 +33,13 @@ import {
   IonToggle,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
 import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
-import { AuthService } from '@core/services/auth.service';
-import { ImageUploadService } from '@core/services/image-upload.service';
-import { NotificationService } from '@core/services/notification.service';
+import { AuthService } from '@core/services/identity/auth.service';
+import { ImageUploadService } from '@core/services/catalog/image-upload.service';
+import { NotificationService } from '@core/services/orders/notification.service';
 import type { AppUser } from '@core/models/user.model';
 import { isStaffRole } from '@core/models/user.model';
 
@@ -72,6 +73,7 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error';
   styleUrls: ['./profile.page.scss'],
 })
 export class ProfilePage implements OnInit {
+  private destroyRef = inject(DestroyRef);
   private auth = inject(AuthService);
   private uploads = inject(ImageUploadService);
   private notifications = inject(NotificationService);
@@ -211,8 +213,39 @@ export class ProfilePage implements OnInit {
   });
 
   ngOnInit(): void {
-    const u = this.auth.currentUserSnapshot;
-    if (u) this.applyUser(u);
+    // THE SIGNED-IN ACCOUNT CAN CHANGE WHILE THIS PAGE IS ALIVE, so the page
+    // listens for it rather than reading it once.
+    //
+    // It used to read `auth.currentUserSnapshot` here and stop. That snapshot is
+    // correct on the first visit and wrong on every visit after a switch: sign
+    // out, sign in as somebody else, come back to this page, and Angular
+    // REUSES the component (same route, same component — no new instance, so
+    // ngOnInit never runs again). The page went on showing the previous
+    // account's name, email and photo, and its Save button would have written
+    // the previous account's display name over the new one. A refresh fixed it,
+    // which is the tell: the data was right, the page was stale.
+    //
+    // The subscription is scoped to the account, not to every emission: the
+    // auth service also pushes an update when the user document changes (after
+    // a save, say), and re-seeding the form on that would wipe whatever the
+    // user was in the middle of typing. Only a different UID re-seeds.
+    this.auth.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((u) => {
+      if (!u) {
+        this.clearUser();
+        return;
+      }
+      if (u.uid === this.user()?.uid) return;
+      this.applyUser(u);
+      // A different account must not inherit the previous one's transient
+      // state: a typed password, a half-typed new email, an error message from
+      // a save that belonged to somebody else.
+      this.currentPassword = '';
+      this.newPassword = '';
+      this.confirmPassword = '';
+      this.newEmail = u.email ?? '';
+      this.errorMessage.set('');
+      this.saveState.set('idle');
+    });
   }
 
   private applyUser(u: AppUser): void {
@@ -220,6 +253,27 @@ export class ProfilePage implements OnInit {
     this.displayName.set(u.displayName ?? '');
     this.phone.set(u.phone ?? '');
     this.newEmail = u.email ?? '';
+  }
+
+  /**
+   * Signed out.
+   *
+   * The route guard normally sends a signed-out visitor away before they can
+   * see this, but the page can outlive the session — the account can be
+   * switched without the component being destroyed — and a profile page still
+   * showing the last account's name, email and photo is the same bug as the
+   * one above, in the other direction.
+   */
+  private clearUser(): void {
+    this.user.set(null);
+    this.displayName.set('');
+    this.phone.set('');
+    this.newEmail = '';
+    this.currentPassword = '';
+    this.newPassword = '';
+    this.confirmPassword = '';
+    this.errorMessage.set('');
+    this.saveState.set('idle');
   }
 
   async saveProfile(): Promise<void> {

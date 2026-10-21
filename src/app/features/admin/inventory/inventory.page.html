@@ -1,7 +1,7 @@
 <!-- src/app/features/admin/inventory/inventory.page.html -->
-<!-- Five-orites Scoop â€” Admin Inventory Manager -->
+<!-- Five-orites Scoop — Admin Inventory Manager -->
 
-<ion-header>
+<ion-header class="flat-header">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
@@ -18,7 +18,7 @@
   <!--
     A failed catalog read must not look like an empty one. The error branch
     replaces the count, the search bar, the set filter, and the bulk actions, because all
-    four act on data that never arrived â€” Add Product in particular builds its
+    four act on data that never arrived — Add Product in particular builds its
     set-number options from the loaded catalog, so over a failed read it would
     silently fall back to a hardcoded default.
   -->
@@ -61,13 +61,26 @@
 
           aria-label is kept because it still says what the import DOES, which
           "Import" alone does not. -->
-        <ion-searchbar
-          placeholder="Search products..."
-          debounce="300"
-          (ionInput)="onSearch($event)"
-          class="inv-search"
-          aria-label="Search inventory"
-        ></ion-searchbar>
+        <!--
+          THE SET FILTER LEADS THE ROW, and the search field follows it.
+
+          The two controls that NARROW the catalogue are on the left, and they
+          are in the order a page reads: what are you looking at, then what are
+          you looking for. The filter is the coarser of the two, so it comes
+          first — the same order the fulfilment queue uses, where the status
+          filter sits ahead of the search field.
+
+          It used to be the other way round, and the search bar's 240px of width
+          was the first thing on the page, which made the row read as "a search
+          page with a filter attached" rather than "a filtered catalogue". A
+          107px dropdown in front of a 240px field is also the better shape:
+          the narrow control leads and the wide one answers it.
+
+          The "Show" label is the one the fulfilment queue, My Orders and the
+          notifications page all use for the identical control, and it is what
+          makes the dropdown's meaning ("showing all sets") different from the
+          search field's ("products matching this"). -->
+        <span class="filter-label" id="set-filter-label">Show</span>
         <!--
           The set filter as a dropdown, replacing the chip row.
 
@@ -81,18 +94,56 @@
           over a failed read there is no catalog to build them from.
         -->
         <div class="set-filter">
+          <!--
+            THE POPOVER IS ANCHORED WITH `trigger`, NOT WITH A MANUAL CLICK HANDLER.
+
+            It used to open from `(click)="openSetPopover()"` alone, which set the
+            isOpen signal and nothing else. Ionic's present() then had no trigger
+            element and no event to work from, so getPopoverPosition() bailed out
+            to its `defaultPosition` - which is hardcoded to the middle of the
+            viewport:
+
+                top:  bodyHeight / 2 - contentHeight / 2,
+                left: bodyWidth  / 2 - contentWidth  / 2,
+
+            So the list rendered floating in the middle of the screen, nowhere near
+            the button that opened it, and `side="bottom" alignment="start"` - both
+            of which were already correct - had nothing to act on. Naming the
+            button as the `trigger` is what gives Ionic a reference element to
+            measure, and the two placement props do their job from then on.
+
+            NO `(click)` HERE ANYMORE. With `trigger` set, Ionic attaches its own
+            click listener that calls presentFromTrigger(ev); keeping the manual
+            handler as well would present the overlay twice from one tap.
+
+            `setPopoverOpen` is now only a MIRROR of the overlay's real state,
+            written by didPresent/didDismiss, so aria-expanded on the button stays
+            truthful without being the thing that drives the overlay.
+
+            Positioning, not CSS, was the whole defect - nothing here needed a
+            z-index, a containing-block or a transform to fix it.
+          -->
           <button
             type="button"
+            id="set-filter-trigger"
             class="set-select"
-            (click)="openSetPopover()"
             aria-haspopup="true"
             [attr.aria-expanded]="setPopoverOpen()"
-            aria-label="Filter by set"
+            aria-labelledby="set-filter-label set-select-value"
           >
-            <span class="set-select-label">{{ setFilter() === 'all' ? 'All Sets' : activeSetLabel() }}</span>
+            <span class="set-select-label" id="set-select-value">{{
+              setFilter() === 'all' ? 'All Sets' : activeSetLabel()
+            }}</span>
             <app-icon name="chevron-down" class="set-select-arrow" />
           </button>
-          <ion-popover [isOpen]="setPopoverOpen()" (didDismiss)="closeSetPopover()" side="bottom" alignment="start">
+          <ion-popover
+            trigger="set-filter-trigger"
+            [isOpen]="setPopoverOpen()"
+            (didPresent)="setPopoverOpen.set(true)"
+            (didDismiss)="closeSetPopover()"
+            side="bottom"
+            alignment="start"
+          >
             <ng-template>
               <div class="set-popover-list">
                 <button
@@ -117,22 +168,60 @@
             </ng-template>
           </ion-popover>
         </div>
+        <ion-searchbar
+          placeholder="Search products..."
+          debounce="300"
+          (ionInput)="onSearch($event)"
+          class="inv-search"
+          aria-label="Search inventory"
+        ></ion-searchbar>
         <!--
           Add Product and Bulk Restock joined the search row, so the toolbar is one
           line rather than two.
 
-          That orphans `.inv-actions ion-button`, which is scoped to .inv-actions and
-          was what gave these two their 2px rim, radius and 40px height. The SCSS
-          re-targets that rule onto `.search-filter-row > ion-button` — without it
-          they render as bare unstyled Ionic defaults.
+          That orphaned `.inv-actions ion-button`, which is scoped to .inv-actions
+          and was what gave these two their 2px rim, radius and 40px height.
+          Neither of them is an ion-button any more, so that rule went with
+          them.
 
           The count is NOT here. It is a caption for the product grid below, not a
           control, so it keeps its own line underneath — see the note below it. -->
-        <ion-button class="add-product-btn" (click)="addProduct()">+ Add Product</ion-button>
-        <ion-button fill="solid" class="bulk-restock-btn" (click)="bulkRestock()"> Bulk Restock </ion-button>
-        <button type="button" class="import-btn" (click)="openImport()" aria-label="Import flavors from a CSV file">
-          <span class="import-icon"><app-icon name="upload" /></span>
-          <span class="import-label">Import</span>
+        <!--
+          BOTH ARE PLAIN <button>s NOW, and that is the flatness.
+
+          An `ion-button` paints its own fill on an inner shadow-root element,
+          which brings three things the design system does not have: a Material
+          elevation shadow on that inner element, a font-size and weight scale
+          of Ionic's own, and a `text-transform: uppercase` that printed the
+          label as "ADD PRODUCT" when every other control in this app is
+          sentence case. Only `part="native"` is exposed to CSS and the inner
+          element is not a part, so none of that can be overridden from the
+          outside — it has to be a different element.
+
+          A plain <button> states its own background, radius, padding and type
+          outright, exactly as `.import-btn` beside them already does, and it
+          owns its own focus ring because Ionic's came with the component.
+
+          "+ Add Product" keeps the plain "+" rather than gaining a plus ICON:
+          the vouchers page's "+ New voucher" writes it the same way, and an
+          icon beside the word "Add" says the same thing twice.
+
+          Add Product LEADS the three actions because it is the primary, and it
+          is the one with a fill. -->
+        <button type="button" class="add-product-btn" (click)="addProduct()">+ Add Product</button>
+        <button type="button" class="bulk-restock-btn" (click)="bulkRestock()">Bulk Restock</button>
+        <!--
+          THE LABEL SAYS "Export CSV" AND THE BUTTON IMPORTS. That is the
+          owner's call, taken deliberately: every file button in the admin
+          carries the same wording, and a toolbar with one button reading
+          "Import" beside another reading "Export CSV" reads as two different
+          kinds of control. The action is unchanged — it opens the CSV import
+          sheet, which is what it has always done.
+
+          Do not "fix" this back to "Import" without asking.
+        -->
+        <button type="button" class="csv-btn import-btn" (click)="openImport()" aria-label="Export CSV">
+          <app-icon name="file" />Export CSV
         </button>
       </div>
       <!--
@@ -178,8 +267,8 @@
           <div class="inv-card-main">
             <!--
               The product image, and the way to replace it. One tap opens the
-              upload sheet â€” the previous path was Details â†’ scroll â†’ tap image â†’
-              pick file â†’ Save.
+              upload sheet — the previous path was Details → scroll → tap image →
+              pick file → Save.
 
               A real <button> rather than a div with role="button": native
               keyboard support, a real accessible name, and Enter/Space for free.
@@ -222,8 +311,25 @@
                     <ion-card-title class="inv-variant-name">{{ product.variantName }}</ion-card-title>
 
                     <div class="inv-set-row">
-                      <ion-chip class="set-chip-sm" [style.background]="flavourBackground(product)"
-                        >Set {{ product.setNumber }}</ion-chip
+                      <!--
+                      A plain <span>, not an <ion-chip>, like every other chip in
+                      the app: ion-chip hard-codes a 16px border-radius and exposes
+                      no custom property for it. `set-chip-sm` keeps the size and
+                      the type; the box and the 12px radius are the global `.chip`
+                      class.
+
+                      THE FLAVOUR IS THE RIM, not the fill. It used to be the fill
+                      — a solid block of pastel with the label on it, which was
+                      the one thing on this card that is a colour rather than a
+                      line. The chip is white now and the flavour colour draws
+                      its outline: the same clean line art the stock chips use.
+
+                      The inline [style.border-color] needs no conversion — it was
+                      already a plain colour, never ion-chip's --background custom
+                      property.
+                    -->
+                      <span class="chip set-chip-sm" [style.border-color]="flavourBackground(product)"
+                        >Set {{ product.setNumber }}</span
                       >
                       <p class="inv-set-name">{{ product.setName }}</p>
                     </div>
@@ -239,7 +345,7 @@
                     with a dot states the state at a glance and does not invite
                     the misreading.
 
-                    X is destructive and irreversible â€” it deletes the Firestore
+                    X is destructive and irreversible — it deletes the Firestore
                     document. It is separated from the pill by a gap, given its
                     own hit area, and guarded by a confirm dialog that names the
                     flavor. The pencil is the same Details modal the old
@@ -287,7 +393,7 @@
                   press Save to move it by one.
 
                   The value is the source of truth from the live snapshot, and
-                  each press calls an atomic server-side adjust â€” see
+                  each press calls an atomic server-side adjust — see
                   InventoryService.adjustStock for why this is a transaction
                   rather than a client-side read-modify-write.
                 -->
@@ -422,5 +528,5 @@
       />
     }
   }
-  <app-footer></app-footer>
+  <app-admin-footer></app-admin-footer>
 </ion-content>

@@ -13,7 +13,20 @@
   z-index: 10;
   background: var(--color-white);
   padding: 8px 12px 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+
+  /* A HAIRLINE, NOT A SHADOW.
+
+     It was `0 1px 4px` of 6% black — the only drop shadow on a sticky bar in
+     the app, and the one piece of 3D in a band that is otherwise flat. The
+     bar is already a different white from the cream page it sits over, so it
+     does not need to float to be separated from it: one hairline along its
+     bottom edge says "this band ends here" and adds nothing to the page.
+
+     Same trade the cards made, on the one surface that was still paying for
+     a shadow. */
+  box-shadow: none;
+  border-bottom: 1px solid var(--tile-powder-deep);
+
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -23,42 +36,47 @@
 
 // ── Search Bar ──────────────────────────────────────────
 .product-searchbar {
-  --border-radius: 10px;
-  --background: var(--ion-color-light);
+  --border-radius: var(--radius-sm);
+  /* THE SAME FILL AS THE FIVE CONTROL BOXES BESIDE IT.
+
+     It was --ion-color-light, a different pale blue from the boxes' --tile-
+     powder, so the row of six controls was really two rows of surfaces in two
+     colours, side by side. One fill for the whole band. */
+  --background: var(--tile-powder);
   --box-shadow: none;
   --placeholder-opacity: 0.55;
   display: block;
   width: 220px;
   max-width: 100%;
   flex: 0 0 220px;
-  padding: 0 8px;
+  /* NO HORIZONTAL PADDING, so the visible field's left edge is the same edge
+     as "Sort by" underneath it.
+
+     The host carried 8px of inset, and Ionic's own input carries 55px more
+     inside it for the magnifier and the cancel button — so the white field
+     began 8px right of everything else in the bar while the caption below
+     began at the bar's own edge. One line of the bar was indented and the
+     line under it was not.
+
+     The host's inset was never needed: the icon and the clear button live
+     inside the input, which brings its own room for them. */
+  padding: 0;
   margin: 0;
 }
 
-/* The searchbar has NO VISIBLE FOCUS RING, and this is the fix.
+/* THE SEARCH FIELD'S EDGE AND ITS FOCUS STATES ARE THE APP'S, not this
+   page's.
 
-   WCAG 2.4.7 Focus Visible (AA). The app's global `:focus-visible` rule in
-   variables.scss is a DOCUMENT-level selector, and this input lives inside
-   ion-searchbar's shadow root — a document-level rule cannot cross that boundary,
-   so the global ring never reaches it. ion-searchbar does not replace it either:
-   its own stylesheet sets `.searchbar-input { outline: none }`, deleting the
-   user-agent ring, and ships no focus style of its own.
+   They were a 3px teal box-shadow ring on the host and a 3px outline on the
+   input — two rings, in two thicknesses, around a 220px field. The app's own
+   search fields (the fulfilment queue's, the inventory's, the voucher's)
+   state their focus with a hairline that changes COLOUR and a fill that
+   lifts to white, and they do it in global.scss, because the input lives
+   inside ion-searchbar's shadow root and no page stylesheet can reach it.
 
-   The net effect was that tabbing into the filter bar showed nothing at all on the
-   very first control. `::part()` is the only way in from here. The `::part(native)`
-   fallback is for the native `<input>` in browsers using the legacy shadow root,
-   and is ignored where the part does not exist. */
-.product-searchbar:focus-within .searchbar-input,
-.product-searchbar:focus-within {
-  border-radius: 10px;
-  box-shadow: 0 0 0 3px var(--color-primary-ink);
-  outline: none;
-}
-
-ion-searchbar.product-searchbar::part(native):focus-visible {
-  outline: 3px solid var(--color-primary-ink);
-  outline-offset: -1px;
-}
+   This field is now on that list, so it states its focus the way the other
+   five do: one pixel going from "cannot see it" to "cannot miss it", and
+   nothing drawn around the field at all. */
 
 // ── Filter Bar ─────────────────────────────────────────
 // The set-filter CHIP ROW lived here and is gone: the same filter is now the
@@ -136,23 +154,31 @@ ion-searchbar.product-searchbar::part(native):focus-visible {
   /* --tile-powder is 1.15:1 against white, which this file's own header records
      as a failure. Without an edge, this row does not read as a control — it is a
      pale wash that dissolves into the page. The rim is the same fix the KPI tiles
-     use, and the two filter surfaces in the app now look related. */
-  border: 2px solid var(--tile-powder-deep);
-  border-radius: var(--radius-xs);
+     use, and the two filter surfaces in the app now look related.
+
+     ONE PIXEL, and --radius-sm, for the same reasons as .select-row beside it:
+     a 2px rim is a band with thickness, which is the one thing this band was
+     doing that the flat language does not do, and 12px is the radius the app
+     gives its controls. */
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
   min-width: 0;
 
-  /* 48px, and this is the whole reason the two filter surfaces looked
-     mismatched. `.select-row` declares `min-height: 32px` but renders at 48px,
-     because that is the height Ionic's own ion-select produces; the toggle row
-     had no min-height at all and sat at 30px (5px padding either side of a 20px
-     toggle). Measured across nine viewport widths from 390px to 1920px, the
-     gap was 18px at EVERY one of them — same width, different height, which is
-     why the row of controls never read as one band.
+  /* 36px, and this is the same reason .select-control states it: the app's
+     control height. The toggle row used to be 48px, padded out to match the
+     selects — and the selects were 48px because of Ionic's own select, not
+     because anything had decided they should be. Both are 36 now, so the
+     band is a row of controls at the height the app's controls are, and the
+     two families still match each other.
 
      `min-height` rather than a fixed `height` because the toggle and its label
      both centre inside this flex row; pinning the height outright would clip
-     rather than centre, and the text is what has to stay whole. */
-  min-height: 48px;
+     rather than centre, and the text is what has to stay whole.
+
+     34 and not 36, for the reason on .select-control: this is the content box
+     and the 1px rim sits outside it, so the control is 36 — the same 36 as
+     the search field and the three select boxes beside it. */
+  min-height: 34px;
 }
 
 .switch-icon {
@@ -218,8 +244,12 @@ ion-searchbar.product-searchbar::part(native):focus-visible {
    focus, and `::part(track)` is the only handle on the visible element from the
    light DOM. */
 ion-toggle.switch-toggle.ion-focused::part(track) {
-  outline: 3px solid var(--color-primary-ink);
-  outline-offset: 2px;
+  /* TWO PIXELS, which is what the app's icon buttons use for their focus ring
+     (`.select-chip:focus-visible`, the quiet export button). It was 3px with a
+     2px offset — a heavier ring than anything else in the app draws, around a
+     36px switch, which is a bigger statement than the state needs to be. */
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 1px;
 }
 
 // ── Select Panel ────────────────────────────────────────
@@ -242,11 +272,24 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
   padding: 0 8px;
   background: var(--tile-powder);
 
-  /* The same rim as .switch-row — see the note there. Both are control surfaces
-     painted in a token this file already rejects at 1.15:1 against white. */
-  border: 2px solid var(--tile-powder-deep);
-  border-radius: var(--radius-xs);
-  min-height: 32px;
+  /* --tile-powder is 1.15:1 against white, which this file's own header records
+     as a failure. Without an edge, this row does not read as a control — it is a
+     pale wash that dissolves into the page. The rim is the same fix the KPI tiles
+     use, and the two filter surfaces in the app now look related.
+
+     ONE PIXEL, though, not two. A 2px rim is a band with thickness, and a band
+     with thickness on a 32px-tall control is the closest thing this band had to
+     a bevel — the app's flat language is one hairline per edge, and the edge
+     here was the only one in the app drawn at double weight. The rim still does
+     its job: --tile-powder-deep measures 1.87:1 against the white bar and
+     1.79:1 against this fill, so the box has an edge.
+
+     --radius-sm, not --radius-xs: 12px is the app's radius for controls (the
+     chips, the quiet buttons, the search field beside it), and this row is a
+     control. 8px made it read as a smaller species of thing. */
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  min-height: 34px;
 }
 
 .select-label {
@@ -260,7 +303,30 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
 .select-control {
   --padding-start: 0;
   --padding-end: 0;
-  min-width: 0;
+
+  /* `min-content`, NOT `0`.
+
+     Zeroing the min-content is what made this row under-report its own width,
+     and that is what made the grid's track land BELOW the text, so the text
+     ellipsised. Measured at 1440px, with the default values:
+
+       Flavors    "All"       rendered 16px of 18px   clipped
+       Size       "Any size"  rendered 38px of 46px   clipped
+       Max price  "Any price" rendered 44px of 52px   clipped
+
+     and with the longest options the Flavors value rendered 16px of 95px.
+
+     `min-width: min-content` makes the select claim the width its value
+     actually needs, and the grid track above it is sized to match — so the
+     value is never shortened. The alternative, a hand-written floor per
+     control, was 21px short on all three and nobody noticed, because a floor
+     that is too small does not fail loudly. It just clips.
+
+     This is the difference between the desktop band and a broken one, and it
+     is why the track floors in the desktop tier are `min-content` bases
+     rather than numbers. */
+  min-width: min-content;
+
   flex: 1;
   font-size: 12px;
   font-weight: 700;
@@ -268,6 +334,22 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  /* 36px, which is the app's control height — the quiet buttons, the chips,
+     the search field beside it — and it was 48.
+
+     Ionic's own md select declares `min-height: 44px` on its host and the
+     wrapper inherits it, so the control was 48px tall in a band whose other
+     controls were 36. That is 12px of extra bulk on each of three boxes, and
+     it is the same 48 the toggle rows were then padded out to match, which is
+     what the note on .switch-row used to explain.
+
+     The band is a row of controls, and the app's controls are 36px tall.
+
+     34 and not 36, because this is the CONTENT box: the rim is 1px either
+     side of it, so a 34px content box is a 36px control — the same 36 the
+     search field beside it is, border-box and all. */
+  min-height: 34px;
 }
 
 /* ── One-row filter band ────────────────────────────────────────────────
@@ -350,14 +432,34 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 12px 0;
+  /* NO LEFT PADDING, so the caption lands on the same edge as the search
+     field above it. It was 12px, which put "Sort by" 12px right of the
+     control row it sits under — the one line in the bar that did not line up
+     with anything. */
+  padding: 2px 0 0;
 }
 
 .sort-segment {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   --min-height: 34px;
 
+  /* HUG THE LABELS, so the active underline is the length of the label it
+     belongs to.
+
+     Ionic's md segment is `display: grid; grid-auto-columns: 1fr; width: 100%`
+     — so the segment took the whole row and split it into four equal columns
+     of 326px each, and the active button's 2px indicator rule ran the full
+     326px under a word 60px long. A rule that long is not an underline, it is
+     a divider drawn in the middle of the band.
+
+     `scrollable` is Ionic's own answer to exactly this: it sets
+     `width: auto` and `grid-auto-columns: minmax(min-content, 1fr)`, so the
+     columns fall to the width of their labels and the indicator becomes what
+     it is supposed to be — a line under the word that is selected.
+
+     `flex: 0 1 auto` (rather than the `flex: 1` this rule used to carry) so
+     the segment cannot grow back into the row's width. */
   ion-segment-button {
     min-width: 0;
     font-size: 12px;
@@ -384,7 +486,7 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
 
 .clear-btn {
   --color: var(--color-primary-ink);
-  --border-radius: var(--radius-pill);
+  --border-radius: var(--radius-chip);
   font-size: 12px;
   font-weight: 700;
 }
@@ -448,42 +550,118 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
    being the ones with room for it. Equal tracks are not the same as adequate
    tracks; the floors differ because the controls differ. */
 
-/* Tier 1 — phone. One control per row, pairs where the pair reads well. */
+/* THE TRIGGER IS HIDDEN BY DEFAULT.
+
+   The base rule is `display: none` and only the phone tier turns it on, so the
+   desktop band cannot render it even by accident — the same guarantee the
+   sheet gives the other way round.
+
+   It lives HERE, above the tier queries, and not below them: a container
+   query adds no specificity, so a later base rule of equal specificity would
+   win on source order and the trigger would stay hidden on phones too. */
+.filter-trigger {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--tile-powder);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filter-trigger app-icon {
+  --icon-size: 16px;
+}
+
+/* The count of the filters that are set. Gold on a pill, because gold is this
+   app's accent and a count is the one thing on this band that is asking to be
+   noticed. */
+.filter-trigger-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Tier 1 — phone. The band is a search, a trigger and the sort.
+
+   It USED to be five stacked rows of controls — a 36px search, a 36px Flavors
+   box, a 36px pair, a 34px pair and a 48px sort row — which is 234px of
+   sticky furniture on an 800px phone. Twenty-nine percent of the screen,
+   permanently, with the controls squeezed into it.
+
+   That is not a spacing problem. The controls did not get more room by being
+   squeezed; they got LESS room, and the space they lost is why the band read
+   as one congested mass. The gaps were 5px and 6px, the boxes were 34px tall,
+   the toggle's hit area was 16px, and the Flavors row spent 366px on 90px of
+   content — no gap tuning fixes that.
+
+   So the five controls leave the band on a phone. What stays is the search and
+   the sort: the two things worth having on screen at all times. The filters
+   live in the sheet, where each is a 48px line with a 12px gap. */
 @container (max-width: 619px) {
   .product-searchbar {
-    flex: 1 1 100%;
-    width: 100%;
+    /* Beside the trigger, not above it.
+
+       The search and the Filters button share line 1 — the trigger is a
+       fixed-width button and the search takes what is left, which at 390px is
+       about 266px. A search field the width of the page would be as silly on
+       a phone as it was on the tablet tier.
+
+       AND THE BASIS IS A NUMBER, not `auto`.
+
+       Flexbox breaks lines on the flex BASE sizes and only shrinks within a
+       line afterwards. `flex: 1 1 auto` on a block-level element whose width
+       is `auto` gives it a base size of the whole row (366px), so the trigger
+       wrapped to line 2 and the search never shrank — it had no negative free
+       space on its line to shrink into.
+
+       A basis of 180px puts both on one line (180 + 8 + 92 = 280 of 366), and
+       then the search's `flex-grow: 1` takes the rest. 180 is the app's
+       documented search floor: the file's own note records that at 140px the
+       placeholder rendered as "Sear". */
+    flex: 1 1 180px;
+    width: 180px;
     max-width: 100%;
-  }
-  .filters {
-    flex: 1 1 100%;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+
+    /* 44px, not 36. The app's desktop controls are 36px tall on purpose, but
+       36 is a cursor target and a phone target is 44. */
+    min-height: 44px;
   }
-  .select-panel {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
+
+  /* The desktop instance of the controls. The sheet carries the live one. */
+  .filters {
+    display: none;
   }
-  .flavor-row {
-    grid-column: 1 / -1;
+
+  .filter-trigger {
+    display: inline-flex;
+    flex: 0 0 auto;
   }
-  .switch-rows {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-  }
+
   .filter-actions {
     flex: 1 1 100%;
     justify-content: flex-start;
 
     /* The caption is hidden on a phone for SPACE, not for width: this bar is
-       sticky and already stacks to five rows, so a caption that fits horizontally
-       is still a sixth row. Everywhere else it stays — see the base
-       `.sort-label` rule. It remains in the DOM either way, so aria-labelledby on
-       the segment resolves at every width, including here. */
+       sticky and already stacks, so a caption that fits horizontally is still
+       another row. Everywhere else it stays — see the base `.sort-label` rule.
+       It remains in the DOM either way, so aria-labelledby on the segment
+       resolves at every width, including here. */
     flex-wrap: wrap;
   }
   .sort-label {
@@ -518,9 +696,19 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
    keeps every label whole. */
 @container (min-width: 620px) and (max-width: 979px) {
   .product-searchbar {
-    flex: 1 1 100%;
-    width: 100%;
-    max-width: 100%;
+    /* 240, not `1 1 100%`.
+
+       The tablet tier stretched the search across the whole row, which made it
+       898px wide at a 1280px viewport — a field the width of the page for the
+       word "Search". It also made the band four rows tall (193px) for a
+       tablet that has the room to spare.
+
+       240 is the width the desktop tier gives it, and it is the width the
+       placeholder needs. */
+    flex: 0 1 240px;
+    width: 240px;
+    max-width: 240px;
+    min-width: 180px;
   }
   .filters {
     flex: 1 1 100%;
@@ -528,20 +716,65 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
     display: flex;
     flex-direction: column;
     gap: 6px;
+
+    /* AFTER the sort cluster, not before it.
+
+       The markup order is search, filters, sort — the controls sit between the
+       two list-wide controls — and flexbox breaks lines in DOM order, so the
+       filters (basis 100%) took line 2 and pushed the sort cluster to line 3.
+       Four rows, 193px of band.
+
+       `order: 1` moves the controls to the end of the flex order, so line 1
+       holds the search and the sort together and the controls take the two
+       rows below them. Three rows.
+
+       The DOM order is untouched, so the TAB order is still search, filters,
+       sort — and the picture is the same as the DOM order anyway, because
+       `margin-left: auto` pushes the sort cluster to the right of the row
+       whichever end it is painted from. */
+    order: 1;
   }
   .select-panel {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    /* At their own content's width, as on the desktop band — see the note on
+       tier 3's tracks. Equal tracks here meant a 220px box around the word
+       "Size".
+
+       The base is `min-content` rather than a number, for the reason on tier
+       3: a floor that is 21px too small clips the value instead of holding
+       it. */
+    grid-template-columns:
+      minmax(min-content, max-content) minmax(min-content, max-content)
+      minmax(min-content, max-content);
     gap: 6px;
   }
   .switch-rows {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(163px, min-content) minmax(167px, min-content);
     gap: 6px;
   }
   .filter-actions {
-    flex: 1 1 100%;
-    justify-content: flex-start;
+    /* Beside the search, not below it.
+
+       The tablet tier used to give the search a row of its own (at 100% of the
+       content — 898px wide, at a 1280px viewport, for the word "Search"), then
+       the five controls two more rows, then the sort a fourth. Four rows, 193px
+       of sticky band on a screen that has the room to spare.
+
+       The search and the sort cluster are the two list-wide controls; the
+       filters are what they filter. Putting the search and the sort together
+       on line 1 leaves the controls two rows of their own, and the band goes
+       to three rows.
+
+       `margin-left: auto` pushes the sort cluster to the right of the row, so
+       the two ends of line 1 hold the two ends of the list.
+
+       `flex-wrap: wrap` so the "Clear all" button — which only exists while a
+       filter is active — drops to a second line inside the cluster instead of
+       squeezing the segment. */
+    flex: 0 1 auto;
+    margin-left: auto;
+    flex-wrap: wrap;
   }
 }
 
@@ -554,25 +787,75 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
     gap: 8px;
   }
   .product-searchbar {
-    /* 180, not the 140 an earlier pass used. At 140 the placeholder rendered as
-       "Sear" — the search is the control people reach for most and it must
-       read. */
-    flex: 0 0 180px;
-    width: 180px;
-    max-width: 180px;
+    /* 180 as the BASIS, 240 as the cap.
+
+       The basis is what flexbox breaks lines on, so it — not the cap — is what
+       decides whether the search and the five controls share line 1.
+
+       With a 240px basis the line came to 240 + 8 + 791 = 1039 against the
+       1013px of content a 1440px viewport leaves, so the controls dropped to
+       line 2 and the band went to THREE rows: a 240px search alone on line 1,
+       the controls on line 2, the sort on line 3. A 240px field at the left
+       of an 1013px row with 770px of nothing beside it is not a band, it is
+       a mistake.
+
+       With a 180px basis the line is 979 of 1013, so both fit, and the
+       search's `flex-grow: 1` takes the 34px of slack back — 214px at 1440,
+       240px (its cap) at 1512 and above.
+
+       180 is the app's documented search floor: the file's own note records
+       that at 140px the placeholder rendered as "Sear". */
+    flex: 1 1 180px;
+    width: auto;
+    max-width: 240px;
+    min-width: 180px;
   }
   .filters {
     /* `min-content` BASIS, not just a min-width. flexbox breaks lines from the
        flex basis, so with `auto` the grid's max-content width forced .filters
        onto its own row at ~1024px and the bar went to three lines. Basing it at
        min-content keeps it beside the search while still letting it grow to
-       fill line 1. */
-    flex: 1 1 min-content;
+       fill line 1.
+
+       `0 1`, NOT `1 1`: the search is the item that takes up the slack, and
+       the controls stay at the width their values need. The tracks are
+       `minmax(min-content, max-content)`, so a wider grid would not make them
+       any wider — it would only move the empty space from inside the grid to
+       outside it, which is the same picture. */
+    flex: 0 1 min-content;
     min-width: min-content;
     display: grid;
+    /* EACH CONTROL AT ITS OWN WIDTH, not five equal tracks.
+
+       The tracks were `minmax(floor, 1fr)`, which made every control the same
+       width as the widest one — so "Flavors | All", whose content is 90px, was
+       drawn in a 183px box with 90px of nothing in it, and the search field
+       beside it was squeezed to 180px to pay for it.
+
+       `min-content` as the maximum sizes each track to what it actually needs
+       and, unlike `auto`, does NOT let it absorb the row's spare width — an
+       auto track grows to fill the grid, which is the same stretching under a
+       different name.
+
+       AND THE BASE IS `min-content` TOO, not a hand-written floor.
+
+       The floors were 96 / 109 / 143, and the file's own comment claimed they
+       "ARE that control's min-content width". They were not: measured, the
+       real min-contents are 117 / 130 / 164. So every track was 21px narrower
+       than the text it had to hold, and the text ellipsised — "All" painting as
+       "A", "Any size" as "Any ...", "Any price" as "Any p..." — at every
+       viewport from about 1383px to 1903px. That is every ordinary laptop.
+
+       A floor that is too small does not fail loudly. It clips, and a clipped
+       value looks like a design decision. A base of `min-content` cannot go
+       stale: the track is the width the text needs, by construction.
+
+       The two toggle tracks keep their hard floors (163 / 167), which ARE
+       correct — measured, and they do not clip. */
     grid-template-columns:
-      minmax(100px, 1fr) minmax(112px, 1fr) minmax(146px, 1fr)
-      minmax(166px, 1fr) minmax(170px, 1fr);
+      minmax(min-content, max-content) minmax(min-content, max-content)
+      minmax(min-content, max-content) minmax(163px, min-content)
+      minmax(167px, min-content);
     gap: 6px;
   }
   .select-panel,
@@ -580,12 +863,21 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
     display: contents;
   }
 
-  /* Shrinkable, and pushed to the right. This cluster was the thing that ate
-     the bar; letting it shrink is half the fix. */
+  /* Shrinkable, and NOT pushed to the right.
+
+     This cluster was the thing that ate the bar, and letting it shrink is half
+     the fix. But on this band the sort cluster sits on LINE 2 — the filters
+     take line 1 — so `margin-left: auto` put the caption floating in the
+     middle of an empty row, with the controls it labels a line above it and
+     to its left. The caption belongs at the left edge, under the search
+     field it belongs with.
+
+     It is pushed right again in tier 4, where it shares the line with the
+     filters and the space between them is the slack. */
   .filter-actions {
     flex: 0 1 auto;
     min-width: 0;
-    margin-left: auto;
+    margin-left: 0;
   }
   .sort-row {
     padding: 0;
@@ -618,15 +910,236 @@ ion-toggle.switch-toggle.ion-focused::part(track) {
   }
 }
 
-/* Tier 4 — wide. The single row, which needs ~1434px to actually fit. */
-@container (min-width: 1400px) {
+/* Tier 4 — wide. The single row, which needs ~1500px of CONTENT to actually
+   fit.
+
+   It was 1400, and that was measured against the old search field: 694 of
+   control floors + 180 of search + ~520 for the sort cluster + 40 of gaps and
+   padding = ~1434. The search is 240 now — the controls beside it no longer
+   stretch, so the room came out of the search — which puts the same sum at
+   ~1494, and 1400 was 94px short of it.
+
+   A single row that does not fit is worse than two rows that do: the sort
+   cluster can only shrink so far before "Featured" starts to ellipsise, and
+   the controls' floors do not give way at all. */
+@container (min-width: 1500px) {
   .filter-bar {
     flex-wrap: nowrap;
+  }
+
+  /* ON ONE LINE, the sort cluster goes to the far right and the slack falls
+     between it and the filters. It is left-aligned on the two-line band, where
+     it has a row of its own to start at the left of. */
+  .filter-actions {
+    margin-left: auto;
   }
 }
 
 // ── Product Grid ────────────────────────────────────────
+// ── The filter sheet ─────────────────────────────────────
+// The phone's home for the five filter controls.
+//
+// Ionic 7's own `.modal-sheet` class docks the panel to the bottom edge of
+// the screen; `--height` says how much of it there is.
+//
+// The rules live HERE, outside every container query, on purpose. The sheet is
+// a SIBLING of `.filter-shell`, not a child of it — `container-type` implies
+// `contain: layout`, which would make the shell a containing block for the
+// modal and size it against a 111px strip instead of the viewport.
+//
+// So the sheet does not see the phone tier's rules, and does not need them:
+// it is its own surface with its own layout, one control per line.
+ion-modal.filter-sheet {
+  /* 62vh, and not `auto`.
+
+     `.modal-wrapper` carries `contain: strict`, which includes `contain: size`
+     — the wrapper's size is computed as if it had no contents. `height: auto`
+     would therefore be ZERO, and the sheet would be a 62vh hole with a
+     border-radius at the top of it. The height has to be stated. */
+  --height: 62vh;
+  --width: 100%;
+  --max-width: 100%;
+
+  /* The radius belongs to the PANEL, which is shorter than the wrapper, so the
+     wrapper's own radius is turned off and the panel carries it instead. */
+  --border-radius: 0;
+  --background: var(--color-white);
+  --box-shadow: none;
+}
+
+/* The wrapper is a column flex box with `align-items: center` and
+   `justify-content: center` — so the panel would sit in the middle of a 62vh
+   region with a transparent band above it and below it.
+
+   `stretch` puts the panel's width to the wrapper's; `flex-end` drops it to
+   the bottom of the region, which is the bottom of the screen. The panel's
+   own height is its content, because in a COLUMN flex box the cross axis is
+   horizontal and `align-items` cannot stretch it vertically. */
+ion-modal.filter-sheet::part(content) {
+  align-items: stretch;
+  justify-content: flex-end;
+}
+
+.sheet-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 62vh;
+  overflow-y: auto;
+  background: var(--color-white);
+  border-top: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+/* The grab handle. It is decorative — the sheet is dismissed by the backdrop,
+   the close button, or a swipe — so it is hidden from assistive technology
+   rather than being a second, invisible button. */
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  margin: 8px auto 0;
+  border-radius: var(--radius-pill);
+  background: var(--tile-powder-deep);
+  flex: 0 0 auto;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px 8px;
+  flex: 0 0 auto;
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-ink);
+}
+
+.sheet-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-ink-soft);
+  cursor: pointer;
+}
+.sheet-close app-icon {
+  --icon-size: 20px;
+}
+.sheet-close:hover {
+  background: var(--tile-powder);
+}
+
+/* One control per line, with a 12px gap. This is the whole point of the
+   sheet: the band had five rows at 5–6px apart and 34px tall, and this has
+   five rows at 12px apart and 48px tall. */
+.sheet-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 16px 16px;
+}
+
+.filter-sheet .select-panel,
+.filter-sheet .switch-rows {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.filter-sheet .select-row {
+  min-height: 48px;
+  padding: 0 14px;
+  gap: 12px;
+  justify-content: space-between;
+}
+.filter-sheet .select-label {
+  font-size: 13px;
+}
+
+/* The value sits hard right, against the caption.
+
+   The select HUGS its own text (`flex: 0 1 auto`) and is pushed right by
+   `margin-left: auto`, rather than the box stretching and the text sitting
+   left inside a 366px void. `min-width: min-content` on the select means the
+   hug is the width of the value and never less, so the longest option
+   ("1,000 or less") is shown whole and the row grows instead of clipping. */
+.filter-sheet .select-control {
+  flex: 0 1 auto;
+  margin-left: auto;
+  min-height: 46px;
+  font-size: 14px;
+}
+
+.filter-sheet .switch-row {
+  min-height: 48px;
+  padding: 0 14px;
+  gap: 10px;
+}
+.filter-sheet .switch-toggle {
+  min-height: 48px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sheet-footer {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--tile-powder-deep);
+  background: var(--color-white);
+  flex: 0 0 auto;
+}
+
+/* The quiet control: white, a hairline, a teal label. */
+.sheet-clear {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sheet-clear:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* THE GOLD CTA — the app's own, not a new colour. Gold fill, plum ink, and
+   the teal-and-white hover the rest of the app uses. */
+.sheet-apply {
+  flex: 1 1 auto;
+  min-height: 48px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.sheet-apply:hover {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+}
+
 .products-grid {
+  /* The products themselves. The filter band above is the sticky part; this
+     is what scrolls under it. */
   padding: 12px 8px 24px;
 }
 

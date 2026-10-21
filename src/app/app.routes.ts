@@ -25,9 +25,7 @@ export const routes: Routes = [
   {
     path: 'products/:id',
     loadComponent: () =>
-      import('@features/products/product-detail/product-detail.page').then(
-        (m) => m.ProductDetailPage,
-      ),
+      import('@features/product-detail/product-detail.page').then((m) => m.ProductDetailPage),
     canActivate: [authGuard],
   },
   {
@@ -43,7 +41,7 @@ export const routes: Routes = [
   {
     path: 'orders/:id',
     loadComponent: () =>
-      import('@features/orders/order-tracker/order-tracker.page').then((m) => m.OrderTrackerPage),
+      import('@features/order-tracker/order-tracker.page').then((m) => m.OrderTrackerPage),
     canActivate: [authGuard],
   },
   {

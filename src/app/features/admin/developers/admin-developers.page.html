@@ -1,125 +1,88 @@
-<ion-header>
+<ion-header class="flat-header">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button aria-label="Open navigation menu"></ion-menu-button>
     </ion-buttons>
     <ion-title>Team Credits</ion-title>
-    <ion-buttons slot="end">
-      <ion-button size="small" (click)="startCreate()">Add</ion-button>
-    </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
 <ion-content fullscreen>
   <div class="page-body">
     <!--
-      Stated rather than swallowed. The service falls back to the five names the
-      app shipped with when the Firestore read fails, and a public credits page
-      showing last-shipped content should not look identical to a live one.
+      The page head, and the reason "Add" is HERE rather than in the toolbar.
+
+      It was an <ion-button> in ion-buttons slot="end", with no fill attribute.
+      Ionic's default fill is solid, which resolves the button's background to
+      --ion-color-primary (#A3B5F0) - and the toolbar's own background is
+      --color-brand-primary, which is the SAME #A3B5F0. Measured, that is 1.00:1:
+      there was no button, only loose plum text sitting on a striped bar. Two
+      other pages had the identical defect and still do; see the note in
+      .toolbar-cta below.
+
+      Down here it is a real control on a real surface: sunny #FFC53D with plum
+      ink measures 8.16:1, which is the app's existing primary-action treatment
+      (see .place-order-btn in cart.page.scss) rather than a new one.
     -->
+    <div class="page-head">
+      <div class="page-head-text">
+        <h1 class="page-head-title">Who gets the credit</h1>
+        <p class="page-head-sub">These are the people on the public Team Credits page, in the order they appear.</p>
+      </div>
+      @if (canWrite()) {
+        <button type="button" class="add-btn" (click)="startCreate()">
+          <app-icon name="plus" />
+          <span>Add developer</span>
+        </button>
+      }
+    </div>
+
+    <!--
+      THE BANNER THAT SHOULD HAVE EXISTED ALL ALONG.
+
+      When the read failed or the collection is empty, every control below is
+      dead — `canWrite()` is false, so Add / Edit / Reorder / Delete are all
+      hidden or disabled. The previous version of this page showed a quiet note
+      about the built-in list and left all four looking fully live, which is what
+      made an empty database look like broken buttons.
+
+      So this states the consequence, not just the cause. `readFailed` separates
+      the two cases because they need different advice: an outage is not
+      something the owner can fix from here, an empty collection is.
+    -->
+    <!--
+        THE REPAIR CONTROL, and only when there is something to repair.
+
+        Two records sharing an `order` is not visible — the list looks perfectly
+        normal — but it makes that pair permanently un-movable, because swapping
+        two equal values is a no-op by construction. Nothing self-heals it, so it
+        is surfaced here rather than left to be rediscovered. Shown ONLY when a
+        tie actually exists, so a healthy list never carries a dead control.
+      -->
+    @if (orderIsTied()) {
+      <div class="tie-warning">
+        <app-icon name="circle-alert" />
+        <span>Two credits share a position, so they cannot be swapped past each other.</span>
+        <button type="button" class="tie-fix" (click)="repairOrder()" [disabled]="moving()">Fix order</button>
+      </div>
+    }
+
     @if (usingFallback()) {
       <app-alert-banner
         tone="warning"
-        title="Showing the built-in list"
-        message="These credits could not be read from the database, so the names the app shipped with are standing in."
+        [title]="readFailed() ? 'Could not reach the credits database' : 'No credits are stored yet'"
+        [message]="
+          readFailed()
+            ? 'The read failed, so nothing on this page is editable — every save would be rejected. Check the emulator is running and your session is valid, then reload.'
+            : 'The credits collection is empty. Editing is disabled until it holds at least one record — if you expect records here, seed the emulator with: npm run seed:developers:emulator'
+        "
       />
-    }
-
-    @if (errorMessage()) {
-      <app-alert-banner tone="danger" title="Could not save" [message]="errorMessage()" />
-    }
-
-    <!-- ── Edit form ─────────────────────────────────────────────────── -->
-    @if (editing()) {
-      <div class="card">
-        <div class="card-head">
-          <h2 class="card-title">{{ editing() === 'new' ? 'Add a developer' : 'Edit developer' }}</h2>
-          <button type="button" class="icon-btn" (click)="cancelEdit()" aria-label="Cancel">
-            <app-icon name="x" />
-          </button>
-        </div>
-
-        <div class="form-grid">
-          <ion-input
-            label="Name"
-            labelPlacement="stacked"
-            [(ngModel)]="formName"
-            maxlength="80"
-            placeholder="Their full name"
-          ></ion-input>
-
-          <div class="field">
-            <span class="field-label">Roles</span>
-            <div class="role-chips">
-              @for (role of formRoles; track role) {
-                <span class="role-chip">
-                  {{ role }}
-                  <button type="button" (click)="removeRole(role)" [attr.aria-label]="'Remove ' + role">
-                    <app-icon name="x" />
-                  </button>
-                </span>
-              }
-              @if (!formRoles.length) {
-                <span class="role-empty">No roles yet.</span>
-              }
-            </div>
-
-            <ion-input
-              label="Add a role"
-              labelPlacement="stacked"
-              [(ngModel)]="formRoleDraft"
-              placeholder="Type one, or tap a suggestion"
-              (keyup.enter)="addRole(formRoleDraft)"
-            ></ion-input>
-
-            <div class="suggestions">
-              @for (role of roleSuggestions; track role) {
-                <button type="button" class="suggestion" (click)="addRole(role)">{{ role }}</button>
-              }
-            </div>
-          </div>
-
-          <div class="field">
-            <span class="field-label">Avatar colour</span>
-            <!--
-              A closed palette, not a colour input. The initials are plum on a
-              PASTEL disc, which clears AA on each of these five; a free picker
-              would let a dark disc be chosen and put unreadable text on it, and
-              check:contrast validates the design tokens rather than a value typed
-              at runtime. firestore.rules rejects anything else.
-            -->
-            <div class="swatches">
-              @for (a of accents; track a.hex) {
-                <button
-                  type="button"
-                  class="swatch"
-                  [class.selected]="formAccent === a.hex"
-                  [style.background]="a.hex"
-                  (click)="formAccent = a.hex"
-                  [attr.aria-label]="a.label"
-                  [attr.aria-pressed]="formAccent === a.hex"
-                ></button>
-              }
-            </div>
-          </div>
-        </div>
-
-        <div class="actions">
-          <ion-button size="small" (click)="save()" [disabled]="saving()">
-            @if (saving()) {
-              <ion-spinner name="crescent" slot="start"></ion-spinner>
-            }
-            Save
-          </ion-button>
-          <ion-button size="small" fill="clear" (click)="cancelEdit()">Cancel</ion-button>
-        </div>
-      </div>
     }
 
     <!-- ── The records ────────────────────────────────────────────────── -->
     <div class="list">
       @for (dev of developers(); track dev.id; let i = $index) {
-        <div class="card row">
+        <article class="card row">
           <div class="avatar-wrap">
             <!--
               The photo when there is one, the initials when there is not, on the
@@ -132,7 +95,7 @@
                 <span class="initials">{{ initialsFor(dev) }}</span>
               }
             </div>
-            @if (canEdit()) {
+            @if (canWrite()) {
               <label class="avatar-btn" [class.disabled]="uploadingFor() === dev.id">
                 <app-icon name="camera" />
                 <input
@@ -140,6 +103,7 @@
                   accept="image/*"
                   (change)="onPhotoSelected($event, dev)"
                   [disabled]="uploadingFor() === dev.id"
+                  [attr.aria-label]="'Change photo for ' + dev.name"
                 />
               </label>
             }
@@ -147,56 +111,169 @@
 
           <div class="row-body">
             <h3 class="row-title">{{ dev.name }}</h3>
+            <!--
+              roleClass() is DevelopersPage.roleClass(), not a new mapping. The
+              point of this page is to show what the public credits page will
+              render, so the chip colours here are the same five it uses there -
+              see the note on the method.
+            -->
             <div class="role-chips">
               @for (role of dev.roles; track role) {
-                <span class="role-chip">{{ role }}</span>
+                <span class="chip role-chip" [ngClass]="roleClass(role)">{{ role }}</span>
               }
             </div>
           </div>
 
-          @if (canEdit()) {
+          @if (canWrite()) {
             <div class="row-actions">
-              <button type="button" class="icon-btn" (click)="move(i, -1)" [disabled]="i === 0" aria-label="Move up">
-                <app-icon name="chevron-up" />
-              </button>
-              <button
-                type="button"
-                class="icon-btn"
-                (click)="move(i, 1)"
-                [disabled]="i === developers().length - 1"
-                aria-label="Move down"
-              >
-                <app-icon name="chevron-down" />
-              </button>
-              <button type="button" class="icon-btn" (click)="startEdit(dev)" aria-label="Edit">
-                <app-icon name="pencil" />
-              </button>
-              @if (dev.photoURL) {
-                <button type="button" class="icon-btn" (click)="clearPhoto(dev)" aria-label="Remove photo">
-                  <app-icon name="image" />
+              <!--
+                Reordering first, and as its own group, because it is the only
+                pair whose two halves are meaningless apart: "up" and "down" read
+                as one control and are disabled at the ends of the list, where a
+                single arrow would just be dead.
+
+                `moving()` disables the pair while a write is in flight. Two
+                clicks a moment apart would otherwise both read the same stale
+                list and interleave, so the second commit quietly undid the first
+                and the row looked like it had not moved at all.
+              -->
+              <div class="act-group">
+                <!--
+                  Both arrows are always rendered. The title on the dead one says
+                  WHY it is dead rather than just naming the action, because the
+                  alternative is an arrow that looks broken - which is how this
+                  was reported. See the disabled block in the stylesheet.
+                -->
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="move(i, -1)"
+                  [disabled]="moving() || i === 0"
+                  [attr.aria-label]="i === 0 ? 'Already first in the list' : 'Move up'"
+                  [title]="i === 0 ? 'Already first in the list' : 'Move up'"
+                >
+                  <app-icon name="chevron-up" />
                 </button>
+                <button
+                  type="button"
+                  class="icon-btn"
+                  (click)="move(i, 1)"
+                  [disabled]="moving() || i === developers().length - 1"
+                  [attr.aria-label]="i === developers().length - 1 ? 'Already last in the list' : 'Move down'"
+                  [title]="i === developers().length - 1 ? 'Already last in the list' : 'Move down'"
+                >
+                  <app-icon name="chevron-down" />
+                </button>
+              </div>
+
+              <!--
+                THE RULE BETWEEN THE GROUPS.
+
+                It is a line, not a block: the groups are separated by a hairline
+                so the eye knows where one pair of controls ends and the next
+                begins, without either pair being given a filled shape of its
+                own to be mistaken for something heavier.
+
+                This element existed in the stylesheet for two revisions and was
+                never rendered - the comments on both sides had been describing a
+                divider that did not exist. It is in the markup now.
+              -->
+              <span class="act-divider" aria-hidden="true"></span>
+
+              <div class="act-group">
+                <button type="button" class="icon-btn" (click)="startEdit(dev)" aria-label="Edit" title="Edit">
+                  <app-icon name="pencil" />
+                </button>
+                @if (dev.photoURL) {
+                  <button
+                    type="button"
+                    class="icon-btn"
+                    (click)="clearPhoto(dev)"
+                    aria-label="Remove photo"
+                    title="Remove photo"
+                  >
+                    <app-icon name="image" />
+                  </button>
+                }
+              </div>
+
+              <!--
+                Delete is hidden rather than disabled for anyone below owner.
+                There is nothing to learn from pressing a permanently greyed-out
+                control, and firestore.rules would refuse it anyway.
+
+                It gets its own rule in front of it, because it is the only
+                irreversible control on the row - a line is what separates "this
+                edits the record" from "this deletes the person".
+
+                It used to sit as a bare sibling of .row-actions, which was two
+                mistakes at once: it inherited the row's much wider gap instead
+                of a group gap, and the divider this comment promised was never
+                actually rendered, so the button floated ~32px from its
+                neighbours looking like a stray.
+
+                It lives inside .row-actions now, so one container owns the
+                spacing for the whole cluster and the rule in front of it sits
+                the same distance from the edit group as the rule between the
+                other two.
+
+                canDelete() is owner-only and canWrite() covers owners too, so
+                the rule in front of delete can never be the first thing in the
+                row: whenever this renders, the groups above it have rendered
+                as well.
+              -->
+              @if (canDelete()) {
+                <span class="act-divider" aria-hidden="true"></span>
+                <div class="act-group act-group--danger">
+                  <button
+                    type="button"
+                    class="icon-btn danger"
+                    (click)="confirmRemove(dev)"
+                    aria-label="Remove"
+                    title="Remove from credits"
+                  >
+                    <app-icon name="trash" />
+                  </button>
+                </div>
               }
             </div>
           }
-          <!--
-            Delete is hidden rather than disabled for anyone below owner. There is
-            nothing to learn from pressing a permanently greyed-out control, and
-            firestore.rules would refuse it anyway.
-          -->
-          @if (canDelete()) {
-            <button type="button" class="icon-btn danger" (click)="confirmRemove(dev)" aria-label="Remove">
-              <app-icon name="trash" />
-            </button>
-          }
-        </div>
+        </article>
       } @empty {
-        <app-alert-banner
-          tone="info"
-          title="No credits yet"
-          message="Add the first developer to publish the credits page."
-        />
+        <!--
+          THE HONEST EMPTY STATE.
+
+          This is the case that cost an afternoon. The old page fell back to
+          DEFAULT_DEVELOPERS here, so an EMPTY database rendered four healthy
+          rows with live Add / Edit / Reorder / Delete controls — and every one
+          of them failed, because the documents they addressed did not exist.
+
+          So the admin page no longer uses the fallback at all. Zero rows means
+          zero rows, said plainly, with no action offered when there is nothing to
+          write TO. The public `/developers` page keeps its fallback unchanged; a
+          guest must never see a blank credits page.
+        -->
+        @if (usingFallback()) {
+          <app-empty-state
+            [icon]="readFailed() ? 'circle-alert' : 'users'"
+            [title]="readFailed() ? 'Could not load the credits' : 'No credits stored yet'"
+            [message]="
+              readFailed()
+                ? 'The database did not answer, so there is nothing to edit here. This is usually the emulator being down — start it with npm run emulators, then reload.'
+                : 'The credits collection is genuinely empty. Seed it with npm run seed:developers:emulator, or add the first record below.'
+            "
+          />
+        } @else {
+          <app-empty-state
+            icon="users"
+            title="No credits yet"
+            message="Add the first developer to publish the Team Credits page."
+            [actionLabel]="canWrite() ? 'Add developer' : null"
+            (action)="startCreate()"
+          />
+        }
       }
     </div>
   </div>
-  <app-footer></app-footer>
+  <app-admin-footer></app-admin-footer>
 </ion-content>

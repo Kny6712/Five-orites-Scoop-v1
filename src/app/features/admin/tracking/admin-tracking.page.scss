@@ -1,12 +1,14 @@
 // src/app/features/admin/tracking/admin-tracking.page.scss
 // Five-orites Scoop — Admin Delivery Map
 
-/* ── Split: map left, controls right ─────────────────────────
-   The map and the search panel are used together — you look at where the
-   orders are and then find them in a list. Stacked vertically they were never
-   on screen at the same time, so the map and the list were two separate tasks
-   rather than one. Side by side from tablet up, stacked on a phone where there
-   is no width to spare. */
+@use '../../../shared/styles/stacked-table' as *;
+
+/* ── Split: panel left, map right ─────────────────────────
+   The panel and the map are used together — you narrow the list and then find
+   the orders on the map, or read the map and then narrow the list. Stacked
+   vertically they were never on screen at the same time, so the map and the
+   list were two separate tasks rather than one. Side by side from tablet up,
+   stacked on a phone where there is no width to spare. */
 .track-split {
   display: grid;
   grid-template-columns: 1fr;
@@ -16,8 +18,94 @@
 
 @media (min-width: 900px) {
   .track-split {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-    align-items: start;
+    /* The panel is the narrow column and it is on the LEFT; the map takes the
+       rest. The tracks are the mirror of what they were.
+
+       THE MAP IS PACKED TO THE RIGHT EDGE, and this is the part that is easy
+       to get wrong.
+
+       The map is a SQUARE, and its square is capped at min(100%, 58vh, 520px)
+       and centred inside whatever column it is given. Left alone in a 1fr
+       column it floats in the middle of that column with a wide gutter on
+       either side — and with the panel now on the left, a map floating in the
+       middle of the right half is neither on the left nor on the right.
+
+       So the map's column is sized to the MAP (560px, the square's own cap at
+       a large viewport) and `space-between` pushes the two columns apart:
+       the panel to the far left, the map to the far right, and the slack
+       between them rather than in a gutter beside the map.
+
+       The column is a MAXIMUM, not a fixed width, so on a narrower pane the
+       map shrinks with it and the square stays square: the map's own
+       `min(100%, ...)` resolves against this column, so it fills whatever
+       width it is given. */
+    /* THE PANEL TAKES THE SLACK NOW, and the gap between the two columns is a
+       column gap like any other.
+
+       It used to be the other way round: the panel was a fixed 380px and
+       `space-between` put every spare pixel in the MIDDLE, between the panel
+       and the map. On a wide screen that gulf reached 400px of nothing — the
+       search box and the map it filters, the two things you use together,
+       drifted apart across an empty stretch of page.
+
+       Now the panel is the flexible track (1fr) and the map's track is sized
+       to the MAP, so the slack lands in the panel instead of in the gap. The
+       panel reaches the map, the gap is 16px, and the two read as one band.
+
+       The map's track is the map's own expression — min(58vh, 520px), the
+       same cap the map component uses for its square — so the square still
+       shrinks with a short viewport and the two stay exactly the same width
+       at every height. Without that the track would be wider than the map
+       inside it, and the slack would simply move back into the gap one
+       column in. */
+    grid-template-columns: minmax(300px, 1fr) minmax(0, min(58vh, 520px));
+    column-gap: var(--space-4);
+    /* STRETCH, not start.
+
+       The panel column now FILLS the row, so the white panel on the left is as
+       tall as the map on the right and the two read as one band. With `start`
+       the panel was a small box at the top of a 380px column with 400px of
+       nothing under it — which is exactly where the selected order used to
+       land when you tapped a pin, so tapping the map pushed a second box out
+       from under the first one and shoved the page down.
+
+       Now there is one container, it is already as tall as the map, and the
+       order appears inside it. */
+    align-items: stretch;
+  }
+
+  /* THE MAP COLUMN IS THE WIDTH OF THE MAP, and that is what puts the map
+     flush against the right edge of the content.
+
+     The map's own width is `min(100%, 58vh, 520px)` — 100% of this column,
+     capped by the viewport height and by 520px — and it CENTRES itself in
+     whatever column it is given. In a 560px column that leaves 20px of
+     gutter on each side, so the square floated 20px short of the right edge
+     and the caption, spanning the full column, stuck out 20px to the LEFT of
+     the map it was describing.
+
+     Sizing the column to the same expression the map uses, and pushing it to
+     the end of its track with `justify-self: end`, makes the two the same
+     width at every viewport height: the map's `100%` resolves against a
+     column that is already exactly as wide as it, so there is no free space
+     left to centre, and the map's right edge IS the content's right edge.
+
+     The numbers are the map component's own, restated here rather than
+     shared, because the component keeps them in its own scoped stylesheet and
+     exposes no custom property for them. */
+  .map-col {
+    width: 100%;
+    justify-self: end;
+  }
+}
+
+@media (min-width: 1024px) {
+  .track-split {
+    grid-template-columns: minmax(300px, 1fr) minmax(0, min(52vh, 560px));
+  }
+
+  .map-col {
+    width: 100%;
   }
 }
 
@@ -25,14 +113,38 @@
   min-width: 0;
 }
 
+/* The caption sits UNDER THE MAP, and the same width as it.
+
+   It used to span the whole map COLUMN, which is 40px wider than the square
+   map inside it — so the caption stuck out to the LEFT of the map it was
+   describing, and the map itself sat 20px short of the column's right edge.
+   Two edges out of line with the thing they belong to.
+
+   The map's width is `min(100%, 58vh, 520px)` — 100% of this column, capped
+   by the viewport height and by 520px, and 52vh/560px at a large viewport.
+   The caption uses the SAME expression for its max-width and centres itself
+   with the same auto margins the map's own `margin-inline: auto` uses, so the
+   two are the same width and the same left edge at every viewport height.
+
+   Those numbers are the map component's own, restated here rather than
+   shared, because the component keeps them in its own scoped stylesheet and
+   exposes no custom property for them. The alternative — a caption that
+   ignores the map's width — is the thing this rule exists to fix. */
 .map-caption {
   display: flex;
   align-items: flex-start;
   gap: 6px;
-  margin: var(--space-2) 0 0;
+  margin: var(--space-2) auto 0;
+  max-width: min(100%, 58vh, 520px);
   font-size: 12px;
   line-height: 1.45;
   color: var(--ion-color-medium);
+}
+
+@media (min-width: 1024px) {
+  .map-caption {
+    max-width: min(100%, 52vh, 560px);
+  }
 }
 
 .map-caption app-icon {
@@ -42,6 +154,19 @@
   color: var(--color-primary-ink);
 }
 
+/* ── The panel column, and it is NOT A BOX ───────────────────────────────
+   It was: a white panel with a hairline, sized to the map's height, holding
+   the filters and the order card.
+
+   Now it is a column and nothing else. The controls sit on the page, the
+   same way the map's column sits on the page, and the two sides of the split
+   stop being one white card and one white square.
+
+   What is left on this side of the page is the search field, the status
+   chips and the count — and, when you tap a pin, the order card. The order
+   card is still a card: a powder field with a hairline, which is the only
+   thing here that needs to be one, because it is the only thing here that
+   arrives and leaves. */
 .panel-col {
   min-width: 0;
   display: flex;
@@ -50,55 +175,118 @@
 }
 
 // ── Search & filters ──────────────────────────────────────
+/* NOT A BOX. There is no box here at all now — not on the column and not on
+   this stack. The search field, the chips and the count sit on the page the
+   same way the map does, and the only card on this side of the split is the
+   selected order.
+
+   The stack is still a block, because the margins between the field, the
+   chips and the count are its own. */
 .search-panel {
-  background: var(--color-white);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  padding: var(--space-3);
+  display: block;
 }
 
+/* A HAIRLINE, NOT A SHADOW, and the same recipe as the fulfilment queue's
+   table card: one white field, one definite 1px edge, and no lift.
+
+   The shadow was `var(--shadow-card)` — 0 2px 12px of plum at 10% — and on a
+   cream page it read as a card floating a few millimetres above the page
+   rather than as a panel drawn on it. A hairline says the same thing with one
+   pixel instead of twelve, and it is what every other card in this app does
+   now. The rim itself moved up to `.panel-col`, which is the panel now. */
+
+/* FLAT. Ionic paints a three-layer Material elevation shadow on the search
+   field's inner input, and this was the last control on the page still
+   carrying one. It goes the way the other three cream-background search fields
+   went; the hairline that replaces it is on the inner input and lives in
+   global.scss, because the input belongs to ion-searchbar and carries no
+   _ngcontent attribute. */
 .track-search {
   --border-radius: var(--radius-sm);
   --background: var(--ion-color-light);
+  --box-shadow: none;
   padding: 0;
-  margin-bottom: var(--space-2);
+  /* NO margin-bottom: it was the gap under the field when the field was the
+     only thing in this stack, and it was left behind when the filter moved in
+     beside it — which is what made the row 44px tall and the two controls sit
+     at different heights. The row's own margin and the count's margin do the
+     spacing now. */
+  margin: 0;
+
+  /* A WIDTH OF ITS OWN, because the column is not a card any more and the
+     filter is standing beside it.
+
+     The panel used to be a 380px white box and the field filled it. Now the
+     column takes the slack — 660px on a wide screen — and a search field
+     stretched across all of it is a 600px white box with a placeholder
+     floating in the middle of it, which is not a search field, it is a
+     banner.
+
+     280px, which is the width the app's other admin searches use (the
+     fulfilment queue's is 240px, the vouchers' is 280px). It is also as wide
+     as it needs to be: Ionic reserves 55px of padding on EACH side of the
+     input for the magnifier and the cancel button, so a 280px field has
+     170px of text space in it — which is what the shorter placeholder
+     needs. The full "Search order, email or address" wanted 330px, and the
+     three things it named are in the field's aria-label instead, which is
+     where a screen reader hears them from.
+
+   IT IS A MAXIMUM, NOT A FIXED WIDTH, and that is what `flex: 0 1 280px` is
+   for — `flex: 0 0 auto` says "280px, and never any less".
+
+   The panel is 288px wide on a 320px phone, and the status filter beside it
+   takes 64px of that, leaving 216px for the field. With the field refusing to
+   shrink it sat at its full 280px and ran 48px off the right edge of the
+   screen, with the magnifier and the right-hand padding outside it.
+
+   `flex: 0 1 280px` lets the field give up width when there is not enough to
+   go round, and `min-width: 0` lets it go below its content's own minimum —
+   without it a flex item's automatic minimum size holds the field at the
+   width its content wants, which is the thing being defeated. */
+  max-width: 280px;
+  flex: 0 1 280px;
+  min-width: 0;
 }
 
-.status-chips {
+/* THE FILTER AND THE FIELD, ON ONE LINE.
+
+   The filter is the coarser of the two controls — it narrows the list to one
+   status — so it comes first and the field takes what is left. Eight pixels
+   between them, the same gap the fulfilment queue's control row uses. */
+.panel-controls {
   display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }
 
-/* Real <button>s rather than ion-chips: these are a radio group (exactly one
-   status is active at a time), and a group of independently-toggleable chips
-   implies several can be selected, which they cannot. */
-.status-chip {
-  padding: 6px 12px;
-  border: 1px solid var(--ion-color-light-shade);
-  border-radius: var(--radius-pill);
-  background: var(--color-white);
-  color: var(--color-ink-soft);
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease;
+/* THE STATUS DROPDOWN, and it is the app's `.select-chip` — the same control
+   the fulfilment queue's status filter and the users directory's role filter
+   use, with the same hairline, the same caret and the same popover.
+
+   The only thing this page adds is the label's own class, so the trigger can
+   be measured and the search field can sit beside it without either of them
+   deciding the other's width. */
+.status-select {
+  flex: 0 0 auto;
 }
 
-.status-chip.is-on {
-  background: var(--color-brand-primary);
-  /* An ink border, not a pastel one: on a white chip the pastel measures 1.79:1
-     and the selected state would be invisible. */
-  border-color: var(--color-primary-ink);
-  color: var(--color-ink);
+/* The label is what changes when a status is chosen, so it must not be
+   squeezed out of shape by a long one. */
+.status-select-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.status-chip:hover:not(.is-on) {
-  background: var(--tile-powder);
-}
+/* THE ROW OF FIVE CHIPS IS GONE.
+
+   It was a radio group drawn as five toggleable pills, which is two
+   contradictions: five independent-looking buttons where exactly one can be
+   on, and five of the loudest shapes on a panel whose job was to be quiet.
+
+   The one dropdown above replaces it, and it is the app's dropdown — the
+   `.select-chip` and the popover the fulfilment queue and the users
+   directory already use. */
 
 .result-count {
   margin: var(--space-2) 0 0;
@@ -126,11 +314,28 @@
 }
 
 // ── Selected order ────────────────────────────────────────
+/* The 2px NAVY FRAME IS GONE, and it was the heaviest bevel on the page.
+
+   A 2px saturated rim around a powder fill reads as a frame with thickness —
+   the edge looks like it has depth, which is the one thing this design does
+   not have. It is now the same 1px --tile-powder-deep hairline every other
+   card in the app carries, and the POWDER FILL is what marks this card as the
+   order you picked: it is the one thing on the page that is not on a white
+   field.
+
+   The border is still there because a powder fill on cream measures 1.15:1
+   and needs an edge to be a card at all — the same reason the white cards
+   carry one. */
 .selected-card {
   background: var(--tile-powder);
-  border: 2px solid var(--color-primary-ink);
+  border: 1px solid var(--tile-powder-deep);
   border-radius: var(--radius-md);
   padding: var(--space-3);
+
+  /* The same width as the search field above it, because they are the same
+     column of controls: the panel is not a box any more, so the things in it
+     are as wide as they need to be and no wider. */
+  max-width: 420px;
 }
 
 .selected-head {
@@ -186,13 +391,62 @@
   color: var(--ion-color-medium);
 }
 
+/* ── The page's primary action ─────────────────────────────────────────
+   Sunny with plum ink, measured at 8.16:1 — the same pairing as the cart
+   page's .place-order-btn, the product-detail CTA, the product-card CTA, the
+   vouchers page's "+ New voucher" and the inventory page's "+ Add Product",
+   and the reason variables.scss calls #ffc53d the CTA hue.
+
+   It was an `ion-button`, and that is where the elevation shadow and the
+   uppercase came from. A plain <button> states its background outright and
+   cannot be re-derived by Ionic's theming.
+
+   NO BORDER, and no shadow. A filled primary does not need a rim — the fill
+   is its own edge, and that is the pattern the other CTAs in this app follow.
+   The white control beside it carries the hairline because a white fill on
+   cream needs one; a sunny fill does not.
+
+   --radius-pill, like every other button in the app. The old note here said
+   a pill at this height "reads as a lozenge rather than a control" — which is
+   exactly what the file button and the developers page's "Add developer" are,
+   and they read as buttons. */
 .advance-btn {
-  --background: var(--color-brand-primary);
-  --color: var(--color-ink);
-  --border-radius: var(--radius-sm);
-  font-weight: 700;
-  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   min-height: 44px;
+  margin-top: var(--space-3);
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-accent);
+  color: var(--color-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* The hover is TEAL, and the focus ring goes with it — the same treatment the
+   developers page's "Add developer" button gets. A teal outline drawn around
+   a gold button reads as a sticker around it; a teal fill is the button
+   itself changing state, and the focus state can be the same fill so the
+   button has one way of saying "this is live". The fill change is the focus
+   indicator WCAG 2.4.7 asks for. */
+.advance-btn:hover:not(:disabled),
+.advance-btn:focus-visible {
+  background: var(--color-primary-ink);
+  color: var(--color-white);
+  outline: none;
+}
+
+.advance-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 // ── Table ─────────────────────────────────────────────────
@@ -202,14 +456,29 @@
   -webkit-overflow-scrolling: touch;
 }
 
+/* THE NOTICE SITS DIRECTLY ABOVE THE TABLE, so the gap between them is halved
+   when it is there: 16px of margin under the strip and 16px of padding above
+   the table is 32px of air around two things that belong together. */
+.table-wrap.has-notice {
+  padding-top: var(--space-2);
+}
+
 .track-table {
   width: 100%;
-  min-width: 540px;
+  /* 460, not 540. This table is three columns now instead of six, and a phone
+     should have to scroll 70px rather than 150px to reach the Advance button. */
+  min-width: 460px;
   border-collapse: separate;
   border-spacing: 0;
   background: var(--color-white);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
+  /* A HAIRLINE, NOT A DROP SHADOW — the same trade the fulfilment queue's
+     table made, and the search panel above it has just made it too.
+
+     Every row inside the table carries its own divider, so the table still
+     reads as a stack of rows rather than one undifferentiated block; the
+     shadow was adding a second, softer edge to say the same thing. */
+  border: 1px solid var(--tile-powder-deep);
   overflow: hidden;
 }
 
@@ -246,10 +515,26 @@
   background: var(--tile-powder);
 }
 
-.num {
-  text-align: right;
-  width: 1%;
-  white-space: nowrap;
+/* ── The header, lined up with the DATA it labels ─────────────────────────
+   The table is three columns now, and only one of them needed help: STATUS
+   holds a chip with an icon in front of the word, so a left-aligned header
+   sits over the ICON instead of over the name.
+
+   The 37px inset is DERIVED, not guessed. The chip's own left inset is 1px of
+   border + 12px of padding (the global `.chip` class) + a 20px icon + 4px of
+   gutter (the badge's `.status-icon` margin) = 37px. The header needs the
+   cell's own 12px of padding on top of that to land on the same pixel.
+
+   ITEMS and VALUE used to need the same treatment, and they are gone: they
+   were the fulfilment queue's columns, and a delivery stop has neither a
+   scoop count nor a peso total.
+
+   THE ORDER HEADER IS LEFT ALONE, deliberately, for the same reason it is on
+   the fulfilment queue's table: its cell opens with a map-pin, which is an
+   affordance rather than a glyph of the data. */
+.track-table thead th.col-status {
+  /* 12px of cell padding + the chip's 37px inset. */
+  padding-left: 49px;
 }
 
 .action-cell {
@@ -272,18 +557,22 @@
   text-align: left;
   cursor: pointer;
   color: inherit;
+
+  /* ROOM FOR THE FOCUS RING.
+
+     The ring is 3px wide with a 2px offset, so it is 5px outside the
+     button's box, and the timestamp sits right below the button. The ring
+     drew straight across the top of the timestamp and it read as cut off.
+
+     The same fix as the orders page's order number — see the note on
+     `.order-disclosure` in admin-orders.page.scss. */
+  margin-bottom: 5px;
 }
 
 .pick-icon {
   --icon-size: 15px;
   flex: 0 0 auto;
   color: var(--color-primary-ink);
-}
-
-.pick-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
 }
 
 .row-id {
@@ -293,20 +582,29 @@
   color: var(--color-ink);
 }
 
-.row-email {
-  font-size: 11px;
-  color: var(--ion-color-medium);
-  max-width: 22ch;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+/* SOLID TYPOGRAPHY, and the hierarchy the route actually has.
 
+   The address was --color-ink-soft: a grey. It is the PAYLOAD of this page —
+   the thing the rider reads to know where to go — and it was the lightest text
+   in the row while the order id beside it was solid plum. That is the wrong way
+   round: the id is a key, the address is the content.
+
+   So the address is solid ink now, and the DISTANCE is what carries the
+   secondary weight — except it is not grey either. It is the number the route
+   is sorted by, so it is solid type in the app's VALUE ink, the same navy the
+   peso total wore on this table before it left for Fulfillment.
+
+   Three inks in a row, each with a job: plum for the key, plum for the payload,
+   navy for the number, and the meta grey for nothing. */
 .row-address {
   display: block;
   font-size: 13px;
-  color: var(--color-ink-soft);
-  max-width: 32ch;
+  color: var(--color-ink);
+  /* 44 characters, not 32. The column this cell sits in is wide — the table
+     has four columns and a long page — and 32ch was truncating addresses that
+     had room to be read: "123 Main Street, Apt 4B Springfield, CA …" is a
+     sentence with its tail cut off, on a row whose whole job is the address. */
+  max-width: 44ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -314,38 +612,94 @@
 
 .row-distance {
   display: block;
-  font-size: 11px;
-  color: var(--ion-color-medium);
-  margin-top: 1px;
-}
-
-.row-items {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-ink);
-  font-variant-numeric: tabular-nums;
-}
-
-.row-value {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--color-primary-ink);
   font-variant-numeric: tabular-nums;
+  margin-top: 1px;
 }
 
-.row-advance {
-  --border-radius: var(--radius-pill);
-  --border-color: var(--color-primary-ink);
-  --color: var(--color-primary-ink);
+/* THE FLAG ON AN ORDER WITH NO LOCATION, and it replaces a dash.
+
+   The dash was a way of saying nothing: an order with no coordinates and an
+   order at the shop both drew "—", and the admin could not tell which was
+   which. This says which it is, in the same colour as the notice above the
+   table, so the two point at each other.
+
+   It sits in the DISTANCE's slot and is the same size as it, because it is the
+   same fact wearing a different face: "how far" is the number, and "no pin
+   yet" is the number's absence.
+
+   TEXT ONLY, no pill and no fill. A filled tag would be a new surface in a
+   table that has none, and the peach ink on white is already an asserted
+   pair in check-contrast.mjs. */
+.row-no-pin {
+  display: block;
   font-size: 12px;
   font-weight: 700;
+  color: var(--tone-peach-ink);
+  margin-top: 1px;
+}
+
+/* The per-row action, and the QUIET one.
+
+   It repeats down every row of the table, so it is the control a quiet
+   treatment matters most on — and it was the loudest: a 999px lozenge with a
+   navy rim, in uppercase, which read as a different species of control from
+   everything else in the app.
+
+   Now it is the same construction as the inventory page's quiet buttons: a
+   white field, one 1px --tile-powder-deep hairline, --radius-sm, and a
+   sentence-case label in the primary ink.
+
+   --radius-sm, NOT --radius-pill, for the reason the rest of the app is on
+   --radius-sm: at 32px tall a pill radius wraps both ends to a 16px
+   semicircle, which reads as a lozenge rather than a control. */
+.row-advance {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-pill);
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+/* The arrow is the fulfilment queue's own arrow, on the same gesture. It is
+   what makes the label read as an action rather than a state, which matters in
+   a column of statuses. */
+.row-advance-icon {
+  --icon-size: 14px;
+}
+
+.row-advance:hover:not(:disabled) {
+  border-color: var(--color-primary-ink);
+}
+
+.row-advance:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Replaces the :focus-visible ring ion-button would have provided. */
+.row-advance:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
 }
 
 // ── Skeleton ─────────────────────────────────────────────
 .skeleton-row {
   display: grid;
-  grid-template-columns: 26% 1fr 12% 18%;
+  /* Three columns, because the table has three: order, destination, status. */
+  grid-template-columns: 22% 1fr 22%;
   gap: 12px;
   align-items: center;
   padding: 12px;
@@ -360,41 +714,69 @@
   border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
-// ── Unmapped orders ───────────────────────────────────────
+// ── Orders with no location ──────────────────────────────
 /* Peach, matching .low-stock-panel on the Dashboard. This block and that panel are
    the same idea — "the shop has something it cannot act on automatically" — and
-   they were deliberately on the same tone. They are now on the same NEW tone.
+   they were deliberately on the same tone.
+
+   THE SHAPE CHANGED, because the JOB changed. This used to be a panel with a
+   heading and a LIST of the orders that have no coordinates, sitting below the
+   table — and every order in that list was already a row in the table above it,
+   because both are drawn from the same active set. The same eleven orders,
+   printed twice on one screen, the second print wearing a different colour.
+
+   So it is now a STRIP: one line saying how many, one line saying what to do
+   about them, and no list. The rows themselves carry the flag and sit at the
+   end of the route, so the orders are named once, in the place they are acted
+   on.
+
+   FLAT, IN THE SAME WAY THE REST OF THE PAGE IS FLAT. It had a 2px border and
+   an 18px radius, which is the app's card geometry rather than its CONTROL
+   geometry: a 2px rim on an 18px curve is the closest thing this design had
+   to a bevel, and it made a notice the heaviest thing on a page whose whole
+   argument is that a card is a white field with one hairline on it.
+
+   It is a 1px border and --radius-sm now, which is the app-alert-banner's own
+   geometry — the component that is the app's canonical "something you should
+   know" — and the panel above it and the table below it are both --radius-sm
+   cards too. One radius, one border weight, three neighbours.
 
    The contrast notes are shared with the dashboard panel and apply identically:
    #fdcc85 is 1.42:1 against the page and --tone-warning-border was only 1.27:1
    against this fill, so the fill and the border both had to change together. See
    the token definitions in src/theme/variables.scss. */
 .unmapped {
-  margin: var(--space-5) var(--space-4) var(--space-6);
-  padding: var(--space-3);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: var(--space-4) var(--space-4) 0;
+  padding: var(--space-2) var(--space-3);
   background: var(--tone-peach-bg);
-  /* 2px, not 1px — a thin border on an 18px curve breaks up as it rasterises.
-     See .danger-group in profile.page.scss for the full explanation. */
-  border: 2px solid var(--tone-peach-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--tone-peach-border);
+  border-radius: var(--radius-sm);
+}
+
+.unmapped-icon {
+  --icon-size: 16px;
+  flex: 0 0 auto;
+  margin-top: 1px;
+  color: var(--tone-peach-ink);
+}
+
+.unmapped-text {
+  min-width: 0;
 }
 
 .unmapped-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   margin: 0;
   font-family: var(--font-display);
   font-size: 14px;
   font-weight: 600;
   color: var(--color-ink);
 }
-.unmapped-title app-icon {
-  --icon-size: 15px;
-}
 
 .unmapped-note {
-  margin: 5px 0 var(--space-2);
+  margin: 3px 0 0;
   font-size: 12px;
   line-height: 1.45;
 
@@ -402,52 +784,6 @@
      stylesheet the contrast gate cannot read, which is a mistake this repo has
      already made twice. */
   color: var(--tone-peach-ink);
-}
-
-.unmapped-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-/* The same TINTED BAND the dashboard's low-stock panel uses, so an admin moving
-   between the two screens sees one list treatment rather than two.
-
-   It replaces the hairline this block used to carry, and the same measurement
-   applies: #d9a050 on this peach is a soft 1.56:1 rule, which is a container's
-   edge but too quiet to group the rows of a list. The 40% white tint composites
-   to #fee0b6 against the panel at 1.17:1, and it makes the text on it BETTER —
-   the address line goes from 4.99:1 on raw peach to 5.84:1 here. Both composites
-   are asserted once in check-contrast.mjs and shared by both panels. */
-.unmapped-item {
-  display: flex;
-  gap: var(--space-2);
-  align-items: baseline;
-  padding: 7px 10px;
-  background: rgb(255 255 255 / 0.4);
-  border-radius: var(--radius-sm);
-}
-
-.unmapped-id {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-ink);
-  flex: 0 0 auto;
-}
-
-.unmapped-address {
-  font-size: 12px;
-
-  /* NOT --ion-color-medium: 3.32:1 on this peach, a fail at 12px. Same correction
-     as .low-stock-set on the dashboard panel. */
-  color: var(--tone-peach-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 // Available to assistive tech, invisible on screen.
@@ -462,3 +798,10 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* The stacked-card treatment for a narrow screen: the shared mixin,
+   compiled into this page's own stylesheet so that it carries this
+   page's scoping attribute and can override the table rules above.
+   See src/app/shared/styles/_stacked-table.scss for why it is a mixin
+   and not a rule in global.scss. */
+@include stacked-table;

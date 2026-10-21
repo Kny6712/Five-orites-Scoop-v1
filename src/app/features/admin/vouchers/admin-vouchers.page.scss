@@ -1,166 +1,202 @@
 // src/app/features/admin/vouchers/admin-vouchers.page.scss
 // Five-orites Scoop — Admin voucher management
 
+/*
+  The toolbar's "New voucher" button.
+
+  It was carrying no fill at all, which meant Ionic's default solid fill — and a
+  solid button resolves its background from --ion-color-primary (#A3B5F0). The
+  toolbar's background is --color-brand-primary, which is the SAME #A3B5F0.
+  Measured, that is 1.00:1: the button had no visible box at all, just an icon
+  and a label floating on the stripe. Same defect the Team Credits page had.
+
+  Sunny with plum ink measures 8.16:1, and it is the hue variables.scss calls
+  the CTA one. Both halves are stated rather than left to Ionic, because the
+  whole failure here was Ionic deriving the background from a token that happens
+  to equal the surface behind it.
+
+  FLAT, NOT ELEVATED. Ionic's Material button paints a three-layer elevation
+  shadow on its inner .button-native, and this is the one control on the page
+  that was carrying it. A solid fill, a flat edge and solid type is the whole
+  vocabulary here — the shadow was the only thing making a flat yellow pill
+  look like a physical object sitting on the page.
+
+  --radius-pill, and 40px, not 36px.
+
+  The toolbar has two controls in it and they were not the same shape: a 999px
+  lozenge beside a 12px rounded rectangle, four pixels shorter. The admin-orders
+  page moved its own controls off the pill for exactly this reason — "at 36px
+  tall a pill radius wraps both ends to an 18px semicircle, which reads as a
+  lozenge rather than a control". So both of these are now --radius-pill and
+  40px, which is what the sibling Export button already uses and what the
+  scroll-control mixin in the inventory toolbar is built on.
+
+  A filled primary with NO border is the app's own pattern, not an omission:
+  .place-order-btn, the product-detail CTA, the product-card CTA and the
+  inventory toolbar's .add-product-btn are all a plain fill, a definite edge
+  from the fill itself, and no rim. The white control beside it carries the
+  hairline because a white fill on cream needs one; a sunny fill does not.
+
+  The label is "+ New voucher" with a plain "+" rather than a separate plus
+  ICON, which is how the sibling page writes it ("+ Add Product"). An icon in
+  a pill next to the word "New" says the same thing twice, and the glyph
+  renders larger than the label it was supposed to match.
+*/
 .new-btn {
-  --font-size: 13px;
-  font-weight: 700;
-}
-
-// ── Editor ───────────────────────────────────────────────
-.editor {
-  background: var(--color-white);
-  border-left: 4px solid var(--color-primary-ink);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
-  box-shadow: var(--shadow-card);
-  padding: var(--space-4);
-  margin: var(--space-3) var(--space-4) 0;
-}
-
-.editor-head {
-  margin-bottom: var(--space-3);
-}
-
-.editor-title {
+  --background: var(--color-brand-accent);
+  --background-pressed: var(--color-brand-accent);
+  --background-focused: var(--color-brand-accent);
+  /* THE HOVER IS TEAL, and the focus ring goes with it — the same treatment
+     the developers page's "Add developer" button gets. A teal outline drawn
+     around a gold button reads as a sticker around it; a teal fill is the
+     button itself changing state. Ionic themes a hover through
+     --background-hover, and the ink on it through --color-hover, so the
+     button needs both stated: white on the teal is 7.14:1. */
+  --background-hover: var(--color-primary-ink);
+  --color-hover: var(--color-white);
+  /* Ionic paints the hover on a translucent ::after OVER the base fill —
+     --background-hover-opacity 0.08 in the md scale — so the teal alone
+     would be an 8% wash over the gold and the button would barely change.
+     The opacity is what makes it the same solid teal the plain <button>
+     CTAs turn. The focus state is set the same way, because on an
+     ion-button the keyboard focus IS that overlay. */
+  --background-hover-opacity: 1;
+  --background-focused: var(--color-primary-ink);
+  --background-focused-opacity: 1;
+  --color-focused: var(--color-white);
+  --box-shadow: none;
+  /* NO MARGIN. Ionic's md button carries `margin: 4px 2px` of its own, and
+     that is what put this button 4px lower than the plain <button> beside
+     it: the row is centred, so a button with vertical margin is centred
+     WITH the margin and lands lower than one without. The 2px of side margin
+     is the gap the row already has. */
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-
-.editor-sub {
-  margin: 2px 0 0;
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--ion-color-medium);
-}
-
-.field {
-  display: block;
-  margin-bottom: var(--space-3);
-}
-
-.field-label {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--color-ink-soft);
-  margin-bottom: 5px;
-}
-
-.field-hint {
-  display: block;
-  font-size: 11px;
-  color: var(--ion-color-medium);
-  margin-top: 4px;
-  line-height: 1.4;
-}
-
-.field-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-3);
-}
-
-// ── Worked example ───────────────────────────────────────
-/* The one genuinely new thing on this page. "10% off" is not a discount, it is
-   an input — the question is what the customer pays, so that is what is
-   answered, in words, live. Turned to the warning tone when the sample basket
-   falls under the minimum order, because that is the case where the voucher
-   silently does nothing and the admin needs to see it before saving. */
-.example {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  margin-bottom: var(--space-3);
-  background: var(--tile-mint);
-  border: 1px solid var(--tone-success-border);
-  border-radius: var(--radius-sm);
-}
-
-.example--blocked {
-  background: var(--tone-warning-bg);
-  border-color: var(--tone-warning-border);
-}
-
-.example-badge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--color-white);
-}
-
-.example-badge app-icon {
-  --icon-size: 16px;
-  color: var(--color-primary-ink);
-}
-.example--blocked .example-badge app-icon {
-  color: var(--tone-warning-ink);
-}
-
-.example-text {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-  color: var(--color-ink);
-}
-.example-text strong {
-  font-weight: 800;
-  color: var(--color-primary-ink);
-}
-
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) 0;
-}
-
-.toggle-text {
-  min-width: 0;
-}
-.toggle-title {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-ink);
-}
-.toggle-sub {
-  display: block;
-  font-size: 12px;
-  color: var(--ion-color-medium);
-}
-
-.editor-actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-}
-
-.save-btn {
-  --background: var(--color-brand-primary);
+  /* The global `ion-toolbar ion-button { --color: ... }` rule sets this to
+     --ion-color-primary-contrast (plum) already; naming it here means the
+     pairing survives a future change to that rule. */
   --color: var(--color-ink);
-  --border-radius: var(--radius-sm);
-  font-weight: 700;
-  min-height: 46px;
+  /* A pill, like every other button in the admin: the file button beside it
+     is one, and the developers page's "Add developer" has been one all
+     along. */
+  --border-radius: var(--radius-pill);
+  height: 40px;
+  --font-size: 13px;
+  --font-weight: 800;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── Export ────────────────────────────────────────────────────────────
+   A plain <button> rather than an ion-button, and it owns its own focus
+   ring, for the same reason .import-btn on the inventory page does: an
+   ion-button paints its fill on an inner shadow-root element, which would
+   cover a host-owned background.
+
+   The same treatment as that page's Import, deliberately: an icon-only
+   square in a row of controls is a guess, and a guess beside a labelled
+   button is worse than no button at all.
+
+   40px, matching .new-btn's height, so the row reads on one line. */
+.export-btn {
+  /* The button itself is the shared .csv-btn — the white pill, the hairline,
+     the teal glyph and the plum label all live in src/global.scss, with the
+     other eight file buttons in the admin.
+
+     What is left here is the one thing that is genuinely this row's: 40px,
+     matching .new-btn's height, so the row reads on one line. The width is no
+     longer pinned at 76px — the button is as wide as its label needs it to
+     be, like the export button on the other pages. */
+  height: 40px;
 }
 
 // ── Tools ────────────────────────────────────────────────
+// A LINE COMMENT, and not the /* ── Tools ── */ header the other pages use.
+//
+// This one opened a block comment and never closed it before the rule below,
+// so the comment ran on to the end of the next comment in the file and
+// swallowed the .tools rule whole. The tools row had no inset of its own.
 .tools {
   padding: var(--space-3) var(--space-4) 0;
 }
 
+/* 280px, not 360px.
+
+   This was the widest search bar in the app by 120px — .product-searchbar and
+   .order-search are 220px, .inv-search and .track-search are 240px — so a
+   voucher code search was visibly out of step with every other one.
+
+   240px was tried first and it clipped the placeholder: the search icon and the
+   padding eat 56px, and "Search voucher codes" needs about 180 of what is
+   left. 280px fits the full label with room to spare, and the flex shorthand
+   still lets the field shrink on a narrow phone rather than pushing the export
+   and New buttons off the row.
+
+   FLAT, NOT ELEVATED. Ionic's Material search field carries an elevation
+   shadow by default — three stacked black layers — and this field is the only
+   control on a cream background that was relying on a shadow for its edge.
+   That is a drop shadow doing a border's job, which is the opposite of the
+   flat/minimal language the rest of this toolbar speaks. So the shadow goes
+   and a hairline border comes in to replace it, which is what every other
+   flat control in this app uses (see .export-btn below).
+
+   The products and orders search bars already set `--box-shadow: none`; this
+   brings the vouchers one into line with them. */
 .voucher-search {
   --border-radius: var(--radius-sm);
   --background: var(--ion-color-light);
+  --box-shadow: none;
   padding: 0;
+  flex: 0 1 280px;
+  min-width: 0;
+  max-width: 280px;
+
+  /* 40px, like the two buttons beside it. It was Ionic's own 44px, so the
+     three controls in this row were three different heights and the row read
+     as a mistake — the search sat 2px proud of the buttons at the top and
+     2px short at the bottom. */
+  height: 40px;
+}
+
+/* The hairline that replaces the shadow lives in src/global.scss, not here.
+
+   The <input> is Ionic's, not this page's: it carries no _ngcontent
+   attribute, so a page-scoped rule can never match it. See the note there. */
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: 0 var(--space-4) var(--space-3);
+}
+.header-actions-right {
+  display: flex;
+
+  /* Centre, so the two buttons sit on one axis. It was the default `stretch`,
+     which leaves a child with a definite height sitting on the TOP edge of
+     the row rather than in the middle of it. */
+  align-items: center;
+  gap: var(--space-2);
+
+  /* THE TWO BUTTONS WRAP WHEN THE ROW HAS NO ROOM FOR THEM.
+
+     "Export CSV" is 115px and "+ New voucher" is 128px, and the row also has
+     the 232px search field beside it. That is 491px of controls in a 466px
+     space at a 768px window — where the admin sidebar has taken 270px of the
+     window and left the page 498px — so the second button ran 25px off the
+     right edge of the screen.
+
+     The search field already gives up width first: it is `flex: 0 1 280px`
+     with `min-width: 0`, so it shrinks from 280px towards whatever is left.
+     What it cannot do is make the two buttons fit, because they are as narrow
+     as their labels allow and there is no more to give.
+
+     So the buttons wrap onto two lines, each still right-aligned, and the row
+     stays inside the page. `justify-content: flex-end` is what keeps the
+     wrapped line against the right edge rather than against the left. */
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .tools-row {
@@ -173,7 +209,7 @@
 .count-chip {
   padding: 5px 12px;
   border: 1px solid var(--ion-color-light-shade);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   background: var(--color-white);
   color: var(--color-ink-soft);
   font: inherit;
@@ -302,7 +338,7 @@
 
 .v-chip {
   padding: 3px 9px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-chip);
   background: var(--ion-color-light);
   color: var(--ion-color-medium);
   font-size: 11px;
@@ -322,38 +358,6 @@
 .v-chip--off {
   background: var(--ion-color-light);
   color: var(--ion-color-medium);
-}
-
-/* ── Redemption limits & window ──────────────────────────── */
-.field-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 10px;
-}
-
-@media (max-width: 400px) {
-  .field-pair {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* A native date input rather than ion-datetime: a datetime picker is the wrong
-   control for a day boundary, and native is keyboard- and locale-correct for
-   free. */
-.date-input {
-  width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--ion-color-light-shade);
-  border-radius: var(--radius-xs);
-  background: var(--color-white);
-  color: var(--color-ink);
-  font: inherit;
-  font-size: 15px;
-}
-.date-input:focus-visible {
-  outline: 3px solid var(--color-primary-ink);
-  outline-offset: 2px;
 }
 
 /* ── New state chips ──────────────────────────────────────── */
@@ -426,6 +430,30 @@
 .icon-btn--danger:hover {
   background: var(--tone-danger-bg);
   border-color: var(--tone-danger-border);
+}
+
+@media (max-width: 560px) {
+  /* The search field and the two buttons cannot share a line this narrow — the
+     field was being squeezed to about 150px, which showed "Se" and nothing
+     else. So the row wraps: the field takes a line of its own, and the buttons
+     take the line below it, right-aligned.
+
+     The field is the one control that must stay usable, because it is how the
+     owner finds a code. Squeezing the buttons instead would have been the
+     wrong way round. */
+  .header-actions {
+    flex-wrap: wrap;
+  }
+
+  .voucher-search {
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  .header-actions-right {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 @media (max-width: 400px) {

@@ -15,7 +15,8 @@
 // is the one that drives the actual push behaviour, so Settings mirrors it
 // rather than owning anything.
 
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import {
   IonButtons,
@@ -27,12 +28,13 @@ import {
   IonToolbar,
 } from '@ionic/angular/standalone';
 
-import { AppSettingsService } from '@core/services/app-settings.service';
-import { NotificationService } from '@core/services/notification.service';
-import { AuthService } from '@core/services/auth.service';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { SectionHeaderComponent } from '@shared/components/section-header/section-header.component';
+import { AppSettingsService } from '@core/services/shop/app-settings.service';
+import { NotificationService } from '@core/services/orders/notification.service';
+import { AuthService } from '@core/services/identity/auth.service';
+import type { AppUser } from '@core/models/user.model';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
+import { SectionHeaderComponent } from '@shared/components/ui/section-header.component';
 
 @Component({
   selector: 'app-settings',
@@ -62,6 +64,22 @@ export class SettingsPage {
   protected readonly version = '1.0.0';
 
   /**
+   * The signed-in user, as a SIGNAL.
+   *
+   * This was a computed reading `auth.currentUserSnapshot` directly, and that
+   * is the same trap the profile page documents: a computed caches on signal
+   * reads, and currentUserSnapshot is a plain getter over a BehaviorSubject, so
+   * the computed read no signal, was evaluated once, and was frozen for the
+   * life of the page. The toggle then showed the account that happened to be
+   * signed in when the page was first opened — and stayed on it after the
+   * account changed.
+   *
+   * Holding the user in a signal fed by currentUser$ makes the computed
+   * actually reactive, and the account change now moves the toggle with it.
+   */
+  private readonly currentUser = signal<AppUser | null>(null);
+
+  /**
    * Mirrors the Profile page's notification logic rather than inventing a second
    * path, so the two screens can never disagree about the state.
    *
@@ -71,8 +89,12 @@ export class SettingsPage {
    * no blocked state to render: the stored preference is the whole truth.
    */
   protected readonly updatesOn = computed(() =>
-    this.notifications.isEnabled(this.auth.currentUserSnapshot?.notificationsEnabled),
+    this.notifications.isEnabled(this.currentUser()?.notificationsEnabled),
   );
+
+  constructor() {
+    this.auth.currentUser$.pipe(takeUntilDestroyed()).subscribe((u) => this.currentUser.set(u));
+  }
 
   /**
    * A pure preference write, in both directions.

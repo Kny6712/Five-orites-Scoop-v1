@@ -38,6 +38,7 @@
     "typecheck:functions": "npm --prefix functions run build",
     "typecheck:templates": "node scripts/check-templates.mjs templates",
     "seed:developers": "npx ts-node --project scripts/tsconfig.json scripts/seed-developers.ts",
+    "seed:developers:emulator": "cross-env FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_PROJECT_ID=demo-five-orites-scoop npx ts-node --project scripts/tsconfig.json scripts/seed-developers.ts",
     "baseline:ledger": "npx ts-node --project scripts/tsconfig.json scripts/baseline-ledger.ts",
     "start:prod": "ng serve --configuration prod",
     "seed:emulator": "cross-env FIRESTORE_EMULATOR_HOST=localhost:8080 FIREBASE_PROJECT_ID=demo-five-orites-scoop npx ts-node --project scripts/tsconfig.json scripts/seed-products.ts",

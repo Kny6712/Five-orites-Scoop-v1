@@ -20,10 +20,11 @@ import {
   IonRouterOutlet,
   MenuController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import { AuthService } from '@core/services/auth.service';
-import { CartService } from '@core/services/cart.service';
-import { OrderNotificationService } from '@core/services/order-notification.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { AuthService } from '@core/services/identity/auth.service';
+import { CartService } from '@core/services/commerce/cart.service';
+import { ShopSettingsService } from '@core/services/shop/shop-settings.service';
+import { OrderNotificationService } from '@core/services/orders/order-notification.service';
 import type { AppIcon } from '@core/icons/app-icons';
 import {
   can,
@@ -35,6 +36,8 @@ import {
 } from '@core/models/user.model';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NativeService } from '@core/platform/native.service';
+import { QuickViewService } from '@core/services/catalog/quick-view.service';
+import { ProductDetailDialogComponent } from '@features/product-detail/product-detail-dialog.component';
 
 /**
  * The class `AppComponent` puts on `<html>` once the app has painted, which is what
@@ -129,13 +132,33 @@ interface NavItem {
     IonButton,
     IonRouterOutlet,
     AppIconComponent,
+    ProductDetailDialogComponent,
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
 export class AppComponent {
   private authService = inject(AuthService);
+  /** The flavour quick-view, which the shell renders over the whole app. */
+  readonly quickView = inject(QuickViewService);
+
+  /**
+   * Closes the quick-view and takes it off the URL.
+   *
+   * The `open` parameter is the quick-view's address — a link to a flavour is
+   * a link to a flavour — so closing the dialog has to close the URL too.
+   * Left in place, the link would still open the dialog on a reload, and the
+   * browser's back button would walk into a dialog that is not there.
+   */
+  closeQuickView(): void {
+    this.quickView.close();
+    void this.router.navigate([], {
+      queryParams: { open: null },
+      replaceUrl: true,
+    });
+  }
   private cartService = inject(CartService);
+  private shop = inject(ShopSettingsService);
   private router = inject(Router);
   private menuCtrl = inject(MenuController);
   private orderNotifications = inject(OrderNotificationService);
@@ -194,7 +217,11 @@ export class AppComponent {
       capability: 'manage_orders',
     },
     {
-      title: 'Tracking',
+      // "Delivery Map", not "Tracking". Two names for one page is one too many,
+      // and "Tracking" read as the sibling of "Fulfillment" when the two pages
+      // are not the same job: this one is the route, and the page header
+      // already called it a Delivery Map.
+      title: 'Delivery Map',
       url: '/admin/tracking',
       icon: 'map',
       role: 'admin',
@@ -325,6 +352,23 @@ export class AppComponent {
       // notifies the order's owner on THEIR device instead of the device that
       // performed the change.
       this.orderNotifications.watch(user?.uid ?? null);
+      // The shop settings listener belongs to the SHELL, not to whichever
+      // page happens to be open.
+      //
+      // It used to be started and stopped by two pages — the dashboard and
+      // the admin inventory — which meant the listener's liveness depended on
+      // the route. Angular activates the incoming component BEFORE destroying
+      // the outgoing one, so navigating dashboard → admin inventory ran
+      // `watch()` and then immediately `stop()`, and the app-wide settings
+      // were dead for the rest of the session: the low-stock pill on the
+      // storefront fell back to the build-time default and the promo banner
+      // froze, with no error anywhere.
+      //
+      // The shell is never destroyed, so the listener is now app-wide from
+      // the moment somebody signs in — which is also the only time the read
+      // is permitted (`shopSettings` is readable by signed-in users only).
+      if (user) this.shop.watch();
+      else this.shop.stop();
     });
 
     this.cartService.cart$

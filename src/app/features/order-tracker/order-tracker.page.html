@@ -1,0 +1,238 @@
+<!-- src/app/features/order-tracker/order-tracker.page.html -->
+
+<ion-header>
+  <ion-toolbar>
+    <!--
+      NO BACK BUTTON IN THE HEADER.
+
+      It was an <ion-back-button> — a bare chevron against the striped toolbar,
+      which said "there is a way back" without saying where, and then the
+      content below said "Orders" in a different voice, a different colour and
+      a different place. One way back, said once.
+
+      The link lives at the left edge of the page instead, directly under the
+      header, where it reads as part of the page rather than as part of the
+      app chrome.
+    -->
+    <ion-title>Order Tracker</ion-title>
+    <ion-buttons slot="end">
+      <app-cart-button></app-cart-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content fullscreen>
+  <!-- Loading -->
+  @if (isLoading()) {
+    <div class="tracker-body">
+      <ion-skeleton-text animated style="height: 92px; border-radius: 12px"></ion-skeleton-text>
+      <ion-skeleton-text animated style="height: 260px; border-radius: 12px; margin-top: 16px"></ion-skeleton-text>
+    </div>
+  }
+
+  <!-- Error -->
+  @if (!isLoading() && errorMessage()) {
+    <div class="error-state">
+      <p>{{ errorMessage() }}</p>
+    </div>
+  }
+
+  <!-- Tracker Content -->
+  @if (!isLoading() && order()) {
+    <!--
+      THE WAY BACK, at the page's left edge.
+
+      It sits OUTSIDE the capped column, so it is flush with the left of the
+      content rather than lined up with the cards inside it. It is the only
+      thing on the page that is allowed to sit outside the column, because it
+      belongs to the page rather than to the content.
+
+      It goes BACK, to wherever the customer came from, rather than to a fixed
+      page. It used to be a hard link to /orders, so arriving from the
+      dashboard and pressing it threw away the dashboard and showed the order
+      list — a link labelled "Orders" that did not go to the orders page the
+      customer had been on two clicks ago.
+
+      The href is the fallback: a customer who opened this page straight from
+      a link in an email has no history to go back to, and /orders is where
+      they are going instead.
+    -->
+    <div class="tracker-top">
+      <a class="back-link" href="/orders" (click)="onBack($event)">
+        <app-icon name="arrow-left" class="back-glyph" />
+        Back
+      </a>
+    </div>
+
+    <div class="tracker-body">
+      <!--
+        TWO COLUMNS ON A WIDE SCREEN.
+
+        The page was one long full-bleed column, and at 1340px that meant a
+        1300px-wide map, a 1300px-wide list of two scoops, and a lot of white
+        either side of a status line. The tracker has two halves — WHAT this
+        order is and WHERE it has got to, and the detail the customer came for
+        — so it is laid out as two halves. Below 900px it is one column, in the
+        same order: the order, the status, then the route, the address and the
+        items.
+      -->
+      <div class="tracker-grid">
+        <!-- ── The order, and where it has got to ─────────────────────────── -->
+        <div class="tracker-col tracker-col--status">
+          <section class="flat-card order-summary">
+            <div class="summary-row">
+              <div class="summary-block">
+                <p class="info-label">Order</p>
+                <p class="order-id">#{{ order()!.id.slice(-6).toUpperCase() }}</p>
+              </div>
+              <div class="summary-block">
+                <p class="info-label">Placed</p>
+                <p class="order-date">{{ formatDate(order()!.createdAt) }}</p>
+              </div>
+              <div class="summary-status">
+                <app-order-status-badge [status]="order()!.status"></app-order-status-badge>
+              </div>
+            </div>
+
+            <!--
+              The cancelled notice, in the app's own danger tone. It was a
+              hand-written #fde8e8 with a raw red — one of the seventeen
+              pastel triples the tone system replaced.
+            -->
+            @if (isCancelled()) {
+              <div class="cancelled-banner">
+                <app-icon name="circle-x" class="cancelled-glyph" />
+                <div class="cancelled-copy">
+                  <p class="cancelled-title">This order has been cancelled.</p>
+                  @if (order()!.cancelReason) {
+                    <p class="cancelled-reason">{{ order()!.cancelReason }}</p>
+                  }
+                </div>
+              </div>
+            }
+
+            <!--
+              THE ONE ACTION ON THIS PAGE, and it is a small tonal pill rather
+              than a full-width red bar. It was an <ion-button fill="outline">
+              stretched across the whole window, which made a routine "never mind
+              this order" read as the page's headline. It is now the same pill
+              the orders LIST uses for the same action, so the two pages agree
+              on what cancelling looks like.
+            -->
+            @if (canCancel()) {
+              <div class="summary-actions">
+                <button type="button" class="cancel-order-btn" (click)="cancelOrder()" [disabled]="isCancelling()">
+                  {{ isCancelling() ? 'Cancelling…' : 'Cancel order' }}
+                </button>
+              </div>
+            }
+          </section>
+
+          @if (!isCancelled()) {
+            <section class="flat-card status-card">
+              <p class="info-label">Order status</p>
+              <ol class="timeline">
+                @for (step of statusSequence; track step) {
+                  <li class="timeline-step" [class]="'step-' + getStepState(step)">
+                    <span class="step-marker">
+                      <app-icon [name]="statusMeta[step].icon" class="step-icon" />
+                      @if (!$last) {
+                        <span class="step-line"></span>
+                      }
+                    </span>
+                    <span class="step-copy">
+                      <span class="step-label">{{ statusMeta[step].label }}</span>
+                      @if (getStepState(step) === 'active') {
+                        <span class="step-desc">{{ statusMeta[step].description }}</span>
+                      }
+                    </span>
+                    <span class="step-time">{{ getStepTimestamp(step) }}</span>
+                  </li>
+                }
+              </ol>
+            </section>
+          }
+        </div>
+
+        <!-- ── The route, the address, the items ──────────────────────────── -->
+        <div class="tracker-col tracker-col--detail">
+          <!--
+            The map. Progressive enhancement, not a gate: the status timeline above and
+            the address below carry the same information, so a failed tile load costs
+            the customer nothing. The status path is also the only thing that advances
+            the courier marker -- see mapMarkers() for why there is no live GPS.
+          -->
+          <section class="flat-card map-card">
+            <p class="info-label">Live route</p>
+            <app-scoop-map
+              [markers]="mapMarkers()"
+              [route]="mapRoute()"
+              height="240px"
+              ariaLabel="Route from the shop to your delivery address"
+            />
+
+            @if (isGeocoding()) {
+              <p class="map-note">Looking up your address…</p>
+            } @else if (geoUnavailable()) {
+              <p class="map-note">
+                We couldn't place your address on the map, but your delivery details below are up to date.
+              </p>
+            } @else if (courierProgress() !== null) {
+              <p class="map-note">Your order is on its way — roughly {{ courierDistanceLabel() }} from the shop.</p>
+            }
+          </section>
+
+          <section class="flat-card address-card">
+            <p class="info-label">Delivering to</p>
+            <p class="address-text">{{ order()!.deliveryAddress }}</p>
+            @if (order()!.notes) {
+              <p class="info-notes">{{ order()!.notes }}</p>
+            }
+            <!--
+              A quiet control, not a bare link: the app's quiet shape is a white
+              surface with one hairline, and the address is the thing this card is
+              FOR, so the way out of the card deserves the same weight as the
+              card.
+            -->
+            <a class="quiet-link" [href]="deliveryMapsUrl()" target="_blank" rel="noopener noreferrer">
+              <app-icon name="map-pin" />
+              Open in Maps
+            </a>
+          </section>
+
+          <section class="flat-card items-card">
+            <p class="info-label">Items ordered</p>
+            @for (item of order()!.items; track item.productId + item.size) {
+              <div class="order-item-row">
+                <span class="item-name">{{ item.variantName }}</span>
+                <span class="item-meta">{{ sizeLabels[item.size] }} × {{ item.quantity }}</span>
+                <span class="item-price">{{ item.subtotal | peso }}</span>
+              </div>
+            }
+            <div class="totals-block">
+              <div class="total-row">
+                <span>Subtotal</span>
+                <span>{{ order()!.totalAmount | peso }}</span>
+              </div>
+              @if ((order()!.discountAmount ?? 0) > 0) {
+                <div class="total-row">
+                  <span>Voucher {{ order()!.voucherCode }}</span>
+                  <span>-{{ order()!.discountAmount ?? 0 | peso }}</span>
+                </div>
+              }
+              <div class="total-row">
+                <span>Delivery</span>
+                <span>{{ order()!.deliveryFee === 0 ? 'FREE' : (order()!.deliveryFee | peso) }}</span>
+              </div>
+              <div class="total-row total-row--grand">
+                <span>Total</span>
+                <span>{{ order()!.grandTotal | peso }}</span>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  }
+  <app-footer></app-footer>
+</ion-content>

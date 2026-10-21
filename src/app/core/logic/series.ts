@@ -15,6 +15,9 @@
 // shifts the whole trend by a day — which looks like a plausible chart and is
 // wrong.
 
+import { formatLocalDate } from '@core/logic/date';
+import { roundMoney } from '@core/logic/money';
+
 export interface Bucket {
   /** `YYYY-MM-DD` in local time. */
   date: string;
@@ -50,7 +53,7 @@ export function calendarBuckets(days: number, now: Date): Bucket[] {
     const end = new Date(start);
     end.setDate(end.getDate() + 1);
     out.push({
-      date: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+      date: formatLocalDate(start.getTime()),
       start: start.getTime(),
       end: end.getTime(),
       label: start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
@@ -116,7 +119,10 @@ export function bucketize<T>(
     if (!Number.isFinite(ms) || ms < first || ms >= last) continue;
     for (let i = 0; i < buckets.length; i++) {
       if (ms >= buckets[i].start && ms < buckets[i].end) {
-        sums[i] += value(row);
+        // Rounded on the way in. The column sums were accumulated raw, so a
+        // chart could render 1234.5600000000001 — and `runningTotal` compounded
+        // the drift across the whole line.
+        sums[i] = roundMoney(sums[i] + value(row));
         break;
       }
     }
@@ -132,9 +138,5 @@ export function bucketize<T>(
  */
 export function runningTotal(values: readonly number[]): number[] {
   let total = 0;
-  return values.map((v) => (total += v));
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
+  return values.map((v) => (total = roundMoney(total + v)));
 }

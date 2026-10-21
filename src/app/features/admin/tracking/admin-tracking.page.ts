@@ -11,6 +11,22 @@
 // map shows where orders are GOING, not where riders are. See the courier note on
 // the customer tracker for the same reasoning.
 //
+// THE ROUTE, NOT A SECOND QUEUE
+// This page and Fulfillment both list orders, and for a while they were the same
+// list twice: the same query, the same newest-first order, the same Items and
+// Value columns, the same search over the same fields.
+//
+// They are not the same job, and the system already says so. Fulfillment is a
+// QUEUE — newest first, because the question is "what is next to make", and it
+// is the only page that shows the customer, the items, the total and the date.
+// This page is a ROUTE — nearest first, because the question is "what is next to
+// deliver", and it is the only page that shows the map, the address and the
+// distance.
+//
+// So the columns Fulfillment owns were removed here, and the list is ordered by
+// distance from the shop. The distance was always computed and always shown; it
+// just never decided anything.
+//
 // WHY ONLY ORDERS THAT HAVE A RESOLVED ADDRESS
 // A pin needs coordinates. An order whose `geo` is missing is listed in the panel
 // below the map instead, address text only — geocoding every undelivered order in
@@ -27,26 +43,22 @@ import {
   IonContent,
   IonButtons,
   IonMenuButton,
-  IonButton,
   IonRefresher,
   IonRefresherContent,
   IonSearchbar,
   IonSkeletonText,
+  IonPopover,
   AlertController,
   ToastController,
 } from '@ionic/angular/standalone';
-import { AppIconComponent } from '@shared/components/app-icon/app-icon.component';
-import {
-  ScoopMapComponent,
-  type MapMarker,
-} from '@shared/components/scoop-map/scoop-map.component';
-import { OrderStatusBadgeComponent } from '@shared/components/order-status-badge/order-status-badge.component';
-import { AlertBannerComponent } from '@shared/components/alert-banner/alert-banner.component';
-import { EmptyStateComponent } from '@shared/components/empty-state/empty-state.component';
-import { PaginationComponent } from '@shared/components/pagination/pagination.component';
-import { AppFooterComponent } from '@shared/components/app-footer/app-footer.component';
-import { PesoPipe } from '@shared/pipes/peso.pipe';
-import { OrderService } from '@core/services/order.service';
+import { AppIconComponent } from '@shared/components/ui/app-icon.component';
+import { ScoopMapComponent, type MapMarker } from '@shared/components/commerce/scoop-map.component';
+import { OrderStatusBadgeComponent } from '@shared/components/commerce/order-status-badge.component';
+import { AlertBannerComponent } from '@shared/components/ui/alert-banner.component';
+import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
+import { PaginationComponent } from '@shared/components/ui/pagination.component';
+import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
+import { OrderService } from '@core/services/orders/order.service';
 import { describeFirestoreError } from '@core/logic/firestore-error';
 import { readCachedGeo, distanceMetres, type GeoPoint } from '@core/logic/geo';
 import { SHOP_LOCATION } from '@core/config/shop.config';
@@ -79,19 +91,18 @@ const NEXT_STATUS: Partial<Record<OrderStatus, OrderStatus>> = {
     IonContent,
     IonButtons,
     IonMenuButton,
-    IonButton,
     IonRefresher,
     IonRefresherContent,
     IonSearchbar,
     IonSkeletonText,
+    IonPopover,
     AppIconComponent,
     ScoopMapComponent,
     OrderStatusBadgeComponent,
     AlertBannerComponent,
     EmptyStateComponent,
     PaginationComponent,
-    AppFooterComponent,
-    PesoPipe,
+    AdminFooterComponent,
   ],
   templateUrl: './admin-tracking.page.html',
   styleUrls: ['./admin-tracking.page.scss'],
@@ -185,6 +196,36 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
   ];
 
   /**
+   * What the dropdown's trigger says.
+   *
+   * The chosen status, so the control says where it is without being opened —
+   * and "All" when nothing is chosen, which is the filter's own name for
+   * "no status filter" rather than a separate option.
+   */
+  readonly statusFilterLabel = computed(
+    () => this.statusOptions.find((o) => o.value === this.statusFilter())?.label ?? 'All',
+  );
+
+  /**
+   * Whether the status popover is open.
+   *
+   * A MIRROR of the overlay's real state, not a driver of it: it is set true by
+   * `didPresent` and false by `didDismiss`, so it can never claim to be open
+   * while nothing is open. The same arrangement the fulfilment queue's filter
+   * uses.
+   */
+  readonly statusFilterPopoverOpen = signal(false);
+
+  /** Opens the status filter popover (driven by the button's `trigger`). */
+  openStatusFilterPopover(): void {
+    this.statusFilterPopoverOpen.set(true);
+  }
+
+  closeStatusFilterPopover(): void {
+    this.statusFilterPopoverOpen.set(false);
+  }
+
+  /**
    * Active orders, narrowed by the status chip and the search box.
    *
    * A filter that also cleared the map would be actively harmful: a search that
@@ -199,12 +240,55 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
     return this.activeOrders().filter((order) => {
       if (status !== 'all' && order.status !== status) return false;
       if (!q) return true;
-      const id = order.id.slice(-6).toUpperCase();
+      /* The id is lowercased to MATCH the query, not uppercased for display.
+
+         It used to be `order.id.slice(-6).toUpperCase()`, against a query that
+         is already lowercased — so "RACKG1".includes("rackg1") was false and
+         the id could not be found AT ALL, at any case. The admin sees #RACKG1
+         in the Order column and types it, and gets nothing back.
+
+         The id is DISPLAYED uppercased by the template, which is a
+         presentation decision and lives there; matching is a case-folded
+         operation and belongs here. The fulfilment queue's search gets this
+         right already — `o.id.toLowerCase().includes(q)`. */
+      const id = order.id.slice(-6).toLowerCase();
       return (
         id.includes(q) ||
         order.customerEmail.toLowerCase().includes(q) ||
         order.deliveryAddress.toLowerCase().includes(q)
       );
+    });
+  });
+
+  /**
+   * THE ROUTE, and this is what stops this page being a second fulfilment queue.
+   *
+   * Both pages used to order their rows the same way, because both read the
+   * same Firestore query — `orderBy('createdAt','desc')` — and this list simply
+   * filtered it. Two pages, one ordering, one object: the admin could not tell
+   * them apart by what they showed.
+   *
+   * Fulfillment is a QUEUE and is newest-first: "what is next to make". This
+   * page is a ROUTE and is nearest-first: "what is next to deliver". The
+   * distance was always computed and always displayed — it just never decided
+   * the ORDER of anything.
+   *
+   * THE ORDERS WITH NO PIN GO LAST, because they cannot be distance-ordered at
+   * all: they are not stops yet. They are still listed, still flagged, and
+   * still advanceable — they are simply not pretending to be on the route.
+   *
+   * The sort is STABLE, so two stops at the same distance keep the order the
+   * query gave them (newest first) instead of shuffling between renders.
+   */
+  readonly routeOrders = computed(() => {
+    const list = [...this.visibleOrders()];
+    return list.sort((a, b) => {
+      const da = this.distanceOf(a);
+      const db = this.distanceOf(b);
+      if (da === null && db === null) return 0;
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
     });
   });
 
@@ -248,7 +332,7 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
 
   readonly pagedVisibleOrders = computed(() => {
     const start = (this.page() - 1) * this.PAGE_SIZE;
-    return this.visibleOrders().slice(start, start + this.PAGE_SIZE);
+    return this.routeOrders().slice(start, start + this.PAGE_SIZE);
   });
 
   onPageChange(next: number): void {
@@ -332,10 +416,29 @@ export class AdminTrackingPage implements OnInit, OnDestroy {
       });
   }
 
-  distanceFor(order: Order): string {
+  /**
+   * Metres from the shop, or null when the address has never been resolved.
+   *
+   * NULL, NOT ZERO, and not a dash. The distance is what orders the route, so
+   * an unresolved address has to be distinguishable from one that happens to
+   * be at the shop — and the row has to be able to say WHICH of the two it is.
+   */
+  distanceOf(order: Order): number | null {
     const geo = readCachedGeo((order as unknown as { geo?: unknown }).geo);
-    if (!geo) return '—';
-    const m = distanceMetres(SHOP_LOCATION, { lat: geo.lat, lng: geo.lng });
+    if (!geo) return null;
+    return distanceMetres(SHOP_LOCATION, { lat: geo.lat, lng: geo.lng });
+  }
+
+  /**
+   * "2.4 km" — or null when the order has no location yet.
+   *
+   * Null rather than a dash, because the caller has two genuinely different
+   * things to say about an order without a location: the route puts it last,
+   * and the row flags it. A dash said neither.
+   */
+  distanceLabel(order: Order): string | null {
+    const m = this.distanceOf(order);
+    if (m === null) return null;
     return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
   }
 
