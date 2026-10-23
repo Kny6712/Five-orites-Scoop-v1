@@ -332,16 +332,33 @@ export class AppComponent {
    * "My Orders" stays visible: an admin does need to see their own orders, and
    * unlike the cart, placing one is not a conflict of interest.
    */
+  /**
+   * Customer-nav tabs removed from the staff side menu, by role.
+   *
+   * Admin drops Our Flavors, Notifications, My Orders, About and Developers.
+   * Owner drops the same plus Settings (the owner reaches shop settings through
+   * the Admin Panel instead, so the customer-facing Settings row is redundant).
+   *
+   * `staff` and `manager` are deliberately left unchanged — they were not part of
+   * this request and still see the full customer menu.
+   */
+  private readonly staffRemovedTabs: Record<string, readonly string[]> = {
+    admin: ['Our Flavors', 'Notifications', 'My Orders', 'About', 'Developers'],
+    owner: ['Our Flavors', 'Notifications', 'My Orders', 'About', 'Developers', 'Settings'],
+  };
+
   visibleCustomerNavItems = computed(() => {
     const user = this.currentUser();
     const role = user?.role ?? 'guest';
     // "Is staff", not "is exactly admin" — a `staff` account must not be shown a
     // shopping cart for the same reason an `owner` is not.
     const staff = isStaffRole(user?.role);
+    const removed = new Set(this.staffRemovedTabs[role] ?? []);
     return this.customerNavItems.filter(
       (item) =>
         !(staff && item.hideForStaff) &&
-        (item.role === 'all' || item.role === role || (staff && item.role === 'customer')),
+        (item.role === 'all' || item.role === role || (staff && item.role === 'customer')) &&
+        !(staff && removed.has(item.title)),
     );
   });
 

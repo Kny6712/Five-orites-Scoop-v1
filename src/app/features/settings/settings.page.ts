@@ -22,7 +22,10 @@ import {
   IonButtons,
   IonContent,
   IonHeader,
+  IonLabel,
   IonMenuButton,
+  IonSegment,
+  IonSegmentButton,
   IonTitle,
   IonToggle,
   IonToolbar,
@@ -44,7 +47,10 @@ import { SectionHeaderComponent } from '@shared/components/ui/section-header.com
     IonButtons,
     IonContent,
     IonHeader,
+    IonLabel,
     IonMenuButton,
+    IonSegment,
+    IonSegmentButton,
     IonTitle,
     IonToggle,
     IonToolbar,
@@ -107,5 +113,12 @@ export class SettingsPage {
    */
   protected async onNotifications(event: CustomEvent<{ checked: boolean }>): Promise<void> {
     await this.auth.updateProfile({ notificationsEnabled: event.detail.checked });
+  }
+
+  protected onAppearance(event: CustomEvent): void {
+    const value = (event.detail as { value?: string }).value;
+    if (value === 'light' || value === 'dark' || value === 'system') {
+      this.settings.setTheme(value);
+    }
   }
 }
