@@ -26,6 +26,9 @@ import { Injectable, computed, effect, signal } from '@angular/core';
 
 const MOTION_KEY = 'five_orites_motion';
 const CONTRAST_KEY = 'five_orites_contrast';
+const THEME_KEY = 'five_orites_theme';
+
+export type ThemeMode = 'light' | 'dark' | 'system';
 
 function readFlag(key: string): boolean {
   try {
@@ -47,13 +50,35 @@ function writeFlag(key: string, on: boolean): void {
   }
 }
 
+function readTheme(): ThemeMode {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    if (v === 'light' || v === 'dark' || v === 'system') return v;
+  } catch {
+    // ignore
+  }
+  return 'system';
+}
+
 @Injectable({ providedIn: 'root' })
 export class AppSettingsService {
   private readonly motionOn = signal(readFlag(MOTION_KEY));
   private readonly contrastOn = signal(readFlag(CONTRAST_KEY));
+  private readonly themeModeOn = signal<ThemeMode>(readTheme());
+  private readonly systemDarkOn = signal<boolean>(
+    typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)').matches : false,
+  );
 
   readonly reduceMotion = this.motionOn.asReadonly();
   readonly highContrast = this.contrastOn.asReadonly();
+  readonly themeMode = this.themeModeOn.asReadonly();
+
+  readonly effectiveTheme = computed<'light' | 'dark'>(() => {
+    const mode = this.themeModeOn();
+    if (mode === 'light') return 'light';
+    if (mode === 'dark') return 'dark';
+    return this.systemDarkOn() ? 'dark' : 'light';
+  });
 
   /**
    * What the user has actually chosen, for display in Settings.
@@ -68,6 +93,8 @@ export class AppSettingsService {
 
   private readonly mql =
     typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+  private readonly darkMql =
+    typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : null;
 
   constructor() {
     // The document element is the mechanism both selectors key off, so writing
@@ -84,6 +111,15 @@ export class AppSettingsService {
       if (this.contrastOn()) el.setAttribute('data-contrast', 'high');
       else el.removeAttribute('data-contrast');
     });
+
+    effect(() => {
+      const el = document.documentElement;
+      const theme = this.effectiveTheme();
+      el.setAttribute('data-theme', theme);
+    });
+
+    // Keep system-dark in sync when OS preference changes.
+    this.darkMql?.addEventListener('change', (e) => this.systemDarkOn.set(e.matches));
   }
 
   private systemPrefersReducedMotion(): boolean {
@@ -98,5 +134,14 @@ export class AppSettingsService {
   setHighContrast(on: boolean): void {
     this.contrastOn.set(on);
     writeFlag(CONTRAST_KEY, on);
+  }
+
+  setTheme(mode: ThemeMode): void {
+    this.themeModeOn.set(mode);
+    try {
+      localStorage.setItem(THEME_KEY, mode);
+    } catch {
+      // ignore
+    }
   }
 }

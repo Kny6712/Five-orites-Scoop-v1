@@ -58,6 +58,21 @@
       </div>
     </section>
 
+    <div class="row row-appearance">
+      <span class="row-icon" aria-hidden="true">
+        <app-icon name="contrast" />
+      </span>
+      <div class="row-text">
+        <span class="row-title">Appearance</span>
+        <span class="row-sub"> Light, dark, or follow system. </span>
+      </div>
+    </div>
+    <ion-segment [value]="settings.themeMode()" (ionChange)="onAppearance($event)" aria-label="Appearance">
+      <ion-segment-button value="light"><ion-label>Light</ion-label></ion-segment-button>
+      <ion-segment-button value="dark"><ion-label>Dark</ion-label></ion-segment-button>
+      <ion-segment-button value="system"><ion-label>System</ion-label></ion-segment-button>
+    </ion-segment>
+
     <app-section-header title="Notifications" />
 
     <section class="panel">
