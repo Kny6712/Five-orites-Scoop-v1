@@ -230,8 +230,14 @@ after(async () => {
   // `afterEach` normally empties both registries. If a hook threw midway they can
   // still be populated, and anything left open across `cleanup()` is what produces
   // the late worker message this suite was intermittently failing on.
-  await closeAll();
+  //
+  // Stop the emulator FIRST. `closeAll()` terminates Firestore clients, which
+  // involves a gRPC close handshake against the emulator; if the emulator is
+  // already gone that handshake can hang or emit late worker messages. Stopping
+  // the emulator first detaches clients cleanly, then `closeAll()` releases
+  // client-side resources locally.
   await env.cleanup();
+  await closeAll();
 });
 
 beforeEach(async () => {
