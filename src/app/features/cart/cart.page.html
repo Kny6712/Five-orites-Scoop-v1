@@ -13,14 +13,15 @@
       page announced its own result in the bar and again in the middle of the
       screen, two inches apart, in the same face and the same weight. The bar
       is chrome: it says which page you are on and it does not change while
-      you are on it.
+      you are on it. It stays "My Cart" through the payment screens too, for
+      the same reason.
     -->
     <ion-title>My Cart</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content fullscreen>
-  @if (checkoutStep() === 1) {
+  @if (paymentOutcome() === 'idle') {
     @if (cart().items.length === 0) {
       <!-- Was a fourth bespoke empty-state variant, on top of the three the
            audit found already. An empty screen gets one shape now. -->
@@ -281,10 +282,11 @@
 
               <!--
                 No error banner here any more. Every message this page can
-                raise comes from placeOrder() - the blank-address guard and the
-                service failure both - and the button that raises them is in the
-                right-hand rail. Reporting there while the customer reads over
-                here meant a failed submit could look like nothing had happened.
+                raise comes from continueToPayment() - the blank-address guard
+                and the payment-service failure both - and the button that
+                raises them is in the right-hand rail. Reporting there while
+                the customer reads over here meant a failed submit could look
+                like nothing had happened.
               -->
 
               <div class="input-wrap">
@@ -406,60 +408,170 @@
             }
 
             <!--
-              The primary action, and now the only one. It commits the order on
-              its first tap - the review screen that used to sit between this
-              button and placeOrder() was removed as redundant.
+              HOW THEY WILL PAY, chosen here rather than on Xendit's page: the
+              channel decides which Xendit payment request gets created, and
+              being told where a tap is going before it is taken is worth more
+              than one fewer control on this screen.
 
-              A PLAIN <button>, and the app's own gold CTA: an amber fill,
-              plum ink, a pill, and a hover that changes the button itself.
-              The ion-button it replaces brought Ionic's md treatment with it —
-              a three-layer elevation shadow under the fill and an uppercased
-              label, so the page's primary action read "PLACE ORDER" on a
-              slab that hovered above the card it sat on.
+              The choice is a PREFERENCE and never a price — the backend
+              re-reads the order document and re-prices it from there, so
+              whatever this says, the amount charged is the shop's.
+            -->
+            <section class="cart-card">
+              <h3 class="card-title">Payment Method</h3>
+              <div class="channel-list" role="radiogroup" aria-label="Payment method">
+                @for (channel of channels; track channel.code) {
+                  <button
+                    type="button"
+                    class="channel-option"
+                    [class.is-selected]="selectedChannel() === channel.code"
+                    role="radio"
+                    [attr.aria-checked]="selectedChannel() === channel.code"
+                    (click)="selectChannel(channel.code)"
+                  >
+                    <span class="channel-text">
+                      <span class="channel-label">{{ channel.label }}</span>
+                      <span class="channel-blurb">{{ channel.blurb }}</span>
+                    </span>
+                    @if (selectedChannel() === channel.code) {
+                      <app-icon name="circle-check" class="channel-tick" />
+                    }
+                  </button>
+                }
+              </div>
+            </section>
 
-              The button fills the rail, not the whole content width: it was
-              never expand="block" that was wrong - having nothing but 1144px
-              to expand into was.
+            <!--
+              The primary action, and now the only one. Its label CHANGES
+              MEANING rather than its position: "Place Order" promised a
+              committed order, and the button now does something narrower and
+              more honest — it writes an UNPAID order and hands the customer to
+              a payment page. Nothing is taken until Xendit's webhook says so.
+
+              Disabled while a session is being created, for the same reason it
+              was disabled while an order was being written: one tap, one
+              journey. Two calls in flight would either mint two orders or mint
+              two payment sessions for the same one.
 
               .place-order-btn, not the old .checkout-btn: the sunny accent is
               what this action always wore on the review screen, and plum on it
               measures 8.16:1 where white would have measured 1.58:1.
             -->
-            <button type="button" class="place-order-btn" (click)="placeOrder()" [disabled]="isPlacingOrder()">
-              @if (isPlacingOrder()) {
+            <button
+              type="button"
+              class="place-order-btn"
+              (click)="continueToPayment()"
+              [disabled]="isPreparingPayment()"
+            >
+              @if (isPreparingPayment()) {
                 <ion-spinner name="crescent"></ion-spinner>
               }
-              <span>{{ isPlacingOrder() ? 'Placing Order...' : 'Place Order' }}</span>
+              <span>{{ isPreparingPayment() ? 'Preparing payment...' : 'Continue to Payment' }}</span>
             </button>
+            <p class="pay-note">
+              You'll continue to a secure payment page. Your cart stays right here until your payment is confirmed.
+            </p>
           </aside>
         </div>
       </div>
     }
   }
 
-  @if (checkoutStep() === 3) {
-    <div class="confirmed-state">
-      <!--
-        THE TICK, AS LINE ART.
+  @if (paymentOutcome() !== 'idle') {
+    <!--
+      THE RESULT SCREENS.
 
-        The glyph was 80px with the app's default 2.25px stroke, and an SVG
-        scales its stroke with its viewBox: 2.25 x (80/24) is a 7.5px line, so
-        what was meant to be a check in a circle came out as a heavy green
-        ring with a tick in it — the one piece of visual weight on a screen
-        that is otherwise a sentence and two buttons.
+      There are four, and which one opens is decided by the RETURN URL — which
+      is a hint and nothing more. What each one SAYS is decided by the order
+      document, whose `paymentStatus` only Xendit's verified webhook writes.
+      So `?payment=success` opens a screen that is still "checking", and an
+      edited address bar can change which screen appears but cannot make this
+      page claim money that never arrived.
 
-        56px at a 1.2 stroke is a 2.8px line, which is the weight a 24px
-        icon has at its natural size. Same drawing, same colour, drawn at the
-        weight it was designed at.
-      -->
-      <app-icon name="circle-check" class="confirmed-icon" />
-      <h2 class="confirmed-title">Order Placed!</h2>
-      <p class="confirmed-sub">Your scoops are on the way. Redirecting to your order tracker...</p>
-      <ion-spinner name="dots"></ion-spinner>
-      <div class="confirmed-actions">
-        <button type="button" class="confirmed-cta" (click)="viewTracker()">View Order Tracker</button>
-        <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
-      </div>
+      Everything money-shaped here comes from `lastOrderTotal` / `orderRef`,
+      both of which are refreshed from every snapshot of the order — never from
+      anything the redirect carried back.
+    -->
+    <div class="pay-result">
+      @if (errorMessage()) {
+        <app-alert-banner tone="danger" [message]="errorMessage()" />
+      }
+
+      @switch (paymentOutcome()) {
+        @case ('checking') {
+          <app-icon name="clock" class="pay-icon" />
+          <h2 class="pay-title">Checking your payment...</h2>
+          <p class="pay-sub">We're confirming your payment with the provider. This usually takes a few seconds.</p>
+          <ion-spinner name="dots"></ion-spinner>
+          @if (orderRef()) {
+            <p class="pay-ref">Order #{{ orderRef() }} · {{ lastOrderTotal() | peso }}</p>
+          }
+          <div class="pay-actions">
+            <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order</button>
+            <button type="button" class="confirmed-alt" (click)="editCart()">Back to Cart</button>
+          </div>
+        }
+
+        @case ('success') {
+          <!--
+            Reached only from a snapshot whose paymentStatus is 'paid'. The
+            icon is drawn at 56px/1.2 stroke for the reason the old
+            confirmation screen documented: an SVG scales its stroke with its
+            viewBox, so 80px at the app's default weight came out as a ring.
+          -->
+          <app-icon name="circle-check" class="pay-icon pay-icon--success" />
+          <h2 class="pay-title">Payment received</h2>
+          <p class="pay-sub">Your payment of {{ lastOrderTotal() | peso }} was successful.</p>
+          <p class="pay-ref">Order #{{ orderRef() }} is confirmed.</p>
+          <div class="pay-actions">
+            <button type="button" class="confirmed-cta" (click)="viewTracker()">View Order Tracker</button>
+            <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
+          </div>
+        }
+
+        @case ('pending') {
+          <app-icon name="clock" class="pay-icon" />
+          <h2 class="pay-title">Payment not completed</h2>
+          <p class="pay-sub">
+            @if (returnHint() === 'success') {
+              We haven't confirmed a payment for this order yet. If you did complete one, it can take a moment to
+              register — try again below, or check the order.
+            } @else {
+              We didn't get a payment for this order. It's still open — you can finish paying whenever you're ready.
+            }
+          </p>
+          <p class="pay-ref">Order #{{ orderRef() }} · {{ lastOrderTotal() | peso }} · Payment: Unpaid</p>
+          <div class="pay-actions">
+            <button type="button" class="confirmed-cta" (click)="resumePayment()" [disabled]="isPreparingPayment()">
+              @if (isPreparingPayment()) {
+                <ion-spinner name="crescent"></ion-spinner>
+              }
+              <span>{{ isPreparingPayment() ? 'Preparing payment...' : 'Resume Payment' }}</span>
+            </button>
+            <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order</button>
+            <button type="button" class="confirmed-alt" (click)="editCart()">Edit Cart</button>
+          </div>
+        }
+
+        @case ('failed') {
+          <app-icon name="circle-x" class="pay-icon pay-icon--danger" />
+          <h2 class="pay-title">Payment failed</h2>
+          <p class="pay-sub">
+            The payment did not go through, so nothing was charged. You can start it again on the same order.
+          </p>
+          <p class="pay-ref">Order #{{ orderRef() }} · {{ lastOrderTotal() | peso }} · Payment: Failed</p>
+          <div class="pay-actions">
+            <button type="button" class="confirmed-cta" (click)="resumePayment()" [disabled]="isPreparingPayment()">
+              @if (isPreparingPayment()) {
+                <ion-spinner name="crescent"></ion-spinner>
+              }
+              <span>{{ isPreparingPayment() ? 'Preparing payment...' : 'Try Again' }}</span>
+            </button>
+            <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order</button>
+            <button type="button" class="confirmed-alt" (click)="editCart()">Edit Cart</button>
+          </div>
+        }
+      }
     </div>
   }
   <app-footer></app-footer>

@@ -64,6 +64,17 @@ export const environment = {
 
   lowStockThreshold: 10,
 
+  /**
+   * The local payment-server process (`cd payment-server && npm start`).
+   *
+   * Not redirected by `useEmulator` — there is no payment emulator, only this
+   * Node process. If it is not running, "Continue to Payment" fails with a
+   * clear message and the rest of the app is unaffected.
+   */
+  payment: {
+    baseUrl: 'http://localhost:4242',
+  },
+
   // See the header: there is no Cloudinary emulator, so these are the real ones.
   cloudinary: {
     cloudName: 'fhtucp4v',

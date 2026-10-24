@@ -91,6 +91,9 @@
               </div>
               <div class="summary-status">
                 <app-order-status-badge [status]="order()!.status"></app-order-status-badge>
+                @if (showPaymentBadge()) {
+                  <app-payment-status-badge [status]="order()!.paymentStatus"></app-payment-status-badge>
+                }
               </div>
             </div>
 
@@ -118,12 +121,25 @@
               this order" read as the page's headline. It is now the same pill
               the orders LIST uses for the same action, so the two pages agree
               on what cancelling looks like.
+
+              Pay Now appears alongside Cancel for unpaid orders — the same pair
+              the orders list shows, in the same order. The two are both secondary
+              actions (opening the tracker is the primary one, and that is the
+              row itself), so they share a shape: same min-height, same radius,
+              same label treatment, same hover.
             -->
-            @if (canCancel()) {
+            @if (canPay() || canCancel()) {
               <div class="summary-actions">
-                <button type="button" class="cancel-order-btn" (click)="cancelOrder()" [disabled]="isCancelling()">
-                  {{ isCancelling() ? 'Cancelling…' : 'Cancel order' }}
-                </button>
+                @if (canPay()) {
+                  <button type="button" class="pay-now-btn" (click)="payNow()" [disabled]="isPayingNow()">
+                    {{ isPayingNow() ? 'Preparing…' : 'Pay Now' }}
+                  </button>
+                }
+                @if (canCancel()) {
+                  <button type="button" class="cancel-order-btn" (click)="cancelOrder()" [disabled]="isCancelling()">
+                    {{ isCancelling() ? 'Cancelling…' : 'Cancel order' }}
+                  </button>
+                }
               </div>
             }
           </section>

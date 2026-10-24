@@ -21,9 +21,18 @@ import {
   ToastController,
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '@shared/components/ui/app-icon.component';
-import { catchError, of } from 'rxjs';
+import { catchError, of, Subscription } from 'rxjs';
 import { CartService } from '@core/services/commerce/cart.service';
 import { OrderService } from '@core/services/orders/order.service';
+import { PaymentService } from '@core/services/orders/payment.service';
+import {
+  PAYMENT_CHANNEL_META,
+  PaymentOutcome,
+  ReturnHint,
+  XenditChannelCode,
+  parseReturnHint,
+} from '@core/models/payment.model';
+import { Order } from '@core/models/order.model';
 import { AddressService } from '@core/services/identity/address.service';
 import { VoucherService } from '@core/services/commerce/voucher.service';
 import { InventoryService } from '@core/services/catalog/inventory.service';
@@ -48,15 +57,38 @@ const FALLBACK_QTY_CEILING = 99;
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 /**
- * 1 = editing the cart, 3 = order placed.
+ * How long a returned customer gets the "Checking your payment…" screen before
+ * the page admits it does not have an answer yet.
  *
- * There was a 2 = "Review Order", a separate confirmation screen between the
- * cart and placing the order. It was removed as redundant: it restated the
- * cart's own figures one screen later. Checkout is now two states, and the
- * consequence is that PLACE ORDER commits on its first tap - the review screen
- * used to be the deliberate second action. See placeOrder().
+ * Xendit's webhook is normally seconds behind the redirect, but "normally" is
+ * not a guarantee and a screen that spins forever is worse than one that says
+ * "we haven't confirmed this yet". After this window the page falls back to the
+ * honest unpaid screen — and keeps listening, so a late webhook still lands as
+ * a success rather than stranding a paid order as unpaid.
  */
-type CheckoutStep = 1 | 3;
+const PAYMENT_CHECK_GRACE_MS = 20_000;
+
+/**
+ * The order the customer is currently paying for, remembered across a reload.
+ *
+ * The return from Xendit is a full page load, and so is pressing the browser's
+ * back button out of it — which loses every signal in memory. Without this the
+ * second tap on "Continue to Payment" would mint a SECOND order for the same
+ * basket, which is exactly what the plan's duplicate-handling section forbids.
+ *
+ * `signature` + `address` + `notes` are what make reuse honest rather than
+ * blind: if the basket or the delivery details have changed since the order
+ * was written, the stored id describes something the customer is no longer
+ * buying, so it is dropped and a fresh order is created instead.
+ */
+interface RememberedOrder {
+  id: string;
+  address: string;
+  notes: string;
+  signature: string;
+}
+
+const PENDING_PAYMENT_ORDER_KEY = 'pendingPaymentOrder';
 
 @Component({
   selector: 'app-cart',
@@ -90,6 +122,7 @@ type CheckoutStep = 1 | 3;
 export class CartPage implements OnInit, OnDestroy {
   private cartService = inject(CartService);
   private orderService = inject(OrderService);
+  private paymentService = inject(PaymentService);
   private route = inject(ActivatedRoute);
   private addressService = inject(AddressService);
   private voucherService = inject(VoucherService);
@@ -99,12 +132,33 @@ export class CartPage implements OnInit, OnDestroy {
   private toastCtrl = inject(ToastController);
 
   cart = signal<Cart>({ items: [], totalAmount: 0, itemCount: 0 });
-  checkoutStep = signal<CheckoutStep>(1);
+  /**
+   * Which screen the page is showing.
+   *
+   * Replaces the old `checkoutStep: 1 | 3` pair, which could only say "cart"
+   * or "order placed" — a single outcome that no longer describes a journey
+   * where the customer leaves the app and comes back with money either taken
+   * or not taken. See `PaymentOutcome`.
+   */
+  paymentOutcome = signal<PaymentOutcome>('idle');
   deliveryAddress = '';
   notes = '';
-  isPlacingOrder = signal(false);
+  /**
+   * True only while a payment session is being created.
+   *
+   * Guards BOTH entry points against a double tap: a second call while one is
+   * in flight would either mint two orders or mint two Xendit sessions for the
+   * same one.
+   */
+  isPreparingPayment = signal(false);
   errorMessage = signal('');
   lastOrderId = signal<string | null>(null);
+  /** Display figure until the order document supplies the authoritative one. */
+  lastOrderTotal = signal(0);
+  /** What the return URL CLAIMED, kept only to choose the wording on screen. */
+  returnHint = signal<ReturnHint | null>(null);
+  /** Channel chosen before leaving the app. Sent to the backend, never trusted as money. */
+  selectedChannel = signal<XenditChannelCode>('GCASH');
   savedAddresses = signal<string[]>([]);
   /** Which saved address, if any, is currently chosen. Drives the radio row. */
   selectedAddress = signal<string | null>(null);
@@ -136,6 +190,20 @@ export class CartPage implements OnInit, OnDestroy {
 
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
   readonly freeDeliveryThreshold = FREE_DELIVERY_THRESHOLD;
+  /** The channel picker's rows. Same three the backend allowlists. */
+  readonly channels = PAYMENT_CHANNEL_META;
+
+  /**
+   * The short human handle on an order id — `A5ICWL` from `…A5ICWL`.
+   *
+   * Deliberately the same six characters the backend puts in the return URL's
+   * `ref` parameter, so the id a customer reads on a result screen is the id
+   * they can quote to the shop.
+   */
+  readonly orderRef = computed(() => {
+    const id = this.lastOrderId();
+    return id ? id.slice(-6).toUpperCase() : '';
+  });
 
   deliveryFee = computed(() => getDeliveryFee(this.cart().totalAmount));
   isFreeDelivery = computed(() => this.deliveryFee() === 0 && this.cart().items.length > 0);
@@ -203,22 +271,27 @@ export class CartPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.consumeHandedOverVoucher();
+    this.selectedChannel.set(this.paymentService.preferredChannel);
+    this.consumePaymentReturn();
   }
 
   /**
-   * The handle on the post-checkout redirect.
+   * The listener on the order document, and the window on the checking screen.
    *
-   * The redirect is a four-second grace period so the customer sees the
-   * confirmation before the app moves them to the tracker. Without a handle
-   * it could not be cancelled, and the timer fired on a page that may no
-   * longer exist — navigating the customer out of whatever they moved on to.
+   * The listener is the only thing on this page that can say a payment
+   * happened: it is a live snapshot of the one field the verified webhook
+   * writes. It survives a wrong answer from the return URL on purpose — a
+   * "payment failed" claim gets overwritten the moment the webhook says paid,
+   * and the other way around.
    */
-  private redirectTimer?: ReturnType<typeof setTimeout>;
+  private paymentWatch?: Subscription;
+  private checkGraceTimer?: ReturnType<typeof setTimeout>;
 
   ngOnDestroy(): void {
-    if (this.redirectTimer !== undefined) {
-      clearTimeout(this.redirectTimer);
-      this.redirectTimer = undefined;
+    this.stopPaymentWatch();
+    if (this.checkGraceTimer !== undefined) {
+      clearTimeout(this.checkGraceTimer);
+      this.checkGraceTimer = undefined;
     }
   }
 
@@ -262,6 +335,233 @@ export class CartPage implements OnInit, OnDestroy {
 
     this.voucherCode = code.trim().toUpperCase();
     void this.applyVoucher();
+  }
+
+  // ── The return from Xendit ───────────────────────────────────────────────────
+
+  /**
+   * Picks the journey back up where the provider handed it over.
+   *
+   * The query parameters choose which screen opens. They never choose what the
+   * screen SAYS about money: `?payment=success` is a string in an address bar,
+   * editable by anyone, so the screen opens and then reads the order document —
+   * the field only the verified webhook writes — before claiming anything.
+   *
+   * Two ways in, and they are not equivalent:
+   *  - a return URL (`orderId` present) means the customer went to Xendit, so
+   *    the outcome is genuinely unknown and the page waits for an answer;
+   *  - no return URL but a remembered order means they pressed back out of it,
+   *    which means nothing happened, so the page says so immediately.
+   */
+  private consumePaymentReturn(): void {
+    const params = this.route.snapshot.queryParamMap;
+    const fromReturnUrl = params.get('orderId')?.trim() || null;
+    const hint = parseReturnHint(params.get('payment'));
+    const remembered = this.readRememberedOrder();
+
+    const orderId = fromReturnUrl ?? remembered?.id ?? null;
+    if (!orderId) return;
+
+    this.lastOrderId.set(orderId);
+    this.returnHint.set(hint);
+    this.errorMessage.set('');
+
+    if (!fromReturnUrl) {
+      // Back-button or a cold reopen: no provider hand-off happened, so the
+      // unpaid screen is the truth already and there is nothing to wait for.
+      this.paymentOutcome.set('pending');
+    } else if (hint === 'failed') {
+      this.paymentOutcome.set('failed');
+    } else if (hint === 'cancelled') {
+      this.paymentOutcome.set('pending');
+    } else {
+      // Claimed success, or no claim at all. Both are held as "checking"
+      // rather than believed, because a success shown before the webhook is a
+      // promise the app has no evidence for yet.
+      this.paymentOutcome.set('checking');
+      this.startCheckGrace();
+    }
+
+    this.watchPayment(orderId);
+  }
+
+  private watchPayment(orderId: string): void {
+    this.stopPaymentWatch();
+    this.paymentWatch = this.orderService.trackOrder(orderId).subscribe({
+      next: (order) => this.applyPaymentSnapshot(order),
+      error: (err) => {
+        // The order cannot be read at all. The screen keeps the return URL's
+        // claim and invents nothing: on a failed read, guessing an outcome
+        // about money is the one thing worse than not answering.
+        console.error('Payment status watch failed.', err);
+      },
+    });
+  }
+
+  private stopPaymentWatch(): void {
+    this.paymentWatch?.unsubscribe();
+    this.paymentWatch = undefined;
+  }
+
+  /**
+   * Ends the wait, not the question.
+   *
+   * After the grace window the page stops showing "checking…" — which would be
+   * a lie of a different kind if the webhook is never coming — and falls back
+   * to the unpaid screen. The listener stays attached, so a webhook that lands
+   * a minute later still turns this screen into a success rather than leaving
+   * a paid order described as unpaid.
+   */
+  private startCheckGrace(): void {
+    if (this.checkGraceTimer !== undefined) return;
+    this.checkGraceTimer = setTimeout(() => {
+      this.checkGraceTimer = undefined;
+      if (this.paymentOutcome() === 'checking') this.paymentOutcome.set('pending');
+    }, PAYMENT_CHECK_GRACE_MS);
+  }
+
+  /** Applies what the order document actually says. */
+  private applyPaymentSnapshot(order: Order): void {
+    this.lastOrderId.set(order.id);
+    this.lastOrderTotal.set(order.grandTotal);
+
+    if (order.paymentStatus === 'paid') {
+      this.confirmPaid();
+      return;
+    }
+    if (order.paymentStatus === 'failed') {
+      this.paymentOutcome.set('failed');
+      this.stopCheckGrace();
+      return;
+    }
+    // Still unpaid: whatever screen is open keeps saying what it says until
+    // the grace window closes it down.
+  }
+
+  /**
+   * The one success path on this page.
+   *
+   * Reached only from a snapshot whose `paymentStatus` is `paid`, which the
+   * backend writes only after Xendit's webhook has been authenticated. The
+   * redirect, the return URL and this customer's wordings of them are all
+   * upstream of this line and none of them can get here.
+   */
+  private confirmPaid(): void {
+    this.stopPaymentWatch();
+    this.stopCheckGrace();
+    this.paymentOutcome.set('success');
+    this.isPreparingPayment.set(false);
+    this.errorMessage.set('');
+    this.forgetRememberedOrder();
+    // THE ONE PLACE THE CART DIES. Not in OrderService: creating the order
+    // document is only the first step of the journey, and the basket has to
+    // survive it so the customer can come back from Xendit and pay for the
+    // same thing. Now the money is provably in, the basket has no further
+    // purpose. `clearCart()` itself is unchanged and still serves the
+    // explicit "Clear Cart" button.
+    this.cartService.clearCart();
+  }
+
+  private stopCheckGrace(): void {
+    if (this.checkGraceTimer !== undefined) {
+      clearTimeout(this.checkGraceTimer);
+      this.checkGraceTimer = undefined;
+    }
+  }
+
+  // ── Remembering the in-flight order ──────────────────────────────────────────
+
+  /**
+   * What this basket is, as a value that can be compared after a page load.
+   *
+   * Lines and total and voucher, and deliberately NOT the address or the
+   * notes: neither field survives a reload, so an empty box would read as
+   * "changed" on every single return from Xendit and force a duplicate order
+   * out of nothing. Those two are compared separately, where an empty value
+   * can be treated as "untouched" instead of as a difference.
+   */
+  private cartSignature(): string {
+    const lines = this.cart()
+      .items.map((i) => `${i.productId}|${i.size}|${i.quantity}`)
+      .join(',');
+    return `${lines}#${this.cart().totalAmount}#${this.appliedVoucher() ?? ''}`;
+  }
+
+  private rememberOrder(id: string): void {
+    const record: RememberedOrder = {
+      id,
+      address: this.deliveryAddress.trim(),
+      notes: this.notes.trim(),
+      signature: this.cartSignature(),
+    };
+    try {
+      sessionStorage.setItem(PENDING_PAYMENT_ORDER_KEY, JSON.stringify(record));
+    } catch {
+      // Storage disabled: the return URL still carries the id, and the only
+      // case this loses is a back-button exit without one.
+    }
+  }
+
+  private readRememberedOrder(): RememberedOrder | null {
+    try {
+      const raw = sessionStorage.getItem(PENDING_PAYMENT_ORDER_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as Partial<RememberedOrder>;
+      if (typeof parsed.id !== 'string' || !parsed.id) return null;
+      return {
+        id: parsed.id,
+        address: typeof parsed.address === 'string' ? parsed.address : '',
+        notes: typeof parsed.notes === 'string' ? parsed.notes : '',
+        signature: typeof parsed.signature === 'string' ? parsed.signature : '',
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private forgetRememberedOrder(): void {
+    try {
+      sessionStorage.removeItem(PENDING_PAYMENT_ORDER_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Whether an untouched-after-reload field counts as a change.
+   *
+   * Blank means the app restarted and re-rendered an empty box, not that the
+   * customer cleared it — so only a non-empty value that differs is evidence.
+   */
+  private fieldChanged(current: string, stored: string): boolean {
+    return Boolean(current && stored && current !== stored);
+  }
+
+  /**
+   * The id of an order this basket may still be charged against, or null.
+   *
+   * Returns null whenever reusing would be dishonest — the basket moved, the
+   * address was rewritten — because the order's own contents can no longer be
+   * edited (the rules permit no such write). Dropping the stored id rather
+   * than ignoring it means the next attempt writes a fresh order AND stops
+   * pointing at a stale one.
+   */
+  private reusableOrderId(): string | null {
+    const remembered = this.readRememberedOrder();
+    if (!remembered) return null;
+
+    if (remembered.signature !== this.cartSignature()) {
+      this.forgetRememberedOrder();
+      return null;
+    }
+    if (
+      this.fieldChanged(this.deliveryAddress.trim(), remembered.address) ||
+      this.fieldChanged(this.notes.trim(), remembered.notes)
+    ) {
+      this.forgetRememberedOrder();
+      return null;
+    }
+    return remembered.id;
   }
 
   /** Stock available for this line, or undefined when unknown. */
@@ -416,53 +716,76 @@ export class CartPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Commits the order.
+   * Creates the order, then the payment session, then leaves the app.
    *
-   * The blank-address guard and the saveAddress() call used to live in
-   * proceedToReview(), which ran before the removed review screen. Nothing sits
-   * between the customer and this method now, so both moved here: without them
-   * an order could be placed with no delivery address at all.
+   * The order is written BEFORE the redirect and is born unpaid
+   * (`status:'pending'`, `paymentStatus:'pending'`), which is what makes every
+   * later action — resume, retry, Pay Now — able to reuse this same id instead
+   * of minting a duplicate for a basket the customer has already committed to.
    *
-   * Validation runs BEFORE isPlacingOrder is set, so a rejected submit does not
+   * The blank-address guard and the saveAddress() call live here because
+   * nothing sits between the customer and this method any more; the review
+   * screen that used to do that job was removed as redundant.
+   *
+   * Validation runs BEFORE anything is prepared, so a rejected submit does not
    * leave the button spinning.
    */
-  async placeOrder(): Promise<void> {
-    if (this.isPlacingOrder()) return; // ← prevents double-tap double-call
+  async continueToPayment(): Promise<void> {
+    if (this.isPreparingPayment()) return; // ← prevents double-tap double-call
     if (!this.deliveryAddress.trim()) {
       this.errorMessage.set('Please enter your delivery address.');
       return;
     }
+    // Checked BEFORE an order exists. Writing a document that nothing could
+    // ever take payment for would leave a dead row in My Orders and a customer
+    // tapping a button that fails identically every time.
+    if (!this.paymentService.isConfigured) {
+      this.errorMessage.set('Payments are not set up on this build yet.');
+      return;
+    }
     this.errorMessage.set('');
-    this.addressService.saveAddress(this.deliveryAddress);
-    this.isPlacingOrder.set(true);
+    this.addressService.saveAddress(this.deliveryAddress.trim());
+    this.isPreparingPayment.set(true);
 
     try {
       // Pass null for empty notes — never undefined
       const notesValue = this.notes.trim().length > 0 ? this.notes.trim() : undefined;
+      const address = this.deliveryAddress.trim();
 
-      // Pass only the voucher CODE. OrderService re-resolves the discount from
-      // Firestore so the charged amount can never be dictated by the client.
-      const orderId = await this.orderService.placeOrder(
-        this.deliveryAddress.trim(),
-        notesValue,
-        this.appliedVoucher(),
-      );
+      let orderId = this.reusableOrderId();
+      if (orderId) {
+        // RESUMING. The order already exists with its own totals, address and
+        // notes, so none of that is rewritten here — only a new payment
+        // session is minted for it. This is the path the second tap after a
+        // return from Xendit takes, and the reason it cannot duplicate.
+        this.lastOrderId.set(orderId);
+      } else {
+        // A result screen may still be describing an order this basket is not.
+        // Stop listening to it before writing a new one.
+        this.stopPaymentWatch();
+        orderId = await this.orderService.placeOrder(address, notesValue, this.appliedVoucher());
+        this.lastOrderId.set(orderId);
+        this.lastOrderTotal.set(this.grandTotal());
+        this.rememberOrder(orderId);
+      }
 
-      this.lastOrderId.set(orderId);
-      this.notes = '';
-      this.removeVoucher();
-      this.checkoutStep.set(3);
-      // The handle is kept so the timer can be cancelled. Without one it
-      // could not be: the customer taps back, or taps a link, inside the
-      // four-second window, and the timer still fired — navigating them out
-      // of whatever page they had moved on to, into this order.
-      this.redirectTimer = setTimeout(() => {
-        this.redirectTimer = undefined;
-        void this.router.navigate(['/orders', orderId]);
-      }, 4000);
+      // Pass only the ORDER ID. The backend re-reads the document and
+      // re-prices everything from it — basket, voucher, delivery fee — so the
+      // amount Xendit charges cannot be set by this browser. That is also why
+      // the notes and the voucher are left alone above: clearing them would
+      // change what "the same basket" means on the next tap and force a
+      // duplicate order out of a cosmetic difference.
+      const session = await this.paymentService.createSession(orderId, this.selectedChannel());
+      // Past this line the page is about to be replaced by Xendit's. Whatever
+      // happens over there — payment, failure, cancellation, a dead phone —
+      // the cart is still here when the customer comes back.
+      this.paymentService.goToCheckout(session.checkoutUrl);
     } catch (err: unknown) {
+      // An order may well have been created before this threw. It is remembered
+      // on purpose: the next tap resumes THAT order instead of writing a second
+      // one for the same basket.
       const message =
-        err instanceof Error ? err.message : 'Failed to place order. Please try again.';
+        err instanceof Error ? err.message : 'We could not start your payment. Please try again.';
       this.errorMessage.set(message);
       const toast = await this.toastCtrl.create({
         message,
@@ -472,8 +795,78 @@ export class CartPage implements OnInit, OnDestroy {
       });
       await toast.present();
     } finally {
-      this.isPlacingOrder.set(false);
+      this.isPreparingPayment.set(false);
     }
+  }
+
+  /**
+   * New payment session for an order that already exists.
+   *
+   * Drives both "Resume Payment" (the customer cancelled or never came back)
+   * and "Try Again" (it failed) — they are the same operation, differing only
+   * in which word the customer arrived on. The order id never changes, which
+   * is the whole point: retrying must never produce a second order.
+   */
+  async resumePayment(): Promise<void> {
+    if (this.isPreparingPayment()) return;
+    const orderId = this.lastOrderId() ?? this.reusableOrderId();
+    if (!orderId) {
+      // Nothing to resume — the basket was cleared or the order is gone. My
+      // Orders is where an unpaid order is found again.
+      void this.router.navigate(['/orders']);
+      return;
+    }
+    if (!this.paymentService.isConfigured) {
+      this.errorMessage.set('Payments are not set up on this build yet.');
+      return;
+    }
+
+    this.errorMessage.set('');
+    this.isPreparingPayment.set(true);
+    try {
+      const session = await this.paymentService.createSession(orderId, this.selectedChannel());
+      this.paymentService.goToCheckout(session.checkoutUrl);
+    } catch (err: unknown) {
+      // The screen the customer was on stays put — it is still the truth —
+      // and the failure is reported beside the button that raised it.
+      const message =
+        err instanceof Error ? err.message : 'We could not restart your payment. Please try again.';
+      this.errorMessage.set(message);
+      const toast = await this.toastCtrl.create({
+        message,
+        color: 'danger',
+        duration: 4000,
+        position: 'top',
+      });
+      await toast.present();
+    } finally {
+      this.isPreparingPayment.set(false);
+    }
+  }
+
+  /**
+   * Picks the channel the next session will be created for.
+   *
+   * Persisted through PaymentService, not held in this page alone: Pay Now on
+   * the orders list has to be able to offer the same method without a picker
+   * of its own, and the customer should not have to say it twice.
+   */
+  selectChannel(code: XenditChannelCode): void {
+    this.selectedChannel.set(code);
+    this.paymentService.preferredChannel = code;
+  }
+
+  /**
+   * Leaves a result screen for the cart itself, to edit before paying.
+   *
+   * The listener stays attached: if the payment this customer walked away from
+   * lands while they are editing, the page turns into the success screen and
+   * clears the basket then — which is what they paid for, and better than
+   * letting them re-order it.
+   */
+  editCart(): void {
+    this.paymentOutcome.set('idle');
+    this.errorMessage.set('');
   }
 
   trackItem(_: number, item: CartItem): string {
@@ -481,8 +874,7 @@ export class CartPage implements OnInit, OnDestroy {
   }
 
   orderMore(): void {
-    this.checkoutStep.set(1);
-    this.errorMessage.set('');
+    this.editCart();
     void this.router.navigate(['/products']);
   }
 

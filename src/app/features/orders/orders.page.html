@@ -187,6 +187,9 @@
                   <div class="order-top">
                     <span class="order-top-main">
                       <app-order-status-badge [status]="order.status"></app-order-status-badge>
+                      @if (showPaymentBadge(order)) {
+                        <app-payment-status-badge [status]="order.paymentStatus"></app-payment-status-badge>
+                      }
                       <span class="order-id">#{{ order.id.slice(-6).toUpperCase() }}</span>
                     </span>
                     <span class="order-date">{{ formatDate(order.createdAt) }}</span>
@@ -200,6 +203,30 @@
                     </span>
                     <span class="order-total">{{ order.grandTotal | peso }}</span>
 
+                    @if (canPay(order)) {
+                      <!--
+                    Pay Now, as a quiet control: the same tonal pill as the saved-
+                    address delete button and the voucher remove button. It is
+                    paired with Cancel on some rows, and both of them are secondary
+                    actions — opening the order is the primary one, and that is the
+                    row itself.
+
+                    The button is disabled while a session is being created, for
+                    the same reason continueToPayment disables its button: two
+                    calls in flight would mint two Xendit sessions for the same
+                    order. The stopPropagation guard stays: tapping the button must
+                    not also open the tracker.
+                  -->
+                      <button
+                        type="button"
+                        class="pay-now-btn"
+                        (click)="payNow(order, $event)"
+                        [disabled]="payingId() === order.id"
+                        [attr.aria-busy]="payingId() === order.id"
+                      >
+                        Pay Now
+                      </button>
+                    }
                     @if (canCancel(order)) {
                       <!--
                   A tonal pill, not a red outline and not a red word with an

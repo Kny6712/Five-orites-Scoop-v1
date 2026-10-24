@@ -185,22 +185,17 @@ export const CUSTOMER_FEATURES: AboutFeature[] = [
       'Follow your order from preparation to delivery. Real-time tracking helps customers stay updated on the progress of their ice cream order.',
   },
   {
-    // This said "Secure Payments" and described "a secure payment process" where
-    // "your payment information and transaction details are handled safely".
-    // There is no payment gateway, no payment UI on any screen, and no card or
-    // account detail is collected anywhere in the app — so that copy was not just
-    // unimplemented, it was a claim about handling customer financial data that
-    // the app does not do. `paymentStatus` is written once as 'pending' and never
-    // mutated by anything.
-    //
-    // What replaces it states only what is actually true. The real-world payment
-    // ARRANGEMENT (cash on delivery, bank transfer, arrangements made over the
-    // phone) is a business fact this codebase cannot confirm and must not invent —
-    // if you want it named on this page, put it here and say so.
-    icon: 'shield-check',
-    title: 'No Card Details Needed',
+    // Updated now that the Xendit gateway is integrated. The old copy was
+    // replaced with "No Card Details Needed" when there was no payment UI at
+    // all — that was true then (nothing ever asked for a card number), but it
+    // undersold what is now real: payments go through Xendit's hosted page,
+    // the app never sees card details, and the secret API keys live on the
+    // server only. The copy now says what is actually true rather than what
+    // was the closest true thing at the time.
+    icon: 'shield-check' as AppIcon,
+    title: 'Secure Payments',
     description:
-      'See the full price breakdown, including delivery, before you order. We never ask for or store your card or bank details.',
+      "Pay through GCash, PayMaya, or GrabPay on Xendit's secure hosted page. Your card details are never handled by or stored in this app.",
   },
 ];
 
@@ -231,14 +226,11 @@ export const HOW_IT_WORKS: AboutStep[] = [
   },
   {
     number: '02',
-    title: 'Place Your Order',
-    // "securely" removed. There is no payment gateway in this project: nothing
-    // collects a card, a bank detail or a wallet, and `paymentStatus` is written
-    // once as 'pending' and never mutated. The word implied a transaction the
-    // app does not perform, which is the same overclaim that got "Secure
-    // Payments" removed from the feature card above - and it was inconsistent
-    // that this one survived.
-    description: 'Add your items to the cart, tell us where to bring them, and confirm your order.',
+    title: 'Choose How to Pay',
+    // Updated now that the gateway is live. The step now describes the actual
+    // journey: cart → Xendit's hosted page → webhook-confirmed payment.
+    description:
+      "Add your items to the cart, enter your delivery address, and pay through GCash, PayMaya, or GrabPay on Xendit's secure page.",
   },
   {
     number: '03',

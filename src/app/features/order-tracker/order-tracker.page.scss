@@ -176,6 +176,10 @@
 .summary-status {
   margin-left: auto;
   flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 
 /* THE THREE BLOCKS STACK WHEN THE CARD IS NARROW — not when the window is.
@@ -287,30 +291,61 @@
   font-size: 13px;
 }
 
-// ── The cancel action ───────────────────────────────────────
-/* A small tonal pill, and the SAME one the orders list uses for the same
-   action. It was an <ion-button fill="outline" color="danger"> stretched
+// ── The pay and cancel actions ───────────────────────────────
+/* Small tonal pills — the SAME ones the orders list uses for the same
+   actions. Cancel was an <ion-button fill="outline" color="danger"> stretched
    across the whole window, which made a routine "never mind this order" read
    as the page's headline — and a full-width red bar on a page whose subject
-   is "your order is fine" is a lie about the page. */
+   is "your order is fine" is a lie about the page.
+
+   Pay Now is new and pairs with Cancel on unpaid pending orders. Both are
+   secondary actions and share a shape so the app says the same thing with
+   the same control — one pill for "go forward with money", one pill for
+   "end this order", side by side when both apply. */
 .summary-actions {
   display: flex;
+  align-items: center;
+  gap: var(--space-3);
   justify-content: flex-end;
   margin-top: var(--space-4);
   padding-top: var(--space-3);
   border-top: 1px solid var(--tile-powder-deep);
 }
 
+.pay-now-btn,
 .cancel-order-btn {
   min-height: 32px;
   padding: 0 14px;
   border-radius: var(--radius-sm);
   font: 700 13px var(--font-body);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.pay-now-btn {
+  color: var(--tone-info-ink);
+  background: var(--tone-info-bg);
+  border: 1px solid var(--tone-info-border);
+}
+
+.pay-now-btn:hover:not(:disabled) {
+  border-color: var(--tone-info-ink);
+}
+
+.pay-now-btn:focus-visible {
+  outline: 2px solid var(--tone-info-ink);
+  outline-offset: 2px;
+}
+
+.pay-now-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.cancel-order-btn {
   color: var(--tone-danger-ink);
   background: var(--tone-danger-bg);
   border: 1px solid var(--tone-danger-border);
-  cursor: pointer;
-  transition: border-color 120ms ease;
 }
 
 /* Hover deepens the RIM, not the fill: --tile-blush and --tone-danger-bg are
