@@ -29,22 +29,6 @@ export const environment = {
   },
   lowStockThreshold: 10,
 
-  /**
-   * The Xendit payment backend (see payment-server/README.md).
-   *
-   * ONLY the base URL of that service goes here — never a Xendit key. This file
-   * is compiled into the browser bundle, so anything secret placed here ships to
-   * every visitor and cannot be un-shipped. The secret key and the webhook token
-   * live in payment-server/.env and never leave that process.
-   *
-   * `useEmulator` does NOT redirect this. There is no payment emulator; the
-   * local payment service is a plain Node process on :4242, which is what the
-   * default below points at.
-   */
-  payment: {
-    baseUrl: 'http://localhost:4242',
-  },
-
   // Cloudinary unsigned upload for product images.
   // Cloudinary Console > Settings > Upload > Upload presets > Add (Signing Mode: Unsigned).
   // Delivery-side resizing happens in the CloudinaryPipe, not here.

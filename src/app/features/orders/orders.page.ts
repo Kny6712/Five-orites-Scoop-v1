@@ -29,7 +29,6 @@ import {
 import { EmptyStateComponent } from '@shared/components/ui/empty-state.component';
 import { Subscription, catchError, of } from 'rxjs';
 import { OrderService } from '@core/services/orders/order.service';
-import { PaymentService } from '@core/services/orders/payment.service';
 import { AuthService } from '@core/services/identity/auth.service';
 import {
   Order,
@@ -85,7 +84,6 @@ export class OrdersPage implements OnInit, OnDestroy {
   private router = inject(Router);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
-  private paymentService = inject(PaymentService);
   private sub?: Subscription;
 
   orders = signal<Order[]>([]);
@@ -93,14 +91,13 @@ export class OrdersPage implements OnInit, OnDestroy {
   errorMessage = signal('');
   cancellingId = signal<string | null>(null);
   /**
-   * The order a payment session is currently being created for.
+   * The order a transaction settlement is currently being created for.
    *
    * A double tap here does not make two orders — the order already exists — but
-   * it does make two Xendit sessions for it, and paying one of them would
-   * leave an orphaned request behind on the other. Same guard, same reason as
-   * the cart's.
+   * it does make two settlement attempts for it. Same guard, same reason as the
+   * cart's.
    */
-  payingId = signal<string | null>(null);
+  settlingId = signal<string | null>(null);
   skeletonItems = Array(5).fill(0);
 
   /**
@@ -290,19 +287,20 @@ export class OrdersPage implements OnInit, OnDestroy {
   /**
    * Whether the payment badge should be shown on this order.
    *
-   * Hides it for orders predating the gateway — they carry no
-   * `paymentRequestId`, and their `paymentStatus` has sat at `pending` since
-   * the day they were written — flagging every historical order as "Unpaid"
-   * would be a false claim about orders that were settled outside the app.
+   * Hides it for orders that were never run through the simulated payment —
+   * they carry no `paymentRequestId`, and their `paymentStatus` has sat at
+   * `pending` since the day they were written — flagging every historical
+   * order as "Unpaid" would be a false claim about orders that were settled
+   * outside the app.
    */
   showPaymentBadge(order: Order): boolean {
     return shouldShowPaymentBadge(order);
   }
 
   /**
-   * Whether "Pay Now" should be shown on this order.
+   * Whether "Settle Transaction" should be shown on this order.
    *
-   * Four conditions, each of which independently means "do not ask for money":
+   * Four conditions, each of which independently means "do not ask for payment":
    * paid already, refunded, cancelled, or delivered. The last is easy to miss —
    * a delivered order whose payment failed is a collections problem for the shop
    * to resolve by hand, not something to re-present a checkout page for, and
@@ -313,41 +311,25 @@ export class OrdersPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Starts a payment session for an unpaid order.
+   * Settles the transaction for an unpaid order.
    *
-   * The order already exists: this is "Continue to Payment" for a customer who
-   * left the cart page before they ever paid, or came back to My Orders after a
-   * failure. No order is written, only a new session for the existing one.
-   *
-   * The button is disabled while a session is being created, for the same
-   * reason it is on the cart: two calls in flight would mint two Xendit
-   * sessions for the same order, and paying one of them would leave an orphaned
-   * request behind on the other.
+   * The order already exists: this is "Settle Transaction" for a customer who came back
+   * to My Orders after never paying. No order is written — only the existing
+   * one is marked `paymentStatus:'paid'`. No external gateway is involved.
    */
-  async payNow(order: Order, event: Event): Promise<void> {
+  async settleTransaction(order: Order, event: Event): Promise<void> {
     event.stopPropagation();
     event.preventDefault();
-    if (!this.paymentService.isConfigured) {
-      const toast = await this.toastCtrl.create({
-        message: 'Payments are not set up on this build yet.',
-        color: 'warning',
-        duration: 3000,
-        position: 'top',
-      });
-      await toast.present();
-      return;
-    }
+    if (this.settlingId() === order.id) return;
 
-    this.payingId.set(order.id);
+    this.settlingId.set(order.id);
     try {
-      const session = await this.paymentService.createSession(
-        order.id,
-        this.paymentService.preferredChannel,
-      );
-      this.paymentService.goToCheckout(session.checkoutUrl);
+      await this.orderService.settleTransaction(order.id);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : 'We could not start your payment. Please try again.';
+        err instanceof Error
+          ? err.message
+          : 'We could not settle your transaction. Please try again.';
       const toast = await this.toastCtrl.create({
         message,
         color: 'danger',
@@ -356,7 +338,7 @@ export class OrdersPage implements OnInit, OnDestroy {
       });
       await toast.present();
     } finally {
-      this.payingId.set(null);
+      this.settlingId.set(null);
     }
   }
 

@@ -205,26 +205,26 @@
 
                     @if (canPay(order)) {
                       <!--
-                    Pay Now, as a quiet control: the same tonal pill as the saved-
+                    Settle Transaction, as a quiet control: the same tonal pill as the saved-
                     address delete button and the voucher remove button. It is
                     paired with Cancel on some rows, and both of them are secondary
                     actions — opening the order is the primary one, and that is the
                     row itself.
 
-                    The button is disabled while a session is being created, for
+                    The button is disabled while a transaction is being settled, for
                     the same reason continueToPayment disables its button: two
-                    calls in flight would mint two Xendit sessions for the same
+                    calls in flight would settle the transaction twice for the same
                     order. The stopPropagation guard stays: tapping the button must
                     not also open the tracker.
                   -->
                       <button
                         type="button"
                         class="pay-now-btn"
-                        (click)="payNow(order, $event)"
-                        [disabled]="payingId() === order.id"
-                        [attr.aria-busy]="payingId() === order.id"
+                        (click)="settleTransaction(order, $event)"
+                        [disabled]="settlingId() === order.id"
+                        [attr.aria-busy]="settlingId() === order.id"
                       >
-                        Pay Now
+                        Settle Transaction
                       </button>
                     }
                     @if (canCancel(order)) {

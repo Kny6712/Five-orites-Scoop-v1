@@ -127,36 +127,47 @@ export class AuthPage {
 
   async signInWithGoogle(): Promise<void> {
     this.isLoading.set(true);
+    this.errorMessage.set('');
     try {
       await this.authService.signInWithGoogle();
       await this.router.navigate(['/dashboard']);
-    } catch {
-      this.errorMessage.set('Google sign-in failed. Please try again.');
+    } catch (err: unknown) {
+      if (this.isGoogleSignInCancelled(err)) return;
+      this.errorMessage.set(this.parseFirebaseError(err));
     } finally {
       this.isLoading.set(false);
     }
   }
 
+  private isGoogleSignInCancelled(err: unknown): boolean {
+    const e = (err ?? {}) as { code?: unknown; message?: unknown };
+    if (String(e.code ?? '') === '12501') return true;
+    const message =
+      typeof e.message === 'string' ? e.message : err instanceof Error ? err.message : '';
+    return /cancel/i.test(message);
+  }
+
   private parseFirebaseError(err: unknown): string {
-    if (err instanceof Error) {
-      const code = (err as { code?: string }).code ?? '';
-      // Deliberately ONE message for every credential failure. Telling a
-      // visitor "no account found with this email" but "incorrect password"
-      // for the same input turns the login form into an account-enumeration
-      // oracle. These two codes are what the SDK throws when Email Enumeration
-      // Protection is OFF; with it on it throws invalid-credential instead.
-      // One message is correct in both configurations.
-      const messages: Record<string, string> = {
-        'auth/user-not-found': 'Incorrect email or password.',
-        'auth/wrong-password': 'Incorrect email or password.',
-        'auth/invalid-credential': 'Incorrect email or password.',
-        'auth/email-already-in-use': 'An account with this email already exists.',
-        'auth/weak-password': 'Password must be at least 6 characters.',
-        'auth/invalid-email': 'Please enter a valid email address.',
-        'auth/too-many-requests': 'Too many attempts. Please try again later.',
-      };
-      return messages[code] ?? err.message ?? 'An unexpected error occurred.';
-    }
-    return 'An unexpected error occurred.';
+    const e = (err ?? {}) as { code?: unknown; message?: unknown };
+    const code = typeof e.code === 'string' ? e.code : '';
+    const fallbackMessage =
+      typeof e.message === 'string' ? e.message : err instanceof Error ? err.message : '';
+    // Deliberately ONE message for every credential failure. Telling a
+    // visitor "no account found with this email" but "incorrect password"
+    // for the same input turns the login form into an account-enumeration
+    // oracle. These two codes are what the SDK throws when Email Enumeration
+    // Protection is OFF; with it on it throws invalid-credential instead.
+    // One message is correct in both configurations.
+    const messages: Record<string, string> = {
+      'auth/user-not-found': 'Incorrect email or password.',
+      'auth/wrong-password': 'Incorrect email or password.',
+      'auth/invalid-credential': 'Incorrect email or password.',
+      'auth/email-already-in-use': 'An account with this email already exists.',
+      'auth/weak-password': 'Password must be at least 6 characters.',
+      'auth/invalid-email': 'Please enter a valid email address.',
+      'auth/too-many-requests': 'Too many attempts. Please try again later.',
+    };
+    if (code && messages[code]) return messages[code];
+    return fallbackMessage || 'An unexpected error occurred.';
   }
 }

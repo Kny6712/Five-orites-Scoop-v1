@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "347528161750",
+    "project_id": "five-orites-scoop",
+    "storage_bucket": "five-orites-scoop.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:347528161750:android:d217ee785f993b45fc9c77",
+        "android_client_info": {
+          "package_name": "com.fiveorites.scoop"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "347528161750-jo6e136pp5qfhuffthcub7o4j4nh8kch.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.fiveorites.scoop",
+            "certificate_hash": "50632a8f28cd0199deaaeee89c8238ba808f5f9e"
+          }
+        },
+        {
+          "client_id": "347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDiTvfW4pbLuJ-2g6qq5UkkOCG3QShrJZA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

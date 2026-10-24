@@ -12,6 +12,13 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
   },
   plugins: {
+    GoogleAuth: {
+      scopes: ['profile', 'email'],
+      // Web OAuth 2.0 client ID from Google Cloud Console. Required for native
+      // sign-in to return an ID token Firebase can verify. Replace with the
+      // real value (manual step) before building the APK.
+      serverClientId: '347528161750-umcfk1ieertagn3dla6gpnqah0tvb5g9.apps.googleusercontent.com',
+    },
     // No PushNotifications block. The plugin itself was uninstalled when the
     // notification system became in-app-only: a native push notification renders
     // in the Android notification shade, which is outside the application, and

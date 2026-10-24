@@ -1,5 +1,5 @@
 // src/app/features/cart/cart.page.ts
-// Five-orites Scoop — Cart & Checkout (Fixed double-decrement bug)
+// Five-orites Scoop — Cart & Checkout (Simulated payment, no external gateway)
 
 import { Component, OnDestroy, OnInit, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -22,22 +22,17 @@ import {
 } from '@ionic/angular/standalone';
 import { AppIconComponent } from '@shared/components/ui/app-icon.component';
 import { catchError, of, Subscription } from 'rxjs';
+import { Timestamp } from '@angular/fire/firestore';
 import { CartService } from '@core/services/commerce/cart.service';
 import { OrderService } from '@core/services/orders/order.service';
-import { PaymentService } from '@core/services/orders/payment.service';
-import {
-  PAYMENT_CHANNEL_META,
-  PaymentOutcome,
-  ReturnHint,
-  XenditChannelCode,
-  parseReturnHint,
-} from '@core/models/payment.model';
+import { PaymentOutcome, ReturnHint, parseReturnHint } from '@core/models/payment.model';
 import { Order } from '@core/models/order.model';
 import { AddressService } from '@core/services/identity/address.service';
 import { VoucherService } from '@core/services/commerce/voucher.service';
 import { InventoryService } from '@core/services/catalog/inventory.service';
 import { Cart, CartItem, getDeliveryFee, FREE_DELIVERY_THRESHOLD } from '@core/models/cart.model';
 import { Product, SizeVariant } from '@core/models/product.model';
+import { isPermissionDeniedError } from '@core/logic/firestore-error';
 import { PesoPipe } from '@shared/pipes/peso.pipe';
 import { CloudinaryPipe } from '@shared/pipes/cloudinary.pipe';
 import { SIZE_DISPLAY_LABELS } from '@core/config/pricing.config';
@@ -60,21 +55,20 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
  * How long a returned customer gets the "Checking your payment…" screen before
  * the page admits it does not have an answer yet.
  *
- * Xendit's webhook is normally seconds behind the redirect, but "normally" is
- * not a guarantee and a screen that spins forever is worse than one that says
- * "we haven't confirmed this yet". After this window the page falls back to the
- * honest unpaid screen — and keeps listening, so a late webhook still lands as
- * a success rather than stranding a paid order as unpaid.
+ * After this window the page falls back to the honest unpaid screen — and keeps
+ * listening, so a late update still lands as a success rather than stranding a
+ * paid order as unpaid.
  */
 const PAYMENT_CHECK_GRACE_MS = 20_000;
 
 /**
  * The order the customer is currently paying for, remembered across a reload.
  *
- * The return from Xendit is a full page load, and so is pressing the browser's
- * back button out of it — which loses every signal in memory. Without this the
- * second tap on "Continue to Payment" would mint a SECOND order for the same
- * basket, which is exactly what the plan's duplicate-handling section forbids.
+ * The return from the simulated payment is a full page load, and so is pressing
+ * the browser's back button out of it — which loses every signal in memory.
+ * Without this the second tap on "Continue to Payment" would mint a SECOND
+ * order for the same basket, which is exactly what the plan's duplicate-handling
+ * section forbids.
  *
  * `signature` + `address` + `notes` are what make reuse honest rather than
  * blind: if the basket or the delivery details have changed since the order
@@ -122,7 +116,6 @@ const PENDING_PAYMENT_ORDER_KEY = 'pendingPaymentOrder';
 export class CartPage implements OnInit, OnDestroy {
   private cartService = inject(CartService);
   private orderService = inject(OrderService);
-  private paymentService = inject(PaymentService);
   private route = inject(ActivatedRoute);
   private addressService = inject(AddressService);
   private voucherService = inject(VoucherService);
@@ -137,7 +130,7 @@ export class CartPage implements OnInit, OnDestroy {
    *
    * Replaces the old `checkoutStep: 1 | 3` pair, which could only say "cart"
    * or "order placed" — a single outcome that no longer describes a journey
-   * where the customer leaves the app and comes back with money either taken
+   * where the customer simulates payment and comes back with money either taken
    * or not taken. See `PaymentOutcome`.
    */
   paymentOutcome = signal<PaymentOutcome>('idle');
@@ -147,7 +140,7 @@ export class CartPage implements OnInit, OnDestroy {
    * True only while a payment session is being created.
    *
    * Guards BOTH entry points against a double tap: a second call while one is
-   * in flight would either mint two orders or mint two Xendit sessions for the
+   * in flight would either mint two orders or mint two payment sessions for the
    * same one.
    */
   isPreparingPayment = signal(false);
@@ -155,10 +148,22 @@ export class CartPage implements OnInit, OnDestroy {
   lastOrderId = signal<string | null>(null);
   /** Display figure until the order document supplies the authoritative one. */
   lastOrderTotal = signal(0);
+  lastOrderPlaced = signal<string | null>(null);
+  lastOrderPaidAt = signal<string | null>(null);
+  lastOrderSubtotal = signal(0);
+  lastOrderDiscount = signal(0);
+  lastOrderVoucher = signal<string | null>(null);
+  lastOrderDelivery = signal(0);
+  lastOrderAddress = signal('');
   /** What the return URL CLAIMED, kept only to choose the wording on screen. */
   returnHint = signal<ReturnHint | null>(null);
-  /** Channel chosen before leaving the app. Sent to the backend, never trusted as money. */
-  selectedChannel = signal<XenditChannelCode>('GCASH');
+  /** Whether to show the success modal after transaction settlement. */
+  showSuccessModal = signal(false);
+
+  /** Listener retry configuration for handling transient permission errors. */
+  private readonly MAX_WATCH_RETRIES = 3;
+  private readonly WATCH_RETRY_DELAY_MS = 1000;
+
   savedAddresses = signal<string[]>([]);
   /** Which saved address, if any, is currently chosen. Drives the radio row. */
   selectedAddress = signal<string | null>(null);
@@ -190,8 +195,6 @@ export class CartPage implements OnInit, OnDestroy {
 
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
   readonly freeDeliveryThreshold = FREE_DELIVERY_THRESHOLD;
-  /** The channel picker's rows. Same three the backend allowlists. */
-  readonly channels = PAYMENT_CHANNEL_META;
 
   /**
    * The short human handle on an order id — `A5ICWL` from `…A5ICWL`.
@@ -204,6 +207,9 @@ export class CartPage implements OnInit, OnDestroy {
     const id = this.lastOrderId();
     return id ? id.slice(-6).toUpperCase() : '';
   });
+
+  /** The order's line items, captured for the demo receipt. */
+  readonly receiptItems = computed(() => this.cart().items);
 
   deliveryFee = computed(() => getDeliveryFee(this.cart().totalAmount));
   isFreeDelivery = computed(() => this.deliveryFee() === 0 && this.cart().items.length > 0);
@@ -240,18 +246,9 @@ export class CartPage implements OnInit, OnDestroy {
     // makes availableFor() return undefined, and clampToStock passes the
     // quantity through uncapped when availability is unknown — so a failed read
     // would silently DISABLE the stock cap. The user is told instead.
-    //
-    // The comment here used to end "and the server-side check in
-    // validateAndDecrementStock remains the backstop". That method had no
-    // callers left and was deleted: stock is reserved by the
-    // reconcileOrderStock Cloud Function, which decrements in a transaction and
-    // cancels the order itself if the shelf is short. That is the backstop now.
-    // See CUTOVER.md for why the function has to be live before the customer
-    // branch of the products rule is removed.
     this.inventoryService
       .getProducts()
       .pipe(
-        takeUntilDestroyed(),
         catchError((err) => {
           console.error('Failed to load stock levels.', err);
           this.stockUnavailable.set(true);
@@ -271,7 +268,6 @@ export class CartPage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.consumeHandedOverVoucher();
-    this.selectedChannel.set(this.paymentService.preferredChannel);
     this.consumePaymentReturn();
   }
 
@@ -279,10 +275,10 @@ export class CartPage implements OnInit, OnDestroy {
    * The listener on the order document, and the window on the checking screen.
    *
    * The listener is the only thing on this page that can say a payment
-   * happened: it is a live snapshot of the one field the verified webhook
+   * happened: it is a live snapshot of the one field the simulated payment
    * writes. It survives a wrong answer from the return URL on purpose — a
-   * "payment failed" claim gets overwritten the moment the webhook says paid,
-   * and the other way around.
+   * "payment failed" claim gets overwritten the moment the order document says
+   * paid, and the other way around.
    */
   private paymentWatch?: Subscription;
   private checkGraceTimer?: ReturnType<typeof setTimeout>;
@@ -337,19 +333,19 @@ export class CartPage implements OnInit, OnDestroy {
     void this.applyVoucher();
   }
 
-  // ── The return from Xendit ───────────────────────────────────────────────────
+  // ── The return from the payment step ───────────────────────────────────
 
   /**
-   * Picks the journey back up where the provider handed it over.
+   * Picks the journey back up where the payment step handed it over.
    *
    * The query parameters choose which screen opens. They never choose what the
    * screen SAYS about money: `?payment=success` is a string in an address bar,
    * editable by anyone, so the screen opens and then reads the order document —
-   * the field only the verified webhook writes — before claiming anything.
+   * the field the internal settlement writes — before claiming anything.
    *
    * Two ways in, and they are not equivalent:
-   *  - a return URL (`orderId` present) means the customer went to Xendit, so
-   *    the outcome is genuinely unknown and the page waits for an answer;
+   *  - a return URL (`orderId` present) means the customer went to the payment
+   *    step, so the outcome is genuinely unknown and the page waits for an answer;
    *  - no return URL but a remembered order means they pressed back out of it,
    *    which means nothing happened, so the page says so immediately.
    */
@@ -367,7 +363,7 @@ export class CartPage implements OnInit, OnDestroy {
     this.errorMessage.set('');
 
     if (!fromReturnUrl) {
-      // Back-button or a cold reopen: no provider hand-off happened, so the
+      // Back-button or a cold reopen: no payment hand-off happened, so the
       // unpaid screen is the truth already and there is nothing to wait for.
       this.paymentOutcome.set('pending');
     } else if (hint === 'failed') {
@@ -376,8 +372,8 @@ export class CartPage implements OnInit, OnDestroy {
       this.paymentOutcome.set('pending');
     } else {
       // Claimed success, or no claim at all. Both are held as "checking"
-      // rather than believed, because a success shown before the webhook is a
-      // promise the app has no evidence for yet.
+      // rather than believed, because a success shown before the order document
+      // confirms it is a promise the app has no evidence for yet.
       this.paymentOutcome.set('checking');
       this.startCheckGrace();
     }
@@ -385,15 +381,58 @@ export class CartPage implements OnInit, OnDestroy {
     this.watchPayment(orderId);
   }
 
-  private watchPayment(orderId: string): void {
+  private watchPayment(orderId: string, retryCount = 0): void {
     this.stopPaymentWatch();
+
     this.paymentWatch = this.orderService.trackOrder(orderId).subscribe({
-      next: (order) => this.applyPaymentSnapshot(order),
+      next: (order) => {
+        // Clear any stale permission errors once we successfully read.
+        // This is critical: a failed settlement attempt may have set an error,
+        // but if the listener successfully reads a paid order, that error is stale
+        // and must be cleared to prevent showing error banners on success screens.
+        const currentError = this.errorMessage();
+        if (currentError.includes('permission') || currentError.includes('insufficient')) {
+          console.log('[Listener] Successfully read order, clearing stale permission error');
+          this.errorMessage.set('');
+        }
+        this.applyPaymentSnapshot(order);
+      },
       error: (err) => {
-        // The order cannot be read at all. The screen keeps the return URL's
-        // claim and invents nothing: on a failed read, guessing an outcome
-        // about money is the one thing worse than not answering.
-        console.error('Payment status watch failed.', err);
+        // Distinguish between permission errors (retryable) and others (fatal)
+        const isPermissionError = isPermissionDeniedError(err);
+
+        if (isPermissionError && retryCount < this.MAX_WATCH_RETRIES) {
+          console.warn(
+            `[Listener] Permission denied (attempt ${retryCount + 1}/${this.MAX_WATCH_RETRIES}), retrying...`,
+            err,
+          );
+
+          // Retry with exponential backoff
+          setTimeout(
+            () => {
+              this.watchPayment(orderId, retryCount + 1);
+            },
+            this.WATCH_RETRY_DELAY_MS * Math.pow(2, retryCount),
+          );
+        } else {
+          // The order cannot be read at all. The screen keeps the return URL's
+          // claim and invents nothing: on a failed read, guessing an outcome
+          // about money is the one thing worse than not answering.
+          console.error('[Listener] Payment status watch failed after retries.', err);
+
+          // CRITICAL: Never overwrite error messages that came from settlement attempts.
+          // Listener errors are internal monitoring issues and should not replace
+          // user-facing settlement errors. Only set listener-specific errors if
+          // there's no existing error message AND it's not a permission issue.
+          const currentError = this.errorMessage();
+          if (!currentError && !isPermissionError) {
+            this.errorMessage.set('Unable to monitor payment status. Please refresh the page.');
+          } else if (isPermissionError) {
+            console.warn(
+              '[Listener] Permission error after retries, but not showing to user (internal issue)',
+            );
+          }
+        }
       },
     });
   }
@@ -407,10 +446,10 @@ export class CartPage implements OnInit, OnDestroy {
    * Ends the wait, not the question.
    *
    * After the grace window the page stops showing "checking…" — which would be
-   * a lie of a different kind if the webhook is never coming — and falls back
-   * to the unpaid screen. The listener stays attached, so a webhook that lands
-   * a minute later still turns this screen into a success rather than leaving
-   * a paid order described as unpaid.
+   * a lie of a different kind if the update is never coming — and falls back
+   * to the unpaid screen. The listener stays attached, so a late update still
+   * turns this screen into a success rather than leaving a paid order described
+   * as unpaid.
    */
   private startCheckGrace(): void {
     if (this.checkGraceTimer !== undefined) return;
@@ -424,8 +463,23 @@ export class CartPage implements OnInit, OnDestroy {
   private applyPaymentSnapshot(order: Order): void {
     this.lastOrderId.set(order.id);
     this.lastOrderTotal.set(order.grandTotal);
+    this.lastOrderPlaced.set(
+      order.createdAt ? order.createdAt.toDate().toLocaleString('en-PH') : null,
+    );
+    this.lastOrderPaidAt.set(order.paidAt ? order.paidAt.toDate().toLocaleString('en-PH') : null);
+    this.lastOrderSubtotal.set(order.totalAmount ?? 0);
+    this.lastOrderDiscount.set(order.discountAmount ?? 0);
+    this.lastOrderVoucher.set(order.voucherCode ?? null);
+    this.lastOrderDelivery.set(order.deliveryFee ?? 0);
+    this.lastOrderAddress.set(order.deliveryAddress ?? '');
 
     if (order.paymentStatus === 'paid') {
+      // CRITICAL: Clear any stale error messages before confirming payment success.
+      // The order document is the authoritative source of truth - if it says paid,
+      // any previous error is obsolete and must be cleared immediately to prevent
+      // showing error banners on the success screen.
+      console.log('[Payment Snapshot] Order is paid, clearing any stale errors and confirming');
+      this.errorMessage.set('');
       this.confirmPaid();
       return;
     }
@@ -442,9 +496,9 @@ export class CartPage implements OnInit, OnDestroy {
    * The one success path on this page.
    *
    * Reached only from a snapshot whose `paymentStatus` is `paid`, which the
-   * backend writes only after Xendit's webhook has been authenticated. The
-   * redirect, the return URL and this customer's wordings of them are all
-   * upstream of this line and none of them can get here.
+   * internal settlement writes. The redirect, the return URL and this customer's
+   * wordings of them are all upstream of this line and none of them can get
+   * here.
    */
   private confirmPaid(): void {
     this.stopPaymentWatch();
@@ -455,11 +509,17 @@ export class CartPage implements OnInit, OnDestroy {
     this.forgetRememberedOrder();
     // THE ONE PLACE THE CART DIES. Not in OrderService: creating the order
     // document is only the first step of the journey, and the basket has to
-    // survive it so the customer can come back from Xendit and pay for the
-    // same thing. Now the money is provably in, the basket has no further
+    // survive it so the customer can come back and settle the transaction for
+    // the same thing. Now the money is provably in, the basket has no further
     // purpose. `clearCart()` itself is unchanged and still serves the
     // explicit "Clear Cart" button.
     this.cartService.clearCart();
+  }
+
+  /** Closes the success modal and navigates to the order tracker. */
+  closeSuccessModal(): void {
+    this.showSuccessModal.set(false);
+    this.viewTracker();
   }
 
   private stopCheckGrace(): void {
@@ -476,9 +536,9 @@ export class CartPage implements OnInit, OnDestroy {
    *
    * Lines and total and voucher, and deliberately NOT the address or the
    * notes: neither field survives a reload, so an empty box would read as
-   * "changed" on every single return from Xendit and force a duplicate order
-   * out of nothing. Those two are compared separately, where an empty value
-   * can be treated as "untouched" instead of as a difference.
+   * "changed" on every single return from the simulated payment and force a
+   * duplicate order out of nothing. Those two are compared separately, where
+   * an empty value can be treated as "untouched" instead of as a difference.
    */
   private cartSignature(): string {
     const lines = this.cart()
@@ -716,11 +776,11 @@ export class CartPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Creates the order, then the payment session, then leaves the app.
+   * Creates the order (unpaid), then shows the payment screen.
    *
-   * The order is written BEFORE the redirect and is born unpaid
+   * The order is written BEFORE the payment step and is born unpaid
    * (`status:'pending'`, `paymentStatus:'pending'`), which is what makes every
-   * later action — resume, retry, Pay Now — able to reuse this same id instead
+   * later action — settle transaction, resume, retry — able to reuse this same id instead
    * of minting a duplicate for a basket the customer has already committed to.
    *
    * The blank-address guard and the saveAddress() call live here because
@@ -739,10 +799,6 @@ export class CartPage implements OnInit, OnDestroy {
     // Checked BEFORE an order exists. Writing a document that nothing could
     // ever take payment for would leave a dead row in My Orders and a customer
     // tapping a button that fails identically every time.
-    if (!this.paymentService.isConfigured) {
-      this.errorMessage.set('Payments are not set up on this build yet.');
-      return;
-    }
     this.errorMessage.set('');
     this.addressService.saveAddress(this.deliveryAddress.trim());
     this.isPreparingPayment.set(true);
@@ -755,9 +811,9 @@ export class CartPage implements OnInit, OnDestroy {
       let orderId = this.reusableOrderId();
       if (orderId) {
         // RESUMING. The order already exists with its own totals, address and
-        // notes, so none of that is rewritten here — only a new payment
-        // session is minted for it. This is the path the second tap after a
-        // return from Xendit takes, and the reason it cannot duplicate.
+        // notes, so none of that is rewritten here. This is the path the second
+        // tap after a return from the payment step takes, and the reason it
+        // cannot duplicate.
         this.lastOrderId.set(orderId);
       } else {
         // A result screen may still be describing an order this basket is not.
@@ -769,23 +825,12 @@ export class CartPage implements OnInit, OnDestroy {
         this.rememberOrder(orderId);
       }
 
-      // Pass only the ORDER ID. The backend re-reads the document and
-      // re-prices everything from it — basket, voucher, delivery fee — so the
-      // amount Xendit charges cannot be set by this browser. That is also why
-      // the notes and the voucher are left alone above: clearing them would
-      // change what "the same basket" means on the next tap and force a
-      // duplicate order out of a cosmetic difference.
-      const session = await this.paymentService.createSession(orderId, this.selectedChannel());
-      // Past this line the page is about to be replaced by Xendit's. Whatever
-      // happens over there — payment, failure, cancellation, a dead phone —
-      // the cart is still here when the customer comes back.
-      this.paymentService.goToCheckout(session.checkoutUrl);
+      // Show the payment screen so the customer can click
+      // "Settle Transaction" on the same order.
+      this.paymentOutcome.set('pending');
     } catch (err: unknown) {
-      // An order may well have been created before this threw. It is remembered
-      // on purpose: the next tap resumes THAT order instead of writing a second
-      // one for the same basket.
       const message =
-        err instanceof Error ? err.message : 'We could not start your payment. Please try again.';
+        err instanceof Error ? err.message : 'We could not create your order. Please try again.';
       this.errorMessage.set(message);
       const toast = await this.toastCtrl.create({
         message,
@@ -800,12 +845,71 @@ export class CartPage implements OnInit, OnDestroy {
   }
 
   /**
-   * New payment session for an order that already exists.
+   * Settles the transaction for the current order.
    *
-   * Drives both "Resume Payment" (the customer cancelled or never came back)
-   * and "Try Again" (it failed) — they are the same operation, differing only
-   * in which word the customer arrived on. The order id never changes, which
-   * is the whole point: retrying must never produce a second order.
+   * The order is marked `paymentStatus:'paid'`, `paymentMethod:'INTERNAL'`,
+   * `paidAt: now`, and `paymentReference:'TXN-<orderId>'`, then the success
+   * modal is shown and the cart is cleared.
+   */
+  async settleTransaction(): Promise<void> {
+    if (this.isPreparingPayment()) {
+      console.log('[Settlement] Already in progress, ignoring duplicate click');
+      return;
+    }
+    const orderId = this.lastOrderId();
+    if (!orderId) {
+      this.errorMessage.set('No order to pay for.');
+      return;
+    }
+
+    console.log(`[Settlement] Starting transaction settlement for order ${orderId}`);
+    this.isPreparingPayment.set(true);
+    this.errorMessage.set('');
+
+    try {
+      const settlementData = {
+        paymentStatus: 'paid' as const,
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: `TXN-${orderId}`,
+        updatedAt: Timestamp.now(),
+      };
+      console.log('[Settlement] Attempting update with data:', settlementData);
+      console.log('[Settlement] Calling updateOrder...');
+      await this.orderService.updateOrder(orderId, settlementData);
+      console.log('[Settlement] Update succeeded, proceeding with success flow');
+      this.lastOrderTotal.set(this.grandTotal());
+      this.confirmPaid();
+      this.forgetRememberedOrder();
+      this.showSuccessModal.set(true);
+    } catch (err: unknown) {
+      // This catches ONLY write errors, not listener errors
+      console.error('[Settlement] Write failed:', err);
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'We could not settle your transaction. Please try again.';
+      this.errorMessage.set(message);
+      const toast = await this.toastCtrl.create({
+        message,
+        color: 'danger',
+        duration: 4000,
+        position: 'top',
+      });
+      await toast.present();
+    } finally {
+      console.log('[Settlement] Resetting isPreparingPayment flag');
+      this.isPreparingPayment.set(false);
+    }
+  }
+
+  /**
+   * New payment attempt for an order that already exists.
+   *
+   * Drives "Settle Transaction" on the orders list — the same operation as settleTransaction,
+   * differing only in which word the customer arrived on. The order id never
+   * changes, which is the whole point: retrying must never produce a second
+   * order.
    */
   async resumePayment(): Promise<void> {
     if (this.isPreparingPayment()) return;
@@ -816,22 +920,27 @@ export class CartPage implements OnInit, OnDestroy {
       void this.router.navigate(['/orders']);
       return;
     }
-    if (!this.paymentService.isConfigured) {
-      this.errorMessage.set('Payments are not set up on this build yet.');
-      return;
-    }
 
     this.errorMessage.set('');
     this.isPreparingPayment.set(true);
     try {
-      const session = await this.paymentService.createSession(orderId, this.selectedChannel());
-      this.paymentService.goToCheckout(session.checkoutUrl);
+      await this.orderService.updateOrder(orderId, {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: `TXN-${orderId}`,
+        updatedAt: Timestamp.now(),
+      });
+      this.lastOrderId.set(orderId);
+      this.lastOrderTotal.set(this.grandTotal());
+      this.confirmPaid();
+      this.forgetRememberedOrder();
+      this.showSuccessModal.set(true);
     } catch (err: unknown) {
       // The screen the customer was on stays put — it is still the truth —
       // and the failure is reported beside the button that raised it.
       const message =
         err instanceof Error ? err.message : 'We could not restart your payment. Please try again.';
-      this.errorMessage.set(message);
       const toast = await this.toastCtrl.create({
         message,
         color: 'danger',
@@ -842,18 +951,6 @@ export class CartPage implements OnInit, OnDestroy {
     } finally {
       this.isPreparingPayment.set(false);
     }
-  }
-
-  /**
-   * Picks the channel the next session will be created for.
-   *
-   * Persisted through PaymentService, not held in this page alone: Pay Now on
-   * the orders list has to be able to offer the same method without a picker
-   * of its own, and the customer should not have to say it twice.
-   */
-  selectChannel(code: XenditChannelCode): void {
-    this.selectedChannel.set(code);
-    this.paymentService.preferredChannel = code;
   }
 
   /**
@@ -867,6 +964,7 @@ export class CartPage implements OnInit, OnDestroy {
   editCart(): void {
     this.paymentOutcome.set('idle');
     this.errorMessage.set('');
+    this.showSuccessModal.set(false);
   }
 
   trackItem(_: number, item: CartItem): string {
@@ -876,6 +974,130 @@ export class CartPage implements OnInit, OnDestroy {
   orderMore(): void {
     this.editCart();
     void this.router.navigate(['/products']);
+  }
+
+  /** Prints a professional receipt via the browser's print dialog. */
+  printReceipt(): void {
+    const orderId = this.lastOrderId();
+    const total = this.lastOrderTotal();
+    const subtotal = this.lastOrderSubtotal();
+    const discount = this.lastOrderDiscount();
+    const delivery = this.lastOrderDelivery();
+    const voucher = this.lastOrderVoucher();
+    const address = this.lastOrderAddress();
+    const placed = this.lastOrderPlaced();
+    const paidAt = this.lastOrderPaidAt();
+    const items = this.receiptItems();
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const itemsHtml = items
+      .map(
+        (i) =>
+          `<tr>
+            <td class="item-name">${i.variantName} (${this.sizeLabels[i.size]}) × ${i.quantity}</td>
+            <td class="item-price">${(i.unitPrice * i.quantity).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</td>
+          </tr>`,
+      )
+      .join('');
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Receipt #${orderId?.slice(-6).toUpperCase()}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #1a1a1a; padding: 20px; max-width: 320px; margin: 0 auto; }
+          @media print { body { padding: 0; max-width: none; } @page { margin: 0; size: auto; } }
+          .receipt { border: 1px solid #ddd; border-radius: 8px; padding: 24px; background: #fff; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; }
+          .logo { font-size: 24px; margin-bottom: 8px; }
+          .shop-name { font-weight: 700; font-size: 16px; letter-spacing: 0.5px; }
+          .shop-tagline { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+          .receipt-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; }
+          .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; margin-bottom: 16px; }
+          .meta-label { color: #666; }
+          .meta-value { font-weight: 500; text-align: right; }
+          .divider { border-top: 1px dashed #ccc; margin: 16px 0; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          th { text-align: left; font-weight: 600; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid #1a1a1a; }
+          td { padding: 8px 0; font-size: 12px; vertical-align: top; }
+          .item-name { color: #1a1a1a; }
+          .item-price { text-align: right; font-weight: 500; white-space: nowrap; }
+          .totals { font-size: 12px; }
+          .total-row { display: flex; justify-content: space-between; padding: 4px 0; }
+          .total-label { color: #666; }
+          .total-value { font-weight: 500; }
+          .total-row.grand { border-top: 1px solid #1a1a1a; margin-top: 8px; padding-top: 12px; font-size: 14px; font-weight: 700; }
+          .total-row.grand .total-label, .total-row.grand .total-value { color: #1a1a1a; }
+          .address-section { margin-top: 20px; padding-top: 16px; border-top: 1px dashed #ccc; }
+          .address-label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+          .address-text { font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+          .footer { text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px dashed #ccc; font-size: 11px; color: #999; }
+          .transaction-ref { font-family: monospace; font-size: 11px; background: #f5f5f5; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="header">
+            <div class="logo">🍦</div>
+            <div class="shop-name">FIVE-ORITES SCOOP</div>
+            <div class="shop-tagline">Artisanal Ice Cream</div>
+          </div>
+
+          <div class="receipt-title">Transaction Receipt</div>
+
+          <div class="meta-grid">
+            <span class="meta-label">Order #</span>
+            <span class="meta-value">${orderId?.slice(-6).toUpperCase()}</span>
+            <span class="meta-label">Placed</span>
+            <span class="meta-value">${placed}</span>
+            <span class="meta-label">Paid</span>
+            <span class="meta-value">${paidAt}</span>
+            <span class="meta-label">Transaction Ref</span>
+            <span class="meta-value"><span class="transaction-ref">TXN-${orderId?.slice(-6).toUpperCase()}</span></span>
+          </div>
+
+          <div class="divider"></div>
+
+          <table>
+            <thead>
+              <tr><th>Item</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="divider"></div>
+
+          <div class="totals">
+            <div class="total-row"><span class="total-label">Subtotal</span><span class="total-value">${subtotal.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>
+            ${discount > 0 ? `<div class="total-row"><span class="total-label">Voucher ${voucher}</span><span class="total-value">-${discount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>` : ''}
+            <div class="total-row"><span class="total-label">Delivery</span><span class="total-value">${delivery === 0 ? 'FREE' : delivery.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>
+            <div class="total-row grand"><span class="total-label">Total</span><span class="total-value">${total.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>
+          </div>
+
+          <div class="address-section">
+            <div class="address-label">Delivery Address</div>
+            <div class="address-text">${address}</div>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for your order!</p>
+            <p>Five-orites Scoop • five-orites-scoop.example.com</p>
+          </div>
+        </div>
+        <script>
+          window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   }
 
   viewTracker(): void {

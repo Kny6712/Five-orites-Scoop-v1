@@ -711,6 +711,134 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    * rendered slice, and an export that silently drops 40 rows because you were
    * on page 1 of 4 is worse than no export at all.
    */
+  /**
+   * Prints a professional receipt for an order via the browser's print dialog.
+   */
+  printReceipt(order: Order): void {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const total = order.grandTotal ?? 0;
+    const subtotal = order.totalAmount ?? 0;
+    const discount = order.discountAmount ?? 0;
+    const delivery = order.deliveryFee ?? 0;
+    const itemsHtml = order.items
+      .map(
+        (i) =>
+          `<tr>
+            <td class="item-name">${i.variantName} (${i.size}) × ${i.quantity}</td>
+            <td class="item-price">${(i.unitPrice * i.quantity).toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</td>
+          </tr>`,
+      )
+      .join('');
+    const placed = this.formatDate(order.createdAt);
+    const paidAt = order.paidAt ? this.formatDate(order.paidAt) : '—';
+    const transactionRef = order.paymentReference ?? '—';
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Receipt #${order.id.slice(-6)}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; line-height: 1.4; color: #1a1a1a; padding: 20px; max-width: 320px; margin: 0 auto; }
+          @media print { body { padding: 0; max-width: none; } @page { margin: 0; size: auto; } }
+          .receipt { border: 1px solid #ddd; border-radius: 8px; padding: 24px; background: #fff; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; }
+          .logo { font-size: 24px; margin-bottom: 8px; }
+          .shop-name { font-weight: 700; font-size: 16px; letter-spacing: 0.5px; }
+          .shop-tagline { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+          .receipt-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 1px; margin: 16px 0 8px; }
+          .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px; margin-bottom: 16px; }
+          .meta-label { color: #666; }
+          .meta-value { font-weight: 500; text-align: right; }
+          .divider { border-top: 1px dashed #ccc; margin: 16px 0; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+          th { text-align: left; font-weight: 600; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 8px; border-bottom: 1px solid #1a1a1a; }
+          td { padding: 8px 0; font-size: 12px; vertical-align: top; }
+          .item-name { color: #1a1a1a; }
+          .item-price { text-align: right; font-weight: 500; white-space: nowrap; }
+          .totals { font-size: 12px; }
+          .total-row { display: flex; justify-content: space-between; padding: 4px 0; }
+          .total-label { color: #666; }
+          .total-value { font-weight: 500; }
+          .total-row.grand { border-top: 1px solid #1a1a1a; margin-top: 8px; padding-top: 12px; font-size: 14px; font-weight: 700; }
+          .total-row.grand .total-label, .total-row.grand .total-value { color: #1a1a1a; }
+          .address-section { margin-top: 20px; padding-top: 16px; border-top: 1px dashed #ccc; }
+          .address-label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+          .address-text { font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+          .footer { text-align: center; margin-top: 24px; padding-top: 16px; border-top: 1px dashed #ccc; font-size: 11px; color: #999; }
+          .transaction-ref { font-family: monospace; font-size: 11px; background: #f5f5f5; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="header">
+            <div class="logo">🍦</div>
+            <div class="shop-name">FIVE-ORITES SCOOP</div>
+            <div class="shop-tagline">Artisanal Ice Cream</div>
+          </div>
+
+          <div class="receipt-title">Transaction Receipt</div>
+
+          <div class="meta-grid">
+            <span class="meta-label">Order #</span>
+            <span class="meta-value">${order.id.slice(-6).toUpperCase()}</span>
+            <span class="meta-label">Placed</span>
+            <span class="meta-value">${placed}</span>
+            <span class="meta-label">Paid</span>
+            <span class="meta-value">${paidAt}</span>
+            <span class="meta-label">Transaction Ref</span>
+            <span class="meta-value"><span class="transaction-ref">${transactionRef}</span></span>
+          </div>
+
+          <div class="divider"></div>
+
+          <table>
+            <thead>
+              <tr><th>Item</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <div class="divider"></div>
+
+          <div class="totals">
+            <div class="total-row"><span class="total-label">Subtotal</span><span class="total-value">${subtotal.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>
+            ${discount > 0 ? `<div class="total-row"><span class="total-label">Voucher ${order.voucherCode}</span><span class="total-value">-${discount.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>` : ''}
+            <div class="total-row"><span class="total-label">Delivery</span><span class="total-value">${delivery === 0 ? 'FREE' : delivery.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>
+            <div class="total-row grand"><span class="total-label">Total</span><span class="total-value">${total.toLocaleString('en-PH', { style: 'currency', currency: 'PHP', minimumFractionDigits: 2 })}</span></div>
+          </div>
+
+          <div class="address-section">
+            <div class="address-label">Delivery Address</div>
+            <div class="address-text">${order.deliveryAddress}</div>
+          </div>
+
+          <div class="footer">
+            <p>Thank you for your order!</p>
+            <p>Five-orites Scoop • five-orites-scoop.example.com</p>
+          </div>
+        </div>
+        <script>
+          window.onload = function() { window.print(); window.onafterprint = function() { window.close(); }; };
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  }
+
+  /**
+   * Exports the whole FILTERED queue, not just the visible page.
+   *
+   * Every other admin export in the app takes the filtered set rather than the
+   * rendered slice, and an export that silently drops 40 rows because you were
+   * on page 1 of 4 is worse than no export at all.
+   */
   async exportCsv(): Promise<void> {
     const rows = [
       [
