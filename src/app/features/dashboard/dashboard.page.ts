@@ -307,15 +307,29 @@ export class DashboardPage implements OnInit, OnDestroy {
           orders.filter((o) => o.status === 'pending' || o.status === 'confirmed').length,
         );
 
-        // Today's revenue: delivered orders today (paymentStatus stays
-        // 'pending' until a payment gateway is integrated).
+        // Today's revenue: orders confirmed PAID by the Xendit webhook today.
+        //
+        // The previous filter accepted `status === 'delivered'` as evidence of
+        // payment, which was the right temporary approximation before the gateway
+        // existed — delivered means money changed hands somehow. Now that
+        // `paymentStatus === 'paid'` is written by the verified webhook, it is
+        // the authoritative signal, and delivered-but-not-paid (cash on
+        // delivery, a legacy order pre-gateway) is a separate case. Revenue
+        // counts what Xendit confirmed, not what was handed over at the door.
+        //
+        // `createdAt` is still the date field, not `paidAt`. `paidAt` is only
+        // set by the webhook and absent on legacy orders, so using it as the
+        // date dimension would drop every legitimate today order placed and paid
+        // in the same session. `createdAt` is always present and already
+        // reflects when the customer placed the order.
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const todayOrders = orders.filter((o) => {
+          if (o.paymentStatus !== 'paid') return false;
           try {
             const raw = o.createdAt as unknown as { toDate(): Date } | string;
             const date = typeof raw === 'string' ? new Date(raw) : raw.toDate();
-            return date >= today && (o.status === 'delivered' || o.paymentStatus === 'paid');
+            return date >= today;
           } catch {
             return false;
           }

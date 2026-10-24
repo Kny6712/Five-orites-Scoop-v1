@@ -885,6 +885,88 @@
   cursor: default;
 }
 
+/* The one line under the CTA. It answers the question the label raises —
+   "what happens to my cart if I don't finish?" — which is the anxiety that
+   makes people tap back rather than continue. Quiet: 13px, muted, centred
+   under the button it is about. */
+.pay-note {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ion-color-medium);
+  text-align: center;
+}
+
+/* ── Payment method picker ─────────────────────────────────
+
+   Rows, not cards: three options for a decision that takes a second do not
+   each need a surface, a shadow and 40px of padding. The row is a button, so
+   it takes the whole width as a target, and the SELECTED one is marked by a
+   tint plus a tick — the same two cues the saved-address chooser uses, so the
+   app says "this one is chosen" in one voice everywhere it says it. */
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.channel-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-md);
+  background: var(--color-white);
+  color: var(--color-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.channel-option:hover {
+  border-color: var(--color-primary-ink);
+}
+
+.channel-option:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+
+.channel-option.is-selected {
+  border-color: var(--color-primary-ink);
+  background: var(--tile-powder);
+}
+
+.channel-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.channel-label {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.channel-blurb {
+  font-size: 13px;
+  color: var(--ion-color-medium);
+}
+
+.channel-tick {
+  --icon-size: 20px;
+  flex: 0 0 auto;
+  color: var(--color-primary-ink);
+}
+
 /* THE WAY BACK, at the page's top left.
 
    It was a button at the foot of the right-hand rail, below the Place Order
@@ -954,8 +1036,13 @@
   outline-offset: 2px;
 }
 
-// ── Confirmed ────────────────────────────────────────────
-.confirmed-state {
+// ── Payment result ─────────────────────────────────────────
+/* The centred stage the confirmation screen used to own, now shared by all
+   four payment outcomes. One shape for "here is what happened", because they
+   differ only in an icon, a sentence and a pair of buttons — giving each its
+   own layout would make the customer re-orient at the exact moment they are
+   waiting for an answer about money. */
+.pay-result {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -964,6 +1051,13 @@
   gap: 14px;
   text-align: center;
   padding: 20px;
+}
+/* The failure banner is a block, not a line: it carries a full sentence and
+   it must not be centred into a narrow ribbon beside the icon. */
+.pay-result app-alert-banner {
+  width: 100%;
+  max-width: 520px;
+  text-align: left;
 }
 /* 56px, at a 1.2 stroke.
 
@@ -974,33 +1068,59 @@
    weight a 24px icon has at its natural size.
 
    --icon-stroke is the app-icon component's own hook, so the vendored Lucide
-   geometry is untouched. */
-.confirmed-icon {
+   geometry is untouched.
+
+   Muted by default: 'checking' and 'pending' are waiting states and neither
+   has earned a colour. The two that have take one below. */
+.pay-icon {
   --icon-size: 56px;
   --icon-stroke: 1.2;
+  color: var(--ion-color-medium);
+}
+.pay-icon--success {
   color: var(--color-success);
 }
-.confirmed-title {
+.pay-icon--danger {
+  color: var(--ion-color-danger);
+}
+.pay-title {
   font-size: 28px;
   font-weight: 800;
   margin: 0;
   color: var(--ion-color-dark);
 }
-.confirmed-sub {
+.pay-sub {
   font-size: 15px;
   color: var(--ion-color-medium);
   margin: 0;
-  max-width: 280px;
+  max-width: 420px;
 }
-/* The two actions of the confirmation screen. .confirmed-state centres its flex
-   items, so without a width of its own this wrapper shrinks to the buttons'
-   content width and `expand="block"` has nothing to expand into — the pair reads
-   as two small buttons floating mid-screen instead of the full-width pair the
-   checkout step shows. Capped so it stays the width of the rest of the screen
-   on a desktop split pane rather than stretching the length of the panel. */
-.confirmed-actions {
+/* The order's own handle and figure, in the dark ink rather than the muted
+   one: it is the thing the customer quotes to the shop, and it is never
+   invented here — both values come from the order document. */
+.pay-ref {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ion-color-dark);
+  margin: 0;
+}
+/* The action pair on a result screen. .pay-result centres its flex items, so
+   without a width of its own this wrapper shrinks to the buttons' content
+   width and the pair reads as two small buttons floating mid-screen. Capped so
+   it stays a sensible width on a desktop split pane rather than stretching the
+   length of the panel — the same reason the old confirmation wrapper had one. */
+.pay-actions {
   width: 100%;
   max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* The quiet button carries its own top margin from the old stacked layout;
+   the wrapper's gap already does that job here, and both together would put
+   16px between the pair and 8px everywhere else. */
+.pay-actions .confirmed-alt {
+  margin-top: 0;
 }
 
 /* The pair of buttons, as the app's two button families: the gold CTA and the

@@ -252,6 +252,35 @@ export class AuthService {
     return this.currentUserSubject.getValue();
   }
 
+  /**
+   * The Firebase ID token for the signed-in user, or null.
+   *
+   * Needed by the payment backend (`payment-server/`), which must know that the
+   * caller owns the order before it mints a Xendit payment request. Firestore
+   * rules cannot do that check for it — the payment service reads with the
+   * Admin SDK, which is exempt from rules entirely.
+   *
+   * Reads `this.auth.currentUser` rather than the subject, because the subject
+   * holds an APP user assembled from Firestore, which carries no credential.
+   * A token is only available from the Firebase Auth record itself.
+   *
+   * `getIdToken(false)` asks for a cached token where one exists, which is the
+   * common case: the token is fresh for an hour and re-minting one on every
+   * "Continue to Payment" tap would be a network round trip for no benefit.
+   */
+  async getIdToken(): Promise<string | null> {
+    try {
+      return (await this.auth.currentUser?.getIdToken(false)) ?? null;
+    } catch (err) {
+      // A refresh can fail when the refresh token is stale — the user was
+      // signed out on the server, or the device was offline past the token's
+      // life. Reported to the caller as "no token" so it can ask them to sign
+      // in again, rather than propagating an SDK-shaped error into the UI.
+      console.error('Failed to obtain ID token:', err);
+      return null;
+    }
+  }
+
   // ── Profile editing ───────────────────────────────────────────────────────
 
   /**

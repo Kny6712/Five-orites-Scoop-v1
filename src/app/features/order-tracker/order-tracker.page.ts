@@ -20,8 +20,17 @@ import { ScoopMapComponent, type MapMarker } from '@shared/components/commerce/s
 import { Subscription, catchError, of } from 'rxjs';
 import { Firestore, doc, setDoc } from '@angular/fire/firestore';
 import { OrderService } from '@core/services/orders/order.service';
-import { Order, OrderStatus, ORDER_STATUS_META } from '@core/models/order.model';
+import { PaymentService } from '@core/services/orders/payment.service';
+import {
+  Order,
+  OrderStatus,
+  ORDER_STATUS_META,
+  PAYMENT_STATUS_META,
+  isPaymentPayable,
+  shouldShowPaymentBadge,
+} from '@core/models/order.model';
 import { OrderStatusBadgeComponent } from '@shared/components/commerce/order-status-badge.component';
+import { PaymentStatusBadgeComponent } from '@shared/components/commerce/payment-status-badge.component';
 import { AppFooterComponent } from '@shared/components/commerce/app-footer.component';
 import { CartButtonComponent } from '@shared/components/commerce/cart-button.component';
 import { PesoPipe } from '@shared/pipes/peso.pipe';
@@ -49,6 +58,7 @@ import { STATUS_SEQUENCE, stepState, type StepState } from '@core/logic/notifica
     IonButtons,
     IonSkeletonText,
     OrderStatusBadgeComponent,
+    PaymentStatusBadgeComponent,
     PesoPipe,
     CartButtonComponent,
     AppIconComponent,
@@ -63,6 +73,7 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   private router = inject(Router);
   private location = inject(Location);
   private orderService = inject(OrderService);
+  private paymentService = inject(PaymentService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
   private firestore = inject(Firestore);
@@ -72,10 +83,18 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   isLoading = signal(true);
   errorMessage = signal('');
   isCancelling = signal(false);
+  /**
+   * The order a payment session is currently being created for.
+   *
+   * Same guard as the orders list: two calls in flight would mint two Xendit
+   * sessions for the same order, and paying one would orphan the other.
+   */
+  isPayingNow = signal(false);
 
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
   readonly statusSequence = STATUS_SEQUENCE;
   readonly statusMeta = ORDER_STATUS_META;
+  readonly paymentMeta = PAYMENT_STATUS_META;
   readonly shopMapsUrl = SHOP_LOCATION.mapsUrl;
 
   isCancelled = computed(() => this.order()?.status === 'cancelled');
@@ -321,6 +340,75 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
 
   canCancel(): boolean {
     return this.order()?.status === 'pending' && !this.isCancelling();
+  }
+
+  /**
+   * Whether the payment badge should be shown on this order.
+   *
+   * Hides it for orders predating the gateway — they carry no
+   * `paymentRequestId`, and their `paymentStatus` has sat at `pending` since
+   * the day they were written.
+   */
+  showPaymentBadge(): boolean {
+    const order = this.order();
+    return order ? shouldShowPaymentBadge(order) : false;
+  }
+
+  /**
+   * Whether "Pay Now" should be shown on this order.
+   *
+   * Four conditions independently mean "do not ask for money": paid already,
+   * refunded, cancelled, or delivered. The last is easy to miss — a delivered
+   * order whose payment failed is a collections problem for the shop to resolve
+   * by hand, not something to re-present a checkout page for.
+   */
+  canPay(): boolean {
+    const order = this.order();
+    return order ? isPaymentPayable(order) : false;
+  }
+
+  /**
+   * Starts a payment session for this unpaid order.
+   *
+   * The order already exists: this is "Continue to Payment" for a customer who
+   * came back to the tracker after a failure or never paid at all. No order is
+   * written, only a new session for the existing one.
+   */
+  async payNow(): Promise<void> {
+    const order = this.order();
+    if (!order || this.isPayingNow()) return;
+
+    if (!this.paymentService.isConfigured) {
+      const toast = await this.toastCtrl.create({
+        message: 'Payments are not set up on this build yet.',
+        color: 'warning',
+        duration: 3000,
+        position: 'top',
+      });
+      await toast.present();
+      return;
+    }
+
+    this.isPayingNow.set(true);
+    try {
+      const session = await this.paymentService.createSession(
+        order.id,
+        this.paymentService.preferredChannel,
+      );
+      this.paymentService.goToCheckout(session.checkoutUrl);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'We could not start your payment. Please try again.';
+      const toast = await this.toastCtrl.create({
+        message,
+        color: 'danger',
+        duration: 4000,
+        position: 'top',
+      });
+      await toast.present();
+    } finally {
+      this.isPayingNow.set(false);
+    }
   }
 
   async cancelOrder(): Promise<void> {

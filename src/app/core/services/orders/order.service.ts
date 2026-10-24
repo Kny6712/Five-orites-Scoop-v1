@@ -120,10 +120,24 @@ export class OrderService {
   private voucherService = inject(VoucherService);
 
   /**
-   * Places an order for the signed-in user's cart.
+   * Creates the order document for the signed-in user's cart.
    *
    * `voucherCode` is a CODE, never a discount amount — the discount is resolved
    * here from Firestore so a tampered client cannot dictate the price.
+   *
+   * ── THE CART IS NO LONGER CLEARED HERE ──────────────────────────────────────
+   *
+   * It used to be, immediately after `addDoc`. With Xendit in the loop the order
+   * is born UNPAID: this method writes it, then the customer leaves the app to
+   * pay on Xendit's hosted page. Clearing the cart at this moment would throw
+   * away the customer's basket the instant they tap a button that has not taken
+   * any money yet — and if they cancel on Xendit's page, or their phone dies
+   * there, they come back to an empty cart and an order they never completed.
+   *
+   * So the cart is cleared when the payment is CONFIRMED, which is the first
+   * moment the order is real in the way the customer means it. See
+   * CartPage.clearCartIfPaid. `clearCart()` is unchanged and still used by the
+   * explicit "Clear Cart" button.
    */
   async placeOrder(
     deliveryAddress: string,
@@ -245,23 +259,24 @@ export class OrderService {
       const ordersCol = collection(this.firestore, 'orders');
       const orderRef = await addDoc(ordersCol, orderData);
 
-      // Step 5: Clear cart ONCE after successful order
+      // Deliberately NO cart clear here (see the docblock above): creating the
+      // order document is only the first step of the payment journey now, and
+      // the cart must survive it so the customer can resume or retry payment
+      // against the same order. The cart is cleared by the cart page once the
+      // Xendit webhook has marked the order paid.
       //
-      // There is deliberately NO redemption counter here. It used to call
+      // There is also deliberately NO redemption counter here. It used to call
       // `voucherService.recordRedemption(voucherId)` immediately after `addDoc`,
       // which could never succeed: `firestore.rules` is `allow write: if
       // isAdmin()` on `vouchers/`, the customer is not an admin, and there is no
       // impersonation mechanism anywhere in the codebase. Every attempt threw
-      // PERMISSION_DENIED into the `console.error` two lines below, so
-      // `usageCount` never moved and `maxRedemptions` could never trip — a promo
-      // code was redeemable without limit, forever.
+      // PERMISSION_DENIED, so `usageCount` never moved and `maxRedemptions`
+      // could never trip — a promo code was redeemable without limit, forever.
       //
       // The counter is now incremented by the `reconcileOrderStock` Cloud Function
       // inside the same transaction that decrements the stock, so the cap is
       // checked and spent atomically and a cancelled order never burns a use.
       // See functions/src/index.ts and CUTOVER.md.
-      this.cartService.clearCart();
-
       return orderRef.id;
     } catch (err) {
       // No compensation needed: nothing was written outside this function, and

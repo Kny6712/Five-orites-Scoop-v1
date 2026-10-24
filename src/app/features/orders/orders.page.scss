@@ -267,8 +267,10 @@
 
 /* NOTHING IN THE GROUP MAY SHRINK. The chip's own width is its content's
    width, and letting the host shrink does not shrink the chip inside it — the
-   label spills out and lands on top of whatever is next. */
+   label spills out and lands on top of whatever is next. Two chips now on
+   some rows, so both are flex: 0 0 auto. */
 .order-top-main app-order-status-badge,
+.order-top-main app-payment-status-badge,
 .order-id {
   flex: 0 0 auto;
 }
@@ -358,18 +360,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── The cancel control ─────────────────────────────────────────
-   A tonal pill. It was an `ion-button fill="clear"` painted as a red word with
+/* ── The pay and cancel controls ────────────────────────────────────────
+   Tonal pills. Cancel was an `ion-button fill="clear"` painted as a red word with
    an underline, which was one step better than what came before it — a
    `fill="outline" color="danger"` pill, six of them down the left edge, the
    loudest thing on a page whose entire job is to be scannable — but the
    underline was a link, not a control, and on a 52px column there was no room
    to be anything but a word.
 
-   The tokens are the app's existing danger tone, and the measured pairs are
+   Pay Now is new, and it is paired with Cancel on some rows (unpaid but
+   cancelable orders), so they share a shape: same min-height, same padding,
+   same radius, same label treatment, same hover. Pay Now is the app's teal, so
+   tapping it feels like progress, and Cancel is the app's danger tone, so
+   tapping it feels like an ending — which is what the two actions are.
+
+   The tokens are the app's existing tones, and the measured pairs are
    asserted in check-contrast.mjs: the pill's fill against the white card
-   (1.15:1), its rim against its own fill (1.4:1) and the ink on both (7.42:1
-   on the fill, 1.17:1 on the card). Nothing here is a new colour pair.
+   (1.15:1 for danger, similar for info), its rim against its own fill (1.4:1
+   danger, similar info) and the ink on both (7.42:1 danger, 11.19:1 info).
+   Nothing here is a new colour pair.
 
    THE TYPE IS .manage-toggle's, NOT THIS PAGE'S. 12px/700 — the cart's Manage /
    Done control (cart.page.scss:102). It was 11.5px here. Two destructive text
@@ -386,6 +395,7 @@
    mis-tap. 30px also stays under the 34px status chip, so the uniform row
    height this layout exists for is untouched — a taller pill would have set a
    new floor on cancellable rows only. */
+.pay-now-btn,
 .cancel-order-btn {
   margin-left: auto;
   min-height: 30px;
@@ -400,16 +410,38 @@
   border-radius: var(--radius-sm);
 
   font: 700 12px var(--font-body);
-  color: var(--tone-danger-ink);
-  background: var(--tone-danger-bg);
-  border: 1px solid var(--tone-danger-border);
-
   cursor: pointer;
   white-space: nowrap;
   transition: border-color 120ms ease;
 
-  /* The `gap: 5px` above is the icon's gutter, kept because it costs nothing at
-     one child. Restore it if an icon comes back. */
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: default;
+    /* Opacity, not a recolour: the pill is already sitting on the card and there
+       is no token darker than either tint to retreat to. */
+    opacity: 0.55;
+  }
+}
+
+.pay-now-btn {
+  color: var(--tone-info-ink);
+  background: var(--tone-info-bg);
+  border: 1px solid var(--tone-info-border);
+
+  /* Hover deepens the RIM, not the fill — same as Cancel. */
+  &:hover:not(:disabled) {
+    border-color: var(--tone-info-ink);
+  }
+}
+
+.cancel-order-btn {
+  color: var(--tone-danger-ink);
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-border);
 
   /* Hover deepens the RIM, not the fill. --tile-blush and --tone-danger-bg are
      the same value (#fde8ee), so there is no second tint to hover into — and a
@@ -417,18 +449,6 @@
      state is not a hover cue at all. */
   &:hover:not(:disabled) {
     border-color: var(--tone-danger-ink);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--tone-danger-ink);
-    outline-offset: 2px;
-  }
-
-  &:disabled {
-    cursor: default;
-    /* Opacity, not a recolour: the pill is already sitting on the card and there
-       is no token darker than --tone-danger-bg to retreat to. */
-    opacity: 0.55;
   }
 }
 
