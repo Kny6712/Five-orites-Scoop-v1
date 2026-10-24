@@ -1251,3 +1251,167 @@
   outline: 2px solid var(--color-primary-ink);
   outline-offset: 2px;
 }
+
+// ── Demo receipt ─────────────────────────────────────────
+/* The demo receipt panel shown on the simulated-payment success screen. It
+   reads like a paper receipt: narrow, centered, bordered, with the shop name
+   at the top and a "SIMULATED" warning no one can miss. */
+.demo-receipt {
+  width: 100%;
+  max-width: 340px;
+  margin: 0 auto;
+  padding: var(--space-5);
+  background: var(--color-white);
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  text-align: center;
+}
+.receipt-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.receipt-warning {
+  font-size: 12px;
+  color: var(--color-danger);
+  margin: 0 0 var(--space-4);
+  font-weight: 700;
+}
+.receipt-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin-bottom: var(--space-4);
+  text-align: left;
+}
+.receipt-meta strong {
+  color: var(--color-ink);
+}
+.receipt-section {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-ink-soft);
+  margin: var(--space-3) 0 var(--space-2);
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.receipt-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-4);
+  text-align: left;
+}
+.receipt-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-ink);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--tile-powder-deep);
+}
+.receipt-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: var(--space-4);
+  text-align: left;
+}
+.receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--color-ink-soft);
+}
+.receipt-total-row--grand {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-ink);
+  border-top: 1px solid var(--tile-powder-deep);
+  padding-top: var(--space-2);
+  margin-top: var(--space-2);
+}
+.receipt-address {
+  margin-bottom: var(--space-4);
+  text-align: left;
+}
+.receipt-address p {
+  font-size: 13px;
+  color: var(--color-ink-soft);
+  margin: 4px 0 0;
+}
+.receipt-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// ── Success Modal ─────────────────────────────────────────
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1001;
+  width: 90%;
+  max-width: 360px;
+  padding: var(--space-6);
+  background: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-modal);
+  text-align: center;
+  animation: modal-in 0.2s ease-out;
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.modal-icon {
+  --icon-size: 56px;
+  --icon-stroke: 1.2;
+  color: var(--color-success);
+  margin-bottom: var(--space-3);
+}
+
+.modal-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-ink);
+  margin: 0 0 var(--space-2);
+}
+
+.modal-message {
+  font-size: 14px;
+  color: var(--color-ink-soft);
+  margin: 0 0 var(--space-5);
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

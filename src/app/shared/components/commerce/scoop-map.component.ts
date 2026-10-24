@@ -36,6 +36,7 @@ import {
   input,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { IonSpinner } from '@ionic/angular/standalone';
@@ -289,6 +290,7 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
 
   readonly markers = input<MapMarker[]>([]);
   readonly route = input<MapRoute | null>(null);
+  readonly selectedMarkerId = input<string | null>(null);
   readonly ariaLabel = input<string>('Map');
   /**
    * CSS height for the map shell, e.g. '340px'. Null falls back to 260px.
@@ -318,6 +320,7 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
 
   isLoading = signal(true);
   hasError = signal(false);
+  private mapReady = signal(false);
 
   private leaflet: LeafletLike | null = null;
   private mapInstance: any = null;
@@ -339,6 +342,21 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
       void markers;
       void route;
       this.redraw();
+    });
+
+    effect(() => {
+      const ready = this.mapReady();
+      if (!ready) return;
+      // Read inputs so the effect re-runs on selection or data changes.
+      void this.selectedMarkerId();
+      void this.markers();
+      void this.route();
+      const route = this.route();
+      const markers = this.markers();
+      const points: [number, number][] = [];
+      if (route) points.push([route.from.lat, route.from.lng], [route.to.lat, route.to.lng]);
+      for (const m of markers) points.push([m.lat, m.lng]);
+      this.applyView(points);
     });
   }
 
@@ -391,6 +409,7 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
 
       this.isLoading.set(false);
       this.redraw();
+      this.mapReady.set(true);
 
       // The container may have been laid out after the map was created (fonts,
       // an image above it finishing). invalidateSize() tells Leaflet to re-read
@@ -492,6 +511,19 @@ export class ScoopMapComponent implements AfterViewInit, OnDestroy {
       this.drawnMarkers.push(m);
     }
 
+    this.applyView(points);
+  }
+
+  private applyView(points: [number, number][]): void {
+    const L = this.leaflet;
+    if (!L || !this.mapInstance) return;
+
+    const selectedId = untracked(() => this.selectedMarkerId());
+    const selected = selectedId ? this.markers().find((m) => m.id === selectedId) : null;
+    if (selected) {
+      this.mapInstance.setView?.([selected.lat, selected.lng], 16);
+      return;
+    }
     if (points.length === 1) {
       this.mapInstance.setView?.(points[0], 15);
     } else if (points.length > 1) {

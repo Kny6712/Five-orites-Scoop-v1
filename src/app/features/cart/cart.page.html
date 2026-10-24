@@ -408,50 +408,17 @@
             }
 
             <!--
-              HOW THEY WILL PAY, chosen here rather than on Xendit's page: the
-              channel decides which Xendit payment request gets created, and
-              being told where a tap is going before it is taken is worth more
-              than one fewer control on this screen.
-
-              The choice is a PREFERENCE and never a price — the backend
-              re-reads the order document and re-prices it from there, so
-              whatever this says, the amount charged is the shop's.
-            -->
-            <section class="cart-card">
-              <h3 class="card-title">Payment Method</h3>
-              <div class="channel-list" role="radiogroup" aria-label="Payment method">
-                @for (channel of channels; track channel.code) {
-                  <button
-                    type="button"
-                    class="channel-option"
-                    [class.is-selected]="selectedChannel() === channel.code"
-                    role="radio"
-                    [attr.aria-checked]="selectedChannel() === channel.code"
-                    (click)="selectChannel(channel.code)"
-                  >
-                    <span class="channel-text">
-                      <span class="channel-label">{{ channel.label }}</span>
-                      <span class="channel-blurb">{{ channel.blurb }}</span>
-                    </span>
-                    @if (selectedChannel() === channel.code) {
-                      <app-icon name="circle-check" class="channel-tick" />
-                    }
-                  </button>
-                }
-              </div>
-            </section>
-
-            <!--
               The primary action, and now the only one. Its label CHANGES
               MEANING rather than its position: "Place Order" promised a
               committed order, and the button now does something narrower and
               more honest — it writes an UNPAID order and hands the customer to
-              a payment page. Nothing is taken until Xendit's webhook says so.
+              the simulated-payment step. Nothing is taken until the customer
+              clicks "Simulate Successful Payment".
 
-              Disabled while a session is being created, for the same reason it
+              Disabled while an order is being created, for the same reason it
               was disabled while an order was being written: one tap, one
               journey. Two calls in flight would either mint two orders or mint
-              two payment sessions for the same one.
+              two payment attempts for the same one.
 
               .place-order-btn, not the old .checkout-btn: the sunny accent is
               what this action always wore on the review screen, and plum on it
@@ -466,11 +433,9 @@
               @if (isPreparingPayment()) {
                 <ion-spinner name="crescent"></ion-spinner>
               }
-              <span>{{ isPreparingPayment() ? 'Preparing payment...' : 'Continue to Payment' }}</span>
+              <span>{{ isPreparingPayment() ? 'Preparing order...' : 'Continue to Payment' }}</span>
             </button>
-            <p class="pay-note">
-              You'll continue to a secure payment page. Your cart stays right here until your payment is confirmed.
-            </p>
+            <p class="pay-note">Your cart stays right here until you settle the transaction.</p>
           </aside>
         </div>
       </div>
@@ -481,19 +446,19 @@
     <!--
       THE RESULT SCREENS.
 
-      There are four, and which one opens is decided by the RETURN URL — which
+      There are four, and which one opens is decided by the outcome — which
       is a hint and nothing more. What each one SAYS is decided by the order
-      document, whose `paymentStatus` only Xendit's verified webhook writes.
-      So `?payment=success` opens a screen that is still "checking", and an
+      document, whose `paymentStatus` the simulated payment writes.
+      So a simulated "success" opens a screen that is still "checking", and an
       edited address bar can change which screen appears but cannot make this
       page claim money that never arrived.
 
       Everything money-shaped here comes from `lastOrderTotal` / `orderRef`,
       both of which are refreshed from every snapshot of the order — never from
-      anything the redirect carried back.
+      anything the customer's wordings of the outcome claim.
     -->
     <div class="pay-result">
-      @if (errorMessage()) {
+      @if (errorMessage() && paymentOutcome() !== 'success') {
         <app-alert-banner tone="danger" [message]="errorMessage()" />
       }
 
@@ -501,7 +466,7 @@
         @case ('checking') {
           <app-icon name="clock" class="pay-icon" />
           <h2 class="pay-title">Checking your payment...</h2>
-          <p class="pay-sub">We're confirming your payment with the provider. This usually takes a few seconds.</p>
+          <p class="pay-sub">We're confirming your payment. This usually takes a few seconds.</p>
           <ion-spinner name="dots"></ion-spinner>
           @if (orderRef()) {
             <p class="pay-ref">Order #{{ orderRef() }} · {{ lastOrderTotal() | peso }}</p>
@@ -513,40 +478,77 @@
         }
 
         @case ('success') {
-          <!--
-            Reached only from a snapshot whose paymentStatus is 'paid'. The
-            icon is drawn at 56px/1.2 stroke for the reason the old
-            confirmation screen documented: an SVG scales its stroke with its
-            viewBox, so 80px at the app's default weight came out as a ring.
-          -->
           <app-icon name="circle-check" class="pay-icon pay-icon--success" />
-          <h2 class="pay-title">Payment received</h2>
+          <h2 class="pay-title">Transaction Settled</h2>
           <p class="pay-sub">Your payment of {{ lastOrderTotal() | peso }} was successful.</p>
           <p class="pay-ref">Order #{{ orderRef() }} is confirmed.</p>
-          <div class="pay-actions">
-            <button type="button" class="confirmed-cta" (click)="viewTracker()">View Order Tracker</button>
-            <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
-          </div>
+
+          <!-- Receipt -->
+          <section class="demo-receipt">
+            <h3 class="receipt-title">🍦 FIVE-ORITES SCOOP — RECEIPT</h3>
+            <div class="receipt-meta">
+              <span><strong>Order:</strong> #{{ orderRef() }}</span>
+              <span><strong>Placed:</strong> {{ lastOrderPlaced() | date }}</span>
+              <span><strong>Payment:</strong> Completed</span>
+              <span><strong>Paid at:</strong> {{ lastOrderPaidAt() | date }}</span>
+            </div>
+            <div class="receipt-items">
+              <h4 class="receipt-section">Items</h4>
+              @for (item of receiptItems(); track item.productId + item.size) {
+                <div class="receipt-item">
+                  <span>{{ item.variantName }} ({{ sizeLabels[item.size] }}) × {{ item.quantity }}</span>
+                  <span>{{ item.unitPrice * item.quantity | peso }}</span>
+                </div>
+              }
+            </div>
+            <div class="receipt-totals">
+              <div class="receipt-total-row">
+                <span>Subtotal</span><span>{{ lastOrderSubtotal() | peso }}</span>
+              </div>
+              @if (lastOrderDiscount() > 0) {
+                <div class="receipt-total-row">
+                  <span>Voucher {{ lastOrderVoucher() }}</span
+                  ><span>-{{ lastOrderDiscount() | peso }}</span>
+                </div>
+              }
+              <div class="receipt-total-row">
+                <span>Delivery</span
+                ><span>{{ lastOrderDelivery() === 0 ? 'FREE' : (lastOrderDelivery() | peso) }}</span>
+              </div>
+              <div class="receipt-total-row receipt-total-row--grand">
+                <span>Total</span><span>{{ lastOrderTotal() | peso }}</span>
+              </div>
+            </div>
+            <div class="receipt-address">
+              <h4 class="receipt-section">Delivering to</h4>
+              <p>{{ lastOrderAddress() }}</p>
+            </div>
+            <div class="receipt-actions">
+              <button type="button" class="confirmed-cta" (click)="printReceipt()">Print Receipt</button>
+              <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order Tracker</button>
+              <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
+            </div>
+          </section>
         }
 
         @case ('pending') {
           <app-icon name="clock" class="pay-icon" />
-          <h2 class="pay-title">Payment not completed</h2>
+          <h2 class="pay-title">Payment Pending</h2>
           <p class="pay-sub">
             @if (returnHint() === 'success') {
               We haven't confirmed a payment for this order yet. If you did complete one, it can take a moment to
               register — try again below, or check the order.
             } @else {
-              We didn't get a payment for this order. It's still open — you can finish paying whenever you're ready.
+              This order is awaiting payment. Click "Settle Transaction" to complete it.
             }
           </p>
           <p class="pay-ref">Order #{{ orderRef() }} · {{ lastOrderTotal() | peso }} · Payment: Unpaid</p>
           <div class="pay-actions">
-            <button type="button" class="confirmed-cta" (click)="resumePayment()" [disabled]="isPreparingPayment()">
+            <button type="button" class="confirmed-cta" (click)="settleTransaction()" [disabled]="isPreparingPayment()">
               @if (isPreparingPayment()) {
                 <ion-spinner name="crescent"></ion-spinner>
               }
-              <span>{{ isPreparingPayment() ? 'Preparing payment...' : 'Resume Payment' }}</span>
+              <span>{{ isPreparingPayment() ? 'Settling transaction...' : 'Settle Transaction' }}</span>
             </button>
             <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order</button>
             <button type="button" class="confirmed-alt" (click)="editCart()">Edit Cart</button>
@@ -555,17 +557,17 @@
 
         @case ('failed') {
           <app-icon name="circle-x" class="pay-icon pay-icon--danger" />
-          <h2 class="pay-title">Payment failed</h2>
+          <h2 class="pay-title">Payment Failed</h2>
           <p class="pay-sub">
-            The payment did not go through, so nothing was charged. You can start it again on the same order.
+            The transaction did not go through, so nothing was charged. You can try again on the same order.
           </p>
           <p class="pay-ref">Order #{{ orderRef() }} · {{ lastOrderTotal() | peso }} · Payment: Failed</p>
           <div class="pay-actions">
-            <button type="button" class="confirmed-cta" (click)="resumePayment()" [disabled]="isPreparingPayment()">
+            <button type="button" class="confirmed-cta" (click)="settleTransaction()" [disabled]="isPreparingPayment()">
               @if (isPreparingPayment()) {
                 <ion-spinner name="crescent"></ion-spinner>
               }
-              <span>{{ isPreparingPayment() ? 'Preparing payment...' : 'Try Again' }}</span>
+              <span>{{ isPreparingPayment() ? 'Settling transaction...' : 'Try Again' }}</span>
             </button>
             <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order</button>
             <button type="button" class="confirmed-alt" (click)="editCart()">Edit Cart</button>
@@ -574,5 +576,21 @@
       }
     </div>
   }
+
+  <!-- Success Modal -->
+  @if (showSuccessModal()) {
+    <div class="modal-backdrop" (click)="closeSuccessModal()"></div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="success-modal-title">
+      <div class="modal-content">
+        <app-icon name="circle-check" class="modal-icon" />
+        <h2 id="success-modal-title" class="modal-title">Successful Transaction</h2>
+        <p class="modal-message">Your payment has been processed successfully. The order is now confirmed.</p>
+        <div class="modal-actions">
+          <button type="button" class="confirmed-cta" (click)="closeSuccessModal()">View Order</button>
+        </div>
+      </div>
+    </div>
+  }
+
   <app-footer></app-footer>
 </ion-content>

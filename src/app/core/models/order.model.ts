@@ -44,25 +44,16 @@ export interface Order {
 
   // ── Payment fields ──────────────────────────────────────────────────────────
   //
-  // These were deliberately absent while no gateway existed (the old comment is
-  // kept in git history). Xendit is now integrated: `payment-server/` mints a
-  // payment request per order and its webhook is the ONLY writer of
-  // `paymentStatus`.
+  // Internal transaction settlement. The customer clicks "Settle Transaction"
+  // and the client writes these fields directly to the order doc.
   //
-  // ABSENT IS NOT FALSE, and it matters for two of these. Every order created
-  // before the gateway existed has no `paymentRequestId` and no `paidAt`, so
-  // reading "absent" as "unpaid forever" would be wrong for the many `delivered`
-  // orders that were simply never routed through a gateway. Treat absent as
-  // "no gateway record", which is what the UI does — My Orders shows a Pay Now
-  // button only while the order is genuinely still open and unpaid.
-  //
-  /** Xendit `payment_request_id` (`pr-…`). The idempotency anchor. */
-  paymentRequestId?: string | null;
-  /** Xendit `payment_id` (`py-…`) — the specific payment, written by the webhook. */
+  /** Transaction reference: `TXN-<orderId>`. Written by the settlement. */
   paymentReference?: string | null;
-  /** Channel code actually used: `GCASH` | `PAYMAYA` | `GRABPAY`. */
+  /** Payment request id — retained for schema compatibility. */
+  paymentRequestId?: string | null;
+  /** Payment method used: always `"INTERNAL"`. */
   paymentMethod?: string | null;
-  /** When the webhook confirmed the money arrived. Null/absent until then. */
+  /** When the transaction settled. Null/absent until then. */
   paidAt?: Timestamp | null;
   deliveryAddress: string;
   notes?: string | null;
@@ -189,9 +180,9 @@ export const PAYMENT_STATUS_META: Record<PaymentStatus, PaymentStatusMeta> = {
 };
 
 /**
- * Whether the app may offer to take money for this order.
+ * Whether the app may offer to settle payment for this order.
  *
- * Four conditions, each of which independently means "do not ask for money":
+ * Four conditions, each of which independently means "do not ask for payment":
  * paid already, refunded, cancelled, or delivered. The last is easy to miss —
  * a delivered order whose payment failed is a collections problem for the shop
  * to resolve by hand, not something to re-present a checkout page for, and
@@ -206,10 +197,10 @@ export function isPaymentPayable(order: Pick<Order, 'status' | 'paymentStatus'>)
 /**
  * Whether a payment badge should be shown at all.
  *
- * Hides it for orders predating the gateway: they carry no `paymentRequestId`,
- * and their `paymentStatus` has sat at `pending` since the day they were
- * written — flagging every historical order as "Unpaid" would be a false claim
- * about orders that were settled outside the app.
+ * Hides it for orders that were never run through the internal settlement:
+ * they carry no `paymentRequestId`, and their `paymentStatus` has sat at `pending`
+ * since the day they were written — flagging every historical order as "Unpaid"
+ * would be a false claim about orders that were settled outside the app.
  */
 export function shouldShowPaymentBadge(
   order: Pick<Order, 'status' | 'paymentStatus' | 'paymentRequestId'>,

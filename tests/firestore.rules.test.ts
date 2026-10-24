@@ -885,6 +885,100 @@ describe('orders: customer cancel', () => {
   });
 });
 
+describe('orders: customer settlement (internal transaction)', () => {
+  test('a customer may settle a pending order', async () => {
+    await seed('orders/settle-pending', orderFor(CUSTOMER, 'pending'));
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-pending'), {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-pending',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may settle a confirmed order (status changed by Cloud Function)', async () => {
+    await seed('orders/settle-confirmed', orderFor(CUSTOMER, 'confirmed'));
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-confirmed'), {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-confirmed',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT settle an already-paid order', async () => {
+    await seed('orders/settle-paid', { ...orderFor(CUSTOMER, 'confirmed'), paymentStatus: 'paid' });
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-paid'), {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-paid',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT settle a cancelled order', async () => {
+    await seed('orders/settle-cancelled', orderFor(CUSTOMER, 'cancelled'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-cancelled'), {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-cancelled',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT settle a delivered order', async () => {
+    await seed('orders/settle-delivered', orderFor(CUSTOMER, 'delivered'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-delivered'), {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-delivered',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT change status during settlement', async () => {
+    await seed('orders/settle-status', orderFor(CUSTOMER, 'confirmed'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-status'), {
+        status: 'cancelled',
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-status',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT settle another customer\u2019s order', async () => {
+    await seed('orders/settle-other', orderFor(OTHER_CUSTOMER, 'confirmed'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/settle-other'), {
+        paymentStatus: 'paid',
+        paymentMethod: 'INTERNAL',
+        paidAt: Timestamp.now(),
+        paymentReference: 'TXN-settle-other',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+});
+
 describe('reads', () => {
   test('a customer can read a product and their own order', async () => {
     await seed('orders/o9', orderFor(CUSTOMER, 'pending'));

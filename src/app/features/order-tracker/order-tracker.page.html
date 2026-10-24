@@ -131,8 +131,8 @@
             @if (canPay() || canCancel()) {
               <div class="summary-actions">
                 @if (canPay()) {
-                  <button type="button" class="pay-now-btn" (click)="payNow()" [disabled]="isPayingNow()">
-                    {{ isPayingNow() ? 'Preparing…' : 'Pay Now' }}
+                  <button type="button" class="pay-now-btn" (click)="settleTransaction()" [disabled]="isSettlingNow()">
+                    {{ isSettlingNow() ? 'Settling transaction...' : 'Settle Transaction' }}
                   </button>
                 }
                 @if (canCancel()) {

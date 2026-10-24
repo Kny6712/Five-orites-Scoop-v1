@@ -329,6 +329,8 @@
             <th scope="col" class="col-items">Items</th>
             <th scope="col" class="col-total">Total</th>
             <th scope="col" class="col-status">Status</th>
+            <th scope="col" class="col-payment">Payment</th>
+            <th scope="col" class="col-actions">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -593,12 +595,32 @@
                   </ng-template>
                 </ion-popover>
               </td>
+
+              <!-- Payment status, labelled SIMULATED when paid. -->
+              <td class="col-payment" data-label="Payment">
+                @if (order.paymentStatus === 'paid') {
+                  <span class="payment-paid">Paid </span>
+                } @else if (order.paymentStatus === 'failed') {
+                  <span class="payment-failed">Failed </span>
+                } @else {
+                  <span class="payment-pending">Unpaid</span>
+                }
+              </td>
+
+              <!-- Actions: Print Receipt when paid. -->
+              <td class="col-actions" data-label="Actions">
+                @if (order.paymentStatus === 'paid') {
+                  <button type="button" class="print-receipt-btn" (click)="printReceipt(order)">
+                    <app-icon name="receipt" /> Print Receipt
+                  </button>
+                }
+              </td>
             </tr>
 
             <!-- Expanded Detail Panel -->
             @if (expandedId() === order.id) {
               <tr class="detail-row">
-                <td [attr.colspan]="6">
+                <td [attr.colspan]="8">
                   <div class="order-detail-panel">
                     <!-- Items -->
                     <p class="detail-section-label">Items</p>

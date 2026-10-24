@@ -20,17 +20,6 @@ export const environment = {
   },
   lowStockThreshold: 10,
 
-  /**
-   * The deployed payment-server host. Fill this in when the service is deployed
-   * (see payment-server/README.md); until then "Continue to Payment" fails with
-   * a clear message rather than silently.
-   *
-   * Only the base URL — never a Xendit key. See the note in environment.ts.
-   */
-  payment: {
-    baseUrl: 'https://payments.example.com',
-  },
-
   // Same values as environment.ts (unsigned preset — safe for client use).
   cloudinary: {
     cloudName: 'fhtucp4v',

@@ -127,12 +127,12 @@ export class OrderService {
    *
    * ── THE CART IS NO LONGER CLEARED HERE ──────────────────────────────────────
    *
-   * It used to be, immediately after `addDoc`. With Xendit in the loop the order
-   * is born UNPAID: this method writes it, then the customer leaves the app to
-   * pay on Xendit's hosted page. Clearing the cart at this moment would throw
+   * It used to be, immediately after `addDoc`. With internal settlement the order
+   * is born UNPAID: this method writes it, then the customer clicks "Settle
+   * Transaction" to mark it paid. Clearing the cart at this moment would throw
    * away the customer's basket the instant they tap a button that has not taken
-   * any money yet — and if they cancel on Xendit's page, or their phone dies
-   * there, they come back to an empty cart and an order they never completed.
+   * any money yet — and if they cancel before settling, they come back
+   * to an empty cart and an order they never completed.
    *
    * So the cart is cleared when the payment is CONFIRMED, which is the first
    * moment the order is real in the way the customer means it. See
@@ -263,7 +263,7 @@ export class OrderService {
       // order document is only the first step of the payment journey now, and
       // the cart must survive it so the customer can resume or retry payment
       // against the same order. The cart is cleared by the cart page once the
-      // Xendit webhook has marked the order paid.
+      // transaction settlement has marked the order paid.
       //
       // There is also deliberately NO redemption counter here. It used to call
       // `voucherService.recordRedemption(voucherId)` immediately after `addDoc`,
@@ -445,6 +445,50 @@ export class OrderService {
 
   async updateOrderStatus(orderId: string, newStatus: OrderStatus): Promise<void> {
     await this.transitionOrderStatus(orderId, newStatus);
+  }
+
+  /**
+   * Returns a reference to the order document without reading it.
+   */
+  doc(orderId: string) {
+    return doc(this.firestore, `orders/${orderId}`);
+  }
+
+  /**
+   * Writes fields to an existing order document. Used by the internal settlement
+   * flow to mark an order `paid`.
+   */
+  async updateOrder(orderId: string, data: Partial<Order>): Promise<void> {
+    const updateData = {
+      ...data,
+      updatedAt: data.updatedAt ?? new Date(),
+    };
+    console.log('[OrderService.updateOrder] Order ID:', orderId);
+    console.log('[OrderService.updateOrder] Update data:', updateData);
+    console.log('[OrderService.updateOrder] Fields being modified:', Object.keys(updateData));
+
+    try {
+      await updateDoc(doc(this.firestore, `orders/${orderId}`), updateData);
+      console.log('[OrderService.updateOrder] Update successful');
+    } catch (error) {
+      console.error('[OrderService.updateOrder] Update failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Settles the transaction for an order by marking it as paid.
+   * Generates a transaction reference ID (TXN-<orderId>).
+   * This is the internal API-based settlement — no external gateway involved.
+   */
+  async settleTransaction(orderId: string): Promise<void> {
+    await this.updateOrder(orderId, {
+      paymentStatus: 'paid',
+      paymentMethod: 'INTERNAL',
+      paidAt: Timestamp.now(),
+      paymentReference: `TXN-${orderId}`,
+      updatedAt: Timestamp.now(),
+    });
   }
 
   async cancelOrder(orderId: string, reason?: string): Promise<void> {

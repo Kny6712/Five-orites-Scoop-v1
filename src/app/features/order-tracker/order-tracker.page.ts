@@ -20,7 +20,6 @@ import { ScoopMapComponent, type MapMarker } from '@shared/components/commerce/s
 import { Subscription, catchError, of } from 'rxjs';
 import { Firestore, doc, setDoc } from '@angular/fire/firestore';
 import { OrderService } from '@core/services/orders/order.service';
-import { PaymentService } from '@core/services/orders/payment.service';
 import {
   Order,
   OrderStatus,
@@ -73,7 +72,6 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   private router = inject(Router);
   private location = inject(Location);
   private orderService = inject(OrderService);
-  private paymentService = inject(PaymentService);
   private alertCtrl = inject(AlertController);
   private toastCtrl = inject(ToastController);
   private firestore = inject(Firestore);
@@ -84,12 +82,12 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   errorMessage = signal('');
   isCancelling = signal(false);
   /**
-   * The order a payment session is currently being created for.
+   * Whether a transaction settlement is currently in progress for this order.
    *
-   * Same guard as the orders list: two calls in flight would mint two Xendit
-   * sessions for the same order, and paying one would orphan the other.
+   * Same guard as the orders list: two calls in flight would settle the
+   * transaction twice for the same order.
    */
-  isPayingNow = signal(false);
+  isSettlingNow = signal(false);
 
   readonly sizeLabels = SIZE_DISPLAY_LABELS;
   readonly statusSequence = STATUS_SEQUENCE;
@@ -355,9 +353,9 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Whether "Pay Now" should be shown on this order.
+   * Whether "Settle Transaction" should be shown on this order.
    *
-   * Four conditions independently mean "do not ask for money": paid already,
+   * Four conditions independently mean "do not ask for payment": paid already,
    * refunded, cancelled, or delivered. The last is easy to miss — a delivered
    * order whose payment failed is a collections problem for the shop to resolve
    * by hand, not something to re-present a checkout page for.
@@ -368,37 +366,24 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Starts a payment session for this unpaid order.
+   * Settles the transaction for this unpaid order.
    *
-   * The order already exists: this is "Continue to Payment" for a customer who
-   * came back to the tracker after a failure or never paid at all. No order is
-   * written, only a new session for the existing one.
+   * The order already exists: this is "Settle Transaction" for a customer who came back
+   * to the tracker after never paying. No order is written — only the existing
+   * one is marked `paymentStatus:'paid'`. No external gateway is involved.
    */
-  async payNow(): Promise<void> {
+  async settleTransaction(): Promise<void> {
     const order = this.order();
-    if (!order || this.isPayingNow()) return;
+    if (!order || this.isSettlingNow()) return;
 
-    if (!this.paymentService.isConfigured) {
-      const toast = await this.toastCtrl.create({
-        message: 'Payments are not set up on this build yet.',
-        color: 'warning',
-        duration: 3000,
-        position: 'top',
-      });
-      await toast.present();
-      return;
-    }
-
-    this.isPayingNow.set(true);
+    this.isSettlingNow.set(true);
     try {
-      const session = await this.paymentService.createSession(
-        order.id,
-        this.paymentService.preferredChannel,
-      );
-      this.paymentService.goToCheckout(session.checkoutUrl);
+      await this.orderService.settleTransaction(order.id);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : 'We could not start your payment. Please try again.';
+        err instanceof Error
+          ? err.message
+          : 'We could not settle your transaction. Please try again.';
       const toast = await this.toastCtrl.create({
         message,
         color: 'danger',
@@ -407,7 +392,7 @@ export class OrderTrackerPage implements OnInit, OnDestroy {
       });
       await toast.present();
     } finally {
-      this.isPayingNow.set(false);
+      this.isSettlingNow.set(false);
     }
   }
 

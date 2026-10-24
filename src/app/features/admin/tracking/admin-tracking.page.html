@@ -218,6 +218,7 @@
       <app-scoop-map
         [markers]="mapMarkers()"
         [square]="true"
+        [selectedMarkerId]="selectedId()"
         ariaLabel="Map of active delivery destinations and the shop"
         (markerTapped)="onMarkerTapped($event)"
       />

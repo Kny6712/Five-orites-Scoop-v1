@@ -12,6 +12,7 @@ import {
   onAuthStateChanged,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithCredential,
   updateProfile,
   verifyBeforeUpdateEmail,
   reauthenticateWithCredential,
@@ -30,11 +31,15 @@ import {
 } from '@angular/fire/firestore';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { AppUser, isStaffRole } from '@core/models/user.model';
+import { NativeService } from '@core/platform/native.service';
+import { GoogleAuthService } from '@core/platform/google-auth.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private auth = inject(Auth);
   private firestore = inject(Firestore);
+  private native = inject(NativeService);
+  private googleAuth = inject(GoogleAuthService);
 
   private currentUserSubject = new BehaviorSubject<AppUser | null>(null);
   readonly currentUser$: Observable<AppUser | null> = this.currentUserSubject.asObservable();
@@ -237,6 +242,13 @@ export class AuthService {
   }
 
   async signInWithGoogle(): Promise<void> {
+    if (this.native.isNative()) {
+      const { idToken } = await this.googleAuth.signIn();
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(this.auth, credential);
+      await this.assertNotSuspended(userCredential.user.uid);
+      return;
+    }
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(this.auth, provider);
     // Same check as the password path. A suspension that only applied to email
@@ -255,10 +267,10 @@ export class AuthService {
   /**
    * The Firebase ID token for the signed-in user, or null.
    *
-   * Needed by the payment backend (`payment-server/`), which must know that the
-   * caller owns the order before it mints a Xendit payment request. Firestore
-   * rules cannot do that check for it — the payment service reads with the
-   * Admin SDK, which is exempt from rules entirely.
+   * Needed by the client when it marks an order `paid` via the simulated
+   * payment flow, which must know that the caller owns the order before it
+   * writes `paymentStatus`. Firestore rules cannot do that check for it —
+   * the client reads with its own credentials, which are subject to rules.
    *
    * Reads `this.auth.currentUser` rather than the subject, because the subject
    * holds an APP user assembled from Firestore, which carries no credential.

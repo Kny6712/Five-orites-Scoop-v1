@@ -185,17 +185,13 @@ export const CUSTOMER_FEATURES: AboutFeature[] = [
       'Follow your order from preparation to delivery. Real-time tracking helps customers stay updated on the progress of their ice cream order.',
   },
   {
-    // Updated now that the Xendit gateway is integrated. The old copy was
-    // replaced with "No Card Details Needed" when there was no payment UI at
-    // all — that was true then (nothing ever asked for a card number), but it
-    // undersold what is now real: payments go through Xendit's hosted page,
-    // the app never sees card details, and the secret API keys live on the
-    // server only. The copy now says what is actually true rather than what
-    // was the closest true thing at the time.
+    // Updated to reflect internal transaction settlement. Payments are processed
+    // internally — no external gateway is involved, no card details are ever
+    // requested, and the transaction settles against the order record directly.
     icon: 'shield-check' as AppIcon,
     title: 'Secure Payments',
     description:
-      "Pay through GCash, PayMaya, or GrabPay on Xendit's secure hosted page. Your card details are never handled by or stored in this app.",
+      'Settle your order through our internal transaction system. No external gateway is involved, no card details are ever requested, and no real money is taken until you confirm the transaction.',
   },
 ];
 
@@ -226,11 +222,11 @@ export const HOW_IT_WORKS: AboutStep[] = [
   },
   {
     number: '02',
-    title: 'Choose How to Pay',
-    // Updated now that the gateway is live. The step now describes the actual
-    // journey: cart → Xendit's hosted page → webhook-confirmed payment.
+    title: 'Settle Transaction',
+    // Internal transaction settlement — cart → place order → "Settle Transaction"
+    // → receipt. No external gateway is involved.
     description:
-      "Add your items to the cart, enter your delivery address, and pay through GCash, PayMaya, or GrabPay on Xendit's secure page.",
+      'Add your items to the cart, enter your delivery address, then settle the transaction on your order. A receipt is shown and can be printed.',
   },
   {
     number: '03',

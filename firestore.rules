@@ -530,6 +530,9 @@ service cloud.firestore {
       // single arrayUnion element, so a caller cannot rewrite the fulfilment
       // timeline that the tracker renders.
       //
+      // A customer may also settle their own pending payment by writing the
+      // payment fields. This is the internal transaction settlement flow.
+      //
       // Staff advance status, and may only do that honestly.
       //
       // The staff branch was a bare `if canRunShop()`: no transition whitelist,
@@ -644,6 +647,36 @@ service cloud.firestore {
                 : request.resource.data.cancelReason == null)
             && historyLen(request.resource.data)
                  == historyLen(resource.data) + 1);
+
+      // ── Customer payment settlement ──────────────────────────────────────
+      //
+      // A customer may settle their own order's payment by writing the
+      // payment fields. This is the internal transaction settlement flow.
+      //
+      // NOTE: The Cloud Function `reconcileOrderStock` changes the order's
+      // `status` from 'pending' to 'confirmed' immediately after creation.
+      // The settlement rule must therefore allow 'confirmed' (and other
+      // non-terminal statuses), NOT just 'pending'. Requiring 'pending' caused
+      // every settlement attempt after the Cloud Function ran to fail with
+      // permission-denied ("Missing or insufficient permissions").
+      //
+      // Only allowed on the customer's own order, only while not cancelled or
+      // delivered, and only if payment is not already settled. The status must
+      // NOT change during settlement (only payment fields change).
+      allow update: if isSignedIn()
+            && resource.data.customerId == request.auth.uid
+            && resource.data.status != 'cancelled'
+            && resource.data.status != 'delivered'
+            && resource.data.paymentStatus != 'paid'
+            && resource.data.paymentStatus != 'refunded'
+            && request.resource.data.status == resource.data.status
+            && request.resource.data.paymentStatus == 'paid'
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['paymentStatus', 'paymentMethod', 'paidAt', 'paymentReference', 'updatedAt', 'statusHistory'])
+            && request.resource.data.paymentMethod is string
+            && request.resource.data.paymentMethod.size() > 0
+            && request.resource.data.paymentReference is string
+            && request.resource.data.paymentReference.size() > 0;
 
       // ── The restock marker, on its own narrow clause ────────────────────
       //
