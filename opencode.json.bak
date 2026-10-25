@@ -1,20 +1,50 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "omniroute/claude-opus",
+  "providers": {
+    "omniroute": {
+      "env": [
+        "OMNIROUTE_API_KEY"
+      ],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://localhost:20128/v1",
+        "apiKey": "sk-1fa7a226c3df21db-9ab9ff-72747719"
+      },
+      "models": {
+        "claude-opus": {
+          "modelID": "agy/claude-opus-4-6-thinking",
+          "name": "Claude Opus 4.6 Thinking"
+        }
+      }
+    }
+  },
   "mcp": {
-    "filesystem": {
-      "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
-      "timeout": 120000
-    },
-    "playwright": {
-      "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp@latest"],
-      "timeout": 120000
-    },
-    "figma": {
-      "type": "remote",
-      "url": "https://mcp.figma.com/mcp",
-      "enabled": false
+    "servers": {
+      "filesystem": {
+        "type": "local",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "."
+        ],
+        "timeout": 120000
+      },
+      "playwright": {
+        "type": "local",
+        "command": "npx",
+        "args": [
+          "-y",
+          "@playwright/mcp@latest"
+        ],
+        "timeout": 120000
+      },
+      "figma": {
+        "type": "remote",
+        "url": "https://mcp.figma.com/mcp",
+        "disabled": true
+      }
     }
   }
 }

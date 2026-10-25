@@ -302,3 +302,89 @@ code and separates P0 from P4), plus confirmation of whether `…umcfk1ie…` ex
 Environment: **browser tests = Chromium on Windows against `npm run start:prod` (Firebase project
 `five-orites-scoop`)**; **native Android tests = not run**. No Google credentials, CAPTCHA, MFA or
 security checks were bypassed at any point.
+
+---
+
+# Implementation status (2026-10-25)
+
+All four fixes from this plan are implemented and built.
+
+## Applied fixes
+
+- **F#1 — Config** (`capacitor.config.ts`): `GoogleAuth.clientId` and
+  `GoogleAuth.serverClientId` are set to the Web application client ID
+  `347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com`.
+  The real gap was that the entire `GoogleAuth` block was missing from the
+  deployed `capacitor.config.json`, so `GoogleAuth.signIn()` ran with no
+  client ID. No `YOUR_WEB_CLIENT_ID` placeholder existed anywhere.
+- **F#2 / F#3 — Error mapping & cancellation codes**
+  (`src/app/features/auth/auth.page.ts`): committed earlier in `6d655a2`;
+  verified present (10:1 Android code mapping; cancellation codes
+  1/4/5/8/125/1250 classified as silent returns).
+- **F#4 — Stage markers** (`src/app/core/platform/google-auth.service.ts`,
+  `src/app/core/services/identity/auth.service.ts`): committed earlier;
+  verified present (`[google-auth] init`, `fetchUser() start/done/failed`,
+  `signOut() enter`).
+
+## Build & verification (all green)
+
+| Check                   | Result                                                                  |
+| ----------------------- | ----------------------------------------------------------------------- |
+| `npm run typecheck`     | 0 errors                                                                |
+| `npm run lint`          | 0 errors                                                                |
+| `npm run test:logic`    | 329/329 pass                                                            |
+| `npm run build`         | success; fresh `www/browser` contains the new auth code                 |
+| `npx cap sync android`  | success; 9 plugins incl. `@codetrix-studio/capacitor-google-auth@3.3.6` |
+| `gradlew assembleDebug` | BUILD SUCCESSFUL                                                        |
+
+APK evidence (`aapt dump --values resources` on `app-debug.apk`):
+
+- `com.fiveorites.scoop:string/server_client_id` =
+  `347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com`
+  (the old placeholder `Your Web Client Key` is gone).
+- Embedded `assets/capacitor.config.json` now contains the `GoogleAuth`
+  block with the correct `clientId` / `serverClientId`.
+- `assets/capacitor.plugins.json` registers
+  `com.codetrixstudio.capacitor.GoogleAuth.GoogleAuth`.
+
+## Blocking issue: SHA-1 fingerprint mismatch (action required)
+
+The rebuilt debug APK is signed with this machine's default debug keystore
+(`C:\Users\Kenn\.android\debug.keystore`), SHA-1:
+
+```
+1D:E6:3F:E7:5A:60:6F:0E:F7:17:E3:1F:B6:35:48:89:86:9B:BC:91
+```
+
+but `android/app/google-services.json` registers the Android OAuth client
+`347528161750-jo6e136pp5qfhuffthcub7o4j4nh8kch` with `certificate_hash`
+`50632a8f28cd0199deaaeee89c8238ba808f5f9e` (SHA-1 `50:63:2A:…:5F:9E`). No
+keystore producing `50:63:…` exists in the worktree or git history. Google
+sign-in will keep failing with `10: DEVELOPER_ERROR` until one of these is
+done:
+
+1. **Register this debug SHA-1** in Firebase → Project settings → Your apps →
+   _Add fingerprint_, and in Cloud Console → APIs & Services → Credentials →
+   the Android OAuth client (edit SHA-1 fields). Then re-download
+   `google-services.json` and re-run `npx cap sync android`.
+2. Or locate the original keystore with SHA-1 `50:63:2A:…:5F:9E` and sign
+   the APK with it.
+
+## Remaining steps
+
+- Section E step 2 (redacted logcat capture) — pending; `adb devices`
+  reports no connected device, so on-device install/verification is blocked.
+- Outstanding from earlier: confirm whether client ID
+  `347528161750-umcfk1ieertagn3dla6gpnqah0tvb5g9` exists in the Cloud
+  Console (if not, it is another `10: DEVELOPER_ERROR` candidate).
+
+## Repository note
+
+A `git stash pop` was in progress when implementation started; its conflicts
+(`cart.page.*` ×5, `admin-orders.page.scss` ×2, plus `payment-server/`
+deletions) were resolved by semantic merge: HEAD's simulated-payment
+backbone (per `PLAN-XENDIT-CHECKOUT.md`) combined with the stash's fresher
+order-derived receipt panel and admin table changes. `stash@{0}` is retained
+for reference. **Nothing has been committed yet** — resolved files are
+staged; untracked `payment-server/` leftovers (`.env`, `lib/`,
+`node_modules`) were left untouched.

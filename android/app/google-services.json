@@ -14,11 +14,11 @@
       },
       "oauth_client": [
         {
-          "client_id": "347528161750-jo6e136pp5qfhuffthcub7o4j4nh8kch.apps.googleusercontent.com",
+          "client_id": "347528161750-6ob3e09e6kjnt4fall3p71sgsak01jvt.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.fiveorites.scoop",
-            "certificate_hash": "50632a8f28cd0199deaaeee89c8238ba808f5f9e"
+            "certificate_hash": "1de63fe75a606f0ef717e31fb6354889869bbc91"
           }
         },
         {

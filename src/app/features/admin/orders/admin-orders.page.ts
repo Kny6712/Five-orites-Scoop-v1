@@ -29,7 +29,13 @@ import { AlertBannerComponent } from '@shared/components/ui/alert-banner.compone
 import { PaginationComponent } from '@shared/components/ui/pagination.component';
 import { AdminFooterComponent } from '@shared/components/admin/admin-footer.component';
 import { OrderService } from '@core/services/orders/order.service';
-import { Order, OrderStatus, ORDER_STATUS_META } from '@core/models/order.model';
+import {
+  Order,
+  OrderStatus,
+  ORDER_STATUS_META,
+  PAYMENT_STATUS_META,
+  PaymentStatus,
+} from '@core/models/order.model';
 import { describeFirestoreError } from '@core/logic/firestore-error';
 import { toCsv, csvFilename, toIsoDate } from '@core/logic/csv/cell';
 import { CsvExportService } from '@core/services/commerce/csv-export.service';
@@ -362,6 +368,31 @@ export class AdminOrdersPage implements OnInit, OnDestroy {
    */
   itemCount(order: Order): number {
     return order.items.reduce((sum, i) => sum + i.quantity, 0);
+  }
+
+  /**
+   * The payment chip's label, from the shared meta so the admin row says the
+   * same words the customer sees on My Orders.
+   *
+   * "No gateway record" for a pending order with no `paymentRequestId`: those
+   * predate the gateway and were never routed through it, so calling them
+   * "Unpaid" would imply a payment was refused when none was ever attempted.
+   */
+  paymentLabel(order: Order): string {
+    const meta = PAYMENT_STATUS_META[order.paymentStatus as PaymentStatus];
+    if (order.paymentStatus === 'pending' && !order.paymentRequestId) return 'No gateway record';
+    return meta ? meta.short : '—';
+  }
+
+  paymentTone(order: Order): string {
+    const meta = PAYMENT_STATUS_META[order.paymentStatus as PaymentStatus];
+    return meta ? meta.tone : 'neutral';
+  }
+
+  paymentMethodLabel(order: Order): string {
+    if (!order.paymentMethod) return '';
+    const map: Record<string, string> = { GCASH: 'GCash', PAYMAYA: 'PayMaya', GRABPAY: 'GrabPay' };
+    return map[order.paymentMethod] ?? order.paymentMethod;
   }
 
   /**

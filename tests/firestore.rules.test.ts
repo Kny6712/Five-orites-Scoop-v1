@@ -2353,3 +2353,222 @@ describe('orders: cached geocode', () => {
     );
   });
 });
+
+describe('orders: payment fields are backend-written only', () => {
+  // The Xendit integration (PLAN-XENDIT-CHECKOUT.md) adds four fields to the
+  // order — `paymentRequestId`, `paymentReference`, `paymentMethod`, `paidAt` —
+  // and the payment-server webhook is the ONLY writer of `paymentStatus` in the
+  // whole system. The webhook runs the Admin SDK, which BYPASSES these rules,
+  // so the fields were deliberately NOT added to any client allow-list: the
+  // orders create `keys().hasOnly`, the staff update whitelist, the customer
+  // cancel whitelist, the geo clause and the restock clause all omit them.
+  //
+  // The plan's §6.4 said the create whitelist would be "extended for the new
+  // fields" — that was written before the webhook-writes-only decision, and
+  // extending it would reopen exactly the laundering surface the whitelist
+  // exists to close: a forged order claiming `paymentStatus: 'paid'` and
+  // `paidAt` at create, or a staff session marking an unpaid order paid with a
+  // single update. Money fields that record "did the customer pay" must be
+  // writable by nobody with a Firestore credential.
+  //
+  // These tests assert the invariant from every angle a client could reach it:
+  // customer, staff, manager, admin and owner all refused, on create AND on
+  // update, alone AND piggybacking on writes that are otherwise legitimate.
+  // The positive control ("the ordinary unpaid order still works") lives in
+  // 'orders: money floors' and 'orders: customer cancel'.
+
+  /** A pending order the webhook has already marked paid server-side. */
+  const PAID_ORDER = {
+    ...orderFor(CUSTOMER, 'confirmed'),
+    paymentStatus: 'paid',
+    paymentRequestId: 'pr-abc123',
+    paymentReference: 'py-def456',
+    paymentMethod: 'GCASH',
+    paidAt: Timestamp.now(),
+  };
+
+  test('a customer may NOT create an order claiming to be already paid', async () => {
+    // The create clause pins `paymentStatus == 'pending'`, so a "paid" create
+    // was already refused — but the claim is worth its own assertion, because
+    // the whole Pay Now / badge flow branches on this field and a forgeable
+    // 'paid' at create would skip the checkout entirely.
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'pending'),
+        paymentStatus: 'paid',
+      }),
+    );
+  });
+
+  test('a customer may NOT create an order carrying any payment field', async () => {
+    // The create `keys().hasOnly` list omits all four gateway fields, so even
+    // `paymentRequestId` on a fresh order — harmless-looking, just an id — is
+    // refused. Absent is not false: these fields mean "a gateway record
+    // exists", and only payment-server may say that.
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'pending'),
+        paymentRequestId: 'pr-forged',
+      }),
+    );
+    await assertFails(
+      setDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        ...orderFor(CUSTOMER, 'pending'),
+        paymentRequestId: 'pr-forged',
+        paymentReference: 'py-forged',
+        paymentMethod: 'GCASH',
+        paidAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT mark their own order paid on update', async () => {
+    // No customer branch touches paymentStatus: the cancel whitelist is
+    // ['status', 'cancelReason', 'updatedAt', 'statusHistory'], the geo clause
+    // is ['geo'], and everything else requires a staff tier. This is the one
+    // that would let a customer get free ice cream if it ever passed.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        paymentStatus: 'paid',
+        paidAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('a customer may NOT smuggle payment fields onto a legitimate cancel', async () => {
+    // The piggyback case. The cancel itself is a write the customer IS allowed
+    // to make — pairing it with `paymentStatus: 'paid'` must still fail, for
+    // the same reason the money fields are excluded: the whitelist pins which
+    // keys a write may TOUCH, not which document it may exist on.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        status: 'cancelled',
+        cancelReason: 'Changed my mind',
+        paymentStatus: 'paid',
+        updatedAt: Timestamp.now(),
+        statusHistory: [
+          { status: 'pending', timestamp: Timestamp.now() },
+          { status: 'cancelled', timestamp: Timestamp.now() },
+        ],
+      }),
+    );
+  });
+
+  test('a STAFF-tier account may NOT write the gateway fields either', async () => {
+    // The staff update whitelist is
+    // ['status','cancelReason','updatedAt','statusHistory','deliveryAddress',
+    //  'notes','items','geo','totalAmount','deliveryFee','discountAmount',
+    //  'grandTotal','stockRestored','stockRestoredAt']
+    // — deliberately money-IN but payment-marker-OUT. Staff may edit the bill
+    // (a wrong address, a corrected total) but may not say the money arrived;
+    // that is the webhook's word alone.
+    await seed('orders/o1', PAID_ORDER);
+    await assertFails(
+      updateDoc(doc(asStaff(), 'orders/o1'), {
+        paymentStatus: 'pending',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('an ADMIN may NOT mark an unpaid order paid — no role can', async () => {
+    // The existing 'staff may NOT write a field outside the order whitelist'
+    // test covers `paymentStatus` for an admin; this adds the four gateway
+    // fields, which are equally unreachable. If this ever passes, the Pay Now
+    // badge logic (`isPaymentPayable`) and the dashboard revenue filter
+    // (paymentStatus === 'paid') both become staff-writable numbers.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o1'), {
+        paymentStatus: 'paid',
+        paymentReference: 'py-forged',
+        paymentMethod: 'GCASH',
+        paidAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test("an admin may NOT backdate a paid order's gateway fields either", async () => {
+    // The quieter version of the same forgery: the order really WAS paid
+    // (seeded paid), and the edit only rewrites WHO it was paid through and
+    // WHEN. `paymentMethod` is what the orders list renders as the channel
+    // chip, so a writable value means staff-attributed text on a customer's
+    // receipt — the same class of abuse as the forged admin review reply.
+    await seed('orders/o1', PAID_ORDER);
+    await assertFails(
+      updateDoc(doc(asAdmin(), 'orders/o1'), {
+        paymentMethod: 'GRABPAY',
+        paidAt: Timestamp.fromDate(new Date('2020-01-01')),
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('the restock-marker clause may NOT be used to write payment fields', async () => {
+    // The narrow restock clause allows ONLY ['stockRestored', 'stockRestoredAt']
+    // on an already-cancelled order. Widening the staff whitelist above must not
+    // have created a second door, and this pins that it did not.
+    await seed('orders/o1', { ...orderFor(CUSTOMER, 'cancelled') });
+    await assertFails(
+      updateDoc(doc(asManager(), 'orders/o1'), {
+        stockRestored: true,
+        paymentStatus: 'paid',
+      }),
+    );
+  });
+
+  test('the geo clause may NOT be used to write payment fields either', async () => {
+    // Same defence, other narrow clause. Geo is the one customer-writable
+    // update outside the cancel path, so it is the one a smuggle would use.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        geo: { lat: 14.6, lng: 121.1 },
+        paymentStatus: 'paid',
+      }),
+    );
+  });
+
+  test('a signed-out caller may write nothing payment-shaped', async () => {
+    // Belt and braces: every branch above already requires isSignedIn(), but
+    // the webhook endpoint is unauthenticated BY DESIGN (it proves itself with
+    // the x-callback-token header, not a session) — so the Firestore side of
+    // "who may say the money arrived" being nobody-at-all is worth stating.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertFails(
+      updateDoc(doc(unauthed(), 'orders/o1'), {
+        paymentStatus: 'paid',
+        updatedAt: Timestamp.now(),
+      }),
+    );
+  });
+
+  test('the ordinary unpaid order still works (positive control)', async () => {
+    // Without this, every refusal above could pass because the orders rule is
+    // broken rather than because the payment fields are sealed — a far worse
+    // bug than the one being pinned. placeOrder's exact shape: status pending,
+    // paymentStatus pending, no gateway fields at all.
+    await assertSucceeds(setDoc(doc(asUser(CUSTOMER), 'orders/o1'), orderFor(CUSTOMER, 'pending')));
+  });
+
+  test('and a customer may still cancel it afterwards (positive control)', async () => {
+    // The payment seal must not have frozen the order lifecycle: cancel writes
+    // four non-payment fields and has its own whitelist.
+    await seed('orders/o1', orderFor(CUSTOMER, 'pending'));
+    await assertSucceeds(
+      updateDoc(doc(asUser(CUSTOMER), 'orders/o1'), {
+        status: 'cancelled',
+        cancelReason: 'Changed my mind',
+        updatedAt: Timestamp.now(),
+        statusHistory: [
+          { status: 'pending', timestamp: Timestamp.now() },
+          { status: 'cancelled', timestamp: Timestamp.now() },
+        ],
+      }),
+    );
+  });
+});

@@ -328,8 +328,8 @@
             <th scope="col" class="col-customer">Customer</th>
             <th scope="col" class="col-items">Items</th>
             <th scope="col" class="col-total">Total</th>
-            <th scope="col" class="col-status">Status</th>
             <th scope="col" class="col-payment">Payment</th>
+            <th scope="col" class="col-status">Status</th>
             <th scope="col" class="col-actions">Actions</th>
           </tr>
         </thead>
@@ -384,6 +384,24 @@
 
               <td class="col-total" data-label="Total">
                 <span class="order-total">{{ order.grandTotal | peso }}</span>
+              </td>
+
+              <!--
+                PAYMENT, separate from STATUS on purpose. The two ladders move
+                independently — "where the ice cream is" vs "how the money is
+                doing" — and conflating them was the exact hazard the order model
+                warns about. A confirmed order that is still Unpaid is a real,
+                staff-actionable state, and it was invisible here until this
+                column existed. The label reads "No gateway record" for orders
+                that predate the gateway rather than implying a refusal.
+              -->
+              <td class="col-payment" data-label="Payment">
+                <span class="payment-chip payment-chip--{{ paymentTone(order) }}">
+                  {{ paymentLabel(order) }}
+                </span>
+                @if (paymentMethodLabel(order); as method) {
+                  <span class="payment-method">{{ method }}</span>
+                }
               </td>
 
               <!--
@@ -594,17 +612,6 @@
                     </div>
                   </ng-template>
                 </ion-popover>
-              </td>
-
-              <!-- Payment status, labelled SIMULATED when paid. -->
-              <td class="col-payment" data-label="Payment">
-                @if (order.paymentStatus === 'paid') {
-                  <span class="payment-paid">Paid </span>
-                } @else if (order.paymentStatus === 'failed') {
-                  <span class="payment-failed">Failed </span>
-                } @else {
-                  <span class="payment-pending">Unpaid</span>
-                }
               </td>
 
               <!-- Actions: Print Receipt when paid. -->

@@ -1252,108 +1252,6 @@
   outline-offset: 2px;
 }
 
-// ── Demo receipt ─────────────────────────────────────────
-/* The demo receipt panel shown on the simulated-payment success screen. It
-   reads like a paper receipt: narrow, centered, bordered, with the shop name
-   at the top and a "SIMULATED" warning no one can miss. */
-.demo-receipt {
-  width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
-  padding: var(--space-5);
-  background: var(--color-white);
-  border: 1px solid var(--tile-powder-deep);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-card);
-  text-align: center;
-}
-.receipt-title {
-  font-family: var(--font-display);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-ink);
-  margin: 0 0 var(--space-2);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.receipt-warning {
-  font-size: 12px;
-  color: var(--color-danger);
-  margin: 0 0 var(--space-4);
-  font-weight: 700;
-}
-.receipt-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-ink-soft);
-  margin-bottom: var(--space-4);
-  text-align: left;
-}
-.receipt-meta strong {
-  color: var(--color-ink);
-}
-.receipt-section {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--color-ink-soft);
-  margin: var(--space-3) 0 var(--space-2);
-  text-align: left;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.receipt-items {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: var(--space-4);
-  text-align: left;
-}
-.receipt-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: var(--color-ink);
-  padding: 4px 0;
-  border-bottom: 1px solid var(--tile-powder-deep);
-}
-.receipt-totals {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: var(--space-4);
-  text-align: left;
-}
-.receipt-total-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-  color: var(--color-ink-soft);
-}
-.receipt-total-row--grand {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--color-ink);
-  border-top: 1px solid var(--tile-powder-deep);
-  padding-top: var(--space-2);
-  margin-top: var(--space-2);
-}
-.receipt-address {
-  margin-bottom: var(--space-4);
-  text-align: left;
-}
-.receipt-address p {
-  font-size: 13px;
-  color: var(--color-ink-soft);
-  margin: 4px 0 0;
-}
-.receipt-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 // ── Success Modal ─────────────────────────────────────────
 .modal-backdrop {
   position: fixed;
@@ -1414,4 +1312,183 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* ── The receipt ────────────────────────────────────────────────────────────
+
+   Only reachable on the success screen, which only renders after the webhook
+   confirmed the money. The TEST PAYMENT banner is the load-bearing element:
+   a printed demo receipt must never be mistakable for a real one, so it is the
+   loudest thing on the page and it prints. */
+.receipt-wrap {
+  width: 100%;
+  max-width: 380px;
+  margin: 8px auto 0;
+}
+
+.receipt-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: 999px;
+  background: var(--color-white);
+  color: var(--color-primary-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.receipt-toggle:focus-visible {
+  outline: 2px solid var(--color-primary-ink);
+  outline-offset: 2px;
+}
+.receipt-toggle-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.receipt {
+  display: none;
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--color-white);
+  border: 1px dashed var(--tile-powder-deep);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--color-slate, #333);
+  text-align: left;
+}
+.receipt-wrap.is-open .receipt {
+  display: block;
+}
+
+.receipt-demo {
+  margin: -16px -16px 12px;
+  padding: 6px 12px;
+  background: #fff3cd;
+  color: #8a5a00;
+  border-bottom: 1px solid #ffe08a;
+  border-radius: 12px 12px 0 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.receipt-head {
+  text-align: center;
+  margin-bottom: 10px;
+}
+.receipt-shop {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-primary-ink);
+}
+.receipt-sub {
+  font-size: 12px;
+  color: #777;
+}
+
+.receipt-meta {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+.receipt-meta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.receipt-meta span {
+  color: #888;
+}
+.receipt-meta strong {
+  font-weight: 700;
+  word-break: break-all;
+  text-align: right;
+}
+
+.receipt-lines {
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+.receipt-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+}
+.rl-name {
+  color: #555;
+}
+.rl-amt {
+  white-space: nowrap;
+}
+
+.receipt-totals {
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
+.receipt-totals > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+.receipt-totals .rt-grand {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed #ddd;
+  font-size: 15px;
+}
+.receipt-totals .rt-grand strong {
+  font-weight: 800;
+}
+
+.receipt-foot {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 11px;
+  color: #999;
+}
+
+/* PRINT: the receipt alone, not the checkout page.
+
+   Everything except the receipt is hidden, and the receipt is forced open —
+   so a customer who taps Print without expanding still gets a receipt and not
+   a blank sheet. `position: fixed` on the receipt lifts it out of the scrolling
+   flow so the printed page isn't clipped by ion-content. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #paid-receipt,
+  #paid-receipt * {
+    visibility: visible;
+  }
+  #paid-receipt {
+    display: block !important;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 420px;
+    margin: 0;
+    border: 1px solid #999;
+    border-radius: 0;
+    color: #000;
+  }
+  .receipt-demo {
+    background: #fff3cd !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .receipt-toggle {
+    display: none !important;
+  }
 }

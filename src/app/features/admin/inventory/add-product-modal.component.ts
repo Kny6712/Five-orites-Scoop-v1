@@ -255,7 +255,15 @@ import { SIZE_VARIANTS, totalStock } from '@core/logic/stock';
       .stock-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 0 8px;
+        gap: 16px 12px;
+      }
+      /* Give each stock box breathing room and drop Ionic's default bottom
+         separator line so the boxes aren't cramped or criss-crossed by rules.
+         !important: Ionic paints the item's hairline from inside its shadow
+         host and a plain declaration loses to it. */
+      .stock-grid ion-item {
+        --border-width: 0 !important;
+        border-bottom: none !important;
       }
       @media (max-width: 380px) {
         .stock-grid {

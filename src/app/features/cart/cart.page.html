@@ -483,52 +483,77 @@
           <p class="pay-sub">Your payment of {{ lastOrderTotal() | peso }} was successful.</p>
           <p class="pay-ref">Order #{{ orderRef() }} is confirmed.</p>
 
-          <!-- Receipt -->
-          <section class="demo-receipt">
-            <h3 class="receipt-title">🍦 FIVE-ORITES SCOOP — RECEIPT</h3>
-            <div class="receipt-meta">
-              <span><strong>Order:</strong> #{{ orderRef() }}</span>
-              <span><strong>Placed:</strong> {{ lastOrderPlaced() | date }}</span>
-              <span><strong>Payment:</strong> Completed</span>
-              <span><strong>Paid at:</strong> {{ lastOrderPaidAt() | date }}</span>
-            </div>
-            <div class="receipt-items">
-              <h4 class="receipt-section">Items</h4>
-              @for (item of receiptItems(); track item.productId + item.size) {
-                <div class="receipt-item">
-                  <span>{{ item.variantName }} ({{ sizeLabels[item.size] }}) × {{ item.quantity }}</span>
-                  <span>{{ item.unitPrice * item.quantity | peso }}</span>
+          <!--
+            The receipt. It only exists here because the money is provably in —
+            `paidReceipt` is set in confirmPaid(), which is fed only by a
+            webhook-confirmed 'paid' snapshot. The TEST PAYMENT banner is a
+            deliberate label on the printed artifact so a demo receipt can never
+            be mistaken for a real one.
+          -->
+          @if (paidReceipt(); as receipt) {
+            <div class="receipt-wrap" [class.is-open]="showReceipt()">
+              <button
+                type="button"
+                class="receipt-toggle"
+                (click)="showReceipt.set(!showReceipt())"
+                [attr.aria-expanded]="showReceipt()"
+              >
+                <app-icon name="receipt" class="receipt-toggle-icon"></app-icon>
+                <span>{{ showReceipt() ? 'Hide receipt' : 'View receipt' }}</span>
+              </button>
+
+              <div class="receipt" id="paid-receipt">
+                <div class="receipt-demo">TEST PAYMENT — DEMO RECEIPT</div>
+                <div class="receipt-head">
+                  <div class="receipt-shop">Five-orites Scoop</div>
+                  <div class="receipt-sub">Order #{{ orderRef() }}</div>
                 </div>
-              }
-            </div>
-            <div class="receipt-totals">
-              <div class="receipt-total-row">
-                <span>Subtotal</span><span>{{ lastOrderSubtotal() | peso }}</span>
-              </div>
-              @if (lastOrderDiscount() > 0) {
-                <div class="receipt-total-row">
-                  <span>Voucher {{ lastOrderVoucher() }}</span
-                  ><span>-{{ lastOrderDiscount() | peso }}</span>
+                <div class="receipt-meta">
+                  <div>
+                    <span>Paid via</span><strong>{{ receiptChannelLabel(receipt.method) }}</strong>
+                  </div>
+                  <div>
+                    <span>Reference</span><strong>{{ receipt.reference ?? '—' }}</strong>
+                  </div>
+                  <div>
+                    <span>Date</span><strong>{{ receiptDate(receipt.paidAtMs) }}</strong>
+                  </div>
                 </div>
-              }
-              <div class="receipt-total-row">
-                <span>Delivery</span
-                ><span>{{ lastOrderDelivery() === 0 ? 'FREE' : (lastOrderDelivery() | peso) }}</span>
+                <ul class="receipt-lines">
+                  @for (line of receipt.items; track line.label + line.size) {
+                    <li>
+                      <span class="rl-name">{{ line.label }} ({{ sizeLabels[line.size] }}) × {{ line.quantity }}</span>
+                      <span class="rl-amt">{{ line.subtotal | peso }}</span>
+                    </li>
+                  }
+                </ul>
+                <div class="receipt-totals">
+                  <div>
+                    <span>Subtotal</span><span>{{ receipt.totalAmount | peso }}</span>
+                  </div>
+                  <div>
+                    <span>Delivery</span><span>{{ receipt.deliveryFee | peso }}</span>
+                  </div>
+                  @if (receipt.discountAmount > 0) {
+                    <div>
+                      <span>Discount{{ receipt.voucherCode ? ' (' + receipt.voucherCode + ')' : '' }}</span
+                      ><span>-{{ receipt.discountAmount | peso }}</span>
+                    </div>
+                  }
+                  <div class="rt-grand">
+                    <span>Total paid</span><strong>{{ receipt.grandTotal | peso }}</strong>
+                  </div>
+                </div>
+                <div class="receipt-foot">Thank you! This is a demo receipt for a test payment.</div>
               </div>
-              <div class="receipt-total-row receipt-total-row--grand">
-                <span>Total</span><span>{{ lastOrderTotal() | peso }}</span>
-              </div>
             </div>
-            <div class="receipt-address">
-              <h4 class="receipt-section">Delivering to</h4>
-              <p>{{ lastOrderAddress() }}</p>
-            </div>
-            <div class="receipt-actions">
-              <button type="button" class="confirmed-cta" (click)="printReceipt()">Print Receipt</button>
-              <button type="button" class="confirmed-alt" (click)="viewTracker()">View Order Tracker</button>
-              <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
-            </div>
-          </section>
+          }
+
+          <div class="pay-actions">
+            <button type="button" class="confirmed-alt" (click)="printReceipt()">Print Receipt</button>
+            <button type="button" class="confirmed-cta" (click)="viewTracker()">View Order Tracker</button>
+            <button type="button" class="confirmed-alt" (click)="orderMore()">Order More Flavors</button>
+          </div>
         }
 
         @case ('pending') {

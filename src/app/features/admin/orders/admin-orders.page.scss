@@ -437,26 +437,18 @@
   width: 1%;
 }
 
-/* Payment status column. */
+/* ── The Payment column ───────────────────────────────────────────────────
+   Shrink-to-fit like Status, because its values are chips.
+
+   THE TONES ARE THE STATUS BADGE'S OWN TOKENS (--tone-*-bg / --tone-*-border),
+   so the payment chip reads as the same family as the fulfilment chip beside
+   it without this file inventing a second palette. `PAYMENT_STATUS_META`
+   supplies the tone key (success / warning / danger / neutral); neutral has no
+   --tone-neutral token in the theme, so it falls back to the plain tile. */
 .col-payment {
   width: 1%;
   white-space: nowrap;
 }
-.payment-paid {
-  color: var(--color-success);
-  font-weight: 700;
-  font-size: 13px;
-}
-.payment-failed {
-  color: var(--color-danger);
-  font-weight: 700;
-  font-size: 13px;
-}
-.payment-pending {
-  color: var(--color-ink-soft);
-  font-size: 13px;
-}
-
 /* Actions column: Print Demo Receipt. */
 .col-actions {
   width: 1%;
@@ -487,6 +479,42 @@
 .print-receipt-btn app-icon {
   --icon-size: 16px;
   flex: 0 0 auto;
+}
+
+.payment-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: 1px solid var(--tile-powder-deep);
+  border-radius: 999px;
+  background: var(--tile-powder);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.payment-chip--success {
+  background: var(--tone-success-bg);
+  border-color: var(--tone-success-border);
+}
+.payment-chip--warning {
+  background: var(--tone-warning-bg);
+  border-color: var(--tone-warning-border);
+}
+.payment-chip--danger {
+  background: var(--tone-danger-bg);
+  border-color: var(--tone-danger-border);
+}
+.payment-chip--neutral {
+  background: var(--tile-powder);
+  border-color: var(--tile-powder-deep);
+  color: #556;
+}
+
+.payment-method {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  color: #889;
 }
 
 /* ── The headers, lined up with the DATA they label ─────────────────────
