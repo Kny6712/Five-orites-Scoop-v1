@@ -14,10 +14,22 @@ const config: CapacitorConfig = {
   plugins: {
     GoogleAuth: {
       scopes: ['profile', 'email'],
-      // Web OAuth 2.0 client ID from Google Cloud Console. Required for native
-      // sign-in to return an ID token Firebase can verify. Replace with the
-      // real value (manual step) before building the APK.
-      serverClientId: '347528161750-umcfk1ieertagn3dla6gpnqah0tvb5g9.apps.googleusercontent.com',
+      // BOTH KEYS, SAME VALUE, DELIBERATE.
+      //
+      // `clientId` is the only one the Android plugin reads for the ID-token
+      // audience (GoogleAuth.load(): androidClientId ?? clientId ??
+      // R.string.server_client_id). `serverClientId` is ignored native-side —
+      // it was the ONLY key set here, so the audience fell through to the
+      // `strings.xml` placeholder "Your Web Client Key", Google refused to
+      // issue a token, and sign-in died right after the account chooser with
+      // "Something went wrong". Setting `serverClientId` too keeps the value
+      // correct for the plugin's web/other branches instead of deleting it.
+      //
+      // The value is the web client the WORKING browser flow actually used
+      // (captured from the live popup: client_id=347528161750-sdkbhbj876…),
+      // not the unverified `…umcfk1ie…` client that was here before.
+      clientId: '347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com',
+      serverClientId: '347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com',
     },
     // No PushNotifications block. The plugin itself was uninstalled when the
     // notification system became in-app-only: a native push notification renders

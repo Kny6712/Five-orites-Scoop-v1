@@ -128,8 +128,10 @@ export class AuthPage {
   async signInWithGoogle(): Promise<void> {
     this.isLoading.set(true);
     this.errorMessage.set('');
+    console.log('[Auth] Google button pressed');
     try {
       await this.authService.signInWithGoogle();
+      console.log('[Auth] navigating to /dashboard');
       await this.router.navigate(['/dashboard']);
     } catch (err: unknown) {
       if (this.isGoogleSignInCancelled(err)) return;
@@ -139,14 +141,37 @@ export class AuthPage {
     }
   }
 
+  /**
+   * Was this a deliberate cancellation rather than a failure?
+   *
+   * Native: the plugin rejects with `12501` (ApiException
+   * SIGN_IN_CANCELLED), message "The user canceled the sign-in flow."
+   * Browser: Firebase throws `auth/popup-closed-by-user` /
+   * `auth/user-cancelled` when the popup is dismissed. Only the native code
+   * and the word "cancel" were matched before, so closing the popup showed a
+   * red banner with a raw SDK string in it — a cancellation is not an error
+   * and should leave the page quiet.
+   */
   private isGoogleSignInCancelled(err: unknown): boolean {
     const e = (err ?? {}) as { code?: unknown; message?: unknown };
-    if (String(e.code ?? '') === '12501') return true;
+    const code = String(e.code ?? '');
+    if (code === '12501') return true;
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/user-cancelled') return true;
     const message =
       typeof e.message === 'string' ? e.message : err instanceof Error ? err.message : '';
     return /cancel/i.test(message);
   }
 
+  /**
+   * Turns an SDK/plugin error into a sentence a shopper can act on.
+   *
+   * The native Google plugin rejects with `call.reject("Something went
+   * wrong", "" + statusCode)`, so the useful half — the Google ApiException
+   * status code — arrives as `err.code` ("10", "12500", "7") while the
+   * message is a fixed string. This mapping was `auth/*` only, so every
+   * native failure fell through to that fixed string and the actual cause was
+   * never logged or shown. Both halves are logged now, once, without tokens.
+   */
   private parseFirebaseError(err: unknown): string {
     const e = (err ?? {}) as { code?: unknown; message?: unknown };
     const code = typeof e.code === 'string' ? e.code : '';
@@ -166,8 +191,35 @@ export class AuthPage {
       'auth/weak-password': 'Password must be at least 6 characters.',
       'auth/invalid-email': 'Please enter a valid email address.',
       'auth/too-many-requests': 'Too many attempts. Please try again later.',
+      // Google ApiException status codes, surfaced by the native plugin as
+      // `err.code`. 10 = DEVELOPER_ERROR (client ID / audience / SHA-1
+      // mismatch), 12500 = SIGN_IN_FAILED (the general Google failure),
+      // 7 = NETWORK_ERROR. 12501 (cancelled) never reaches here — it is
+      // filtered by isGoogleSignInCancelled().
+      '10': GOOGLE_SIGN_IN_PROBLEM,
+      '12500': GOOGLE_SIGN_IN_PROBLEM,
+      '7': 'Could not reach Google. Check your connection and try again.',
+      // Firebase's own code for the same class of failure, on the browser path.
+      'auth/network-request-failed':
+        'Could not reach the server. Check your connection and try again.',
     };
+    if (code) {
+      // One line per failure: code + message only. No ID tokens, no cookies,
+      // no credentials — the plugin's message is a fixed string and this is
+      // the only place the previously-swallowed status code becomes visible.
+      console.warn(`[Auth] sign-in failed (code=${code}): ${fallbackMessage || '(no message)'}`);
+    }
     if (code && messages[code]) return messages[code];
     return fallbackMessage || 'An unexpected error occurred.';
   }
 }
+
+/**
+ * Shown for every Google-side refusal whose specific cause we cannot name.
+ *
+ * Deliberately generic: it must be safe for code 10 (a build/config fault the
+ * user cannot fix) and code 12500 (anything Google declined). Naming a cause
+ * we have not verified would be worse than saying nothing.
+ */
+const GOOGLE_SIGN_IN_PROBLEM =
+  'Google sign-in could not be completed. Please try again, or sign in with your email instead.';
