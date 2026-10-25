@@ -24,11 +24,32 @@ export class GoogleAuthService {
 
     GoogleAuth.initialize();
 
-    const user = await GoogleAuth.signIn();
+    console.log('[Auth] native: Google account chooser opening');
+    let user;
+    try {
+      user = await GoogleAuth.signIn();
+      console.log('[Auth] native: account selected, reading ID token');
+    } catch (err) {
+      // The plugin turns an ApiException into reject("Something went wrong",
+      // "" + statusCode), so `code` carries the only diagnostic that matters
+      // (10 = DEVELOPER_ERROR, 12500 = SIGN_IN_FAILED, 12501 = cancelled).
+      // Logging it here is what makes a native failure diagnosable from
+      // logcat without a guess-and-rebuild cycle.
+      const e = (err ?? {}) as { code?: unknown; message?: unknown };
+      const code = typeof e.code === 'string' ? e.code : String(e.code ?? '');
+      const message =
+        typeof e.message === 'string' ? e.message : err instanceof Error ? err.message : '';
+      console.warn(
+        `[Auth] native: Google sign-in failed (code=${code || 'none'}): ${message || '(no message)'}`,
+      );
+      throw err;
+    }
     const idToken = user?.authentication?.idToken;
     if (!idToken) {
+      console.warn('[Auth] native: Google returned an account but no ID token');
       throw new Error('Google sign-in did not return an ID token.');
     }
+    console.log('[Auth] native: ID token received');
     return { idToken };
   }
 }

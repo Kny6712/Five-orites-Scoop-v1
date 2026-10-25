@@ -4,4 +4,14 @@
     <string name="title_activity_main">Five-orites Scoop</string>
     <string name="package_name">com.fiveorites.scoop</string>
     <string name="custom_url_scheme">com.fiveorites.scoop</string>
+    <!-- Belt-and-braces for the ID-token audience.
+         The Android plugin resolves the audience as
+         androidClientId -> clientId (capacitor.config) -> R.string.server_client_id.
+         The config key now carries the correct value, but this app was burned
+         once by setting a key the plugin did not read: the resource still held
+         the library's "Your Web Client Key" placeholder and every native
+         sign-in died after the account chooser. Keeping the same verified web
+         client ID here means a future config-key mistake falls back to a
+         correct audience instead of a placeholder. -->
+    <string name="server_client_id">347528161750-sdkbhbj876ideksd0gt13q3peeb9p0hv.apps.googleusercontent.com</string>
 </resources>

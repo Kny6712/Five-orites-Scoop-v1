@@ -243,17 +243,33 @@ export class AuthService {
 
   async signInWithGoogle(): Promise<void> {
     if (this.native.isNative()) {
+      console.log('[Auth] native sign-in started');
       const { idToken } = await this.googleAuth.signIn();
+      console.log('[Auth] Firebase credential exchange starting');
       const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(this.auth, credential);
+      let userCredential;
+      try {
+        userCredential = await signInWithCredential(this.auth, credential);
+        console.log('[Auth] Firebase sign-in complete');
+      } catch (err) {
+        const e = (err ?? {}) as { code?: unknown; message?: unknown };
+        console.warn(
+          `[Auth] Firebase credential exchange failed (code=${String(e.code ?? 'none')}): ` +
+            `${typeof e.message === 'string' ? e.message : '(no message)'}`,
+        );
+        throw err;
+      }
       await this.assertNotSuspended(userCredential.user.uid);
+      console.log('[Auth] session established');
       return;
     }
+    console.log('[Auth] browser sign-in started');
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(this.auth, provider);
     // Same check as the password path. A suspension that only applied to email
     // sign-in would be trivially bypassed by signing in with Google instead.
     await this.assertNotSuspended(credential.user.uid);
+    console.log('[Auth] session established');
   }
 
   async signOut(): Promise<void> {
