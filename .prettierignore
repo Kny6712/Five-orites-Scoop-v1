@@ -12,6 +12,11 @@ node_modules/
 functions/lib/
 functions/node_modules/
 
+# payment-server has no src/ in this repo (removed in the "Build App" commit) —
+# lib/ is the committed compiled output that gets deployed. Formatting it is
+# pointless and it is not prettier's style, so it is excluded like functions/lib/.
+payment-server/lib/
+
 # package-lock.json is generated and must not be reformatted; npm owns it.
 package-lock.json
 functions/package-lock.json
